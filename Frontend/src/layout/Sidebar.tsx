@@ -131,8 +131,8 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
   }, [isPollingTelegram, user]);
 
   const menuItems: SidebarMenuItem[] = [
-    { icon: Home, label: "Tổng quan", path: '/overview', iconClass: 'text-text-tertiary group-hover:text-text-primary' },
-    { icon: Sparkles, label: "Trợ lý cá nhân", path: '/smart-planner', iconClass: 'text-ai' },
+    { icon: Home, label: "Hôm nay", path: '/overview', iconClass: 'text-text-tertiary group-hover:text-text-primary' },
+    { icon: Sparkles, label: "AI Coach", path: '/smart-planner', iconClass: 'text-ai' },
     { icon: Dumbbell, label: "Bài tập", path: '/exercises', iconClass: 'text-accent' },
     { icon: Utensils, label: "Thực đơn", path: '/diet-plan', iconClass: 'text-info' },
     { icon: TrendingUp, label: "Tiến độ", path: '/progress', iconClass: 'text-warning' },

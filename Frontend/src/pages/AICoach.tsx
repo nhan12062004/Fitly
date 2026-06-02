@@ -177,15 +177,15 @@ const isWeekStartColumnError = (error: any) =>
 
 const getMealTypeLabel = (value: string) => {
   const key = String(value || '').toLowerCase();
-  if (key === 'breakfast') return 'BÃ¡Â»Â¯a sÃƒÂ¡ng';
-  if (key === 'lunch') return 'BÃ¡Â»Â¯a trÃ†Â°a';
-  if (key === 'dinner') return 'BÃ¡Â»Â¯a tÃ¡Â»â€˜i';
-  if (key === 'snack') return 'BÃ¡Â»Â¯a phÃ¡Â»Â¥';
-  return value || 'BÃ¡Â»Â¯a Ã„Æ’n';
+  if (key === 'breakfast') return 'Bữa sáng';
+  if (key === 'lunch') return 'Bữa trưa';
+  if (key === 'dinner') return 'Bữa tối';
+  if (key === 'snack') return 'Bữa phụ';
+  return value || 'Bữa ăn';
 };
 
 const formatDateLabel = (dateKey?: string | null) => {
-  if (!dateKey) return 'TuÃ¡ÂºÂ§n hiÃ¡Â»â€¡n tÃ¡ÂºÂ¡i';
+  if (!dateKey) return 'Tuần hiện tại';
   return new Date(`${dateKey}T00:00:00`).toLocaleDateString('vi-VN', {
     day: '2-digit',
     month: '2-digit',
@@ -198,19 +198,19 @@ const sumMealMetric = (meals: FoodPlanItem[], field: 'calories' | 'protein' | 'c
 
 const getDayHeadline = (day: DayPlan) => {
   if (day.exercises.length > 0) {
-    return day.exercises[0]?.exercises?.body_part || day.exercises[0]?.exercises?.target_muscle || 'BuÃ¡Â»â€¢i tÃ¡ÂºÂ­p trong ngÃƒÂ y';
+    return day.exercises[0]?.exercises?.body_part || day.exercises[0]?.exercises?.target_muscle || 'Buổi tập trong ngày';
   }
-  return 'ChÃ†Â°a cÃƒÂ³ lÃ¡Â»â€¹ch cho ngÃƒÂ y nÃƒÂ y';
+  return 'Chưa có lịch cho ngày này';
 };
 
 const buildCoachOpening = (day: DayPlan) => {
   if (day.exercises.length > 0 && day.meals.length > 0) {
-    return `MÃƒÂ¬nh Ã„â€˜ang theo dÃƒÂµi ${day.label}. HÃƒÂ´m nay cÃƒÂ³ ${day.exercises.length} bÃƒÂ i tÃ¡ÂºÂ­p vÃƒÂ  ${day.meals.length} mÃƒÂ³n trong thÃ¡Â»Â±c Ã„â€˜Ã†Â¡n. BÃ¡ÂºÂ¡n cÃƒÂ³ thÃ¡Â»Æ’ hÃ¡Â»Âi Ã„â€˜Ã¡Â»Æ’ chÃ¡Â»â€°nh cÃ†Â°Ã¡Â»Âng Ã„â€˜Ã¡Â»â„¢ tÃ¡ÂºÂ­p, Ã„â€˜Ã¡Â»â€¢i mÃƒÂ³n hoÃ¡ÂºÂ·c tÃ¡Â»â€˜i Ã†Â°u macro cho ngÃƒÂ y nÃƒÂ y.`;
+    return `Mình đang theo dõi ${day.label}. Hôm nay có ${day.exercises.length} bài tập và ${day.meals.length} món trong thực đơn. Bạn có thể hỏi để chỉnh cường độ tập, đổi món hoặc tối ưu macro cho ngày này.`;
   }
   if (day.meals.length > 0) {
-    return `${day.label} hiÃ¡Â»â€¡n cÃƒÂ³ thÃ¡Â»Â±c Ã„â€˜Ã†Â¡n nhÃ†Â°ng chÃ†Â°a cÃƒÂ³ nhiÃ¡Â»Âu bÃƒÂ i tÃ¡ÂºÂ­p. BÃ¡ÂºÂ¡n cÃƒÂ³ thÃ¡Â»Æ’ hÃ¡Â»Âi mÃƒÂ¬nh cÃƒÂ¡ch sÃ¡ÂºÂ¯p xÃ¡ÂºÂ¿p vÃ¡ÂºÂ­n Ã„â€˜Ã¡Â»â„¢ng nhÃ¡ÂºÂ¹ hoÃ¡ÂºÂ·c Ã„â€˜Ã¡Â»â€¢i mÃƒÂ³n cho phÃƒÂ¹ hÃ¡Â»Â£p mÃ¡Â»Â¥c tiÃƒÂªu.`;
+    return `${day.label} hiện có thực đơn nhưng chưa có nhiều bài tập. Bạn có thể hỏi mình cách sắp xếp vận động nhẹ hoặc đổi món cho phù hợp mục tiêu.`;
   }
-  return `${day.label} hiÃ¡Â»â€¡n chÃ†Â°a cÃƒÂ³ Ã„â€˜Ã¡Â»Â§ dÃ¡Â»Â¯ liÃ¡Â»â€¡u. BÃ¡ÂºÂ¡n cÃƒÂ³ thÃ¡Â»Æ’ tÃ¡ÂºÂ¡o lÃ¡ÂºÂ¡i kÃ¡ÂºÂ¿ hoÃ¡ÂºÂ¡ch hoÃ¡ÂºÂ·c hÃ¡Â»Âi mÃƒÂ¬nh cÃƒÂ¡ch bÃ¡Â»â€¢ sung lÃ¡Â»â€¹ch tÃ¡ÂºÂ­p vÃƒÂ  thÃ¡Â»Â±c Ã„â€˜Ã†Â¡n cho ngÃƒÂ y nÃƒÂ y.`;
+  return `${day.label} hiện chưa có đủ dữ liệu. Bạn có thể tạo lại kế hoạch hoặc hỏi mình cách bổ sung lịch tập và thực đơn cho ngày này.`;
 };
 
 const buildCoachReply = (day: DayPlan, question: string) => {
@@ -220,27 +220,27 @@ const buildCoachReply = (day: DayPlan, question: string) => {
   const calories = Math.round(sumMealMetric(day.meals, 'calories'));
   const protein = Math.round(sumMealMetric(day.meals, 'protein'));
 
-  if (normalizedQuestion.includes('Ã„Æ’n') || normalizedQuestion.includes('thÃ¡Â»Â±c Ã„â€˜Ã†Â¡n') || normalizedQuestion.includes('meal')) {
+  if (normalizedQuestion.includes('ăn') || normalizedQuestion.includes('thực đơn') || normalizedQuestion.includes('meal')) {
     return day.meals.length > 0
-      ? `${day.label} Ã„â€˜ang cÃƒÂ³ ${day.meals.length} mÃƒÂ³n, tÃ¡Â»â€¢ng khoÃ¡ÂºÂ£ng ${calories || 0} kcal vÃƒÂ  ${protein || 0}g protein. NÃ¡ÂºÂ¿u muÃ¡Â»â€˜n siÃ¡ÂºÂ¿t mÃ¡Â»Â¡ hÃ†Â¡n, hÃƒÂ£y giÃ¡Â»Â¯ nguyÃƒÂªn protein vÃƒÂ  cÃ¡ÂºÂ¯t bÃ¡Â»â€ºt mÃƒÂ³n phÃ¡Â»Â¥ hoÃ¡ÂºÂ·c tinh bÃ¡Â»â„¢t Ã¡Â»Å¸ bÃ¡Â»Â¯a tÃ¡Â»â€˜i.`
-      : `${day.label} chÃ†Â°a cÃƒÂ³ thÃ¡Â»Â±c Ã„â€˜Ã†Â¡n chi tiÃ¡ÂºÂ¿t. NÃƒÂªn Ã†Â°u tiÃƒÂªn 1 nguÃ¡Â»â€œn Ã„â€˜Ã¡ÂºÂ¡m nÃ¡ÂºÂ¡c, 1 phÃ¡ÂºÂ§n rau lÃ¡Â»â€ºn vÃƒÂ  tinh bÃ¡Â»â„¢t vÃ¡Â»Â«a phÃ¡ÂºÂ£i quanh buÃ¡Â»â€¢i tÃ¡ÂºÂ­p Ã„â€˜Ã¡Â»Æ’ dÃ¡Â»â€¦ bÃƒÂ¡m mÃ¡Â»Â¥c tiÃƒÂªu hÃ†Â¡n.`;
+      ? `${day.label} đang có ${day.meals.length} món, tổng khoảng ${calories || 0} kcal và ${protein || 0}g protein. Nếu muốn siết mỡ hơn, hãy giữ nguyên protein và cắt bớt món phụ hoặc tinh bột ở bữa tối.`
+      : `${day.label} chưa có thực đơn chi tiết. Nên ưu tiên 1 nguồn đạm nạc, 1 phần rau lớn và tinh bột vừa phải quanh buổi tập để bám mục tiêu hơn.`;
   }
 
-  if (normalizedQuestion.includes('nhÃ¡ÂºÂ¹') || normalizedQuestion.includes('mÃ¡Â»â€¡t')) {
+  if (normalizedQuestion.includes('nhẹ') || normalizedQuestion.includes('mệt')) {
     return day.exercises.length > 0
-      ? `NÃ¡ÂºÂ¿u thÃ¡ÂºÂ¥y mÃ¡Â»â€¡t Ã¡Â»Å¸ ${day.label}, hÃƒÂ£y giÃ¡ÂºÂ£m 1 hiÃ¡Â»â€¡p Ã¡Â»Å¸ mÃ¡Â»â€”i bÃƒÂ i, giÃ¡Â»Â¯ kÃ¡Â»Â¹ thuÃ¡ÂºÂ­t sÃ¡ÂºÂ¡ch vÃƒÂ  kÃƒÂ©o nghÃ¡Â»â€° lÃƒÂªn ${Math.max(75, Number(firstExercise?.rest_seconds || 60))} giÃƒÂ¢y. VÃ¡ÂºÂ«n Ã„â€˜Ã¡Â»Â§ kÃƒÂ­ch thÃƒÂ­ch nhÃ†Â°ng bÃ¡Â»â€ºt quÃƒÂ¡ tÃ¡ÂºÂ£i.`
-      : `NgÃƒÂ y nÃƒÂ y chÃ†Â°a cÃƒÂ³ bÃƒÂ i tÃ¡ÂºÂ­p. BÃ¡ÂºÂ¡n cÃƒÂ³ thÃ¡Â»Æ’ tÃ¡ÂºÂ¡o lÃ¡ÂºÂ¡i TrÃ¡Â»Â£ lÃƒÂ½ cÃƒÂ¡ nhÃƒÂ¢n hoÃ¡ÂºÂ·c thÃƒÂªm bÃƒÂ i trong thÃ†Â° viÃ¡Â»â€¡n Ã„â€˜Ã¡Â»Æ’ hoÃƒÂ n thiÃ¡Â»â€¡n lÃ¡Â»â€¹ch.`;
+      ? `Nếu thấy mệt ở ${day.label}, hãy giảm 1 hiệp ở mỗi bài, giữ kỹ thuật sạch và kéo nghỉ lên ${Math.max(75, Number(firstExercise?.rest_seconds || 60))} giây. Vẫn đủ kích thích nhưng bớt quá tải.`
+      : `Ngày này chưa có bài tập. Bạn có thể tạo lại Trợ lý cá nhân hoặc thêm bài trong thư viện để hoàn thiện lịch.`;
   }
 
   if (day.exercises.length > 0) {
-    return `Cho ${day.label}, mÃƒÂ¬nh sÃ¡ÂºÂ½ Ã†Â°u tiÃƒÂªn ${getDayHeadline(day).toLowerCase()}. BÃ¡ÂºÂ¯t Ã„â€˜Ã¡ÂºÂ§u bÃ¡ÂºÂ±ng ${firstExercise?.exercises?.name || 'bÃƒÂ i chÃƒÂ­nh'}, giÃ¡Â»Â¯ ${firstExercise?.sets || 3} hiÃ¡Â»â€¡p x ${firstExercise?.reps || '8-12'} reps, rÃ¡Â»â€œi theo dÃƒÂµi cÃ¡ÂºÂ£m giÃƒÂ¡c Ã„â€˜Ã¡Â»Æ’ tÃ„Æ’ng hoÃ¡ÂºÂ·c giÃ¡ÂºÂ£m tÃ¡ÂºÂ£i.`;
+    return `Cho ${day.label}, mình sẽ ưu tiên ${getDayHeadline(day).toLowerCase()}. Bắt đầu bằng ${firstExercise?.exercises?.name || 'bài chính'}, giữ ${firstExercise?.sets || 3} hiệp x ${firstExercise?.reps || '8-12'} reps, rồi theo dõi cảm giác để tăng hoặc giảm tải.`;
   }
 
   if (firstMeal?.foods?.name) {
-    return `${day.label} hiÃ¡Â»â€¡n nghiÃƒÂªng vÃ¡Â»Â dinh dÃ†Â°Ã¡Â»Â¡ng nhiÃ¡Â»Âu hÃ†Â¡n vÃ¡ÂºÂ­n Ã„â€˜Ã¡Â»â„¢ng. BÃ¡ÂºÂ¡n cÃƒÂ³ thÃ¡Â»Æ’ giÃ¡Â»Â¯ thÃ¡Â»Â±c Ã„â€˜Ã†Â¡n hiÃ¡Â»â€¡n tÃ¡ÂºÂ¡i vÃƒÂ  thÃƒÂªm mÃ¡Â»â„¢t buÃ¡Â»â€¢i cardio nhÃ¡ÂºÂ¹ hoÃ¡ÂºÂ·c Ã„â€˜i bÃ¡Â»â„¢ sau bÃ¡Â»Â¯a chÃƒÂ­nh Ã„â€˜Ã¡Â»Æ’ hÃ¡Â»â€” trÃ¡Â»Â£ mÃ¡Â»Â¥c tiÃƒÂªu tÃ¡Â»â€˜t hÃ†Â¡n.`;
+    return `${day.label} hiện nghiêng về dinh dưỡng nhiều hơn vận động. Bạn có thể giữ thực đơn hiện tại và thêm một buổi cardio nhẹ hoặc đi bộ sau bữa chính để hỗ trợ mục tiêu tốt hơn.`;
   }
 
-  return `MÃƒÂ¬nh Ã„â€˜ang bÃƒÂ¡m theo dÃ¡Â»Â¯ liÃ¡Â»â€¡u cÃ¡Â»Â§a ${day.label}. HÃƒÂ£y hÃ¡Â»Âi cÃ¡Â»Â¥ thÃ¡Â»Æ’ hÃ†Â¡n vÃ¡Â»Â bÃƒÂ i tÃ¡ÂºÂ­p hoÃ¡ÂºÂ·c thÃ¡Â»Â±c Ã„â€˜Ã†Â¡n Ã„â€˜Ã¡Â»Æ’ mÃƒÂ¬nh gÃ¡Â»Â£i ÃƒÂ½ sÃƒÂ¡t vÃ¡Â»â€ºi ngÃƒÂ y bÃ¡ÂºÂ¡n Ã„â€˜ang chÃ¡Â»Ân.`;
+  return `Mình đang bám theo dữ liệu của ${day.label}. Hãy hỏi cụ thể hơn về bài tập hoặc thực đơn để mình gợi ý sát với ngày bạn đang chọn.`;
 };
 
 function AICoachSkeleton() {
@@ -314,7 +314,7 @@ function ActionProposalCard({
         <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">De xuat doi mon</p>
         <p className="mt-2 font-black">{payload?.old_food_name || 'Mon cu'}{' -> '}{payload?.new_food_name || 'Mon moi'}</p>
         <p className="mt-1 text-xs font-semibold text-text-secondary">
-          {getMealTypeLabel(String(payload?.meal_type || 'meal'))} Ã¢â‚¬Â¢ {Math.round(Number(payload?.calories || 0))} kcal Ã¢â‚¬Â¢ {Math.round(Number(payload?.protein || 0))}g protein
+          {getMealTypeLabel(String(payload?.meal_type || 'meal'))} • {Math.round(Number(payload?.calories || 0))} kcal • {Math.round(Number(payload?.protein || 0))}g protein
         </p>
         {payload?.notes ? <p className="mt-1 text-xs text-text-secondary">{payload.notes}</p> : null}
       </div>
@@ -448,7 +448,7 @@ export default function AICoach() {
           setFoodItems((foodPlanItems.data || []) as FoodPlanItem[]);
         }
       } catch (err: any) {
-        setError(err?.message || 'KhÃƒÂ´ng thÃ¡Â»Æ’ tÃ¡ÂºÂ£i kÃ¡ÂºÂ¿ hoÃ¡ÂºÂ¡ch tÃ¡Â»Â« TrÃ¡Â»Â£ lÃƒÂ½ cÃƒÂ¡ nhÃƒÂ¢n.');
+        setError(err?.message || 'Không thể tải kế hoạch từ Trợ lý cá nhân.');
       } finally {
         setLoading(false);
       }
@@ -477,15 +477,15 @@ export default function AICoach() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || 'KhÃƒÂ´ng thÃ¡Â»Æ’ tÃ¡ÂºÂ¡o kÃ¡ÂºÂ¿ hoÃ¡ÂºÂ¡ch tÃ¡Â»Â« TrÃ¡Â»Â£ lÃƒÂ½ cÃƒÂ¡ nhÃƒÂ¢n.');
+        throw new Error(payload?.error || 'Không thể tạo kế hoạch từ Trợ lý cá nhân.');
       }
       await refreshProfile();
       setReloadKey((value) => value + 1);
     } catch (err: any) {
       const message =
         err instanceof TypeError
-          ? 'KhÃƒÂ´ng thÃ¡Â»Æ’ kÃ¡ÂºÂ¿t nÃ¡Â»â€˜i tÃ¡Â»â€ºi TrÃ¡Â»Â£ lÃƒÂ½ cÃƒÂ¡ nhÃƒÂ¢n. KiÃ¡Â»Æ’m tra backend, VITE_API_URL hoÃ¡ÂºÂ·c CORS.'
-          : err?.message || 'KhÃƒÂ´ng thÃ¡Â»Æ’ tÃ¡ÂºÂ¡o kÃ¡ÂºÂ¿ hoÃ¡ÂºÂ¡ch tÃ¡Â»Â« TrÃ¡Â»Â£ lÃƒÂ½ cÃƒÂ¡ nhÃƒÂ¢n.';
+          ? 'Không thể kết nối tới Trợ lý cá nhân. Kiểm tra backend, VITE_API_URL hoặc CORS.'
+          : err?.message || 'Không thể tạo kế hoạch từ Trợ lý cá nhân.';
       setError(message);
     } finally {
       setIsGenerating(false);
@@ -658,7 +658,7 @@ export default function AICoach() {
       );
       setReloadKey((value) => value + 1);
     } catch {
-      setError('KhÃƒÂ´ng thÃ¡Â»Æ’ cÃ¡ÂºÂ­p nhÃ¡ÂºÂ­t Ã„â€˜Ã¡Â»Â xuÃ¡ÂºÂ¥t lÃƒÂºc nÃƒÂ y. Vui lÃƒÂ²ng thÃ¡Â»Â­ lÃ¡ÂºÂ¡i.');
+      setError('Không thể cập nhật đề xuất lúc này. Vui lòng thử lại.');
     }
   };
 
@@ -812,11 +812,11 @@ export default function AICoach() {
                         <div className="hidden">
                           <div>
                             <p className="text-lg font-black leading-none text-text-primary">{day.exercises.length || 0}</p>
-                            <p className="mt-1 text-[11px] font-semibold text-text-tertiary">bÃ i táº­p</p>
+                            <p className="mt-1 text-[11px] font-semibold text-text-tertiary">bài tập</p>
                           </div>
                           <div className="text-right">
                             <p className="text-lg font-black leading-none text-text-primary">{day.meals.length || 0}</p>
-                            <p className="mt-1 text-[11px] font-semibold text-text-tertiary">mÃ³n</p>
+                            <p className="mt-1 text-[11px] font-semibold text-text-tertiary">món</p>
                           </div>
                         </div>
                         <span>{day.dayIndex === todayDayIndex ? 'HÔM NAY' : DAY_TAB_LABELS[day.dayIndex]}</span>

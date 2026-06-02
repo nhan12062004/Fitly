@@ -467,14 +467,9 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
                 {membershipLabel}
               </span>
             ) : (
-              <button
-                type="button"
-                onClick={openPremiumModal}
-                className={`mt-0.5 text-[9px] font-black uppercase tracking-wider transition-colors hover:text-amber-300 ${membershipClassName}`}
-                title={membershipTier === 'free' ? 'Nâng cấp Premium' : membershipLabel}
-              >
+              <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
                 {membershipLabel}
-              </button>
+              </span>
             )}
           </div>
           <div className="topbar-avatar w-9 h-9 rounded-full bg-accent flex items-center justify-center text-black font-bold text-sm transition-transform">
