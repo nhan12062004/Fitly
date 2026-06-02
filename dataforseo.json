@@ -1,0 +1,18 @@
+{
+    "mcpServers": {
+      "dfs-mcp": {
+        "type": "stdio",
+        "command": "cmd",
+        "args": [
+          "/c",
+          "npx",
+          "-y",
+          "dataforseo-mcp-server"
+        ],
+        "env": {
+          "DATAFORSEO_USERNAME": "minhbkait@gmail.com",
+          "DATAFORSEO_PASSWORD": "d2954d5bdfe24dae"
+        }
+      }
+    }
+  }

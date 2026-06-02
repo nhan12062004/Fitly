@@ -1,0 +1,44 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shell" x1="178" y1="92" x2="846" y2="932" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#17211D"/>
+      <stop offset="0.52" stop-color="#07110E"/>
+      <stop offset="1" stop-color="#10151C"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="265" y1="214" x2="766" y2="807" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9CFF2E"/>
+      <stop offset="0.38" stop-color="#19D58B"/>
+      <stop offset="1" stop-color="#39B8FF"/>
+    </linearGradient>
+    <linearGradient id="softAccent" x1="310" y1="278" x2="728" y2="754" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D8FF8C"/>
+      <stop offset="1" stop-color="#13D38B"/>
+    </linearGradient>
+    <filter id="glow" x="94" y="50" width="836" height="924" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="22"/>
+      <feGaussianBlur stdDeviation="36"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.075 0 0 0 0 0.831 0 0 0 0 0.545 0 0 0 0.36 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#glow)">
+    <path d="M512 95L816 207V430C816 638 695 809 512 919C329 809 208 638 208 430V207L512 95Z" fill="url(#shell)"/>
+    <path d="M512 138L775 235V431C775 613 674 765 512 865C350 765 249 613 249 431V235L512 138Z" stroke="url(#accent)" stroke-width="34" stroke-linejoin="round"/>
+  </g>
+
+  <circle cx="512" cy="342" r="89" fill="url(#softAccent)"/>
+  <path d="M371 599C392 527 448 480 512 480C576 480 632 527 653 599" stroke="#EFFFF4" stroke-width="54" stroke-linecap="round"/>
+  <path d="M384 599C407 544 457 510 512 510C567 510 617 544 640 599" stroke="url(#accent)" stroke-width="38" stroke-linecap="round"/>
+
+  <path d="M273 704H387L436 635L494 761L575 575L635 704H751" stroke="#EFFFF4" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M273 704H387L436 635L494 761L575 575L635 704H751" stroke="url(#accent)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M701 287L733 318L790 254" stroke="#9CFF2E" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M314 291H244M279 256V326" stroke="#19D58B" stroke-width="30" stroke-linecap="round"/>
+  <path d="M760 616H834M797 579V653" stroke="#39B8FF" stroke-width="28" stroke-linecap="round"/>
+</svg>

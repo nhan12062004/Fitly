@@ -1,0 +1,158 @@
+import React, { useState } from 'react';
+import { Lock, ShieldCheck, Loader2, X, Eye, EyeOff } from 'lucide-react';
+import { supabase } from '../lib/Supabase';
+import { useAuth } from '../contexts/AuthContext';
+interface ChangePasswordModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProps) {
+  const { user } = useAuth();
+const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMessage({ type: '', text: '' });
+
+    if (!user?.email) {
+      setMessage({ type: 'error', text: "Không tìm thấy thông tin email người dùng" });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setMessage({ type: 'error', text: "Mật khẩu mới phải có ít nhất 6 ký tự" });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setMessage({ type: 'error', text: "Mật khẩu xác nhận không khớp" });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // BƯỚC 1: Xác thực mật khẩu cũ bằng cách thử đăng nhập lại
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: oldPassword
+      });
+
+      if (authError) {
+        throw new Error("Mật khẩu hiện tại không chính xác");
+      }
+
+      // BƯỚC 2: Cập nhật mật khẩu mới
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateError) throw updateError;
+
+      setMessage({ type: 'success', text: "Đổi mật khẩu thành công!" });
+      setTimeout(() => {
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        onClose();
+        setMessage({ type: '', text: '' });
+      }, 2000);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || "Có lỗi xảy ra, vui lòng thử lại" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
+
+      <div className="relative w-full max-w-md bg-bg-secondary border border-border-primary rounded-[2rem] shadow-2xl overflow-hidden p-6 md:p-8 animate-in zoom-in duration-300">
+        <button onClick={onClose} className="absolute right-4 top-4 p-2 hover:bg-white/10 rounded-xl transition-colors text-text-tertiary hover:text-white">
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="flex flex-col items-center text-center mb-8">
+          <div className="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center mb-4 border border-accent/20">
+            <Lock className="w-8 h-8 text-accent" />
+          </div>
+          <h2 className="text-xl font-black text-white uppercase tracking-tight">{"Đổi mật khẩu mới"}</h2>
+          <p className="text-xs text-text-secondary mt-1">{"Vui lòng nhập mật khẩu mới để bảo mật tài khoản của bạn"}</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider ml-1">{"Mật khẩu hiện tại"}</label>
+            <div className="relative">
+              <input
+                required
+                type={showPassword ? "text" : "password"}
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 text-sm outline-none focus:border-red-500/50 text-white pr-12"
+                placeholder={"Nhập mật khẩu hiện tại"}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider ml-1">{"Mật khẩu mới"}</label>
+            <div className="relative">
+              <input
+                required
+                type={showPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 text-sm outline-none focus:border-accent text-white pr-12"
+                placeholder={"Nhập ít nhất 6 ký tự"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-white transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider ml-1">{"Xác nhận mật khẩu"}</label>
+            <input
+              required
+              type={showPassword ? "text" : "password"}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 text-sm outline-none focus:border-accent text-white"
+              placeholder={"Nhập lại mật khẩu mới"}
+            />
+          </div>
+
+          {message.text && (
+            <div className={`p-3 rounded-xl text-xs font-medium text-center ${message.type === 'success' ? 'bg-accent/10 text-accent border border-accent/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'
+              }`}>
+              {message.type === 'success' && <ShieldCheck className="w-4 h-4 inline-block mr-2" />}
+              {message.text}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-accent text-black font-black py-3 rounded-xl hover:bg-accent-hover hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-[0_20px_40px_rgb(0_0_0_/_0.22)] mt-2 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "XÁC NHẬN THAY ĐỔI"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
