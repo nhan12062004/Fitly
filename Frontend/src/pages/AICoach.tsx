@@ -10,11 +10,11 @@ import {
   Sparkles,
   Utensils,
 } from 'lucide-react';
+import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
-const API_BASE_URL = import.meta.env.DEV ? '' : import.meta.env.VITE_API_URL || 'https://trendfit.onrender.com';
 const DAY_TAB_LABELS = ['TH 2', 'TH 3', 'TH 4', 'TH 5', 'TH 6', 'TH 7', 'CN'];
 const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 

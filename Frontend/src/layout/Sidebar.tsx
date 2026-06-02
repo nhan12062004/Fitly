@@ -3,10 +3,10 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import type { ElementType } from 'react';
+import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 type SidebarMenuItem = {
   icon: ElementType;

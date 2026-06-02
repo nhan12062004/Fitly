@@ -115,18 +115,18 @@ interface StepSurveyCardProps {
 
 function StepSurveyCard({ icon: Icon, iconWrapClass, iconClass, title, subtitle, children }: StepSurveyCardProps) {
   return (
-    <section className="rounded-[24px] border border-border-primary bg-bg-secondary/80 p-5 md:p-7">
+    <section className="rounded-[24px] border border-border-primary bg-bg-secondary/80 p-4 shadow-[0_20px_48px_rgba(0,0,0,0.12)] md:p-7">
       <div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconWrapClass}`}>
             <Icon className={iconClass} aria-hidden />
           </div>
           <div className="min-w-0 flex-1 space-y-1">
-            <h3 className="text-xl font-black tracking-tight text-text-primary md:text-2xl">{title}</h3>
+            <h3 className="text-lg font-black tracking-tight text-text-primary sm:text-xl md:text-2xl">{title}</h3>
             <p className="max-w-2xl text-sm font-semibold leading-6 text-text-secondary">{subtitle}</p>
           </div>
         </div>
-        <div className="mt-7 space-y-6">
+        <div className="mt-6 space-y-5 md:mt-7 md:space-y-6">
           {children}
         </div>
       </div>
@@ -155,7 +155,7 @@ function ChoiceGrid({
         return (
           <label
             key={option.value}
-            className={`group flex min-h-[74px] cursor-pointer flex-col justify-between rounded-2xl border px-4 py-3 transition-colors ${
+            className={`group flex min-h-[72px] cursor-pointer flex-col justify-between rounded-2xl border px-3.5 py-3 transition-colors sm:px-4 ${
               active
                 ? 'border-accent/50 bg-accent/10 text-text-primary'
                 : 'border-border-primary bg-bg-primary/55 text-text-secondary hover:border-accent/30 hover:bg-bg-primary'
@@ -404,6 +404,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     }
   }, [isOpen]);
 
+  const modalMode = Boolean(isOpen);
+  const progressPercent = (currentStep / TOTAL_STEPS) * 100;
+
   const getFirstInvalidStep = (): number | null => {
     if (
       !formData.fitness_goal ||
@@ -642,12 +645,16 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
 
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5">
+    <div className={modalMode ? 'fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-5' : 'min-h-screen w-full bg-bg-primary'}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" />
+      {modalMode ? <div className="absolute inset-0 bg-black/70 backdrop-blur-md" /> : null}
 
       {/* Modal Content */}
-      <div className="relative grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_30px_90px_rgba(0,0,0,0.34)] animate-in zoom-in duration-300 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className={`relative grid w-full grid-cols-1 overflow-hidden border border-border-primary bg-bg-secondary ${
+        modalMode
+          ? 'max-w-5xl rounded-none shadow-[0_30px_90px_rgba(0,0,0,0.34)] animate-in zoom-in duration-300 md:rounded-[28px] lg:grid-cols-[280px_minmax(0,1fr)]'
+          : 'mx-auto min-h-screen max-w-6xl rounded-none shadow-none xl:grid-cols-[320px_minmax(0,1fr)]'
+      }`}>
 
         {/* Close Button (Only for Profile Editing) */}
         {isOpen && onClose && (
@@ -659,24 +666,63 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           </button>
         )}
 
-        <aside className="border-b border-border-primary bg-bg-secondary p-5 lg:border-b-0 lg:border-r lg:p-6">
-          <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="Trợ lý cá nhân" className="h-12 w-12 shrink-0" />
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">Trợ lý cá nhân</p>
-              <h2 className="mt-1 text-xl font-black leading-tight text-text-primary">
-                {isOpen ? "Cập nhật hồ sơ" : "Tạo kế hoạch đầu tiên"}
-              </h2>
+        <aside className={`border-b border-border-primary bg-bg-secondary p-4 sm:p-5 lg:p-6 ${modalMode ? 'lg:border-b-0 lg:border-r' : 'xl:border-b-0 xl:border-r xl:bg-[linear-gradient(180deg,rgba(18,18,18,0.98),rgba(10,10,10,0.96))]'}`}>
+          <div className="rounded-[24px] border border-white/6 bg-[linear-gradient(160deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.18)] sm:p-5">
+            <div className="flex items-center gap-3">
+              <img src="/logo.svg" alt="Trợ lý cá nhân" className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">Trợ lý cá nhân</p>
+                <h2 className="mt-1 text-lg font-black leading-tight text-text-primary sm:text-xl">
+                  {isOpen ? "Cập nhật hồ sơ" : "Tạo kế hoạch đầu tiên"}
+                </h2>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm font-semibold leading-6 text-text-secondary">
+              {isOpen
+                ? "Cập nhật dữ liệu cốt lõi để kế hoạch tập luyện và thực đơn sát hơn."
+                : "Trả lời nhanh vài thông tin chính. Trợ lý cá nhân sẽ chuẩn bị khung bắt đầu phù hợp với bạn."}
+            </p>
+
+            <div className="mt-5 grid grid-cols-3 gap-2 xl:hidden">
+              {STEP_NAV_LABELS.map((_, idx) => {
+                const n = idx + 1;
+                const active = n === currentStep;
+                const done = currentStep > n;
+                return (
+                  <button
+                    key={`mobile-step-${n}`}
+                    type="button"
+                    onClick={() => setCurrentStep(n)}
+                    className={`rounded-2xl border px-2 py-2 text-center transition-colors ${
+                      active
+                        ? 'border-accent/45 bg-accent/12 text-accent'
+                        : done
+                          ? 'border-border-primary bg-bg-primary/70 text-text-primary'
+                          : 'border-border-primary/60 bg-bg-primary/35 text-text-tertiary'
+                    }`}
+                  >
+                    <span className="block text-[10px] font-black uppercase tracking-[0.14em]">Bước {n}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Tiến độ</p>
+                <p className="text-xs font-black text-accent">{Math.round(progressPercent)}%</p>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-bg-primary/70">
+                <div
+                  className="h-full rounded-full bg-accent transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
             </div>
           </div>
 
-          <p className="mt-5 text-sm font-semibold leading-6 text-text-secondary">
-            {isOpen
-              ? "Cập nhật dữ liệu cốt lõi để kế hoạch tập luyện và thực đơn sát hơn."
-              : "Trả lời nhanh vài thông tin chính, Trợ lý cá nhân sẽ tạo lịch tập và thực đơn phù hợp."}
-          </p>
-
-          <div className="mt-6 space-y-2.5">
+          <div className="mt-4 hidden space-y-2.5 xl:block">
             {STEP_NAV_LABELS.map((label, idx) => {
               const n = idx + 1;
               const active = n === currentStep;
@@ -710,7 +756,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
             })}
           </div>
 
-          <div className="mt-6 rounded-2xl border border-border-primary bg-bg-primary/55 p-4">
+          <div className="mt-4 rounded-2xl border border-border-primary bg-bg-primary/55 p-4">
             <p className="text-xs font-black uppercase tracking-[0.14em] text-accent">Nhanh hơn</p>
             <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary">
               Những thông tin nâng cao như ngân sách, lịch sinh hoạt, động lực có thể bổ sung sau.
@@ -718,21 +764,29 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           </div>
         </aside>
 
-        <div className="flex max-h-[92vh] min-h-0 flex-col bg-bg-primary">
-          <div className="border-b border-border-primary bg-bg-secondary px-5 py-4 md:px-7">
-            <p className="text-sm font-black text-text-primary">
-              Bước {currentStep}/{TOTAL_STEPS}
-            </p>
+        <div className={`flex min-h-0 flex-col bg-bg-primary ${modalMode ? 'max-h-[100dvh] md:max-h-[92vh]' : 'xl:min-h-screen'}`}>
+          <div className="border-b border-border-primary bg-bg-secondary px-4 py-4 sm:px-5 md:px-7">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-sm font-black text-text-primary">
+                  Bước {currentStep}/{TOTAL_STEPS}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-text-secondary">{STEP_NAV_LABELS[currentStep - 1]}</p>
+              </div>
+              <span className="rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-xs font-black text-accent">
+                {Math.round(progressPercent)}%
+              </span>
+            </div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg-tertiary">
               <div
                 className="h-full rounded-full bg-accent transition-all duration-300"
-                style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
+                style={{ width: `${progressPercent}%` }}
               />
             </div>
           </div>
 
         {/* Form Body */}
-        <form id="survey-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-8 px-5 py-5 md:px-7 md:py-6 custom-scrollbar">
+        <form id="survey-form" onSubmit={handleSubmit} className="custom-scrollbar flex-1 overflow-y-auto space-y-6 px-4 py-4 sm:px-5 md:space-y-8 md:px-7 md:py-6">
           {currentStep === 1 && (
           <StepSurveyCard
             icon={User}
@@ -844,14 +898,14 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
         </form>
 
         {/* Footer */}
-        <div className="border-t border-border-primary bg-bg-secondary px-5 py-4 md:px-7 flex flex-col gap-4">
+        <div className="flex flex-col gap-4 border-t border-border-primary bg-bg-secondary/96 px-4 py-4 backdrop-blur-xl sm:px-5 md:px-7">
           {submitError && (
             <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
               {submitError}
             </div>
           )}
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-between items-stretch sm:items-center">
-          <div className="flex flex-1 min-w-0 items-center order-2 sm:order-1 sm:pr-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="order-2 flex min-w-0 flex-1 items-center sm:order-1 sm:pr-4">
             <p className="text-sm font-black tracking-tight leading-snug">
               <span className="text-text-secondary font-bold">
                 {"Bạn có thể bổ sung thông tin nâng cao sau khi xem kế hoạch đầu tiên. "}
@@ -859,7 +913,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
               <span className="text-text-secondary font-bold">{"Bước này chỉ hỏi dữ liệu cần thiết."}</span>
             </p>
           </div>
-          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto sm:ml-auto order-1 sm:order-2 shrink-0">
+          <div className="order-1 flex w-full shrink-0 flex-col-reverse gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-row sm:gap-3">
             {currentStep > 1 && (
               <button
                 type="button"

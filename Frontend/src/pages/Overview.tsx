@@ -869,51 +869,134 @@ export default function Overview() {
 }
 
 function OverviewSkeleton() {
+  const block = (className: string) => <div className={`rounded-full bg-bg-tertiary/70 ${className}`} />;
+
   return (
-    <div className="flex-1 min-w-0 animate-pulse">
+    <div className="min-w-0 flex-1 animate-pulse" aria-hidden="true">
       <div className="flex flex-col gap-4 md:gap-5">
-        <div className="rounded-[28px] border border-border-primary/50 bg-bg-secondary/40 px-5 py-6 md:px-7 md:py-7">
-          <div className="h-4 w-20 rounded-full bg-bg-tertiary" />
-          <div className="mt-4 h-10 w-3/4 rounded-2xl bg-bg-tertiary/80 md:h-14" />
-          <div className="mt-3 h-5 w-2/3 rounded-xl bg-bg-tertiary/60" />
-          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-2">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="h-24 rounded-[22px] border border-border-primary/30 bg-bg-tertiary/30" />
+        <section className="overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary/60 px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.12)] md:px-6 md:py-5">
+          <div className="min-w-0">
+            {block('h-4 w-28')}
+            {block('mt-3 h-7 w-[72%] max-w-[22rem] rounded-2xl')}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div
+                key={index}
+                className="h-10 w-[11rem] rounded-full border border-border-primary bg-bg-tertiary/40 md:w-[12.5rem]"
+              />
             ))}
           </div>
-        </div>
+        </section>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <div className="rounded-[28px] border border-border-primary/50 bg-bg-secondary/40 p-5 md:col-span-2 xl:col-span-1">
-            <div className="h-5 w-40 rounded-lg bg-bg-tertiary" />
-            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-1">
-              <div className="h-48 rounded-2xl border border-border-primary/30 bg-bg-tertiary/30 md:h-60 xl:h-40" />
-              <div className="space-y-3">
-                <div className="h-16 rounded-2xl border border-border-primary/30 bg-bg-tertiary/30" />
-                <div className="h-16 rounded-2xl border border-border-primary/30 bg-bg-tertiary/30" />
-                <div className="h-12 rounded-2xl bg-bg-tertiary/50" />
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:col-span-2 md:p-6 xl:col-span-1">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                {block('h-3 w-28')}
+                {block('mt-4 h-8 w-[88%] rounded-[18px]')}
+                {block('mt-3 h-4 w-[72%]')}
+              </div>
+              <div className="h-12 w-12 shrink-0 rounded-2xl bg-bg-tertiary/60" />
+            </div>
+
+            <div className="flex flex-1 flex-col rounded-[24px] border border-border-primary bg-bg-tertiary/25 p-4">
+              <div className="flex items-center justify-between gap-3">
+                {block('h-3 w-24')}
+                <div className="h-6 w-14 rounded-full bg-bg-tertiary/55" />
+              </div>
+
+              <div className="mt-4 space-y-2.5">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="flex items-start gap-3 rounded-2xl border border-border-primary/80 bg-bg-tertiary/35 px-3 py-3"
+                  >
+                    <div className="h-8 w-8 shrink-0 rounded-full bg-bg-secondary/90" />
+                    <div className="min-w-0 flex-1">
+                      {block('h-4 w-[78%] rounded-lg')}
+                      {block('mt-2 h-3 w-24 rounded-lg')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-border-primary bg-bg-tertiary/30 px-4 py-3">
+                {block('h-3 w-20')}
+                {block('mt-2 h-3 w-full rounded-lg')}
+                {block('mt-2 h-3 w-[90%] rounded-lg')}
               </div>
             </div>
-          </div>
-          <div className="rounded-[28px] border border-border-primary/50 bg-bg-secondary/40 p-5">
-            <div className="h-5 w-32 rounded-lg bg-bg-tertiary" />
-            <div className="mt-4 h-20 rounded-2xl border border-border-primary/30 bg-bg-tertiary/30" />
-            <div className="mt-4 space-y-3">
-              <div className="h-14 rounded-2xl border border-border-primary/30 bg-bg-tertiary/30" />
-              <div className="h-14 rounded-2xl border border-border-primary/30 bg-bg-tertiary/30" />
-              <div className="h-14 rounded-2xl border border-border-primary/30 bg-bg-tertiary/30" />
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <div className="h-12 rounded-2xl bg-bg-tertiary/70" />
+              <div className="h-12 rounded-2xl border border-border-primary bg-bg-tertiary/35" />
             </div>
-          </div>
-          <div className="rounded-[28px] border border-border-primary/50 bg-bg-secondary/40 p-5">
-            <div className="h-5 w-32 rounded-lg bg-bg-tertiary" />
-            <div className="mt-4 h-20 rounded-2xl border border-border-primary/30 bg-bg-tertiary/30" />
-            <div className="mt-4 space-y-3">
-              <div className="h-10 rounded-full bg-bg-tertiary/30" />
-              <div className="h-10 rounded-full bg-bg-tertiary/30" />
-              <div className="h-10 rounded-full bg-bg-tertiary/30" />
+          </article>
+
+          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                {block('h-3 w-28')}
+                {block('mt-4 h-5 w-[76%] rounded-xl')}
+                {block('mt-3 h-5 w-[58%] rounded-xl')}
+              </div>
+              <div className="h-12 w-12 shrink-0 rounded-2xl bg-bg-tertiary/60" />
             </div>
-          </div>
-        </div>
+
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-tertiary/35 px-3 py-3"
+                >
+                  <div className="h-8 w-8 shrink-0 rounded-full bg-bg-secondary/90" />
+                  <div className="min-w-0 flex-1">
+                    {block('h-4 w-[72%] rounded-lg')}
+                    {block('mt-2 h-3 w-20 rounded-lg')}
+                  </div>
+                  <div className="h-4 w-14 shrink-0 rounded-lg bg-bg-tertiary/60" />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-auto border-t border-border-primary/70 pt-4">
+              <div className="h-11 rounded-2xl border border-border-primary bg-bg-tertiary/40" />
+            </div>
+          </article>
+
+          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                {block('h-3 w-28')}
+              </div>
+              <div className="h-12 w-12 shrink-0 rounded-2xl bg-bg-tertiary/60" />
+            </div>
+
+            <div className="space-y-5">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index}>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    {block('h-4 w-16 rounded-lg')}
+                    {block('h-4 w-20 rounded-lg')}
+                  </div>
+                  <div className="h-2 rounded-full bg-bg-tertiary/55">
+                    <div
+                      className="h-full rounded-full bg-bg-tertiary"
+                      style={{ width: `${65 - index * 14}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-auto rounded-2xl border border-border-primary bg-bg-tertiary/35 px-4 py-4">
+              {block('h-3 w-full rounded-lg')}
+              {block('mt-2 h-3 w-[88%] rounded-lg')}
+            </div>
+          </article>
+        </section>
       </div>
     </div>
   );
