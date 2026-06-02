@@ -332,15 +332,15 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
   if (!isOpen && !onComplete) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="profile-modal-root fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
+      <div className="profile-modal-backdrop absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
 
       {/* Modal Content */}
-      <div className="relative w-full max-w-4xl bg-bg-secondary border border-border-primary rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in duration-300">
+      <div className="profile-modal relative w-full max-w-4xl bg-bg-secondary border border-border-primary rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in duration-300">
 
         {/* Header */}
-        <div className="p-4 md:p-5 border-b border-border-primary bg-bg-tertiary/50 backdrop-blur-xl relative">
+        <div className="profile-modal-header p-4 md:p-5 border-b border-border-primary bg-bg-tertiary/50 backdrop-blur-xl relative">
           <div className="flex items-center gap-2 mb-0.5">
             <Sparkles className="w-4 h-4 text-accent animate-pulse" />
             <span className="text-[9px] font-bold text-accent uppercase tracking-[3px]">{"Trợ lý cá nhân"}</span>
@@ -377,13 +377,13 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
         </div>
 
         {/* View / Edit Content */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 md:p-8 space-y-10 custom-scrollbar">
+        <form onSubmit={handleSubmit} className="profile-modal-body flex-1 overflow-y-auto p-6 md:p-8 space-y-10 custom-scrollbar">
           {isEditing && (
             <div className="bg-red-500/10 border border-red-500/20 p-2 rounded-lg mb-4 text-center">
               <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-white">{"Lưu ý: Các trường có dấu * là bắt buộc phải điền"}</p>
             </div>
           )}
-          <fieldset disabled={!isEditing} className="space-y-10 disabled:opacity-90">
+          <fieldset disabled={!isEditing} className="profile-modal-fieldset space-y-10 disabled:opacity-90">
             {/* Section 1: Thông tin cá nhân */}
             <section className="space-y-4">
               <div className="flex items-center gap-3 border-l-4 border-accent pl-4">
@@ -804,7 +804,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
         </form>
 
         {/* Footer */}
-        <div className="p-4 md:p-5 border-t border-border-primary bg-bg-tertiary/50 backdrop-blur-xl flex justify-between items-center">
+        <div className="profile-modal-footer p-4 md:p-5 border-t border-border-primary bg-bg-tertiary/50 backdrop-blur-xl flex justify-between items-center">
           <div className="hidden sm:block">
             <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-[2px]">Hồ sơ Trợ lý cá nhân</span>
           </div>
