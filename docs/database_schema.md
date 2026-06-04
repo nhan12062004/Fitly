@@ -1,4 +1,4 @@
--- AUTO-GENERATED from Supabase on 2026-06-02T03:54:34.100Z
+-- AUTO-GENERATED from Supabase on 2026-06-04T04:06:19.709Z
 -- Source RPC: export_public_tables_structure
 -- Note: schema only. Data snapshots are intentionally excluded to avoid leaking sensitive records.
 
@@ -238,7 +238,15 @@ CREATE TABLE public.profiles (
   membership_tier text NOT NULL DEFAULT 'free'::text,
   ai_coach_free_used_at timestamp with time zone
 );
--- 17. Table: weekly_food_items
+-- 17. Table: telegram_reminder_dispatches
+CREATE TABLE public.telegram_reminder_dispatches (
+  reminder_key text NOT NULL PRIMARY KEY,
+  reminder_type text NOT NULL,
+  reminder_date date NOT NULL,
+  slot_label text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
+);
+-- 18. Table: weekly_food_items
 CREATE TABLE public.weekly_food_items (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   food_plan_id uuid,
@@ -254,7 +262,7 @@ CREATE TABLE public.weekly_food_items (
   is_rest_day boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now()
 );
--- 18. Table: weekly_food_plans
+-- 19. Table: weekly_food_plans
 CREATE TABLE public.weekly_food_plans (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,
@@ -266,7 +274,7 @@ CREATE TABLE public.weekly_food_plans (
   generated_by text DEFAULT 'ai'::text,
   ai_explanation text
 );
--- 19. Table: weekly_plan_exercises
+-- 20. Table: weekly_plan_exercises
 CREATE TABLE public.weekly_plan_exercises (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   weekly_plan_id uuid,
@@ -280,7 +288,7 @@ CREATE TABLE public.weekly_plan_exercises (
   is_rest_day boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now()
 );
--- 20. Table: weekly_plans
+-- 21. Table: weekly_plans
 CREATE TABLE public.weekly_plans (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,
@@ -293,7 +301,7 @@ CREATE TABLE public.weekly_plans (
   generated_by text DEFAULT 'ai'::text,
   ai_explanation text
 );
--- 21. Table: workout_session_feedback
+-- 22. Table: workout_session_feedback
 CREATE TABLE public.workout_session_feedback (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,

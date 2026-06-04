@@ -13,7 +13,7 @@ with ranked_profiles as (
   where telegram_chat_id is not null
 )
 update public.profiles as profiles
-set
+set 
   telegram_chat_id = null,
   updated_at = timezone('utc'::text, now())
 from ranked_profiles
