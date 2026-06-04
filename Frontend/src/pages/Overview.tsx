@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, ChevronRight, Droplet, Dumbbell, Sparkles, Utensils } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
@@ -334,9 +334,9 @@ export default function Overview() {
       });
     };
 
-    window.addEventListener('trendfit:water-updated', handleWaterUpdated as EventListener);
+    window.addEventListener('fitly:water-updated', handleWaterUpdated as EventListener);
     return () => {
-      window.removeEventListener('trendfit:water-updated', handleWaterUpdated as EventListener);
+      window.removeEventListener('fitly:water-updated', handleWaterUpdated as EventListener);
     };
   }, []);
 

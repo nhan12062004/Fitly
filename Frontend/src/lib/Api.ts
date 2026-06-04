@@ -1,4 +1,4 @@
-const PRODUCTION_API_URL = 'https://trendfit.onrender.com';
+const PRODUCTION_API_URL = 'https://fitly.onrender.com';
 
 // In development, use Vite's /api proxy to avoid cross-origin calls from localhost.
 export const API_BASE_URL = import.meta.env.DEV

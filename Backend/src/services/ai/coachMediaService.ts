@@ -141,11 +141,11 @@ export const analyzeMealPhotoCalories = async ({
 }: AnalyzeMealPhotoInput): Promise<string> => {
   const groqKey = ensureGroqKey();
   const systemPrompt = [
-    'Ban la TrendFit AI, chuyen gia dinh duong tren Telegram.',
+    'Ban la Fitly AI, chuyen gia dinh duong tren Telegram.',
     'Nhiem vu: nhin anh bua an va uoc tinh calories/macros mot cach thuc te.',
     'Khong dua con so tuyet doi. Luon tra theo khoang kcal va noi ro do tin cay.',
     'Neu khong nhin ro mon/khau phan, hoi toi da 1 cau lam ro.',
-    'Khong tu dong khang dinh da ghi vao TrendFit. Neu user muon luu, huong dan nhan "ghi 650 kcal" hoac con so ho chon.',
+    'Khong tu dong khang dinh da ghi vao Fitly. Neu user muon luu, huong dan nhan "ghi 650 kcal" hoac con so ho chon.',
     'Tra loi bang tieng Viet ngan gon, de doc tren dien thoai, khong dung bang markdown.',
   ].join('\n');
 
@@ -154,13 +154,13 @@ export const analyzeMealPhotoCalories = async ({
     `Caption/cau hoi: ${truncate(userQuestion, 500) || 'Uoc tinh calories cua bua an trong anh.'}`,
     '',
     '[DU LIEU TRENDfit TOM TAT]',
-    truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chua co du lieu TrendFit kem theo.',
+    truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chua co du lieu Fitly kem theo.',
     '',
     'Hay tra loi theo format:',
     '- Mon/co thanh phan minh nhin thay',
     '- Uoc tinh kcal theo khoang va protein/carbs/fat neu co the',
     '- Gia dinh quan trong ve khau phan/dau/sot',
-    '- Mot cau de user xac nhan hoac cach ghi vao TrendFit',
+    '- Mot cau de user xac nhan hoac cach ghi vao Fitly',
   ].join('\n');
 
   const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
@@ -209,23 +209,23 @@ export const answerVoiceCoachQuestion = ({
   temperature = 0.5,
 }: AnswerVoiceCoachQuestionInput): Promise<string> => {
   const systemPrompt = [
-    'Ban la TrendFit AI, coach dinh duong va tap luyen tren Telegram.',
+    'Ban la Fitly AI, coach dinh duong va tap luyen tren Telegram.',
     'Nguoi dung vua gui ghi am; he thong da chuyen thanh text.',
     'Neu transcript mo ta bua an hoac hoi calories, hay uoc tinh calories/macros theo khoang, neu ro rang thi dua con so de user co the ghi lai.',
     'Neu transcript la cau hoi fitness/dinh duong khac, tra loi nhu AI Coach binh thuong.',
-    'Khong dua con so tuyet doi khi thieu khau phan. Khong noi da ghi vao TrendFit neu user chua xac nhan bang text.',
+    'Khong dua con so tuyet doi khi thieu khau phan. Khong noi da ghi vao Fitly neu user chua xac nhan bang text.',
     'Tra loi bang tieng Viet ngan gon, de doc tren dien thoai.',
     '',
     `[NGUOI DUNG] ${profileName || 'khach hang'}`,
     '[DU LIEU TRENDfit TOM TAT]',
-    truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chua co du lieu TrendFit kem theo.',
+    truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chua co du lieu Fitly kem theo.',
   ].join('\n');
 
   const userMessage = [
     userQuestion ? `Caption/cau hoi kem theo: ${truncate(userQuestion, 500)}` : '',
     `Transcript ghi am: ${truncate(transcript, 2500)}`,
     '',
-    'Hay tra loi truc tiep. Neu day la mo ta bua an, uoc tinh kcal va noi ro cach user co the ghi vao TrendFit bang tin nhan "ghi ... kcal".',
+    'Hay tra loi truc tiep. Neu day la mo ta bua an, uoc tinh kcal va noi ro cach user co the ghi vao Fitly bang tin nhan "ghi ... kcal".',
   ].filter(Boolean).join('\n');
 
   return callCoachCompletion({

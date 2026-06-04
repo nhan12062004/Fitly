@@ -561,7 +561,7 @@ JSON schema (fixed):
       messages: [
         {
           role: 'system',
-          content: 'You are TrendFit AI Coach. Return valid JSON only, with no markdown or commentary.'
+          content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.'
         },
         { role: 'user', content: prompt }
       ],
@@ -895,7 +895,7 @@ function schedulePremiumMondayAutoPlanner() {
 const telegramBot = initTelegramBot();
 
 const defaultAllowedOrigins = [
-  'https://trendfit.vercel.app',
+  'https://fitly.vercel.app',
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'http://localhost:5173',
@@ -963,7 +963,7 @@ app.use(express.json({ limit: '1mb' }));
 app.get('/', (_req, res) => {
   res.json({
     status: 'ok',
-    message: 'TrendFit API is live!',
+    message: 'Fitly API is live!',
     timestamp: new Date().toISOString()
   });
 });
@@ -1923,7 +1923,7 @@ JSON schema (fixed):
         messages: [
           {
             role: 'system',
-            content: 'You are TrendFit AI Coach. Return valid JSON only, with no markdown or commentary.'
+            content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.'
           },
           { role: 'user', content: prompt }
         ],
@@ -2185,7 +2185,7 @@ app.post('/api/telegram/link-token', async (req, res) => {
       return res.status(404).json({ error: 'Profile khong ton tai' });
     }
 
-    const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'trendfitforbot';
+    const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'fitlyforbot';
     const token = createTelegramLinkToken(authUserId);
     return res.json({
       success: true,

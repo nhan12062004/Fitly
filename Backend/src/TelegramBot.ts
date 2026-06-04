@@ -410,7 +410,7 @@ async function getTodayWorkoutReminderSnapshot(userId: string) {
   )[0];
 
   if (!latestPlan?.id) {
-    return ['Bài tập hôm nay', 'Chưa có lịch tập trong TrendFit.'];
+    return ['Bài tập hôm nay', 'Chưa có lịch tập trong Fitly.'];
   }
 
   const planItemsRes = await supabase
@@ -445,7 +445,7 @@ function buildHydrationReminderText(
   const remainingMl = Math.max(0, snapshot.goalMl - snapshot.currentMl);
   const progressLine = `${snapshot.currentMl}/${snapshot.goalMl}ml · ${snapshot.percent}%`;
   return [
-    'TrendFit Daily Check-in',
+    'Fitly Daily Check-in',
     `Chào ${user.full_name || 'bạn'},`,
     message,
     '',
@@ -462,9 +462,9 @@ function buildHydrationReminderText(
 
 function buildSleepReminderText(user: { full_name?: string | null }, snapshot: Awaited<ReturnType<typeof getSleepSnapshot>>) {
   return [
-    'TrendFit Recovery Check-in',
+    'Fitly Recovery Check-in',
     `Chào ${user.full_name || 'bạn'},`,
-    'Ghi lại giấc ngủ để TrendFit theo dõi phục hồi và điều chỉnh nhịp tập chính xác hơn.',
+    'Ghi lại giấc ngủ để Fitly theo dõi phục hồi và điều chỉnh nhịp tập chính xác hơn.',
     '',
     'Giấc ngủ',
     `Mục tiêu: ${formatNumber(snapshot.targetSleepHours, '8')}h/đêm`,
@@ -544,11 +544,11 @@ function buildSleepKeyboard(): TelegramBot.InlineKeyboardMarkup {
 
 function buildHelpText(isLinked: boolean) {
   const linkedText = isLinked
-    ? 'Tài khoản của bạn đã liên kết. Bot có thể ghi nhận dữ liệu trực tiếp vào TrendFit.'
-    : 'Bạn chưa liên kết tài khoản. Hãy dùng nút "Kết nối Telegram Bot" trong ứng dụng TrendFit.';
+    ? 'Tài khoản của bạn đã liên kết. Bot có thể ghi nhận dữ liệu trực tiếp vào Fitly.'
+    : 'Bạn chưa liên kết tài khoản. Hãy dùng nút "Kết nối Telegram Bot" trong ứng dụng Fitly.';
 
   return [
-    'TrendFit AI Coach',
+    'Fitly AI Coach',
     linkedText,
     '',
     'Lệnh nhanh:',
@@ -815,7 +815,7 @@ async function buildWorkoutReport(profile: LinkedProfile) {
     ...recentLines,
     '',
     `Lịch hôm nay (${today})${latestPlan?.name ? ` - ${latestPlan.name}` : ''}:`,
-    todayPlan.length ? todayPlan.join('\n') : 'Chưa có lịch tập hôm nay trong TrendFit.',
+    todayPlan.length ? todayPlan.join('\n') : 'Chưa có lịch tập hôm nay trong Fitly.',
   ].join('\n');
 }
 
@@ -836,7 +836,7 @@ async function buildMealReport(profile: LinkedProfile) {
   )[0];
 
   if (!latestPlan?.id) {
-    return `🍽️ Thực đơn hôm nay\n\nMình chưa thấy thực đơn tuần hiện tại trong TrendFit. Bạn có thể tạo meal plan ở AI Coach hoặc hỏi mình gợi ý tạm thời theo mục tiêu.`;
+    return `🍽️ Thực đơn hôm nay\n\nMình chưa thấy thực đơn tuần hiện tại trong Fitly. Bạn có thể tạo meal plan ở AI Coach hoặc hỏi mình gợi ý tạm thời theo mục tiêu.`;
   }
 
   const itemsRes = await supabase
@@ -1356,7 +1356,7 @@ async function handleTelegramMediaMessage(bot: TelegramBot, msg: TelegramBot.Mes
       fileUrl,
       fileName: media.fileName,
       language: 'vi',
-      prompt: 'Nguoi dung TrendFit noi tieng Viet ve bua an, calories, tap luyen hoac suc khoe.',
+      prompt: 'Nguoi dung Fitly noi tieng Viet ve bua an, calories, tap luyen hoac suc khoe.',
     });
     let reply = await answerVoiceCoachQuestion({
       transcript,
@@ -1413,7 +1413,7 @@ async function sendMainMenu(bot: TelegramBot, chatId: number, profile?: LinkedPr
 async function requireLinkedProfile(bot: TelegramBot, chatId: number, queryId?: string) {
   const profile = await getLinkedProfileByChatId(chatId);
   if (!profile) {
-    const message = 'Không tìm thấy tài khoản TrendFit liên kết. Hãy kết nối Telegram Bot trong ứng dụng trước.';
+    const message = 'Không tìm thấy tài khoản Fitly liên kết. Hãy kết nối Telegram Bot trong ứng dụng trước.';
     if (queryId) {
       await bot.answerCallbackQuery(queryId, { text: message });
     } else {
@@ -1643,7 +1643,7 @@ const setupCallbackHandlers = (bot: TelegramBot) => {
           await bot.editMessageText([
             '✅ Đã ghi nhận nước uống',
             '',
-            `+${amountMl}ml vừa được lưu vào TrendFit.`,
+            `+${amountMl}ml vừa được lưu vào Fitly.`,
             `Tổng hôm nay: ${nextWaterIntakeMl}/${snapshot.goalMl}ml (${snapshot.percent}%).`,
             remainingMl > 0
               ? `Còn khoảng ${remainingMl}ml để đạt mục tiêu.`
@@ -1689,7 +1689,7 @@ const setupCallbackHandlers = (bot: TelegramBot) => {
           `Thời lượng: ${hours}h`,
           sleepNote,
           '',
-          'Dữ liệu đã được cập nhật vào TrendFit.',
+          'Dữ liệu đã được cập nhật vào Fitly.',
         ].join('\n'), {
           chat_id: chatId,
           message_id: query.message?.message_id,
@@ -1735,7 +1735,7 @@ export const initTelegramBot = () => {
   console.log('🤖 Telegram Bot [Render] đang chạy' + (enablePolling ? ' — sẽ bật polling sau khi gắn handlers.' : ' — chỉ gửi nhắc.'));
 
   bot.setMyCommands([
-    { command: 'menu', description: 'Mở bảng điều khiển TrendFit' },
+    { command: 'menu', description: 'Mở bảng điều khiển Fitly' },
     { command: 'today', description: 'Xem tiến độ hôm nay' },
     { command: 'workout', description: 'Xem bài tập gần đây và hôm nay' },
     { command: 'meals', description: 'Xem thực đơn hôm nay' },
@@ -1857,7 +1857,7 @@ export const initTelegramBot = () => {
     const status = await getTelegramReminderStatus();
     bot.sendMessage(
       msg.chat.id,
-      `📊 Trạng thái TrendFit Bot\n` +
+      `📊 Trạng thái Fitly Bot\n` +
         `- Môi trường: ${status.runtime}\n` +
         `- Bot active: ${status.botActive ? 'CÓ' : 'KHÔNG (chỉ Render)'}\n` +
         `- Liên kết Telegram: ${status.linkedUsers} user\n` +
@@ -1876,13 +1876,13 @@ export const initTelegramBot = () => {
     const linkToken = match ? match[1] : null;
 
     if (!linkToken) {
-      return bot.sendMessage(chatId, 'Chào mừng bạn đến với TrendFit! Vui lòng sử dụng nút "Kết nối Telegram" trên website để liên kết tài khoản nhé.');
+      return bot.sendMessage(chatId, 'Chào mừng bạn đến với Fitly! Vui lòng sử dụng nút "Kết nối Telegram" trên website để liên kết tài khoản nhé.');
     }
 
     try {
       const verifiedToken = verifyTelegramLinkToken(linkToken);
       if (!verifiedToken?.userId) {
-        return bot.sendMessage(chatId, '❌ Link liên kết không hợp lệ hoặc đã hết hạn. Vui lòng quay lại TrendFit và tạo liên kết mới.');
+        return bot.sendMessage(chatId, '❌ Link liên kết không hợp lệ hoặc đã hết hạn. Vui lòng quay lại Fitly và tạo liên kết mới.');
       }
       const userId = verifiedToken.userId;
 
@@ -1921,7 +1921,7 @@ export const initTelegramBot = () => {
         throw new Error('Không thể cập nhật database (0 dòng bị ảnh hưởng). Lỗi này thường do backend thiếu SUPABASE_SERVICE_ROLE_KEY nên RLS (Row Level Security) trên Supabase từ chối quyền ghi của tài khoản anonymous.');
       }
 
-      await bot.sendMessage(chatId, `🎉 Chúc mừng ${existingProfile.full_name}!\n\nTài khoản TrendFit của bạn đã được liên kết thành công.\n\nTừ giờ, tôi sẽ gửi báo cáo tập luyện và lời nhắc AI trực tiếp tại đây cho bạn. 💪`);
+      await bot.sendMessage(chatId, `🎉 Chúc mừng ${existingProfile.full_name}!\n\nTài khoản Fitly của bạn đã được liên kết thành công.\n\nTừ giờ, tôi sẽ gửi báo cáo tập luyện và lời nhắc AI trực tiếp tại đây cho bạn. 💪`);
       await sendMainMenu(bot, chatId, existingProfile);
     } catch (err: any) {
       bot.sendMessage(chatId, `❌ Lỗi xảy ra: ${err.message}\n\nVui lòng thử lại hoặc liên hệ hỗ trợ.`);
@@ -1931,7 +1931,7 @@ export const initTelegramBot = () => {
   // Xử lý lệnh /start không có tham số
   bot.onText(/\/start$/, (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, 'Chào mừng bạn đến với TrendFit AI Coach.\n\nĐể cá nhân hóa và ghi dữ liệu tự động, hãy nhấn nút "Kết nối Telegram Bot" trong ứng dụng TrendFit.');
+    bot.sendMessage(chatId, 'Chào mừng bạn đến với Fitly AI Coach.\n\nĐể cá nhân hóa và ghi dữ liệu tự động, hãy nhấn nút "Kết nối Telegram Bot" trong ứng dụng Fitly.');
     sendMainMenu(bot, chatId).catch((err: any) => console.error('❌ Lỗi gửi menu /start:', err.message));
   });
 
@@ -2241,7 +2241,7 @@ export const initTelegramBot = () => {
         const coachDataContext = await buildCoachDataContext(userProfile.id);
 
         // === XÂY DỰNG SYSTEM PROMPT CHUYÊN NGHIỆP ===
-        const systemPrompt = `Bạn là "TrendFit AI" — Huấn luyện viên cá nhân & Chuyên gia dinh dưỡng cấp cao của ứng dụng TrendFit.
+        const systemPrompt = `Bạn là "Fitly AI" — Huấn luyện viên cá nhân & Chuyên gia dinh dưỡng cấp cao của ứng dụng Fitly.
 
 [HỒ SƠ KHÁCH HÀNG]
 - Tên: ${userProfile.full_name || 'Học viên'}
@@ -2271,7 +2271,7 @@ ${coachDataContext}
 - Khi hỏi bài tập, ưu tiên daily_exercise_sessions nếu hỏi tiến độ đã tập; ưu tiên lịch tập tuần nếu hỏi hôm nay/tuần này nên tập gì.
 - Khi hỏi thực đơn, dùng thực đơn tuần hiện tại và today_meals/week_meals. Nếu chưa có thực đơn, nói rõ chưa có dữ liệu và đề xuất phương án tạm thời.
 - Khi hỏi chỉ số sức khỏe/cơ thể, dùng body, body_history, health và lifestyle; không tự bịa chỉ số thiếu.
-- Nếu dữ liệu không có trong context, nói "mình chưa thấy dữ liệu này trong TrendFit" rồi đề xuất cách ghi/cập nhật.
+- Nếu dữ liệu không có trong context, nói "mình chưa thấy dữ liệu này trong Fitly" rồi đề xuất cách ghi/cập nhật.
 [PHONG CÁCH TRẢ LỜI]
 1. Đóng vai coach chuyên nghiệp: rõ ràng, thực tế, không nói lan man.
 2. Ưu tiên dữ liệu thật trong hồ sơ và tiến độ hôm nay; nếu thiếu dữ liệu, nói rõ giả định.
@@ -2303,12 +2303,12 @@ ${coachDataContext}
       } else {
         // Người dùng chưa liên kết tài khoản
         console.log(`ℹ️ [CHAT] User chưa liên kết Telegram. Gợi ý liên kết.`);
-        const guestSystemPrompt = `Bạn là "TrendFit AI" — Huấn luyện viên cá nhân & Chuyên gia dinh dưỡng của ứng dụng TrendFit.
-Người dùng này CHƯA liên kết Telegram với tài khoản TrendFit.
+        const guestSystemPrompt = `Bạn là "Fitly AI" — Huấn luyện viên cá nhân & Chuyên gia dinh dưỡng của ứng dụng Fitly.
+Người dùng này CHƯA liên kết Telegram với tài khoản Fitly.
 Hãy trả lời thân thiện, chuyên nghiệp, ngắn gọn. Nếu họ hỏi về fitness/dinh dưỡng thì vẫn trả lời nhưng nhắc nhẹ rằng nên liên kết tài khoản để được cá nhân hóa tốt hơn.
 Không chẩn đoán bệnh; với dấu hiệu nguy hiểm hoặc chấn thương nặng, khuyên gặp bác sĩ.
 ⚠️ HƯỚNG DẪN KẾT NỐI:
-1. Vào website TrendFit → Đăng nhập
+1. Vào website Fitly → Đăng nhập
 2. Bấm Cài đặt (⚙️) ở thanh bên → Chọn "Kết nối Telegram Bot"
 3. Bot này sẽ mở → Ngay lập tức BẤMSTART ở dưới cùng để hoàn tất liên kết.`;
 

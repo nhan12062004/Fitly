@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const apiTarget = mode === 'development'
     ? env.VITE_DEV_API_URL || 'http://localhost:5000'
-    : env.VITE_API_URL || 'https://trendfit.onrender.com';
+    : env.VITE_API_URL || 'https://fitly.onrender.com';
   const isHttpsTarget = /^https:\/\//i.test(apiTarget);
 
   return {

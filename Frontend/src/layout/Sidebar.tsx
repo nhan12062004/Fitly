@@ -276,7 +276,7 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
                     
                     if (!error) {
                       setWaterIntake(newIntake);
-                      window.dispatchEvent(new CustomEvent('trendfit:water-updated', {
+                      window.dispatchEvent(new CustomEvent('fitly:water-updated', {
                         detail: { waterIntake: newIntake }
                       }));
                     }

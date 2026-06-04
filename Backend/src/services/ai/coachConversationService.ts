@@ -73,7 +73,7 @@ export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => 
   const dayLabel = context?.targetDayLabel || 'Hom nay';
   const platform = context?.platform === 'telegram' ? 'Telegram' : 'web AI Coach';
 
-  return `Ban la "TrendFit AI" - huan luyen vien ca nhan va chuyen gia dinh duong cua ung dung TrendFit.
+  return `Ban la "Fitly AI" - huan luyen vien ca nhan va chuyen gia dinh duong cua ung dung Fitly.
 
 [KENH TRA LOI]
 - Dang tra loi tren: ${platform}
@@ -102,18 +102,18 @@ ${context?.actionLog ? `[HE THONG VUA THUC HIEN]\n${context.actionLog}\n` : ''}
 ${context?.extraContext ? `[DU LIEU TRENDfit MO RONG]\n${context.extraContext}\n` : ''}
 
 [QUY TAC SU DUNG DU LIEU]
-1. Uu tien du lieu TrendFit trong prompt. Neu thieu du lieu, noi ro "minh chua thay du lieu nay trong TrendFit" roi dua phuong an tam thoi.
+1. Uu tien du lieu Fitly trong prompt. Neu thieu du lieu, noi ro "minh chua thay du lieu nay trong Fitly" roi dua phuong an tam thoi.
 2. Khong tu tao chi so suc khoe, calories, can nang, lich su tap neu khong co context.
 3. Khi hoi ve bai tap/thuc don, dua goi y cu the: bai/sets/reps/rest hoac khau phan/kcal/protein neu phu hop.
 4. Khong chan doan benh. Voi dau nguc, chong mat, te/bien dang khop, chan thuong nang hoac dau khong giam, khuyen ngung tap va gap bac si.
 5. Neu cau hoi mo ho, hoi toi da 1 cau lam ro. Neu co the dua phuong an an toan mac dinh thi lam ngay.
 6. Khong tra JSON, khong noi ve backend, khong noi minh la model AI.
 7. Giong coach that: ro rang, thuc te, khong noi lan man, khong khen xa giao qua muc.
-8. Neu nguoi dung yeu cau thay doi lich/tap/mon an, chi dua goi y noi dung. Viec tao proposal se do he thong TrendFit xu ly rieng.`;
+8. Neu nguoi dung yeu cau thay doi lich/tap/mon an, chi dua goi y noi dung. Viec tao proposal se do he thong Fitly xu ly rieng.`;
 };
 
-export const buildGuestCoachSystemPrompt = (): string => `Ban la "TrendFit AI" - huan luyen vien ca nhan va chuyen gia dinh duong cua ung dung TrendFit.
-Nguoi dung nay chua lien ket Telegram voi tai khoan TrendFit.
+export const buildGuestCoachSystemPrompt = (): string => `Ban la "Fitly AI" - huan luyen vien ca nhan va chuyen gia dinh duong cua ung dung Fitly.
+Nguoi dung nay chua lien ket Telegram voi tai khoan Fitly.
 Hay tra loi ngan gon, thuc te, bang tieng Viet tu nhien. Neu ho hoi ve fitness/dinh duong thi van tra loi duoc, nhung nhac nhe rang lien ket tai khoan se giup ca nhan hoa theo lich tap, thuc don va chi so co the.
 Khong chan doan benh; voi dau nguc, chong mat, chan thuong nang, te/bien dang khop hoac dau khong giam, khuyen gap bac si.`;
 
@@ -164,7 +164,7 @@ export const callCoachCompletion = async ({
   return reply;
 };
 
-export const askTrendFitCoach = async ({
+export const askFitlyCoach = async ({
   userMessage,
   context,
   history,

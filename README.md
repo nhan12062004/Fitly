@@ -1,6 +1,6 @@
-# TrendFit
+# Fitly
 
-TrendFit la mot ung dung fitness co 2 phan chinh:
+Fitly la mot ung dung fitness co 2 phan chinh:
 
 - `Frontend/`: React + Vite + Tailwind, giao dien nguoi dung.
 - `Backend/`: Express + TypeScript + Supabase, API va logic AI/Telegram.
@@ -15,7 +15,7 @@ README nay duoc viet lai theo huong "working context" de AI agent hoac dev moi v
 
 ## Product Intent
 
-Muc tieu cua TrendFit khong chi la chatbot fitness. Huong hien tai la:
+Muc tieu cua Fitly khong chi la chatbot fitness. Huong hien tai la:
 
 - nguoi dung chi thay 1 trang `AI Coach`
 - backend tach logic theo intent thanh nhieu service rieng
@@ -206,7 +206,7 @@ GEMINI_API_KEY=...
 GROQ_API_KEY=...
 GROQ_MODEL=llama-3.3-70b-versatile
 TELEGRAM_BOT_TOKEN=...
-TELEGRAM_BOT_USERNAME=trendfitforbot
+TELEGRAM_BOT_USERNAME=fitlyforbot
 TELEGRAM_LINK_SECRET=...
 CRON_SECRET=...
 AI_ACTION_FLOW_ENABLED=true

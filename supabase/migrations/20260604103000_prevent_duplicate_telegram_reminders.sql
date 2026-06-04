@@ -1,5 +1,5 @@
 -- Prevent duplicate Telegram reminder delivery across multiple backend processes
--- and enforce one Telegram chat per TrendFit profile.
+-- and enforce one Telegram chat per Fitly profile.
 
 with ranked_profiles as (
   select

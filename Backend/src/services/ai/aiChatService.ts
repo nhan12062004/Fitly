@@ -1,5 +1,5 @@
 import { isInjuryAdviceRequest, normalizeVietnameseText } from './aiRouterService';
-import { askTrendFitCoach } from './coachConversationService';
+import { askFitlyCoach } from './coachConversationService';
 import { AIChatContext, AIChatMealSummary, AIChatResponse } from './types';
 
 const getMealTypeLabel = (mealType?: string | null): string => {
@@ -59,7 +59,7 @@ export const aiChatService = async (message: string, context?: AIChatContext): P
     normalized.includes('xem thuc don');
 
   try {
-    const aiReply = await askTrendFitCoach({
+    const aiReply = await askFitlyCoach({
       userMessage: message,
       context: { ...context, platform: 'web' },
       history: context?.chatHistory,

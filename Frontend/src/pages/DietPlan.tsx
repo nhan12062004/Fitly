@@ -636,7 +636,7 @@ export default function DietPlan() {
         log_date: getVietnamDateKey(),
         water_intake_ml: Math.round(nextLiters * 1000)
       }, { onConflict: 'user_id,log_date' });
-      window.dispatchEvent(new CustomEvent('trendfit:water-updated', { detail: { waterIntake: nextLiters } }));
+      window.dispatchEvent(new CustomEvent('fitly:water-updated', { detail: { waterIntake: nextLiters } }));
     } catch (error) {
       console.error(error);
     }
