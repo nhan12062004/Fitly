@@ -5,6 +5,11 @@ import cron from 'node-cron';
 import { resolveWeeklyWorkouts } from './lib/WorkoutFrequency';
 import { verifyTelegramLinkToken } from './lib/telegramLinkToken';
 import { callCoachCompletion } from './services/ai/coachConversationService';
+import {
+  analyzeMealPhotoCalories,
+  answerVoiceCoachQuestion,
+  transcribeTelegramAudio,
+} from './services/ai/coachMediaService';
 
 dotenv.config();
 
@@ -32,9 +37,29 @@ type LinkedTelegramUserRow = {
   created_at?: string | null;
 };
 
+type PendingMealEstimate = {
+  userId?: string;
+  foodName: string;
+  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  source: 'telegram_photo_ai' | 'telegram_voice_ai';
+  confidence: 'low' | 'medium' | 'high';
+  imageUrl?: string;
+  telegramFileId?: string;
+  transcript?: string;
+  rawReply: string;
+  createdAt: number;
+};
+
 const conversationStore = new Map<number, ChatMessage[]>();
+const pendingMealEstimateStore = new Map<number, PendingMealEstimate>();
 const MAX_HISTORY = 20; // Giữ tối đa 20 tin nhắn gần nhất
 const HISTORY_TTL_MS = 2 * 60 * 60 * 1000; // Xóa sau 2 giờ không hoạt động
+const PENDING_MEAL_TTL_MS = 45 * 60 * 1000;
+const TELEGRAM_MEDIA_MAX_BYTES = Number(process.env.TELEGRAM_MEDIA_MAX_BYTES || 20 * 1024 * 1024);
 
 function getHistory(chatId: number): ChatMessage[] {
   const history = conversationStore.get(chatId) || [];
@@ -55,6 +80,34 @@ function addToHistory(chatId: number, role: 'user' | 'assistant', content: strin
 
 function clearHistory(chatId: number) {
   conversationStore.delete(chatId);
+}
+
+function normalizeFoodName(value: string) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getPendingMealEstimate(chatId: number): PendingMealEstimate | null {
+  const pending = pendingMealEstimateStore.get(chatId);
+  if (!pending) return null;
+  if (Date.now() - pending.createdAt > PENDING_MEAL_TTL_MS) {
+    pendingMealEstimateStore.delete(chatId);
+    return null;
+  }
+  return pending;
+}
+
+function setPendingMealEstimate(chatId: number, estimate: PendingMealEstimate) {
+  pendingMealEstimateStore.set(chatId, estimate);
+}
+
+function clearPendingMealEstimate(chatId: number) {
+  pendingMealEstimateStore.delete(chatId);
 }
 
 // Các khung giờ nhắc uống nước (9h, 11h, 14h, 16h, 20h, 22h)
@@ -867,6 +920,486 @@ async function sendLongMessage(bot: TelegramBot, chatId: number, text: string) {
   }
 }
 
+type TelegramMediaKind = 'photo' | 'voice' | 'audio';
+
+type TelegramMediaInfo = {
+  kind: TelegramMediaKind;
+  fileId: string;
+  fileName: string;
+  fileSize?: number;
+  caption?: string;
+};
+
+function truncateTelegramText(value: string, maxLength: number) {
+  const text = String(value || '').trim();
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
+
+function getVietnamHour(date = new Date()) {
+  const hour = new Intl.DateTimeFormat('en-US', {
+    timeZone: VIETNAM_TIMEZONE,
+    hour: '2-digit',
+    hour12: false,
+  }).format(date);
+  return Number(hour);
+}
+
+function inferMealTypeFromText(value: string): PendingMealEstimate['mealType'] {
+  const normalized = normalizeFoodName(value);
+  if (/\b(sang|breakfast|an sang)\b/.test(normalized)) return 'breakfast';
+  if (/\b(trua|lunch|an trua)\b/.test(normalized)) return 'lunch';
+  if (/\b(toi|dinner|an toi)\b/.test(normalized)) return 'dinner';
+  if (/\b(phu|snack|an vat)\b/.test(normalized)) return 'snack';
+
+  const hour = getVietnamHour();
+  if (hour >= 5 && hour < 10) return 'breakfast';
+  if (hour >= 10 && hour < 15) return 'lunch';
+  if (hour >= 17 && hour < 22) return 'dinner';
+  return 'snack';
+}
+
+function midpointFromMatch(first: string, second?: string) {
+  const left = Number(first);
+  const right = Number(second || first);
+  if (!Number.isFinite(left)) return 0;
+  if (!Number.isFinite(right)) return Math.round(left);
+  return Math.round((left + right) / 2);
+}
+
+function extractCaloriesEstimate(value: string) {
+  const text = String(value || '').replace(/,/g, '.');
+  const range = text.match(/(\d+(?:\.\d+)?)\s*(?:-|–|—|đến|den|to)\s*(\d+(?:\.\d+)?)\s*(?:kcal|calo|cal)\b/i);
+  if (range) return midpointFromMatch(range[1], range[2]);
+  const exact = text.match(/(\d+(?:\.\d+)?)\s*(?:kcal|calo|cal)\b/i);
+  return exact ? Math.round(Number(exact[1])) : 0;
+}
+
+function extractMacroEstimate(value: string, labels: string[]) {
+  const normalized = normalizeFoodName(String(value || '').replace(/,/g, '.'));
+  const labelPattern = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const match = normalized.match(new RegExp(`(?:${labelPattern})[^0-9]{0,24}(\\d+(?:\\.\\d+)?)(?:\\s*(?:-|den|to)\\s*(\\d+(?:\\.\\d+)?))?\\s*g?\\b`, 'i'));
+  return match ? midpointFromMatch(match[1], match[2]) : 0;
+}
+
+function extractFoodNameFromEstimate(reply: string, fallback?: string) {
+  const fallbackText = String(fallback || '').trim();
+  const lines = String(reply || '')
+    .split('\n')
+    .map((line) => line.replace(/^[-*•\d.\s]+/, '').trim())
+    .filter(Boolean);
+  const candidate = lines.find((line) => {
+    const normalized = normalizeFoodName(line);
+    return (
+      normalized.length >= 8 &&
+      normalized.length <= 140 &&
+      /(mon|thanh phan|nhin thay|thay|co ve|gom)/i.test(normalized) &&
+      !/(kcal|calo|protein|carb|fat|chat beo|dam)/i.test(normalized)
+    );
+  }) || lines.find((line) => {
+    const normalized = normalizeFoodName(line);
+    return normalized.length >= 8 && normalized.length <= 100 && !/(kcal|calo|protein|carb|fat)/i.test(normalized);
+  });
+
+  const cleaned = String(candidate || fallbackText || 'Bua an tu Telegram')
+    .replace(/^(mon|cac mon|thanh phan|minh thay|mình thấy|nhin thay|nhìn thấy|co ve|có vẻ)\s*[:：-]?\s*/i, '')
+    .replace(/^(trong anh|trong ảnh|bua nay|bữa này)\s*[:：-]?\s*/i, '')
+    .trim();
+
+  return truncateTelegramText(cleaned || 'Bua an tu Telegram', 120);
+}
+
+function inferEstimateConfidence(reply: string): PendingMealEstimate['confidence'] {
+  const normalized = normalizeFoodName(reply);
+  if (/khong ro|mo|kho nhin|thieu|uoc luong thap|low/.test(normalized)) return 'low';
+  if (/ro|tuong doi chac|high|tin cay cao/.test(normalized)) return 'high';
+  return 'medium';
+}
+
+function buildPendingMealEstimate({
+  userId,
+  reply,
+  fallbackName,
+  source,
+  imageUrl,
+  telegramFileId,
+  transcript,
+}: {
+  userId?: string;
+  reply: string;
+  fallbackName?: string;
+  source: PendingMealEstimate['source'];
+  imageUrl?: string;
+  telegramFileId?: string;
+  transcript?: string;
+}): PendingMealEstimate | null {
+  const calories = extractCaloriesEstimate(reply);
+  if (!calories) return null;
+  const combinedText = [fallbackName, transcript, reply].filter(Boolean).join('\n');
+  return {
+    userId,
+    foodName: extractFoodNameFromEstimate(reply, fallbackName || transcript),
+    mealType: inferMealTypeFromText(combinedText),
+    calories,
+    protein: extractMacroEstimate(reply, ['protein', 'dam', 'chat dam', 'p']),
+    carbs: extractMacroEstimate(reply, ['carbs', 'carb', 'tinh bot', 'duong bot', 'c']),
+    fat: extractMacroEstimate(reply, ['fat', 'chat beo', 'beo', 'f']),
+    source,
+    confidence: inferEstimateConfidence(reply),
+    imageUrl,
+    telegramFileId,
+    transcript,
+    rawReply: reply,
+    createdAt: Date.now(),
+  };
+}
+
+function isPendingMealSaveRequest(message: string) {
+  const normalized = normalizeFoodName(message);
+  const wantsSave = /\b(ghi|luu|log|save|them|cong)\b/.test(normalized);
+  const mentionsMeal = /\b(bua|mon|calo|kcal|cal|nay|hom nay|an)\b/.test(normalized);
+  return wantsSave && mentionsMeal;
+}
+
+function getTelegramMediaInfo(msg: TelegramBot.Message): TelegramMediaInfo | null {
+  const caption = String(msg.caption || '').trim();
+  const largestPhoto = msg.photo?.length ? msg.photo[msg.photo.length - 1] : null;
+  if (largestPhoto?.file_id) {
+    return {
+      kind: 'photo',
+      fileId: largestPhoto.file_id,
+      fileName: 'telegram-meal-photo.jpg',
+      fileSize: largestPhoto.file_size,
+      caption,
+    };
+  }
+
+  if (msg.voice?.file_id) {
+    return {
+      kind: 'voice',
+      fileId: msg.voice.file_id,
+      fileName: 'telegram-voice.ogg',
+      fileSize: msg.voice.file_size,
+      caption,
+    };
+  }
+
+  if (msg.audio?.file_id) {
+    return {
+      kind: 'audio',
+      fileId: msg.audio.file_id,
+      fileName: 'telegram-audio.mp3',
+      fileSize: msg.audio.file_size,
+      caption,
+    };
+  }
+
+  const document = msg.document;
+  if (document?.file_id && document.mime_type?.startsWith('image/')) {
+    return {
+      kind: 'photo',
+      fileId: document.file_id,
+      fileName: document.file_name || 'telegram-meal-photo.jpg',
+      fileSize: document.file_size,
+      caption,
+    };
+  }
+
+  if (document?.file_id && document.mime_type?.startsWith('audio/')) {
+    return {
+      kind: 'audio',
+      fileId: document.file_id,
+      fileName: document.file_name || 'telegram-audio.mp3',
+      fileSize: document.file_size,
+      caption,
+    };
+  }
+
+  return null;
+}
+
+async function getLinkedProfileAndContext(chatId: number) {
+  const profile = await getLinkedProfileByChatId(chatId).catch((error: any) => {
+    console.error('[TELEGRAM_MEDIA] Failed to load linked profile:', error?.message || error);
+    return null;
+  });
+
+  const coachContext = profile?.id
+    ? await buildCoachDataContext(profile.id).catch((error: any) => {
+      console.warn('[TELEGRAM_MEDIA] Failed to build coach context:', error?.message || error);
+      return '';
+    })
+    : '';
+
+  return { profile, coachContext };
+}
+
+async function incrementDailyCalories(userId: string, logDate: string, calories: number) {
+  const { data: existingLog } = await supabase
+    .from('daily_progress_logs')
+    .select('id, calories_consumed')
+    .eq('user_id', userId)
+    .eq('log_date', logDate)
+    .maybeSingle();
+
+  if (existingLog) {
+    const { error } = await supabase.from('daily_progress_logs')
+      .update({ calories_consumed: (Number(existingLog.calories_consumed) || 0) + calories })
+      .eq('id', existingLog.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('daily_progress_logs')
+      .insert({ user_id: userId, log_date: logDate, calories_consumed: calories });
+    if (error) throw error;
+  }
+}
+
+async function upsertUserCustomFood(userId: string, estimate: PendingMealEstimate, calories: number) {
+  const normalizedName = normalizeFoodName(estimate.foodName) || `custom-${Date.now()}`;
+  const { data: existing, error: selectError } = await supabase
+    .from('user_custom_foods')
+    .select('id, usage_count')
+    .eq('user_id', userId)
+    .eq('normalized_name', normalizedName)
+    .maybeSingle();
+
+  if (selectError) {
+    console.warn('[TELEGRAM_MEAL_LOG] user_custom_foods select failed:', selectError.message);
+    return null;
+  }
+
+  const nowIso = new Date().toISOString();
+  const payload = {
+    name: estimate.foodName,
+    normalized_name: normalizedName,
+    serving_description: '1 bua/khau phan uoc tinh tu Telegram',
+    calories,
+    protein: estimate.protein || 0,
+    carbs: estimate.carbs || 0,
+    fat: estimate.fat || 0,
+    source: estimate.source,
+    confidence: estimate.confidence,
+    image_url: estimate.imageUrl || null,
+    telegram_file_id: estimate.telegramFileId || null,
+    last_used_at: nowIso,
+    updated_at: nowIso,
+  };
+
+  if (existing?.id) {
+    const { data, error } = await supabase
+      .from('user_custom_foods')
+      .update({
+        ...payload,
+        usage_count: (Number(existing.usage_count) || 0) + 1,
+      })
+      .eq('id', existing.id)
+      .select('id')
+      .maybeSingle();
+    if (error) {
+      console.warn('[TELEGRAM_MEAL_LOG] user_custom_foods update failed:', error.message);
+      return null;
+    }
+    return data?.id || existing.id;
+  }
+
+  const { data, error } = await supabase
+    .from('user_custom_foods')
+    .insert({
+      user_id: userId,
+      ...payload,
+      usage_count: 1,
+    })
+    .select('id')
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[TELEGRAM_MEAL_LOG] user_custom_foods insert failed:', error.message);
+    return null;
+  }
+  return data?.id || null;
+}
+
+async function insertDailyMealLog(userId: string, logDate: string, estimate: PendingMealEstimate, customFoodId: string | null, calories: number) {
+  const fullPayload = {
+    user_id: userId,
+    weekly_food_item_id: null,
+    food_id: null,
+    custom_food_id: customFoodId,
+    custom_food_name: estimate.foodName,
+    log_date: logDate,
+    meal_type: estimate.mealType,
+    quantity: 1,
+    calories,
+    protein: estimate.protein || 0,
+    carbs: estimate.carbs || 0,
+    fat: estimate.fat || 0,
+    is_completed: true,
+    eaten_at: new Date().toISOString(),
+    source: estimate.source,
+    confidence: estimate.confidence,
+    image_url: estimate.imageUrl || null,
+    telegram_file_id: estimate.telegramFileId || null,
+    notes: estimate.transcript ? truncateTelegramText(estimate.transcript, 1000) : null,
+    ai_estimate: {
+      source: estimate.source,
+      confidence: estimate.confidence,
+      raw_reply: estimate.rawReply,
+      transcript: estimate.transcript || null,
+      image_url: estimate.imageUrl || null,
+      telegram_file_id: estimate.telegramFileId || null,
+    },
+  };
+
+  const { error } = await supabase.from('daily_meal_logs').insert(fullPayload);
+  if (!error) return { detailSaved: true, customColumnsSaved: true };
+
+  console.warn('[TELEGRAM_MEAL_LOG] daily_meal_logs full insert failed, retrying minimal payload:', error.message);
+  const minimalPayload = {
+    user_id: userId,
+    weekly_food_item_id: null,
+    food_id: null,
+    log_date: logDate,
+    meal_type: estimate.mealType,
+    quantity: 1,
+    calories,
+    protein: estimate.protein || 0,
+    carbs: estimate.carbs || 0,
+    fat: estimate.fat || 0,
+    is_completed: true,
+    eaten_at: new Date().toISOString(),
+  };
+  const retry = await supabase.from('daily_meal_logs').insert(minimalPayload);
+  if (retry.error) {
+    console.warn('[TELEGRAM_MEAL_LOG] daily_meal_logs minimal insert failed:', retry.error.message);
+    return { detailSaved: false, customColumnsSaved: false };
+  }
+  return { detailSaved: true, customColumnsSaved: false };
+}
+
+async function saveConfirmedMealEstimate(userId: string, chatId: number, caloriesOverride?: number) {
+  const estimate = getPendingMealEstimate(chatId);
+  if (!estimate || (estimate.userId && estimate.userId !== userId)) return null;
+
+  const logDate = getVietnamDateKey();
+  const calories = Math.max(1, Math.round(Number(caloriesOverride || estimate.calories || 0)));
+  const customFoodId = await upsertUserCustomFood(userId, estimate, calories);
+  const detailResult = await insertDailyMealLog(userId, logDate, estimate, customFoodId, calories);
+  await incrementDailyCalories(userId, logDate, calories);
+  clearPendingMealEstimate(chatId);
+
+  const macroParts = [
+    estimate.protein ? `P${Math.round(estimate.protein)}g` : '',
+    estimate.carbs ? `C${Math.round(estimate.carbs)}g` : '',
+    estimate.fat ? `F${Math.round(estimate.fat)}g` : '',
+  ].filter(Boolean);
+  const detailNote = detailResult.detailSaved
+    ? 'da luu chi tiet vao daily_meal_logs'
+    : 'da cong tong kcal, nhung chua luu duoc chi tiet bua an';
+  const customNote = customFoodId ? 'va cap nhat user_custom_foods' : 'custom food chua duoc tao do DB chua san sang';
+
+  return [
+    `Da luu bua "${estimate.foodName}" (${calories} kcal${macroParts.length ? `, ${macroParts.join(', ')}` : ''})`,
+    `${detailNote} ${customNote}.`,
+  ].join(' ');
+}
+
+async function handleTelegramMediaMessage(bot: TelegramBot, msg: TelegramBot.Message): Promise<boolean> {
+  const media = getTelegramMediaInfo(msg);
+  if (!media) return false;
+
+  const chatId = msg.chat.id;
+  const fileSize = Number(media.fileSize || 0);
+  if (fileSize > TELEGRAM_MEDIA_MAX_BYTES) {
+    await bot.sendMessage(chatId, 'File này hơi lớn cho demo hiện tại. Vui lòng gửi ảnh/ghi âm ngắn hơn.');
+    return true;
+  }
+
+  try {
+    await bot.sendChatAction(chatId, 'typing');
+    const fileUrl = await bot.getFileLink(media.fileId);
+    const { profile, coachContext } = await getLinkedProfileAndContext(chatId);
+    const profileName = profile?.full_name || msg.from?.first_name || msg.from?.username || 'khách hàng';
+    const history = getHistory(chatId).map((item) => ({ role: item.role, content: item.content }));
+
+    if (media.kind === 'photo') {
+      let reply = await analyzeMealPhotoCalories({
+        imageUrl: fileUrl,
+        userQuestion: media.caption,
+        profileName,
+        coachContext,
+        history,
+      });
+      const pendingEstimate = buildPendingMealEstimate({
+        userId: profile?.id,
+        reply,
+        fallbackName: media.caption || 'Bua an tu anh Telegram',
+        source: 'telegram_photo_ai',
+        imageUrl: fileUrl,
+        telegramFileId: media.fileId,
+      });
+      if (pendingEstimate) {
+        setPendingMealEstimate(chatId, pendingEstimate);
+        reply = [
+          reply,
+          '',
+          `Nếu muốn lưu chi tiết bữa này, nhắn: "ghi ${pendingEstimate.calories} kcal" hoặc "lưu bữa này".`,
+        ].join('\n');
+      }
+      const userHistoryText = `[Anh bua an] ${media.caption || 'Hoi uoc tinh calories tu anh bua an.'}`;
+      addToHistory(chatId, 'user', userHistoryText);
+      addToHistory(chatId, 'assistant', reply);
+      await sendLongMessage(bot, chatId, reply);
+      return true;
+    }
+
+    const transcript = await transcribeTelegramAudio({
+      fileUrl,
+      fileName: media.fileName,
+      language: 'vi',
+      prompt: 'Nguoi dung TrendFit noi tieng Viet ve bua an, calories, tap luyen hoac suc khoe.',
+    });
+    let reply = await answerVoiceCoachQuestion({
+      transcript,
+      userQuestion: media.caption,
+      profileName,
+      coachContext,
+      history,
+    });
+    const pendingEstimate = buildPendingMealEstimate({
+      userId: profile?.id,
+      reply,
+      fallbackName: media.caption,
+      source: 'telegram_voice_ai',
+      telegramFileId: media.fileId,
+      transcript,
+    });
+    if (pendingEstimate) {
+      setPendingMealEstimate(chatId, pendingEstimate);
+      reply = [
+        reply,
+        '',
+        `Nếu muốn lưu chi tiết bữa này, nhắn: "ghi ${pendingEstimate.calories} kcal" hoặc "lưu bữa này".`,
+      ].join('\n');
+    }
+    const responseText = [
+      `Mình nghe được: "${truncateTelegramText(transcript, 280)}"`,
+      '',
+      reply,
+    ].join('\n');
+    addToHistory(chatId, 'user', `[Ghi am] ${transcript}`);
+    addToHistory(chatId, 'assistant', reply);
+    await sendLongMessage(bot, chatId, responseText);
+    return true;
+  } catch (error: any) {
+    console.error('[TELEGRAM_MEDIA] Failed to process media:', error?.message || error);
+    const fallback = media.kind === 'photo'
+      ? 'Mình chưa phân tích được ảnh bữa ăn này. Hãy thử gửi ảnh rõ hơn hoặc mô tả món ăn bằng text/ghi âm.'
+      : 'Mình chưa xử lý được ghi âm này. Hãy thử ghi âm ngắn hơn hoặc nhắn nội dung bằng text.';
+    await bot.sendMessage(chatId, fallback);
+    return true;
+  }
+}
+
 async function sendMainMenu(bot: TelegramBot, chatId: number, profile?: LinkedProfile | null) {
   const resolvedProfile = profile ?? await getLinkedProfileByChatId(chatId).catch(() => null);
   const greeting = resolvedProfile?.full_name ? `Chào ${resolvedProfile.full_name}.` : 'Chào bạn.';
@@ -1410,6 +1943,9 @@ export const initTelegramBot = () => {
 
   // Xử lý tin nhắn thông thường với AI
   bot.on('message', async (msg) => {
+    const handledMedia = await handleTelegramMediaMessage(bot, msg);
+    if (handledMedia) return;
+
     if (msg.text?.startsWith('/') || !msg.text) return;
 
     const chatId = msg.chat.id;
@@ -1636,24 +2172,20 @@ export const initTelegramBot = () => {
         }
 
         const calMatch = userMessage.match(/(\d+)\s*(calo|kcal|cal)\b/i);
-        if (calMatch && /ăn|eat|nạp|tiêu thụ|thêm/i.test(userMessage)) {
-          const calories = parseInt(calMatch[1]);
-          const { data: existingLog } = await supabase
-            .from('daily_progress_logs')
-            .select('id, calories_consumed')
-            .eq('user_id', userProfile.id)
-            .eq('log_date', today)
-            .maybeSingle();
+        const pendingMealEstimate = getPendingMealEstimate(chatId);
+        const canSavePendingMeal = !!pendingMealEstimate && isPendingMealSaveRequest(userMessage);
+        if ((calMatch && /ăn|eat|nạp|tiêu thụ|thêm|ghi|log|lưu|luu|save/i.test(userMessage)) || canSavePendingMeal) {
+          const calories = calMatch ? parseInt(calMatch[1]) : Number(pendingMealEstimate?.calories || 0);
+          const mealSaveLog = pendingMealEstimate
+            ? await saveConfirmedMealEstimate(userProfile.id, chatId, calories)
+            : null;
 
-          if (existingLog) {
-            await supabase.from('daily_progress_logs')
-              .update({ calories_consumed: (existingLog.calories_consumed || 0) + calories })
-              .eq('id', existingLog.id);
+          if (mealSaveLog) {
+            actionLog += `✅ ${mealSaveLog}\n`;
           } else {
-            await supabase.from('daily_progress_logs')
-              .insert({ user_id: userProfile.id, log_date: today, calories_consumed: calories });
+            await incrementDailyCalories(userProfile.id, today, calories);
+            actionLog += `✅ Đã ghi nhận ${calories} kcal.\n`;
           }
-          actionLog += `✅ Đã ghi nhận ${calories} kcal.\n`;
         }
 
         // === PRE-PROCESSING: Ghi giấc ngủ ===
