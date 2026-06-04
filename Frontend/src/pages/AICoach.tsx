@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   Bot,
-  ChevronRight,
   Dumbbell,
   Loader2,
   Send,
@@ -15,7 +13,6 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
-const DAY_TAB_LABELS = ['TH 2', 'TH 3', 'TH 4', 'TH 5', 'TH 6', 'TH 7', 'CN'];
 const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
 type WeeklyPlan = {
@@ -67,7 +64,6 @@ type FoodPlanItem = {
   foods?: {
     name?: string | null;
     category?: string | null;
-    image_url?: string | null;
     serving_unit?: string | null;
   } | null;
 };
@@ -105,6 +101,15 @@ type WorkoutProposalPayload = {
     rest_seconds?: number;
     weight_kg?: number;
   }>;
+};
+
+type WorkoutProposalExerciseMeta = {
+  id: string;
+  name?: string | null;
+  body_part?: string | null;
+  target_muscle?: string | null;
+  image_url?: string | null;
+  gif_url?: string | null;
 };
 
 type MealProposalPayload = {
@@ -154,6 +159,16 @@ const getVietnamDateKey = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
+const getVietnamDayUtcRange = (date = new Date()) => {
+  const { year, month, day } = getDatePartsInTimeZone(date, VIETNAM_TIMEZONE);
+  const startUtc = new Date(`${year}-${month}-${day}T00:00:00+07:00`);
+  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    startIso: startUtc.toISOString(),
+    endIso: endUtc.toISOString(),
+  };
+};
+
 const getWeekStartKey = (baseDate: Date) => {
   const date = new Date(baseDate);
   const day = date.getDay();
@@ -184,33 +199,49 @@ const getMealTypeLabel = (value: string) => {
   return value || 'Bữa ăn';
 };
 
-const formatDateLabel = (dateKey?: string | null) => {
-  if (!dateKey) return 'Tuần hiện tại';
-  return new Date(`${dateKey}T00:00:00`).toLocaleDateString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
-
 const sumMealMetric = (meals: FoodPlanItem[], field: 'calories' | 'protein' | 'carbs' | 'fat') =>
   meals.reduce((sum, meal) => sum + Number(meal[field] || 0) * Number(meal.quantity || 1), 0);
 
 const getDayHeadline = (day: DayPlan) => {
   if (day.exercises.length > 0) {
-    return day.exercises[0]?.exercises?.body_part || day.exercises[0]?.exercises?.target_muscle || 'Buổi tập trong ngày';
+    return day.exercises[0]?.exercises?.body_part || day.exercises[0]?.exercises?.target_muscle || 'Buổi tập hôm nay';
   }
-  return 'Chưa có lịch cho ngày này';
+  return 'Chưa có lịch hôm nay';
 };
 
 const buildCoachOpening = (day: DayPlan) => {
   if (day.exercises.length > 0 && day.meals.length > 0) {
-    return `Mình đang theo dõi ${day.label}. Hôm nay có ${day.exercises.length} bài tập và ${day.meals.length} món trong thực đơn. Bạn có thể hỏi để chỉnh cường độ tập, đổi món hoặc tối ưu macro cho ngày này.`;
+    return `Mình đã mở sẵn workout và meal plan của ${day.label}. Bạn có thể nhắn để đổi món, giảm độ nặng, hoặc tối ưu lại theo mục tiêu hôm nay.`;
   }
   if (day.meals.length > 0) {
-    return `${day.label} hiện có thực đơn nhưng chưa có nhiều bài tập. Bạn có thể hỏi mình cách sắp xếp vận động nhẹ hoặc đổi món cho phù hợp mục tiêu.`;
+    return `${day.label} đang có meal plan sẵn. Nếu cần, mình sẽ gợi ý thêm vận động nhẹ hoặc đổi món cho sát mục tiêu hơn.`;
   }
-  return `${day.label} hiện chưa có đủ dữ liệu. Bạn có thể tạo lại kế hoạch hoặc hỏi mình cách bổ sung lịch tập và thực đơn cho ngày này.`;
+  if (day.exercises.length > 0) {
+    return `${day.label} đang có workout sẵn. Nếu cần, mình sẽ làm buổi tập gọn hơn, nhẹ hơn, hoặc đổi bài cho phù hợp thể trạng hôm nay.`;
+  }
+  return `${day.label} hiện chưa có đủ dữ liệu. Bạn có thể tạo lại kế hoạch hoặc nói rõ tình trạng hôm nay để mình gợi ý cách bổ sung workout và meal plan.`;
+};
+
+const buildMealDigest = (day: DayPlan) => {
+  if (day.meals.length === 0) {
+    return 'Meal plan hôm nay chưa có món nào.';
+  }
+
+  const calories = Math.round(sumMealMetric(day.meals, 'calories'));
+  const protein = Math.round(sumMealMetric(day.meals, 'protein'));
+  const lines = day.meals.slice(0, 4).map((meal, index) => {
+    const name = meal.foods?.name || 'Món ăn';
+    const type = getMealTypeLabel(meal.meal_type);
+    const quantity = Number(meal.quantity || 1);
+    return `${index + 1}. ${type} - ${name} x${quantity}`;
+  });
+
+  const remaining = day.meals.length - lines.length;
+  if (remaining > 0) {
+    lines.push(`+${remaining} món nữa`);
+  }
+
+  return `Meal plan hôm nay có ${day.meals.length} món, ${calories} kcal và ${protein}g protein.\n${lines.join('\n')}`;
 };
 
 const buildCoachReply = (day: DayPlan, question: string) => {
@@ -222,62 +253,36 @@ const buildCoachReply = (day: DayPlan, question: string) => {
 
   if (normalizedQuestion.includes('ăn') || normalizedQuestion.includes('thực đơn') || normalizedQuestion.includes('meal')) {
     return day.meals.length > 0
-      ? `${day.label} đang có ${day.meals.length} món, tổng khoảng ${calories || 0} kcal và ${protein || 0}g protein. Nếu muốn siết mỡ hơn, hãy giữ nguyên protein và cắt bớt món phụ hoặc tinh bột ở bữa tối.`
-      : `${day.label} chưa có thực đơn chi tiết. Nên ưu tiên 1 nguồn đạm nạc, 1 phần rau lớn và tinh bột vừa phải quanh buổi tập để bám mục tiêu hơn.`;
+      ? `${day.label} đang có ${day.meals.length} món, tổng khoảng ${calories || 0} kcal và ${protein || 0}g protein. Nếu muốn siết mỡ hơn, hãy giữ protein và cắt bớt món phụ hoặc tinh bột ở bữa tối.`
+      : `${day.label} chưa có thực đơn chi tiết. Nên ưu tiên 1 nguồn đạm nạc, 1 phần rau lớn và tinh bột vừa phải quanh buổi tập.`;
   }
 
-  if (normalizedQuestion.includes('nhẹ') || normalizedQuestion.includes('mệt')) {
+  if (
+    normalizedQuestion.includes('nhẹ') ||
+    normalizedQuestion.includes('mệt') ||
+    normalizedQuestion.includes('met')
+  ) {
     return day.exercises.length > 0
-      ? `Nếu thấy mệt ở ${day.label}, hãy giảm 1 hiệp ở mỗi bài, giữ kỹ thuật sạch và kéo nghỉ lên ${Math.max(75, Number(firstExercise?.rest_seconds || 60))} giây. Vẫn đủ kích thích nhưng bớt quá tải.`
-      : `Ngày này chưa có bài tập. Bạn có thể tạo lại Trợ lý cá nhân hoặc thêm bài trong thư viện để hoàn thiện lịch.`;
+      ? `Nếu thấy mệt ở ${day.label}, hãy giảm 1 hiệp ở mỗi bài, giữ kỹ thuật sạch và kéo nghỉ lên ${Math.max(75, Number(firstExercise?.rest_seconds || 60))} giây.`
+      : `Ngày này chưa có bài tập. Bạn có thể tạo lại AI Coach để bổ sung lịch tập.`;
   }
 
   if (day.exercises.length > 0) {
-    return `Cho ${day.label}, mình sẽ ưu tiên ${getDayHeadline(day).toLowerCase()}. Bắt đầu bằng ${firstExercise?.exercises?.name || 'bài chính'}, giữ ${firstExercise?.sets || 3} hiệp x ${firstExercise?.reps || '8-12'} reps, rồi theo dõi cảm giác để tăng hoặc giảm tải.`;
+    return `Cho ${day.label}, mình ưu tiên ${getDayHeadline(day).toLowerCase()}. Bắt đầu bằng ${firstExercise?.exercises?.name || 'bài chính'}, giữ ${firstExercise?.sets || 3} hiệp x ${firstExercise?.reps || '8-12'} reps rồi theo dõi cảm giác để tăng hoặc giảm tải.`;
   }
 
   if (firstMeal?.foods?.name) {
-    return `${day.label} hiện nghiêng về dinh dưỡng nhiều hơn vận động. Bạn có thể giữ thực đơn hiện tại và thêm một buổi cardio nhẹ hoặc đi bộ sau bữa chính để hỗ trợ mục tiêu tốt hơn.`;
+    return `${day.label} hiện nghiêng về dinh dưỡng nhiều hơn vận động. Bạn có thể giữ meal plan hiện tại và thêm cardio nhẹ hoặc đi bộ sau bữa chính.`;
   }
 
-  return `Mình đang bám theo dữ liệu của ${day.label}. Hãy hỏi cụ thể hơn về bài tập hoặc thực đơn để mình gợi ý sát với ngày bạn đang chọn.`;
+  return `Mình đang bám theo dữ liệu của ${day.label}. Hãy hỏi cụ thể hơn về bài tập hoặc thực đơn để mình gợi ý sát hơn.`;
 };
 
 function AICoachSkeleton() {
   return (
     <div className="w-full animate-pulse">
-      <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-        <div className="h-[780px] rounded-[24px] border border-border-primary bg-bg-secondary" />
-        <div className="h-[780px] rounded-[24px] border border-border-primary bg-bg-secondary" />
-      </div>
+      <div className="h-[780px] rounded-[24px] border border-border-primary bg-bg-secondary" />
     </div>
-  );
-}
-
-function SectionCard({
-  title,
-  subtitle,
-  action,
-  children,
-  className = '',
-}: {
-  title: string;
-  subtitle?: string;
-  action?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <article className={`rounded-[24px] border border-border-primary bg-bg-secondary p-4 shadow-[0_18px_50px_rgba(0,0,0,0.12)] md:p-5 ${className}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-black text-text-primary">{title}</h2>
-          {subtitle ? <p className="mt-1 text-xs font-semibold text-text-secondary">{subtitle}</p> : null}
-        </div>
-        {action}
-      </div>
-      <div className="mt-4">{children}</div>
-    </article>
   );
 }
 
@@ -289,30 +294,17 @@ function ActionProposalCard({
   actionPayload?: unknown;
 }) {
   if (actionType === 'replace_today_workout') {
-    const payload = actionPayload as WorkoutProposalPayload;
-    const exercises = Array.isArray(payload?.exercises) ? payload.exercises : [];
-    return (
-      <div className="ai-surface mt-2 rounded-2xl border p-3 text-sm text-text-primary">
-        <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">De xuat moi</p>
-        <p className="mt-2 font-black">{Number(payload?.duration_minutes || 0)} phut, {exercises.length} bai tap</p>
-        <p className="mt-1 text-xs font-semibold text-text-secondary">Giam set, tang nghi de phuc hoi nhung van giu nhip tap.</p>
-        <div className="mt-2 space-y-1">
-          {exercises.slice(0, 3).map((exercise, index) => (
-            <p key={`${exercise.exercise_id || 'exercise'}-${index}`} className="text-xs text-text-secondary">
-              {index + 1}. {exercise.name || exercise.exercise_id || 'Exercise'} - {exercise.sets || 0} sets x {exercise.reps || '-'}
-            </p>
-          ))}
-        </div>
-      </div>
-    );
+    return <WorkoutProposalCard payload={actionPayload as WorkoutProposalPayload} />;
   }
 
   if (actionType === 'replace_today_meal') {
     const payload = actionPayload as MealProposalPayload;
     return (
       <div className="ai-surface mt-2 rounded-2xl border p-3 text-sm text-text-primary">
-        <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">De xuat doi mon</p>
-        <p className="mt-2 font-black">{payload?.old_food_name || 'Mon cu'}{' -> '}{payload?.new_food_name || 'Mon moi'}</p>
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">Đề xuất đổi món</p>
+        <p className="mt-2 font-black">
+          {payload?.old_food_name || 'Món cũ'} {' -> '} {payload?.new_food_name || 'Món mới'}
+        </p>
         <p className="mt-1 text-xs font-semibold text-text-secondary">
           {getMealTypeLabel(String(payload?.meal_type || 'meal'))} • {Math.round(Number(payload?.calories || 0))} kcal • {Math.round(Number(payload?.protein || 0))}g protein
         </p>
@@ -324,9 +316,215 @@ function ActionProposalCard({
   return null;
 }
 
+function WorkoutProposalCard({ payload }: { payload: WorkoutProposalPayload }) {
+  const exercises = Array.isArray(payload?.exercises) ? payload.exercises : [];
+  const exerciseIds = useMemo(
+    () =>
+      exercises
+        .map((exercise) => String(exercise.exercise_id || '').trim())
+        .filter(Boolean),
+    [exercises],
+  );
+  const [exerciseMetaById, setExerciseMetaById] = useState<Record<string, WorkoutProposalExerciseMeta>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExerciseMeta = async () => {
+      if (exerciseIds.length === 0) {
+        setExerciseMetaById({});
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('exercises')
+        .select('id, name, body_part, target_muscle, image_url, gif_url')
+        .in('id', exerciseIds);
+
+      if (cancelled || error) return;
+
+      const nextMap = Object.fromEntries(
+        ((data as WorkoutProposalExerciseMeta[]) || []).map((item) => [String(item.id), item]),
+      );
+      setExerciseMetaById(nextMap);
+    };
+
+    void loadExerciseMeta();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [exerciseIds]);
+
+  return (
+    <div className="ai-surface mt-2 rounded-2xl border p-3 text-sm text-text-primary">
+      <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">Đề xuất mới</p>
+      <p className="mt-2 font-black">
+        {Number(payload?.duration_minutes || 0)} phút, {exercises.length} bài tập
+      </p>
+      <p className="mt-1 text-xs font-semibold text-text-secondary">Giảm set, tăng nghỉ để phục hồi nhưng vẫn giữ nhịp tập.</p>
+
+      <div className="mt-3 space-y-2">
+        {exercises.slice(0, 4).map((exercise, index) => {
+          const exerciseId = String(exercise.exercise_id || '').trim();
+          const meta = exerciseId ? exerciseMetaById[exerciseId] : undefined;
+          const imageUrl = meta?.image_url || meta?.gif_url || '';
+          const title = meta?.name || exercise.name || exerciseId || 'Bài tập';
+          const focus = meta?.body_part || meta?.target_muscle || '';
+
+          return (
+            <div key={`${exercise.exercise_id || 'exercise'}-${index}`} className="flex items-center gap-3 rounded-2xl border border-border-primary/80 bg-bg-primary/35 px-3 py-3">
+              <div className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary">
+                <ExerciseThumb src={imageUrl} alt={title} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-black text-text-primary">
+                  {index + 1}. {title}
+                </p>
+                <p className="text-sm font-semibold text-text-secondary">
+                  {exercise.sets || 0} hiệp × {exercise.reps || '-'}
+                </p>
+                <p className="text-xs font-semibold text-text-tertiary">
+                  {focus || 'Đang cập nhật nhóm cơ'}
+                  {exercise.rest_seconds ? ` • Nghỉ ${exercise.rest_seconds}s` : ''}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function SummaryBubble({
+  icon,
+  title,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ai text-white shadow-[0_10px_24px_rgb(var(--ai-rgb)_/_0.22)]">
+        {icon}
+      </div>
+      <div className="max-w-[88%] rounded-[26px] border border-border-primary bg-bg-secondary px-4 py-4 text-[15px] leading-7 text-text-primary shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">{title}</p>
+        <div className="mt-2">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ExerciseThumb({ src, alt }: { src?: string; alt: string }) {
+  const candidates = useMemo(() => {
+    const primary = normalizeMediaUrl(src);
+    if (!primary) return [];
+
+    const urlWithoutProtocol = primary.replace(/^https?:\/\//, '');
+    const proxy = `https://images.weserv.nl/?url=${encodeURIComponent(urlWithoutProtocol)}&n=-1`;
+    return [primary, proxy];
+  }, [src]);
+
+  const [candidateIndex, setCandidateIndex] = useState(0);
+  const currentSrc = candidates[candidateIndex];
+
+  useEffect(() => {
+    setCandidateIndex(0);
+  }, [src]);
+
+  if (!currentSrc) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-bg-tertiary text-xs font-semibold text-text-tertiary">
+        Không có ảnh
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={currentSrc}
+      alt={alt}
+      className="h-full w-full object-cover"
+      onError={() => {
+        setCandidateIndex((index) => {
+          const nextIndex = index + 1;
+          return nextIndex < candidates.length ? nextIndex : index;
+        });
+      }}
+    />
+  );
+}
+
+function TodayDigestBubble({ day }: { day: DayPlan }) {
+  const totalSets = day.exercises.reduce((sum, item) => sum + Number(item.sets || 0), 0);
+  const mealDigest = buildMealDigest(day);
+
+  return (
+    <SummaryBubble icon={<Bot className="h-4 w-4" />} title="Hôm nay">
+      <div className="space-y-4">
+        <p>{buildCoachOpening(day)}</p>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-ai">
+            <Dumbbell className="h-4 w-4" />
+            <span>Workout hôm nay</span>
+          </div>
+          {day.exercises.length === 0 ? (
+            <p>Workout hôm nay chưa có bài tập nào.</p>
+          ) : (
+            <>
+              <p className="font-semibold">
+                Workout hôm nay có {day.exercises.length} bài tập và {totalSets} sets.
+              </p>
+              <div className="space-y-2">
+                {day.exercises.slice(0, 4).map((item, index) => {
+                  const imageUrl = item.exercises?.image_url || item.exercises?.gif_url || '';
+                  return (
+                    <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-border-primary/80 bg-bg-primary/35 px-3 py-3">
+                      <div className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary">
+                        <ExerciseThumb src={imageUrl} alt={item.exercises?.name || 'Bài tập'} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-black text-text-primary">
+                          {index + 1}. {item.exercises?.name || 'Bài tập'}
+                        </p>
+                        <p className="text-sm font-semibold text-text-secondary">
+                          {item.sets || 3} hiệp × {item.reps || '8-12'}
+                        </p>
+                        <p className="text-xs font-semibold text-text-tertiary">
+                          {item.exercises?.body_part || item.exercises?.target_muscle || 'Strength'}
+                          {item.rest_seconds ? ` • Nghỉ ${item.rest_seconds}s` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {day.exercises.length > 4 ? (
+                <p className="text-sm font-semibold text-text-secondary">+{day.exercises.length - 4} bài nữa trong buổi hôm nay.</p>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-ai">
+            <Utensils className="h-4 w-4" />
+            <span>Meal plan hôm nay</span>
+          </div>
+          <p className="whitespace-pre-line">{mealDigest}</p>
+        </div>
+      </div>
+    </SummaryBubble>
+  );
+}
+
 export default function AICoach() {
   const { user, isLoggedIn, refreshTick, profile, isPremium, refreshProfile, openPremiumModal } = useAuth();
-  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState<WeeklyPlan | null>(null);
   const [items, setItems] = useState<PlanExercise[]>([]);
@@ -335,17 +533,17 @@ export default function AICoach() {
   const [error, setError] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [dbHasMessages, setDbHasMessages] = useState(false);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
-  const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
-  const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
-  const [dayIndicatorStyle, setDayIndicatorStyle] = useState({ x: 0, y: 0, width: 0, height: 0, visible: false });
+  const submitLockRef = useRef(false);
+  const lastSubmitRef = useRef<{ message: string; at: number } | null>(null);
+  const hasHydratedPlanRef = useRef(false);
 
-  const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${getVietnamDateKey()}T00:00:00`)), []);
+  const todayDateKey = useMemo(() => getVietnamDateKey(), []);
+  const todayChatRange = useMemo(() => getVietnamDayUtcRange(), []);
+  const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${todayDateKey}T00:00:00`)), [todayDateKey]);
   const profileCreatedAt = profile?.created_at ? new Date(profile.created_at) : null;
   const freeUsedAt = profile?.ai_coach_free_used_at ? new Date(profile.ai_coach_free_used_at) : null;
   const trialEndsAt = profileCreatedAt ? new Date(profileCreatedAt.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
@@ -363,7 +561,9 @@ export default function AICoach() {
         return;
       }
 
-      setLoading(true);
+      if (!hasHydratedPlanRef.current) {
+        setLoading(true);
+      }
       setError('');
 
       try {
@@ -374,7 +574,6 @@ export default function AICoach() {
           .maybeSingle();
 
         if (lifestyleResult.error) throw lifestyleResult.error;
-
         setLifestyle((lifestyleResult.data || null) as LifestyleSummary | null);
 
         let selectedPlan: WeeklyPlan | null = null;
@@ -439,7 +638,7 @@ export default function AICoach() {
         } else {
           const foodPlanItems = await supabase
             .from('weekly_food_items')
-            .select('*, foods:food_id (name, category, image_url, serving_unit)')
+            .select('*, foods:food_id (name, category, serving_unit)')
             .eq('food_plan_id', latestFoodPlan.id)
             .order('day_of_week', { ascending: true })
             .order('order_index', { ascending: true });
@@ -448,8 +647,9 @@ export default function AICoach() {
           setFoodItems((foodPlanItems.data || []) as FoodPlanItem[]);
         }
       } catch (err: any) {
-        setError(err?.message || 'Không thể tải kế hoạch từ Trợ lý cá nhân.');
+        setError(err?.message || 'Không thể tải kế hoạch từ AI Coach.');
       } finally {
+        hasHydratedPlanRef.current = true;
         setLoading(false);
       }
     };
@@ -477,15 +677,15 @@ export default function AICoach() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || 'Không thể tạo kế hoạch từ Trợ lý cá nhân.');
+        throw new Error(payload?.error || 'Không thể tạo kế hoạch từ AI Coach.');
       }
       await refreshProfile();
       setReloadKey((value) => value + 1);
     } catch (err: any) {
       const message =
         err instanceof TypeError
-          ? 'Không thể kết nối tới Trợ lý cá nhân. Kiểm tra backend, VITE_API_URL hoặc CORS.'
-          : err?.message || 'Không thể tạo kế hoạch từ Trợ lý cá nhân.';
+          ? 'Không thể kết nối tới AI Coach. Kiểm tra backend, VITE_API_URL hoặc CORS.'
+          : err?.message || 'Không thể tạo kế hoạch từ AI Coach.';
       setError(message);
     } finally {
       setIsGenerating(false);
@@ -513,116 +713,71 @@ export default function AICoach() {
   );
 
   const todayDayIndex = useMemo(() => {
-    const today = new Date(`${getVietnamDateKey()}T00:00:00`);
+    const today = new Date(`${todayDateKey}T00:00:00`);
     const day = today.getDay();
     return day === 0 ? 6 : day - 1;
-  }, []);
+  }, [todayDateKey]);
 
+  const selectedDay = days[todayDayIndex] || days[0];
   useEffect(() => {
-    setSelectedDayIndex(todayDayIndex);
-  }, [todayDayIndex, plan?.id]);
-
-  useEffect(() => {
-    const updateIndicator = () => {
-      const container = dayTabContainerRef.current;
-      const activeTab = dayTabRefs.current[selectedDayIndex];
-      if (!container || !activeTab) {
-        setDayIndicatorStyle((current) => ({ ...current, visible: false }));
+    const fetchChat = async () => {
+      if (!user?.id) {
+        setChatMessages([]);
         return;
       }
 
-      const containerRect = container.getBoundingClientRect();
-      const activeRect = activeTab.getBoundingClientRect();
-      setDayIndicatorStyle({
-        x: activeRect.left - containerRect.left + container.scrollLeft,
-        y: activeRect.top - containerRect.top,
-        width: activeRect.width,
-        height: activeRect.height,
-        visible: true,
-      });
-    };
-
-    updateIndicator();
-    window.addEventListener('resize', updateIndicator);
-    return () => window.removeEventListener('resize', updateIndicator);
-  }, [selectedDayIndex, days.length]);
-
-  const selectedDay = days[selectedDayIndex] || days[todayDayIndex] || days[0];
-  const trainingDays = days.filter((day) => day.exercises.length > 0).length;
-  const targetWorkouts = Number(lifestyle?.weekly_workouts || trainingDays || 0);
-  const selectedMealCalories = Math.round(sumMealMetric(selectedDay.meals, 'calories'));
-  const selectedMealProtein = Math.round(sumMealMetric(selectedDay.meals, 'protein'));
-  const selectedWorkoutSets = selectedDay.exercises.reduce((sum, item) => sum + Number(item.sets || 0), 0);
-
-  const quickPrompts = [
-    `Điều chỉnh ${selectedDay?.label || 'hôm nay'} nhẹ hơn`,
-    `Đổi thực đơn ${selectedDay?.label || 'hôm nay'} gọn hơn`,
-    'Gợi ý bữa phụ nhiều protein',
-    'Tôi nên tập gì nếu hơi mệt?',
-  ];
-
-  useEffect(() => {
-    const fetchChat = async () => {
-      if (!user?.id) return;
-      const [{ data: chatData }, { data: adjustmentData }] = await Promise.all([
-        supabase
+      const chatRes = await supabase
         .from('ai_chat_messages')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: true }),
-        supabase
-          .from('ai_plan_adjustments')
-          .select('id, chat_message_id, status')
-          .eq('user_id', user.id)
-          .eq('source_type', 'chat'),
-      ]);
+        .gte('created_at', todayChatRange.startIso)
+        .lt('created_at', todayChatRange.endIso)
+        .order('created_at', { ascending: true });
 
-      if (chatData && chatData.length > 0) {
-        const adjustmentByChatId = new Map(
-          (adjustmentData || []).map((item: any) => [
-            String(item.chat_message_id || ''),
-            {
-              id: String(item.id || ''),
-              status: item.status === 'applied' || item.status === 'rejected' ? item.status : 'idle',
-            },
-          ]),
-        );
-
-        setChatMessages(
-          (chatData as any[]).map((item) => {
-            const linkedAdjustment = adjustmentByChatId.get(String(item.id || ''));
-            return {
-              id: String(item.id),
-              role: item.role,
-              content: String(item.content || ''),
-              actionRequired: !!item.action_type,
-              actionType: item.action_type || null,
-              actionPayload: item.action_payload,
-              adjustmentId: linkedAdjustment?.id || null,
-              actionStatus: linkedAdjustment?.status || 'idle',
-            } as ChatMessage;
-          }),
-        );
-        setDbHasMessages(true);
-      } else {
-        setDbHasMessages(false);
+      if (chatRes.error || !chatRes.data || chatRes.data.length === 0) {
+        setChatMessages([]);
+        return;
       }
-    };
-    fetchChat();
-  }, [user?.id]);
 
-  useEffect(() => {
-    if (!selectedDay) return;
-    if (!dbHasMessages) {
-      setChatMessages([
-        {
-          id: `assistant-welcome-${selectedDay.dayIndex}`,
-          role: 'assistant',
-          content: buildCoachOpening(selectedDay),
-        },
-      ]);
-    }
-  }, [selectedDay, dbHasMessages]);
+      const chatIds = chatRes.data.map((item: any) => String(item.id || '')).filter(Boolean);
+      const adjustmentRes = chatIds.length > 0
+        ? await supabase
+            .from('ai_plan_adjustments')
+            .select('id, chat_message_id, status')
+            .eq('user_id', user.id)
+            .eq('source_type', 'chat')
+            .in('chat_message_id', chatIds)
+        : { data: [], error: null };
+
+      const adjustmentByChatId = new Map(
+        ((adjustmentRes.data as any[]) || []).map((item: any) => [
+          String(item.chat_message_id || ''),
+          {
+            id: String(item.id || ''),
+            status: item.status === 'applied' || item.status === 'rejected' ? item.status : 'idle',
+          },
+        ]),
+      );
+
+      setChatMessages(
+        (chatRes.data as any[]).map((item) => {
+          const linkedAdjustment = adjustmentByChatId.get(String(item.id || ''));
+          return {
+            id: String(item.id || ''),
+            role: item.role,
+            content: String(item.content || ''),
+            actionRequired: !!item.action_type,
+            actionType: item.action_type || null,
+            actionPayload: item.action_payload,
+            adjustmentId: linkedAdjustment?.id || null,
+            actionStatus: linkedAdjustment?.status || 'idle',
+          } as ChatMessage;
+        }),
+      );
+    };
+
+    void fetchChat();
+  }, [user?.id, todayChatRange.startIso, todayChatRange.endIso, reloadKey]);
 
   useEffect(() => {
     const container = chatScrollRef.current;
@@ -665,7 +820,19 @@ export default function AICoach() {
   const submitChat = async (messageText?: string) => {
     const message = String(messageText ?? chatInput).trim();
     if (!message || !selectedDay || !user?.id) return;
+    if (submitLockRef.current) return;
 
+    const now = Date.now();
+    if (
+      lastSubmitRef.current &&
+      lastSubmitRef.current.message === message &&
+      now - lastSubmitRef.current.at < 1500
+    ) {
+      return;
+    }
+
+    submitLockRef.current = true;
+    lastSubmitRef.current = { message, at: now };
     setChatInput('');
     setIsSendingChat(true);
 
@@ -675,13 +842,7 @@ export default function AICoach() {
       content: message,
     };
 
-    // Optimistic update
-    setChatMessages((current) => {
-      // Remove the unsaved welcome message if it's the only one
-      const prev = dbHasMessages ? current : [];
-      return [...prev, userMessage];
-    });
-    setDbHasMessages(true);
+    setChatMessages((current) => [...current, userMessage]);
 
     try {
       const sessionRes = await supabase.auth.getSession();
@@ -705,7 +866,7 @@ export default function AICoach() {
         if (payload?.code === 'PREMIUM_REQUIRED') {
           openPremiumModal();
         }
-        throw new Error(payload?.reply || 'Khong the gui tin nhan toi AI Coach.');
+        throw new Error(payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');
       }
 
       const replyContent = String(payload.reply || '').trim() || buildCoachReply(selectedDay, message);
@@ -728,8 +889,16 @@ export default function AICoach() {
       };
       setChatMessages((current) => [...current, fallbackMessage]);
     } finally {
+      submitLockRef.current = false;
       setIsSendingChat(false);
     }
+  };
+
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    if (!chatInput.trim() || isSendingChat) return;
+    void submitChat();
   };
 
   if (loading) return <AICoachSkeleton />;
@@ -749,9 +918,9 @@ export default function AICoach() {
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-ai/12 text-ai">
               <Sparkles className="h-8 w-8" />
             </div>
-            <h2 className="mt-6 text-3xl font-black text-text-primary">Chưa có kế hoạch từ Trợ lý cá nhân</h2>
+            <h2 className="mt-6 text-3xl font-black text-text-primary">Chưa có kế hoạch từ AI Coach</h2>
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-text-secondary">
-              Hoàn tất hồ sơ sức khỏe và thói quen tập luyện để Trợ lý cá nhân tạo lịch tập, thực đơn và gợi ý điều chỉnh theo dữ liệu thật của bạn.
+              Hoàn tất hồ sơ sức khỏe và thói quen tập luyện để AI Coach tạo lịch tập, thực đơn và gợi ý điều chỉnh theo dữ liệu thật của bạn.
             </p>
             {isLoggedIn ? (
               <button
@@ -766,283 +935,85 @@ export default function AICoach() {
             ) : null}
           </section>
         ) : (
-          <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_420px]">
-            <div className="grid gap-4">
-              <SectionCard
-                title="Lịch theo tuần"
-                subtitle={`Chọn từng thứ để xem bài tập và thực đơn tương ứng`}
-                action={
-                  <div className="hidden min-w-[116px] rounded-2xl border border-border-primary bg-bg-primary/50 px-3 py-2 text-left shadow-[0_12px_30px_rgba(0,0,0,0.08)] sm:block">
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Đang xem</p>
-                    <p className="text-sm font-black text-text-primary">{selectedDay.label}</p>
+          <section>
+            <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-[24px] border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+              <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-text-primary">
+                    <Bot className="h-4 w-4" />
+                    <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-bg-secondary bg-ai" />
                   </div>
-                }
-              >
-                <div className="diet-tabs min-w-0 overflow-x-auto rounded-[20px] p-1">
-                  <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 md:min-w-0">
-                    <span
-                      className={`diet-tab-indicator pointer-events-none absolute rounded-2xl transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
-                      style={{
-                        width: `${dayIndicatorStyle.width}px`,
-                        height: `${dayIndicatorStyle.height}px`,
-                        transform: `translate(${dayIndicatorStyle.x}px, ${dayIndicatorStyle.y}px)`,
-                      }}
-                    />
-                  {days.map((day) => {
-                    const isActive = day.dayIndex === selectedDay.dayIndex;
-                    return (
-                      <button
-                        key={day.dayIndex}
-                        ref={(node) => {
-                          dayTabRefs.current[day.dayIndex] = node;
-                        }}
-                        type="button"
-                        onClick={() => setSelectedDayIndex(day.dayIndex)}
-                        className={`relative inline-flex min-h-[42px] items-center justify-center whitespace-nowrap rounded-2xl px-3 text-[10px] font-black uppercase leading-tight tracking-[0.12em] transition sm:text-[11px] ${
-                          isActive ? 'diet-tab-selected z-10' : 'diet-tab'
-                        }`}
-                        title={day.label}
-                      >
-                        {day.dayIndex === todayDayIndex ? (
-                          <span
-                            aria-label="Hôm nay"
-                            className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-accent"
-                          />
-                        ) : null}
-                        <div className="hidden">
-                          <div>
-                            <p className="text-lg font-black leading-none text-text-primary">{day.exercises.length || 0}</p>
-                            <p className="mt-1 text-[11px] font-semibold text-text-tertiary">bài tập</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-lg font-black leading-none text-text-primary">{day.meals.length || 0}</p>
-                            <p className="mt-1 text-[11px] font-semibold text-text-tertiary">món</p>
-                          </div>
-                        </div>
-                        <span>{day.dayIndex === todayDayIndex ? 'HÔM NAY' : DAY_TAB_LABELS[day.dayIndex]}</span>
-                      </button>
-                    );
-                  })}
+                  <div>
+                    <p className="text-2xl font-black leading-none text-text-primary">AI Coach</p>
+                    <p className="mt-1 text-xs font-semibold text-text-secondary">
+                      Chat, workout và meal plan trong ngày
+                    </p>
                   </div>
                 </div>
-              </SectionCard>
 
-              <SectionCard
-                title={selectedDay.label}
-                action={<p className="pt-1 text-sm font-bold text-text-secondary">{getDayHeadline(selectedDay)}</p>}
-              >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="min-w-0 overflow-hidden rounded-[20px] border border-border-primary bg-bg-primary/35">
-                    <div className="flex items-start justify-between gap-3 border-b border-border-primary px-4 py-4">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Bài tập</p>
-                        <p className="mt-1 text-xl font-black text-text-primary">{selectedDay.exercises.length} mục</p>
-                        <p className="mt-1 text-xs font-semibold text-text-tertiary">{selectedWorkoutSets || 0} sets trong ngày</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/exercises')}
-                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary px-3 text-xs font-black text-text-primary hover:border-ai/30 hover:text-ai"
-                      >
-                        Thư viện bài tập
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="divide-y divide-border-primary/70">
-                      {selectedDay.exercises.length > 0 ? (
-                        selectedDay.exercises.map((item) => {
-                          const imageUrl = normalizeMediaUrl(item.exercises?.gif_url || item.exercises?.image_url || '');
-                          return (
-                            <div key={item.id} className="flex items-center gap-3 px-4 py-3 transition hover:bg-bg-secondary/55">
-                              <div className="h-14 w-[66px] shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-tertiary">
-                                {imageUrl ? (
-                                  <img src={imageUrl} alt={item.exercises?.name || "Bài tập"} className="h-full w-full object-cover" />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center text-accent">
-                                    <Dumbbell className="h-5 w-5" />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-base font-black text-text-primary">{item.exercises?.name || "Bài tập"}</p>
-                                <p className="mt-1 text-xs font-semibold text-text-secondary">
-                                  {item.exercises?.body_part || item.exercises?.target_muscle || "Strength"} • {item.sets || 3} sets • {item.reps || "8-12"} reps
-                                </p>
-                                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black uppercase tracking-[0.12em]">
-                                  <span className="rounded-full bg-bg-tertiary px-2.5 py-1 text-text-secondary">
-                                    Nghỉ {item.rest_seconds || 60}s
-                                  </span>
-                                  {Number(item.weight_kg || 0) > 0 ? (
-                                    <span className="rounded-full bg-ai/10 px-2.5 py-1 text-ai">
-                                      {item.weight_kg} kg
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="px-4 py-10 text-center">
-                          <p className="text-sm font-black text-text-primary">Chưa có bài tập cho ngày này</p>
-                          <p className="mt-1 text-xs font-semibold text-text-tertiary">
-                            Tạo lại Trợ lý cá nhân để đồng bộ lịch tập mới cho ngày này.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0 overflow-hidden rounded-[20px] border border-border-primary bg-bg-primary/35">
-                    <div className="flex items-start justify-between gap-3 border-b border-border-primary px-4 py-4">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Thực đơn</p>
-                        <p className="mt-1 text-xl font-black text-text-primary">{selectedDay.meals.length} món</p>
-                        <p className="mt-1 text-xs font-semibold text-text-tertiary">{selectedMealCalories} kcal · {selectedMealProtein}g protein</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/diet-plan')}
-                        className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary px-3 text-xs font-black text-text-primary hover:border-ai/30 hover:text-ai"
-                      >
-                        Meal plan
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="divide-y divide-border-primary/70">
-                      {selectedDay.meals.length > 0 ? (
-                        selectedDay.meals.map((meal) => {
-                          const foodImage = normalizeMediaUrl(meal.foods?.image_url || '');
-                          return (
-                            <div key={meal.id} className="flex items-center gap-3 px-4 py-3 transition hover:bg-bg-secondary/55">
-                              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-border-primary bg-bg-tertiary">
-                                {foodImage ? (
-                                  <img src={foodImage} alt={meal.foods?.name || "Món ăn"} className="h-full w-full object-cover" />
-                                ) : (
-                                  <div className="flex h-full w-full items-center justify-center text-accent">
-                                    <Utensils className="h-4 w-4" />
-                                  </div>
-                                )}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <p className="truncate text-sm font-black text-text-primary">{meal.foods?.name || "Món ăn"}</p>
-                                  <span className="shrink-0 rounded-full bg-ai/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-ai">
-                                    {getMealTypeLabel(meal.meal_type)}
-                                  </span>
-                                </div>
-                                <p className="mt-1 text-xs font-semibold text-text-secondary">
-                                  {Math.round(Number(meal.calories || 0) * Number(meal.quantity || 1))} kcal •{" "}
-                                  {Math.round(Number(meal.protein || 0) * Number(meal.quantity || 1))}g protein
-                                </p>
-                                <p className="mt-1 text-[11px] font-medium text-text-tertiary">
-                                  x{Number(meal.quantity || 1)} {meal.foods?.serving_unit || 'serving'}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="px-4 py-10 text-center">
-                          <p className="text-sm font-black text-text-primary">Chưa có thực đơn cho ngày này</p>
-                          <p className="mt-1 text-xs font-semibold text-text-tertiary">
-                            Tạo lại Trợ lý cá nhân hoặc mở Thực đơn để cập nhật bữa ăn.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </SectionCard>
-            </div>
-
-            <article className="sticky top-5 flex h-[680px] min-w-0 self-start flex-col overflow-hidden rounded-[24px] border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)] md:h-[760px] xl:h-[calc(100vh-7rem)] xl:max-h-[860px]">
-              <div className="flex items-center gap-3 border-b border-border-primary bg-bg-secondary px-5 py-5">
-                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-text-primary">
-                  <Bot className="h-5 w-5" />
-                  <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-bg-secondary bg-ai" />
-                </div>
-                <div>
-                  <p className="text-[28px] font-black leading-none text-text-primary">Trợ lý cá nhân</p>
-                  <p className="mt-1 text-sm font-semibold text-text-secondary">
-                    Lịch tập, thực đơn và tiến độ của bạn
-                  </p>
-                </div>
               </div>
 
-              <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto bg-bg-tertiary px-5 py-6">
+              <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto bg-bg-tertiary px-5 py-5">
                 <div className="space-y-4">
                   {chatMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    {message.role === 'assistant' ? (
-                      <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ai text-white shadow-[0_10px_24px_rgb(var(--ai-rgb)_/_0.22)]">
-                        <Bot className="h-4 w-4" />
-                      </div>
-                    ) : null}
-                    <div className="max-w-[88%]">
-                      <div
-                        className={`rounded-[26px] border px-4 py-4 text-[15px] leading-8 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ${
-                          message.role === 'user'
-                            ? 'border-accent bg-accent text-black'
-                            : 'border-border-primary bg-bg-secondary text-text-primary'
-                        }`}
-                      >
-                        {message.content}
-                      </div>
-                      {message.role === 'assistant' && message.actionRequired ? (
-                        <ActionProposalCard actionType={message.actionType} actionPayload={message.actionPayload} />
-                      ) : null}
-                      {message.role === 'assistant' && message.actionRequired && message.adjustmentId ? (
-                        <div className="mt-2 flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustmentAction(message.id, message.adjustmentId as string, 'apply')}
-                            disabled={message.actionStatus !== 'idle'}
-                            className="rounded-full bg-accent px-3 py-1.5 text-xs font-black text-black disabled:opacity-60"
-                          >
-                            {message.actionStatus === 'applied' ? 'Đã áp dụng' : 'Áp dụng thay đổi'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustmentAction(message.id, message.adjustmentId as string, 'reject')}
-                            disabled={message.actionStatus !== 'idle'}
-                            className="rounded-full border border-border-primary bg-bg-secondary px-3 py-1.5 text-xs font-black text-text-secondary disabled:opacity-60"
-                          >
-                            {message.actionStatus === 'rejected' ? 'Đã bỏ qua' : 'Không áp dụng'}
-                          </button>
+                    <div
+                      key={message.id}
+                      className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {message.role === 'assistant' ? (
+                        <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ai text-white shadow-[0_10px_24px_rgb(var(--ai-rgb)_/_0.22)]">
+                          <Bot className="h-4 w-4" />
                         </div>
                       ) : null}
+                      <div className="max-w-[88%]">
+                        <div
+                          className={`rounded-[26px] border px-4 py-4 text-[15px] leading-8 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ${
+                            message.role === 'user'
+                              ? 'border-accent bg-accent text-black'
+                              : 'border-border-primary bg-bg-secondary text-text-primary'
+                          }`}
+                        >
+                          {message.content}
+                        </div>
+                        {message.role === 'assistant' && message.actionRequired ? (
+                          <ActionProposalCard actionType={message.actionType} actionPayload={message.actionPayload} />
+                        ) : null}
+                        {message.role === 'assistant' && message.actionRequired && message.adjustmentId ? (
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustmentAction(message.id, message.adjustmentId as string, 'apply')}
+                              disabled={message.actionStatus !== 'idle'}
+                              className="rounded-full bg-accent px-3 py-1.5 text-xs font-black text-black disabled:opacity-60"
+                            >
+                              {message.actionStatus === 'applied' ? 'Đã áp dụng' : 'Áp dụng thay đổi'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustmentAction(message.id, message.adjustmentId as string, 'reject')}
+                              disabled={message.actionStatus !== 'idle'}
+                              className="rounded-full border border-border-primary bg-bg-secondary px-3 py-1.5 text-xs font-black text-text-secondary disabled:opacity-60"
+                            >
+                              {message.actionStatus === 'rejected' ? 'Đã bỏ qua' : 'Không áp dụng'}
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
                   ))}
+
+                  {chatMessages.length === 0 ? <TodayDigestBubble day={selectedDay} /> : null}
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 border-t border-border-primary bg-bg-tertiary px-5 pt-3">
-                {quickPrompts.map((text) => (
-                  <button
-                    key={text}
-                    type="button"
-                    onClick={() => submitChat(text)}
-                    className="rounded-full border border-border-primary bg-bg-secondary px-3 py-1.5 text-xs font-bold text-text-secondary hover:border-ai/30 hover:text-ai"
-                  >
-                    {text}
-                  </button>
-                ))}
-              </div>
-
-              <div className="bg-bg-tertiary px-5 pb-5 pt-4">
+              <div className="shrink-0 border-t border-border-primary bg-bg-tertiary px-5 pb-4 pt-4">
                 <div className="flex items-center gap-3 rounded-[20px] border border-border-primary bg-bg-secondary px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
                   <textarea
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
+                    onKeyDown={handleComposerKeyDown}
                     rows={1}
-                    placeholder="Nhắn tin cho Trợ lý cá nhân..."
+                    placeholder="Nhắn tin cho AI Coach hôm nay..."
                     className="max-h-28 min-h-[28px] flex-1 resize-none bg-transparent py-1 text-sm font-semibold text-text-primary outline-none placeholder:text-text-tertiary"
                   />
                   <button

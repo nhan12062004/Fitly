@@ -73,6 +73,11 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
   }
 
   if (
+    normalized.includes('doi bai tap') ||
+    normalized.includes('bai tap khac') ||
+    normalized.includes('thay bai tap') ||
+    normalized.includes('doi dong tac') ||
+    normalized.includes('thay dong tac') ||
     normalized.includes('met') ||
     normalized.includes('dau') ||
     normalized.includes('10 phut') ||
