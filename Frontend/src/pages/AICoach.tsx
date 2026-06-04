@@ -185,6 +185,16 @@ const normalizeMediaUrl = (value: unknown) => {
   return url;
 };
 
+const normalizeVietnameseClient = (value: string) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0111/g, 'd')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const isWeekStartColumnError = (error: any) =>
   String(error?.message || '').includes('week_start_date') ||
   String(error?.details || '').includes('week_start_date') ||
@@ -246,10 +256,23 @@ const buildMealDigest = (day: DayPlan) => {
 
 const buildCoachReply = (day: DayPlan, question: string) => {
   const normalizedQuestion = question.toLowerCase();
+  const normalizedIntent = normalizeVietnameseClient(question);
   const firstExercise = day.exercises[0];
   const firstMeal = day.meals[0];
   const calories = Math.round(sumMealMetric(day.meals, 'calories'));
   const protein = Math.round(sumMealMetric(day.meals, 'protein'));
+
+  if (normalizedIntent.includes('chan')) {
+    return 'Nếu bạn muốn tập chân, có thể ưu tiên squat, split squat, Romanian deadlift và glute bridge. Nếu đầu gối đang mỏi, hãy bắt đầu với bodyweight squat hoặc leg press nhẹ rồi tăng dần tải.';
+  }
+
+  if (normalizedIntent.includes('lung')) {
+    return 'Nếu bạn muốn thêm bài cho lưng, có thể đi theo nhóm kéo ngang và kéo dọc: seated row, lat pulldown, dumbbell row và face pull.';
+  }
+
+  if (normalizedIntent.includes('nguc')) {
+    return 'Nếu bạn muốn thêm bài cho ngực, có thể ưu tiên incline press, dumbbell fly, push-up và chest press máy để dễ kiểm soát tải.';
+  }
 
   if (normalizedQuestion.includes('ăn') || normalizedQuestion.includes('thực đơn') || normalizedQuestion.includes('meal')) {
     return day.meals.length > 0
@@ -276,6 +299,29 @@ const buildCoachReply = (day: DayPlan, question: string) => {
   }
 
   return `Mình đang bám theo dữ liệu của ${day.label}. Hãy hỏi cụ thể hơn về bài tập hoặc thực đơn để mình gợi ý sát hơn.`;
+};
+
+const shouldPreferLocalReply = (question: string, payload: Partial<AIChatApiResponse>) => {
+  const normalized = normalizeVietnameseClient(question);
+  const asksMeal =
+    normalized.includes('an gi') ||
+    normalized.includes('toi nay an') ||
+    normalized.includes('trua nay an') ||
+    normalized.includes('sang nay an') ||
+    normalized.includes('thuc don') ||
+    normalized.includes('meal');
+  const asksWorkout =
+    normalized.includes('bai tap') ||
+    normalized.includes('tap chan') ||
+    normalized.includes('tap lung') ||
+    normalized.includes('tap nguc') ||
+    normalized.includes('workout');
+
+  return (
+    !payload.actionRequired &&
+    payload.intent === 'advice' &&
+    (asksMeal || asksWorkout)
+  );
 };
 
 function AICoachSkeleton() {
@@ -869,7 +915,9 @@ export default function AICoach() {
         throw new Error(payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');
       }
 
-      const replyContent = String(payload.reply || '').trim() || buildCoachReply(selectedDay, message);
+      const replyContent = shouldPreferLocalReply(message, payload)
+        ? buildCoachReply(selectedDay, message)
+        : String(payload.reply || '').trim() || buildCoachReply(selectedDay, message);
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
