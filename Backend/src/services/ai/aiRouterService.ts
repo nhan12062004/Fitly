@@ -48,6 +48,11 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
     normalized.includes('mon an') ||
     normalized.includes('bua an') ||
     normalized.includes('bua phu') ||
+    normalized.includes('an gi') ||
+    normalized.includes('toi nay an') ||
+    normalized.includes('trua nay an') ||
+    normalized.includes('sang nay an') ||
+    normalized.includes('goi y mon') ||
     normalized.includes('meal');
 
   const asksForSchedule =
@@ -67,6 +72,11 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
     normalized.includes('doi bua') ||
     normalized.includes('doi thuc don') ||
     normalized.includes('khong thich mon') ||
+    normalized.includes('an gi') ||
+    normalized.includes('toi nay an') ||
+    normalized.includes('trua nay an') ||
+    normalized.includes('sang nay an') ||
+    normalized.includes('goi y mon') ||
     normalized.includes('gon hon')
   ) {
     return { intent: 'adjust_meal', confidence: 0.84 };

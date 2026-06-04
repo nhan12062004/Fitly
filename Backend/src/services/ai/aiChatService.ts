@@ -32,6 +32,11 @@ export const aiChatService = async (message: string, context?: AIChatContext): P
     normalized.includes('thuc don') ||
     normalized.includes('mon an') ||
     normalized.includes('bua an') ||
+    normalized.includes('an gi') ||
+    normalized.includes('toi nay an') ||
+    normalized.includes('trua nay an') ||
+    normalized.includes('sang nay an') ||
+    normalized.includes('goi y mon') ||
     normalized.includes('meal');
   const wantsPlanDetails =
     normalized.includes('xem lich') ||
@@ -88,6 +93,41 @@ export const aiChatService = async (message: string, context?: AIChatContext): P
       reply: sections.join('\n\n'),
       intent: 'view_day_plan',
       confidence: 0.9,
+      actionRequired: false,
+      actionType: null,
+      actionPayload: null,
+    };
+  }
+
+  if (wantsMeal) {
+    if (meals.length > 0) {
+      const mealLines = meals
+        .slice(0, 4)
+        .map((meal, index) => {
+          const calories = formatMealCalories(meal);
+          const quantity = Number(meal.quantity || 1);
+          return `${index + 1}. ${getMealTypeLabel(meal.meal_type)} - ${meal.name || 'Mon an'} x${quantity} (${calories} kcal)`;
+        })
+        .join('\n');
+
+      return {
+        reply: `${dayLabel} dang co ${meals.length} mon an. Ban co the uu tien cac lua chon nay:\n${mealLines}`,
+        intent: 'view_day_plan',
+        confidence: 0.88,
+        actionRequired: false,
+        actionType: null,
+        actionPayload: null,
+      };
+    }
+
+    const dinnerHint = normalized.includes('toi nay') || normalized.includes('bua toi');
+    const lunchHint = normalized.includes('trua nay') || normalized.includes('bua trua');
+    const mealLabel = dinnerHint ? 'bua toi' : lunchHint ? 'bua trua' : 'bua an';
+
+    return {
+      reply: `${dayLabel} hien chua co mon nao trong meal plan. Neu ban can mot goi y nhanh cho ${mealLabel}, hay uu tien 1 nguon dam nac nhu uc ga/ca/trung, them rau, va 1 phan tinh bot vua phai nhu com, khoai hoac yen mach.`,
+      intent: 'advice',
+      confidence: 0.82,
       actionRequired: false,
       actionType: null,
       actionPayload: null,
