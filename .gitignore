@@ -74,7 +74,9 @@ scratch/
 *.sql
 !docs/*.sql
 .supabase/
-supabase/
+supabase/*
+!supabase/migrations/
+!supabase/migrations/*.sql
 Backend/migrations/
 docs/backups/
 metadata.json

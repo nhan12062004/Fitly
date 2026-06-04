@@ -23,6 +23,14 @@ type LinkedProfile = {
   gender?: string | null;
 };
 
+type LinkedTelegramUserRow = {
+  id: string;
+  full_name?: string | null;
+  telegram_chat_id: string;
+  updated_at?: string | null;
+  created_at?: string | null;
+};
+
 const conversationStore = new Map<number, ChatMessage[]>();
 const MAX_HISTORY = 20; // Giữ tối đa 20 tin nhắn gần nhất
 const HISTORY_TTL_MS = 2 * 60 * 60 * 1000; // Xóa sau 2 giờ không hoạt động
@@ -52,12 +60,12 @@ function clearHistory(chatId: number) {
 const REMINDER_HOURS = ['0 9 * * *', '0 11 * * *', '0 14 * * *', '0 16 * * *', '0 20 * * *', '0 22 * * *'];
 
 const WATER_MESSAGES = [
-  "Một ly nước nhỏ lúc này giúp bạn giữ năng lượng ổn định và tập trung hơn.",
-  "Đến giờ bổ sung nước. Hãy uống chậm vài ngụm thay vì để khát rồi mới uống.",
-  "Cơ thể đang cần nước để hỗ trợ trao đổi chất và phục hồi cơ bắp.",
-  "Tạm dừng 30 giây để uống nước. Đây là thói quen nhỏ nhưng ảnh hưởng lớn.",
-  "Buổi tối vẫn nên bổ sung nước vừa đủ, tránh uống quá nhiều sát giờ ngủ.",
-  "Một lượng nước nhẹ trước khi nghỉ ngơi sẽ giúp cơ thể dễ chịu hơn."
+  "Bắt đầu ngày mới bằng vài ngụm nước để giữ năng lượng ổn định.",
+  "Một nhịp nghỉ ngắn để bổ sung nước và giữ sự tập trung.",
+  "Cơ thể đang cần nước để hỗ trợ vận động, trao đổi chất và phục hồi.",
+  "Tạm dừng 30 giây. Uống chậm vài ngụm để duy trì hiệu suất trong ngày.",
+  "Bổ sung nước vừa đủ cho buổi tối, nhẹ nhàng và không quá sát giờ ngủ.",
+  "Kết ngày bằng một lượng nước nhỏ để cơ thể dễ chịu hơn khi nghỉ ngơi."
 ];
 const WATER_PER_CONFIRM_ML = 250;
 
@@ -144,22 +152,69 @@ function compactLines(lines: string[], maxLines: number) {
 async function getLinkedTelegramUsers() {
   const { data: users, error } = await supabase
     .from('profiles')
-    .select('telegram_chat_id, full_name, id')
-    .not('telegram_chat_id', 'is', null);
+    .select('telegram_chat_id, full_name, id, updated_at, created_at')
+    .not('telegram_chat_id', 'is', null)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false, nullsFirst: false });
 
   if (error) throw error;
-  return users || [];
+  const dedupedUsers = new Map<string, LinkedTelegramUserRow>();
+  let duplicateCount = 0;
+
+  for (const user of (users || []) as LinkedTelegramUserRow[]) {
+    if (!user.telegram_chat_id) continue;
+    if (dedupedUsers.has(user.telegram_chat_id)) {
+      duplicateCount += 1;
+      continue;
+    }
+    dedupedUsers.set(user.telegram_chat_id, user);
+  }
+
+  if (duplicateCount > 0) {
+    console.warn(`⚠️ Telegram reminder deduped ${duplicateCount} duplicated profile link(s) by telegram_chat_id.`);
+  }
+
+  return Array.from(dedupedUsers.values());
 }
 
 async function getLinkedProfileByChatId(chatId: number): Promise<LinkedProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, gender')
+    .select('id, full_name, gender, updated_at, created_at')
     .eq('telegram_chat_id', chatId.toString())
-    .maybeSingle();
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false, nullsFirst: false })
+    .limit(2);
 
   if (error) throw error;
-  return data || null;
+  if (!data?.length) return null;
+  if (data.length > 1) {
+    console.warn(`⚠️ Multiple profiles linked to Telegram chat ${chatId}. Using the most recently updated profile.`);
+  }
+  return data[0] || null;
+}
+
+async function acquireReminderDispatchLock(reminderType: 'water' | 'sleep', slotLabel: string) {
+  const reminderDate = getVietnamDateKey();
+  const reminderKey = `${reminderType}:${reminderDate}:${slotLabel}`;
+  const { error } = await supabase
+    .from('telegram_reminder_dispatches')
+    .insert({
+      reminder_key: reminderKey,
+      reminder_type: reminderType,
+      reminder_date: reminderDate,
+      slot_label: slotLabel,
+    });
+
+  if (!error) {
+    return { acquired: true, reminderKey };
+  }
+
+  if (error.code === '23505') {
+    return { acquired: false, reminderKey };
+  }
+
+  throw error;
 }
 
 async function updateDailyProgress(userId: string, updates: Record<string, number | string>) {
@@ -262,33 +317,109 @@ async function getSleepSnapshot(userId: string) {
   };
 }
 
-function buildHydrationReminderText(user: { full_name?: string | null }, message: string, snapshot: Awaited<ReturnType<typeof getHydrationSnapshot>>) {
-  const remainingMl = Math.max(0, snapshot.goalMl - snapshot.currentMl);
+async function getTodayWorkoutReminderSnapshot(userId: string) {
+  const today = getVietnamDateKey();
+  const todayDayIndex = getVietnamDayIndex(today);
+  const weekStartKey = getWeekStartKey(today);
+
+  const sessionsRes = await supabase
+    .from('daily_exercise_sessions')
+    .select('is_completed, order_index, exercises:exercise_id(name)')
+    .eq('user_id', userId)
+    .eq('log_date', today)
+    .order('order_index', { ascending: true });
+
+  const sessions = (sessionsRes.data || []) as any[];
+  if (sessions.length > 0) {
+    const completedCount = sessions.filter((item) => item.is_completed).length;
+    const names = compactLines(
+      sessions.map((item) => `${item.is_completed ? '✓' : '•'} ${(item.exercises as any)?.name || 'Bài tập'}`),
+      6
+    );
+
+    return [
+      'Bài tập hôm nay',
+      `${completedCount}/${sessions.length} bài đã hoàn thành`,
+      ...names,
+    ];
+  }
+
+  const plansRes = await supabase
+    .from('weekly_plans')
+    .select('id, name, created_at, updated_at')
+    .eq('user_id', userId)
+    .eq('week_start_date', weekStartKey)
+    .limit(20);
+
+  const latestPlan = ((plansRes.data || []) as any[]).sort((a, b) =>
+    new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime()
+  )[0];
+
+  if (!latestPlan?.id) {
+    return ['Bài tập hôm nay', 'Chưa có lịch tập trong TrendFit.'];
+  }
+
+  const planItemsRes = await supabase
+    .from('weekly_plan_exercises')
+    .select('sets, reps, is_rest_day, order_index, exercises:exercise_id(name)')
+    .eq('weekly_plan_id', latestPlan.id)
+    .eq('day_of_week', todayDayIndex)
+    .order('order_index', { ascending: true });
+
+  const planItems = ((planItemsRes.data || []) as any[]).filter((item) => !item.is_rest_day);
+  if (!planItems.length) {
+    return ['Bài tập hôm nay', 'Hôm nay là ngày nghỉ theo lịch tập.'];
+  }
+
+  const planLines = compactLines(
+    planItems.map((item) => `• ${(item.exercises as any)?.name || 'Bài tập'} ${item.sets || 0}x${item.reps || '-'}`),
+    6
+  );
+
   return [
-    '💧 TrendFit Hydration Check-in',
-    `Chào ${user.full_name || 'bạn'}, ${message}`,
+    `Bài tập hôm nay${latestPlan.name ? ` · ${latestPlan.name}` : ''}`,
+    ...planLines,
+  ];
+}
+
+function buildHydrationReminderText(
+  user: { full_name?: string | null },
+  message: string,
+  snapshot: Awaited<ReturnType<typeof getHydrationSnapshot>>,
+  workoutLines: string[] = []
+) {
+  const remainingMl = Math.max(0, snapshot.goalMl - snapshot.currentMl);
+  const progressLine = `${snapshot.currentMl}/${snapshot.goalMl}ml · ${snapshot.percent}%`;
+  return [
+    'TrendFit Daily Check-in',
+    `Chào ${user.full_name || 'bạn'},`,
+    message,
     '',
-    `Hôm nay: ${snapshot.currentMl}/${snapshot.goalMl}ml (${snapshot.percent}%)`,
+    ...(workoutLines.length ? [...workoutLines, ''] : []),
+    'Nước hôm nay',
+    progressLine,
     remainingMl > 0
-      ? `Còn khoảng ${remainingMl}ml để đạt mục tiêu ngày.`
-      : 'Bạn đã đạt mục tiêu nước hôm nay. Duy trì nhịp uống vừa phải nhé.',
+      ? `Còn ${remainingMl}ml để đạt mục tiêu.`
+      : 'Mục tiêu nước hôm nay đã hoàn thành.',
     '',
-    'Chọn lượng nước bạn vừa uống:',
+    'Ghi nhanh lượng nước vừa uống:',
   ].join('\n');
 }
 
 function buildSleepReminderText(user: { full_name?: string | null }, snapshot: Awaited<ReturnType<typeof getSleepSnapshot>>) {
   return [
-    '😴 TrendFit Sleep Check-in',
-    `Chào ${user.full_name || 'bạn'}, hãy ghi nhanh thời lượng ngủ để AI Coach theo dõi phục hồi chính xác hơn.`,
+    'TrendFit Recovery Check-in',
+    `Chào ${user.full_name || 'bạn'},`,
+    'Ghi lại giấc ngủ để TrendFit theo dõi phục hồi và điều chỉnh nhịp tập chính xác hơn.',
     '',
-    `Mục tiêu ngủ: ${formatNumber(snapshot.targetSleepHours, '8')}h/đêm`,
-    `Chất lượng ngủ đã khai báo: ${snapshot.sleepQuality}`,
+    'Giấc ngủ',
+    `Mục tiêu: ${formatNumber(snapshot.targetSleepHours, '8')}h/đêm`,
+    `Chất lượng đã khai báo: ${snapshot.sleepQuality}`,
     snapshot.yesterdaySleepHours
-      ? `Hôm qua đã ghi: ${snapshot.yesterdaySleepHours}h`
-      : 'Hôm qua chưa có dữ liệu giấc ngủ.',
+      ? `Hôm qua: ${snapshot.yesterdaySleepHours}h`
+      : 'Hôm qua: chưa ghi nhận',
     '',
-    'Đêm qua bạn ngủ khoảng bao lâu?',
+    'Đêm qua bạn ngủ bao lâu?',
   ].join('\n');
 }
 
@@ -772,8 +903,11 @@ export async function sendWaterReminders(bot: TelegramBot, slotIndex = 0) {
 
   for (const user of users) {
     try {
-      const snapshot = await getHydrationSnapshot(user.id);
-      await bot.sendMessage(user.telegram_chat_id, buildHydrationReminderText(user, message, snapshot), {
+      const [snapshot, workoutLines] = await Promise.all([
+        getHydrationSnapshot(user.id),
+        slotIndex === 0 ? getTodayWorkoutReminderSnapshot(user.id) : Promise.resolve([] as string[]),
+      ]);
+      await bot.sendMessage(user.telegram_chat_id, buildHydrationReminderText(user, message, snapshot, workoutLines), {
         reply_markup: buildWaterKeyboard(),
       });
       sent += 1;
@@ -848,6 +982,11 @@ const setupDailyReminders = (bot: TelegramBot) => {
       async () => {
         console.log(`⏰ Cron nhắc uống nước (${schedule}) lúc ${new Date().toLocaleString('vi-VN', { timeZone: VIETNAM_TIMEZONE })}`);
         try {
+          const dispatchLock = await acquireReminderDispatchLock('water', schedule);
+          if (!dispatchLock.acquired) {
+            console.warn(`⚠️ Bỏ qua nhắc uống nước trùng cho ${dispatchLock.reminderKey}.`);
+            return;
+          }
           await sendWaterReminders(bot, index);
         } catch (err: any) {
           console.error('❌ Lỗi gửi nhắc nhở nước:', err.message);
@@ -863,6 +1002,11 @@ const setupDailyReminders = (bot: TelegramBot) => {
     async () => {
       console.log(`⏰ Cron hỏi giấc ngủ lúc ${new Date().toLocaleString('vi-VN', { timeZone: VIETNAM_TIMEZONE })}`);
       try {
+        const dispatchLock = await acquireReminderDispatchLock('sleep', '09:30');
+        if (!dispatchLock.acquired) {
+          console.warn(`⚠️ Bỏ qua câu hỏi giấc ngủ trùng cho ${dispatchLock.reminderKey}.`);
+          return;
+        }
         await sendSleepReminders(bot);
       } catch (err: any) {
         console.error('❌ Lỗi gửi câu hỏi giấc ngủ:', err.message);
@@ -1208,6 +1352,14 @@ export const initTelegramBot = () => {
       }
       const userId = verifiedToken.userId;
 
+      const { error: unlinkDuplicateChatError } = await supabase
+        .from('profiles')
+        .update({ telegram_chat_id: null })
+        .eq('telegram_chat_id', chatId.toString())
+        .neq('id', userId);
+
+      if (unlinkDuplicateChatError) throw unlinkDuplicateChatError;
+
       // Kiểm tra trước: có user này trong DB không
       const { data: existingProfile, error: checkError } = await supabase
         .from('profiles')
@@ -1269,13 +1421,10 @@ export const initTelegramBot = () => {
 
       // 2. Tìm thông tin người dùng từ DB dựa trên chatId
       console.log('💬 [CHAT] Received Telegram message');
-      const { data: userProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, full_name, gender')
-        .eq('telegram_chat_id', chatId.toString())
-        .maybeSingle();
-
-      if (profileError) {
+      let userProfile: LinkedProfile | null = null;
+      try {
+        userProfile = await getLinkedProfileByChatId(chatId);
+      } catch (profileError: any) {
         console.error(`❌ [CHAT] Lỗi truy vấn profiles:`, profileError.message);
         bot.sendMessage(chatId, 'Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại sau.');
         return;
