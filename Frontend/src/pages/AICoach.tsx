@@ -195,6 +195,38 @@ const normalizeVietnameseClient = (value: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const inferChatTopic = (value: string): 'meal' | 'workout' | null => {
+  const normalized = normalizeVietnameseClient(value);
+
+  const asksMeal =
+    normalized.includes('an gi') ||
+    normalized.includes('toi nay an') ||
+    normalized.includes('trua nay an') ||
+    normalized.includes('sang nay an') ||
+    normalized.includes('bua an') ||
+    normalized.includes('bua toi') ||
+    normalized.includes('bua trua') ||
+    normalized.includes('thuc don') ||
+    normalized.includes('goi y mon') ||
+    normalized.includes('meal');
+
+  if (asksMeal) return 'meal';
+
+  const asksWorkout =
+    normalized.includes('bai tap') ||
+    normalized.includes('workout') ||
+    normalized.includes('tap chan') ||
+    normalized.includes('tap lung') ||
+    normalized.includes('tap nguc') ||
+    normalized.includes('doi bai tap') ||
+    normalized.includes('thay bai tap') ||
+    normalized.includes('buoi tap');
+
+  if (asksWorkout) return 'workout';
+
+  return null;
+};
+
 const isWeekStartColumnError = (error: any) =>
   String(error?.message || '').includes('week_start_date') ||
   String(error?.details || '').includes('week_start_date') ||
@@ -254,9 +286,10 @@ const buildMealDigest = (day: DayPlan) => {
   return `Meal plan hôm nay có ${day.meals.length} món, ${calories} kcal và ${protein}g protein.\n${lines.join('\n')}`;
 };
 
-const buildCoachReply = (day: DayPlan, question: string) => {
+const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' | 'workout' | null) => {
   const normalizedQuestion = question.toLowerCase();
   const normalizedIntent = normalizeVietnameseClient(question);
+  const inferredTopic = inferChatTopic(question) || previousTopic || null;
   const firstExercise = day.exercises[0];
   const firstMeal = day.meals[0];
   const calories = Math.round(sumMealMetric(day.meals, 'calories'));
@@ -274,7 +307,12 @@ const buildCoachReply = (day: DayPlan, question: string) => {
     return 'Nếu bạn muốn thêm bài cho ngực, có thể ưu tiên incline press, dumbbell fly, push-up và chest press máy để dễ kiểm soát tải.';
   }
 
-  if (normalizedQuestion.includes('ăn') || normalizedQuestion.includes('thực đơn') || normalizedQuestion.includes('meal')) {
+  if (
+    normalizedQuestion.includes('ăn') ||
+    normalizedQuestion.includes('thực đơn') ||
+    normalizedQuestion.includes('meal') ||
+    inferredTopic === 'meal'
+  ) {
     return day.meals.length > 0
       ? `${day.label} đang có ${day.meals.length} món, tổng khoảng ${calories || 0} kcal và ${protein || 0}g protein. Nếu muốn siết mỡ hơn, hãy giữ protein và cắt bớt món phụ hoặc tinh bột ở bữa tối.`
       : `${day.label} chưa có thực đơn chi tiết. Nên ưu tiên 1 nguồn đạm nạc, 1 phần rau lớn và tinh bột vừa phải quanh buổi tập.`;
@@ -290,7 +328,7 @@ const buildCoachReply = (day: DayPlan, question: string) => {
       : `Ngày này chưa có bài tập. Bạn có thể tạo lại AI Coach để bổ sung lịch tập.`;
   }
 
-  if (day.exercises.length > 0) {
+  if (day.exercises.length > 0 && inferredTopic === 'workout') {
     return `Cho ${day.label}, mình ưu tiên ${getDayHeadline(day).toLowerCase()}. Bắt đầu bằng ${firstExercise?.exercises?.name || 'bài chính'}, giữ ${firstExercise?.sets || 3} hiệp x ${firstExercise?.reps || '8-12'} reps rồi theo dõi cảm giác để tăng hoặc giảm tải.`;
   }
 
@@ -303,6 +341,7 @@ const buildCoachReply = (day: DayPlan, question: string) => {
 
 const shouldPreferLocalReply = (question: string, payload: Partial<AIChatApiResponse>) => {
   const normalized = normalizeVietnameseClient(question);
+  const normalizedReply = normalizeVietnameseClient(String(payload.reply || ''));
   const asksMeal =
     normalized.includes('an gi') ||
     normalized.includes('toi nay an') ||
@@ -316,11 +355,14 @@ const shouldPreferLocalReply = (question: string, payload: Partial<AIChatApiResp
     normalized.includes('tap lung') ||
     normalized.includes('tap nguc') ||
     normalized.includes('workout');
+  const isGenericBackendReply =
+    normalizedReply.includes('neu ban muon minh co the') ||
+    normalizedReply.includes('hien co') ||
+    normalizedReply.includes('toi uu theo muc tieu');
 
   return (
     !payload.actionRequired &&
-    payload.intent === 'advice' &&
-    (asksMeal || asksWorkout)
+    ((asksMeal || asksWorkout) || isGenericBackendReply)
   );
 };
 
@@ -586,6 +628,7 @@ export default function AICoach() {
   const submitLockRef = useRef(false);
   const lastSubmitRef = useRef<{ message: string; at: number } | null>(null);
   const hasHydratedPlanRef = useRef(false);
+  const chatMessagesRef = useRef<ChatMessage[]>([]);
 
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const todayChatRange = useMemo(() => getVietnamDayUtcRange(), []);
@@ -834,6 +877,10 @@ export default function AICoach() {
     });
   }, [chatMessages, selectedDay.dayIndex]);
 
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+  }, [chatMessages]);
+
   const handleAdjustmentAction = async (messageId: string, adjustmentId: string, action: 'apply' | 'reject') => {
     if (!user?.id) return;
     try {
@@ -888,6 +935,11 @@ export default function AICoach() {
       content: message,
     };
 
+    const previousTopic = [...chatMessagesRef.current]
+      .reverse()
+      .map((item) => inferChatTopic(item.content))
+      .find((topic): topic is 'meal' | 'workout' => topic === 'meal' || topic === 'workout') || null;
+
     setChatMessages((current) => [...current, userMessage]);
 
     try {
@@ -916,8 +968,8 @@ export default function AICoach() {
       }
 
       const replyContent = shouldPreferLocalReply(message, payload)
-        ? buildCoachReply(selectedDay, message)
-        : String(payload.reply || '').trim() || buildCoachReply(selectedDay, message);
+        ? buildCoachReply(selectedDay, message, previousTopic)
+        : String(payload.reply || '').trim() || buildCoachReply(selectedDay, message, previousTopic);
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
@@ -933,7 +985,7 @@ export default function AICoach() {
       const fallbackMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
-        content: buildCoachReply(selectedDay, message),
+        content: buildCoachReply(selectedDay, message, previousTopic),
       };
       setChatMessages((current) => [...current, fallbackMessage]);
     } finally {
