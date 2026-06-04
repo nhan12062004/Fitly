@@ -90,4 +90,12 @@ export type AIChatContext = {
   targetDayLabel?: string;
   exercises?: AIChatExerciseSummary[];
   meals?: AIChatMealSummary[];
+  profile?: Record<string, unknown> | null;
+  bodyMetrics?: Record<string, unknown> | null;
+  lifestyle?: Record<string, unknown> | null;
+  health?: Record<string, unknown> | null;
+  chatHistory?: Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+  }>;
 };

@@ -1,4 +1,5 @@
-import { normalizeVietnameseText } from './aiRouterService';
+import { isInjuryAdviceRequest, normalizeVietnameseText } from './aiRouterService';
+import { askTrendFitCoach } from './coachConversationService';
 import { AIChatContext, AIChatMealSummary, AIChatResponse } from './types';
 
 const getMealTypeLabel = (mealType?: string | null): string => {
@@ -31,13 +32,21 @@ export const aiChatService = async (message: string, context?: AIChatContext): P
   const wantsMeal =
     normalized.includes('thuc don') ||
     normalized.includes('mon an') ||
+    normalized.includes('mon') ||
+    normalized.includes('bua') ||
     normalized.includes('bua an') ||
     normalized.includes('an gi') ||
     normalized.includes('toi nay an') ||
     normalized.includes('trua nay an') ||
     normalized.includes('sang nay an') ||
     normalized.includes('goi y mon') ||
+    normalized.includes('protein') ||
+    normalized.includes('dam') ||
+    normalized.includes('kcal') ||
     normalized.includes('meal');
+  const wantsHighProteinMeal =
+    (normalized.includes('protein') || normalized.includes('dam')) &&
+    (normalized.includes('bua') || normalized.includes('mon') || normalized.includes('an'));
   const wantsPlanDetails =
     normalized.includes('xem lich') ||
     normalized.includes('lich hom nay') ||
@@ -48,6 +57,58 @@ export const aiChatService = async (message: string, context?: AIChatContext): P
     normalized.includes('bao nhieu mon') ||
     normalized.includes('xem bai tap') ||
     normalized.includes('xem thuc don');
+
+  try {
+    const aiReply = await askTrendFitCoach({
+      userMessage: message,
+      context: { ...context, platform: 'web' },
+      history: context?.chatHistory,
+      maxTokens: 1024,
+      temperature: 0.7,
+    });
+    if (aiReply) {
+      return {
+        reply: aiReply,
+        intent: 'advice',
+        confidence: 0.88,
+        actionRequired: false,
+        actionType: null,
+        actionPayload: null,
+      };
+    }
+  } catch (error: any) {
+    console.warn('[aiChatService] Groq chat fallback:', error?.message || error);
+  }
+
+  if (isInjuryAdviceRequest(normalized)) {
+    return {
+      reply: [
+        'Neu ban dau khop co chan sau khi danh cau long, truoc mat hay xem nhu dau/cang co hoac bong gan nhe va dung cac hoat dong tac dong manh trong 24-48 gio.',
+        'Cach giam dau an toan: nghi ngoi, chuom lanh 15-20 phut moi lan va lap lai vai lan trong ngay, bang ep nhe neu co sung, ke cao chan khi nam/ngoi, tranh chay nhay va tranh tap cac bai dung nhieu co chan.',
+        'Chi nen xoay co chan nhe trong nguong khong dau. Neu dau tang, sung/bam tim ro, khong chiu luc duoc, te/bien dang khop, hoac sau 2-3 ngay khong giam, ban nen di kham co xuong khop/chan thuong the thao.',
+      ].join('\n\n'),
+      intent: 'advice',
+      confidence: 0.9,
+      actionRequired: false,
+      actionType: null,
+      actionPayload: null,
+    };
+  }
+
+  if (wantsHighProteinMeal) {
+    return {
+      reply: [
+        'Mot bua nhieu protein de lam: 180g uc ga ap chao hoac ca ngu/ca hoi, 1 chen com hoac 200g khoai, them mot phan rau lon.',
+        'Neu muon gon hon: 2 trung + 200g sua chua Hy Lap khong duong + 1 qua chuoi + mot it yen mach. Muc tieu la khoang 35-50g protein cho mot bua.',
+        'Giu dau mo vua phai, uu tien luoc/ap chao/nuong de no lau ma khong doi calories qua cao.',
+      ].join('\n\n'),
+      intent: 'advice',
+      confidence: 0.88,
+      actionRequired: false,
+      actionType: null,
+      actionPayload: null,
+    };
+  }
 
   if (wantsPlanDetails) {
     const sections: string[] = [];

@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import cron from 'node-cron';
 import { resolveWeeklyWorkouts } from './lib/WorkoutFrequency';
 import { verifyTelegramLinkToken } from './lib/telegramLinkToken';
+import { callCoachCompletion } from './services/ai/coachConversationService';
 
 dotenv.config();
 
@@ -1752,35 +1753,13 @@ ${coachDataContext}
 
         // Xây dựng messages array với lịch sử hội thoại
         const history = getHistory(chatId);
-        const messages: { role: string; content: string }[] = [
-          { role: 'system', content: systemPrompt },
-          ...history.map(m => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userMessage }
-        ];
-
-        if (!process.env.GROQ_API_KEY) {
-          bot.sendMessage(chatId, 'Hệ thống chưa được cấp quyền AI. Vui lòng kiểm tra lại cấu hình.');
-          return;
-        }
-
-        // Gửi cho Groq API (Llama 3.3 70B) với lịch sử hội thoại
-        const apiResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages,
-            temperature: 0.7,
-            max_tokens: 1024
-          })
+        const responseText = await callCoachCompletion({
+          systemPrompt,
+          history: history.map((m) => ({ role: m.role, content: m.content })),
+          userMessage,
+          temperature: 0.7,
+          maxTokens: 1024,
         });
-
-        const result = await apiResponse.json();
-        if (result.error) throw new Error(result.error.message);
-        const responseText = result.choices[0].message.content;
 
         // Lưu cả tin nhắn user và assistant vào bộ nhớ
         addToHistory(chatId, 'user', userMessage);
@@ -1802,34 +1781,13 @@ Không chẩn đoán bệnh; với dấu hiệu nguy hiểm hoặc chấn thươ
 3. Bot này sẽ mở → Ngay lập tức BẤMSTART ở dưới cùng để hoàn tất liên kết.`;
 
         const history = getHistory(chatId);
-        const messages: { role: string; content: string }[] = [
-          { role: 'system', content: guestSystemPrompt },
-          ...history.map(m => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userMessage }
-        ];
-
-        if (!process.env.GROQ_API_KEY) {
-          bot.sendMessage(chatId, 'Hệ thống chưa được cấp quyền AI.');
-          return;
-        }
-
-        const apiResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages,
-            temperature: 0.7,
-            max_tokens: 512
-          })
+        const responseText = await callCoachCompletion({
+          systemPrompt: guestSystemPrompt,
+          history: history.map((m) => ({ role: m.role, content: m.content })),
+          userMessage,
+          temperature: 0.7,
+          maxTokens: 512,
         });
-
-        const result = await apiResponse.json();
-        if (result.error) throw new Error(result.error.message);
-        const responseText = result.choices[0].message.content;
 
         addToHistory(chatId, 'user', userMessage);
         addToHistory(chatId, 'assistant', responseText);

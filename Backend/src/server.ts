@@ -1070,12 +1070,12 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-    const [todayWorkoutRes, todayMealRes, weekPlanRes, feedbackRes] = await Promise.all([
+    const [todayWorkoutRes, todayMealRes, weekPlanRes, feedbackRes, profileRes, bodyMetricsRes, healthRes, recentChatRes] = await Promise.all([
       weeklyPlanQuery,
       weeklyFoodPlanQuery,
       supabase
         .from('lifestyle_settings')
-        .select('weekly_workouts, meals_per_day, fitness_goal')
+        .select('*')
         .eq('user_id', authUserId)
         .maybeSingle(),
       supabase
@@ -1083,7 +1083,30 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .select('id, status')
         .eq('user_id', authUserId)
         .eq('status', 'completed')
-        .gte('log_date', getWeekStartKey(today))
+        .gte('log_date', getWeekStartKey(today)),
+      supabase
+        .from('profiles')
+        .select('id, full_name, membership_tier, created_at')
+        .eq('id', authUserId)
+        .maybeSingle(),
+      supabase
+        .from('body_metrics')
+        .select('*')
+        .eq('user_id', authUserId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('health_conditions')
+        .select('*')
+        .eq('user_id', authUserId)
+        .maybeSingle(),
+      supabase
+        .from('ai_chat_messages')
+        .select('role, content, created_at')
+        .eq('user_id', authUserId)
+        .order('created_at', { ascending: false })
+        .limit(8)
     ]);
 
     const workoutRows = (todayWorkoutRes.data as any)?.weekly_plan_exercises || [];
@@ -1147,6 +1170,16 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         todayDayIndex: todayDayIndex,
         targetDayIndex: dayIndex,
         targetDayLabel: AI_CHAT_DAY_LABELS[dayIndex] || 'Hom nay',
+        profile: profileRes.data || null,
+        bodyMetrics: bodyMetricsRes.data || null,
+        lifestyle: weekPlanRes.data || null,
+        health: healthRes.data || null,
+        chatHistory: ((recentChatRes.data || []) as any[])
+          .reverse()
+          .map((item: any) => ({
+            role: item.role === 'assistant' || item.role === 'system' ? item.role : 'user',
+            content: String(item.content || ''),
+          })),
         exercises: targetWorkoutRows.map((row: any) => ({
           exercise_id: row.exercise_id,
           name: row.exercises?.name || null,

@@ -13,6 +13,7 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
+const RECENT_CHAT_LIMIT = 80;
 const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
 type WeeklyPlan = {
@@ -88,6 +89,7 @@ type ChatMessage = {
   actionPayload?: unknown;
   adjustmentId?: string | null;
   actionStatus?: 'idle' | 'applied' | 'rejected';
+  optimistic?: boolean;
 };
 
 type WorkoutProposalPayload = {
@@ -159,16 +161,6 @@ const getVietnamDateKey = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const getVietnamDayUtcRange = (date = new Date()) => {
-  const { year, month, day } = getDatePartsInTimeZone(date, VIETNAM_TIMEZONE);
-  const startUtc = new Date(`${year}-${month}-${day}T00:00:00+07:00`);
-  const endUtc = new Date(startUtc.getTime() + 24 * 60 * 60 * 1000);
-  return {
-    startIso: startUtc.toISOString(),
-    endIso: endUtc.toISOString(),
-  };
-};
-
 const getWeekStartKey = (baseDate: Date) => {
   const date = new Date(baseDate);
   const day = date.getDay();
@@ -203,11 +195,16 @@ const inferChatTopic = (value: string): 'meal' | 'workout' | null => {
     normalized.includes('toi nay an') ||
     normalized.includes('trua nay an') ||
     normalized.includes('sang nay an') ||
+    normalized.includes('bua') ||
+    normalized.includes('mon') ||
     normalized.includes('bua an') ||
     normalized.includes('bua toi') ||
     normalized.includes('bua trua') ||
     normalized.includes('thuc don') ||
     normalized.includes('goi y mon') ||
+    normalized.includes('protein') ||
+    normalized.includes('dam') ||
+    normalized.includes('kcal') ||
     normalized.includes('meal');
 
   if (asksMeal) return 'meal';
@@ -226,6 +223,76 @@ const inferChatTopic = (value: string): 'meal' | 'workout' | null => {
 
   return null;
 };
+
+const includesAny = (value: string, terms: string[]) => terms.some((term) => value.includes(term));
+
+const isInjuryAdviceQuestion = (value: string) => {
+  const normalized = normalizeVietnameseClient(value);
+  if (!normalized) return false;
+
+  const mentionsPainOrInjury = includesAny(normalized, [
+    'dau',
+    'nhuc',
+    'sung',
+    'viem',
+    'chan thuong',
+    'bong gan',
+    'lat co',
+    'cang co',
+    'te',
+    'buot',
+  ]);
+  const mentionsBodyArea = includesAny(normalized, [
+    'khop',
+    'co chan',
+    'mat ca',
+    'goi',
+    'dau goi',
+    'lung',
+    'vai',
+    'co tay',
+    'khuu tay',
+    'hang',
+    'dui',
+    'bap chan',
+    'gan got',
+    'ban chan',
+  ]);
+  const asksForCare = includesAny(normalized, [
+    'giam dau',
+    'lam sao',
+    'cach nao',
+    'nen lam gi',
+    'xu ly',
+    'hoi phuc',
+    'co nen tap',
+    'di kham',
+  ]);
+
+  return mentionsPainOrInjury && (mentionsBodyArea || asksForCare);
+};
+
+const buildInjuryAdviceReply = () =>
+  [
+    'Có vẻ đây là đau/căng khớp cổ chân sau vận động. Trước mắt bạn nên tạm dừng các hoạt động tác động mạnh trong 24-48 giờ.',
+    'Cách giảm đau an toàn: nghỉ ngơi, chườm lạnh 15-20 phút mỗi lần, băng ép nhẹ nếu có sưng, kê cao chân khi nằm/ngồi, và tránh chạy nhảy hay tập các bài dùng nhiều cổ chân.',
+    'Nếu đau tăng, sưng/bầm tím rõ, không chịu lực được, tê/biến dạng khớp, hoặc 2-3 ngày không giảm, nên đi khám cơ xương khớp/chấn thương thể thao.',
+  ].join('\n\n');
+
+const isHighProteinMealQuestion = (value: string) => {
+  const normalized = normalizeVietnameseClient(value);
+  return (
+    (normalized.includes('protein') || normalized.includes('dam')) &&
+    (normalized.includes('bua') || normalized.includes('mon') || normalized.includes('an'))
+  );
+};
+
+const buildHighProteinMealReply = () =>
+  [
+    'Một bữa nhiều protein dễ làm: 180g ức gà áp chảo hoặc cá ngừ/cá hồi, 1 chén cơm hoặc 200g khoai, thêm một phần rau lớn.',
+    'Nếu muốn gọn hơn: 2 trứng + 200g sữa chua Hy Lạp không đường + 1 quả chuối + một ít yến mạch. Mục tiêu là khoảng 35-50g protein cho một bữa.',
+    'Giữ dầu mỡ vừa phải, ưu tiên luộc/áp chảo/nướng để no lâu mà không đội calories quá cao.',
+  ].join('\n\n');
 
 const isWeekStartColumnError = (error: any) =>
   String(error?.message || '').includes('week_start_date') ||
@@ -295,6 +362,14 @@ const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' 
   const calories = Math.round(sumMealMetric(day.meals, 'calories'));
   const protein = Math.round(sumMealMetric(day.meals, 'protein'));
 
+  if (isInjuryAdviceQuestion(question)) {
+    return buildInjuryAdviceReply();
+  }
+
+  if (isHighProteinMealQuestion(question)) {
+    return buildHighProteinMealReply();
+  }
+
   if (normalizedIntent.includes('chan')) {
     return 'Nếu bạn muốn tập chân, có thể ưu tiên squat, split squat, Romanian deadlift và glute bridge. Nếu đầu gối đang mỏi, hãy bắt đầu với bodyweight squat hoặc leg press nhẹ rồi tăng dần tải.';
   }
@@ -339,31 +414,24 @@ const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' 
   return `Mình đang bám theo dữ liệu của ${day.label}. Hãy hỏi cụ thể hơn về bài tập hoặc thực đơn để mình gợi ý sát hơn.`;
 };
 
-const shouldPreferLocalReply = (question: string, payload: Partial<AIChatApiResponse>) => {
-  const normalized = normalizeVietnameseClient(question);
-  const normalizedReply = normalizeVietnameseClient(String(payload.reply || ''));
-  const asksMeal =
-    normalized.includes('an gi') ||
-    normalized.includes('toi nay an') ||
-    normalized.includes('trua nay an') ||
-    normalized.includes('sang nay an') ||
-    normalized.includes('thuc don') ||
-    normalized.includes('meal');
-  const asksWorkout =
-    normalized.includes('bai tap') ||
-    normalized.includes('tap chan') ||
-    normalized.includes('tap lung') ||
-    normalized.includes('tap nguc') ||
-    normalized.includes('workout');
-  const isGenericBackendReply =
-    normalizedReply.includes('neu ban muon minh co the') ||
-    normalizedReply.includes('hien co') ||
-    normalizedReply.includes('toi uu theo muc tieu');
+const areChatMessagesEquivalent = (left: ChatMessage, right: ChatMessage) =>
+  left.role === right.role &&
+  left.content === right.content &&
+  (left.actionType || null) === (right.actionType || null) &&
+  !!left.actionRequired === !!right.actionRequired;
 
-  return (
-    !payload.actionRequired &&
-    ((asksMeal || asksWorkout) || isGenericBackendReply)
-  );
+const mergeOptimisticChatMessages = (serverMessages: ChatMessage[], currentMessages: ChatMessage[]) => {
+  const optimisticMessages = currentMessages.filter((message) => message.optimistic && message.role === 'user');
+  if (optimisticMessages.length === 0) return serverMessages;
+
+  const merged = [...serverMessages];
+  optimisticMessages.forEach((message) => {
+    if (!serverMessages.some((serverMessage) => areChatMessagesEquivalent(serverMessage, message))) {
+      merged.push(message);
+    }
+  });
+
+  return merged;
 };
 
 function AICoachSkeleton() {
@@ -635,7 +703,6 @@ export default function AICoach() {
   const shouldJumpToLatestRef = useRef(true);
 
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
-  const todayChatRange = useMemo(() => getVietnamDayUtcRange(), []);
   const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${todayDateKey}T00:00:00`)), [todayDateKey]);
   const profileCreatedAt = profile?.created_at ? new Date(profile.created_at) : null;
   const freeUsedAt = profile?.ai_coach_free_used_at ? new Date(profile.ai_coach_free_used_at) : null;
@@ -828,16 +895,19 @@ export default function AICoach() {
         .from('ai_chat_messages')
         .select('*')
         .eq('user_id', user.id)
-        .gte('created_at', todayChatRange.startIso)
-        .lt('created_at', todayChatRange.endIso)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false })
+        .limit(RECENT_CHAT_LIMIT);
 
       if (chatRes.error || !chatRes.data || chatRes.data.length === 0) {
-        setChatMessages([]);
+        setChatMessages((current) => {
+          const optimisticMessages = current.filter((message) => message.optimistic);
+          return optimisticMessages.length > 0 ? optimisticMessages : [];
+        });
         return;
       }
 
-      const chatIds = chatRes.data.map((item: any) => String(item.id || '')).filter(Boolean);
+      const orderedChatData = [...(chatRes.data as any[])].reverse();
+      const chatIds = orderedChatData.map((item: any) => String(item.id || '')).filter(Boolean);
       const adjustmentRes = chatIds.length > 0
         ? await supabase
             .from('ai_plan_adjustments')
@@ -857,27 +927,32 @@ export default function AICoach() {
         ]),
       );
 
-      setChatMessages(
-        (chatRes.data as any[]).map((item) => {
-          const linkedAdjustment = adjustmentByChatId.get(String(item.id || ''));
-          return {
-            id: String(item.id || ''),
-            role: item.role,
-            content: String(item.content || ''),
-            actionRequired: !!item.action_type,
-            actionType: item.action_type || null,
-            actionPayload: item.action_payload,
-            adjustmentId: linkedAdjustment?.id || null,
-            actionStatus: linkedAdjustment?.status || 'idle',
-          } as ChatMessage;
-        }),
-      );
+      const serverMessages = orderedChatData.map((item) => {
+        const linkedAdjustment = adjustmentByChatId.get(String(item.id || ''));
+        const role = item.role as ChatMessage['role'];
+        const content = String(item.content || '');
+        return {
+          id: String(item.id || ''),
+          role,
+          content,
+          actionRequired: !!item.action_type,
+          actionType: item.action_type || null,
+          actionPayload: item.action_payload,
+          adjustmentId: linkedAdjustment?.id || null,
+          actionStatus: linkedAdjustment?.status || 'idle',
+          optimistic: false,
+        } as ChatMessage;
+      });
+
+      setChatMessages((current) => mergeOptimisticChatMessages(serverMessages, current));
     };
 
     void fetchChat();
-  }, [user?.id, todayChatRange.startIso, todayChatRange.endIso, reloadKey]);
+  }, [user?.id, reloadKey]);
 
   useLayoutEffect(() => {
+    if (loading || !isLoggedIn || !plan) return;
+
     const container = chatScrollRef.current;
     const content = chatContentRef.current;
     const bottom = chatBottomRef.current;
@@ -891,6 +966,7 @@ export default function AICoach() {
     const timeoutIds: number[] = [];
 
     const scrollToBottom = () => {
+      container.scrollTop = container.scrollHeight;
       bottom.scrollIntoView({
         block: 'end',
         behavior,
@@ -928,7 +1004,7 @@ export default function AICoach() {
       }
       resizeObserver?.disconnect();
     };
-  }, [chatMessages, selectedDay.dayIndex]);
+  }, [chatMessages, selectedDay.dayIndex, loading, isLoggedIn, plan?.id]);
 
   useEffect(() => {
     chatMessagesRef.current = chatMessages;
@@ -987,6 +1063,7 @@ export default function AICoach() {
       id: `user-${Date.now()}`,
       role: 'user',
       content: message,
+      optimistic: true,
     };
 
     const previousTopic = [...chatMessagesRef.current]
@@ -994,6 +1071,7 @@ export default function AICoach() {
       .map((item) => inferChatTopic(item.content))
       .find((topic): topic is 'meal' | 'workout' => topic === 'meal' || topic === 'workout') || null;
 
+    shouldJumpToLatestRef.current = true;
     setChatMessages((current) => [...current, userMessage]);
 
     try {
@@ -1021,9 +1099,7 @@ export default function AICoach() {
         throw new Error(payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');
       }
 
-      const replyContent = shouldPreferLocalReply(message, payload)
-        ? buildCoachReply(selectedDay, message, previousTopic)
-        : String(payload.reply || '').trim() || buildCoachReply(selectedDay, message, previousTopic);
+      const replyContent = String(payload.reply || '').trim() || buildCoachReply(selectedDay, message, previousTopic);
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
@@ -1033,14 +1109,19 @@ export default function AICoach() {
         actionPayload: payload.actionPayload,
         adjustmentId: payload.adjustmentId || null,
         actionStatus: 'idle',
+        optimistic: true,
       };
+      shouldJumpToLatestRef.current = true;
       setChatMessages((current) => [...current, assistantMessage]);
+      setReloadKey((value) => value + 1);
     } catch {
       const fallbackMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
         content: buildCoachReply(selectedDay, message, previousTopic),
+        optimistic: true,
       };
+      shouldJumpToLatestRef.current = true;
       setChatMessages((current) => [...current, fallbackMessage]);
     } finally {
       submitLockRef.current = false;
@@ -1115,16 +1196,16 @@ export default function AICoach() {
                       className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       {message.role === 'assistant' ? (
-                        <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ai text-white shadow-[0_10px_24px_rgb(var(--ai-rgb)_/_0.22)]">
-                          <Bot className="h-4 w-4" />
+                        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ai/90 text-white shadow-[0_8px_18px_rgb(var(--ai-rgb)_/_0.18)]">
+                          <Bot className="h-3.5 w-3.5" />
                         </div>
                       ) : null}
-                      <div className="max-w-[88%]">
+                      <div className={message.role === 'user' ? 'max-w-[72%]' : 'max-w-[76%]'}>
                         <div
-                          className={`rounded-[26px] border px-4 py-4 text-[15px] leading-8 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ${
+                          className={`whitespace-pre-line break-words rounded-[18px] border px-4 py-3 text-sm font-normal leading-6 shadow-none ${
                             message.role === 'user'
                               ? 'border-accent bg-accent text-black'
-                              : 'border-border-primary bg-bg-secondary text-text-primary'
+                              : 'border-border-primary bg-bg-secondary/75 text-text-secondary'
                           }`}
                         >
                           {message.content}

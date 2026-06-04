@@ -32,6 +32,56 @@ export const extractDayIndexFromText = (message: string): number | null => {
   return null;
 };
 
+const hasAny = (value: string, terms: string[]) => terms.some((term) => value.includes(term));
+
+export const isInjuryAdviceRequest = (message: string): boolean => {
+  const normalized = normalizeVietnameseText(message);
+  if (!normalized) return false;
+
+  const mentionsPainOrInjury = hasAny(normalized, [
+    'dau',
+    'nhuc',
+    'sung',
+    'viem',
+    'chan thuong',
+    'bong gan',
+    'lat co',
+    'cang co',
+    'te',
+    'buot',
+  ]);
+
+  const mentionsBodyArea = hasAny(normalized, [
+    'khop',
+    'co chan',
+    'mat ca',
+    'goi',
+    'dau goi',
+    'lung',
+    'vai',
+    'co tay',
+    'khuu tay',
+    'hang',
+    'dui',
+    'bap chan',
+    'gan got',
+    'ban chan',
+  ]);
+
+  const asksForCare = hasAny(normalized, [
+    'giam dau',
+    'lam sao',
+    'cach nao',
+    'nen lam gi',
+    'xu ly',
+    'hoi phuc',
+    'co nen tap',
+    'di kham',
+  ]);
+
+  return mentionsPainOrInjury && (mentionsBodyArea || asksForCare);
+};
+
 export const detectIntent = (message: string, _context?: AIChatContext): IntentDetectionResult => {
   const normalized = normalizeVietnameseText(message);
   const referencedDayIndex = extractDayIndexFromText(message);
@@ -46,6 +96,8 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
   const mentionsMeal =
     normalized.includes('thuc don') ||
     normalized.includes('mon an') ||
+    normalized.includes('mon') ||
+    normalized.includes('bua') ||
     normalized.includes('bua an') ||
     normalized.includes('bua phu') ||
     normalized.includes('an gi') ||
@@ -53,6 +105,9 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
     normalized.includes('trua nay an') ||
     normalized.includes('sang nay an') ||
     normalized.includes('goi y mon') ||
+    normalized.includes('protein') ||
+    normalized.includes('dam') ||
+    normalized.includes('kcal') ||
     normalized.includes('meal');
 
   const asksForSchedule =
@@ -66,6 +121,10 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
     normalized.includes('xem bai tap') ||
     normalized.includes('xem thuc don') ||
     referencedDayIndex !== null;
+
+  if (isInjuryAdviceRequest(normalized)) {
+    return { intent: 'advice', confidence: 0.9 };
+  }
 
   if (
     normalized.includes('doi mon') ||
@@ -89,7 +148,6 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
     normalized.includes('doi dong tac') ||
     normalized.includes('thay dong tac') ||
     normalized.includes('met') ||
-    normalized.includes('dau') ||
     normalized.includes('10 phut') ||
     normalized.includes('bai nhe') ||
     normalized.includes('nhe hon') ||
