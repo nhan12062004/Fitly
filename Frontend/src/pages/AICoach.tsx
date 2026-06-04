@@ -629,6 +629,7 @@ export default function AICoach() {
   const lastSubmitRef = useRef<{ message: string; at: number } | null>(null);
   const hasHydratedPlanRef = useRef(false);
   const chatMessagesRef = useRef<ChatMessage[]>([]);
+  const hasAutoScrolledChatRef = useRef(false);
 
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const todayChatRange = useMemo(() => getVietnamDayUtcRange(), []);
@@ -871,10 +872,18 @@ export default function AICoach() {
   useEffect(() => {
     const container = chatScrollRef.current;
     if (!container) return;
-    container.scrollTo({
-      top: container.scrollHeight,
-      behavior: 'smooth',
-    });
+
+    const behavior: ScrollBehavior = hasAutoScrolledChatRef.current ? 'smooth' : 'auto';
+    const scrollToBottom = () => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior,
+      });
+      hasAutoScrolledChatRef.current = true;
+    };
+
+    const frameId = window.requestAnimationFrame(scrollToBottom);
+    return () => window.cancelAnimationFrame(frameId);
   }, [chatMessages, selectedDay.dayIndex]);
 
   useEffect(() => {
