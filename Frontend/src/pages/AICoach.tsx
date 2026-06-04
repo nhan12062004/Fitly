@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   AlertCircle,
   Bot,
@@ -625,11 +625,14 @@ export default function AICoach() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  const chatContentRef = useRef<HTMLDivElement | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
   const lastSubmitRef = useRef<{ message: string; at: number } | null>(null);
   const hasHydratedPlanRef = useRef(false);
   const chatMessagesRef = useRef<ChatMessage[]>([]);
   const hasAutoScrolledChatRef = useRef(false);
+  const shouldJumpToLatestRef = useRef(true);
 
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const todayChatRange = useMemo(() => getVietnamDayUtcRange(), []);
@@ -812,9 +815,14 @@ export default function AICoach() {
   useEffect(() => {
     const fetchChat = async () => {
       if (!user?.id) {
+        shouldJumpToLatestRef.current = true;
+        hasAutoScrolledChatRef.current = false;
         setChatMessages([]);
         return;
       }
+
+      shouldJumpToLatestRef.current = true;
+      hasAutoScrolledChatRef.current = false;
 
       const chatRes = await supabase
         .from('ai_chat_messages')
@@ -869,21 +877,57 @@ export default function AICoach() {
     void fetchChat();
   }, [user?.id, todayChatRange.startIso, todayChatRange.endIso, reloadKey]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = chatScrollRef.current;
-    if (!container) return;
+    const content = chatContentRef.current;
+    const bottom = chatBottomRef.current;
+    if (!container || !content || !bottom) return;
 
-    const behavior: ScrollBehavior = hasAutoScrolledChatRef.current ? 'smooth' : 'auto';
+    const shouldJumpToLatest = shouldJumpToLatestRef.current || !hasAutoScrolledChatRef.current;
+    const behavior: ScrollBehavior = shouldJumpToLatest ? 'auto' : 'smooth';
+    let resizeObserver: ResizeObserver | null = null;
+    let resizeObserverStopId: number | null = null;
+    const frameIds: number[] = [];
+    const timeoutIds: number[] = [];
+
     const scrollToBottom = () => {
-      container.scrollTo({
-        top: container.scrollHeight,
+      bottom.scrollIntoView({
+        block: 'end',
         behavior,
       });
-      hasAutoScrolledChatRef.current = true;
     };
 
-    const frameId = window.requestAnimationFrame(scrollToBottom);
-    return () => window.cancelAnimationFrame(frameId);
+    const queueScroll = () => {
+      const frameId = window.requestAnimationFrame(scrollToBottom);
+      frameIds.push(frameId);
+    };
+
+    queueScroll();
+    timeoutIds.push(window.setTimeout(queueScroll, 0));
+    timeoutIds.push(window.setTimeout(queueScroll, 120));
+    timeoutIds.push(window.setTimeout(queueScroll, 320));
+
+    if (shouldJumpToLatest && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+      resizeObserver.observe(content);
+      resizeObserverStopId = window.setTimeout(() => {
+        resizeObserver?.disconnect();
+      }, 900);
+    }
+
+    hasAutoScrolledChatRef.current = true;
+    shouldJumpToLatestRef.current = false;
+
+    return () => {
+      frameIds.forEach((frameId) => window.cancelAnimationFrame(frameId));
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      if (resizeObserverStopId !== null) {
+        window.clearTimeout(resizeObserverStopId);
+      }
+      resizeObserver?.disconnect();
+    };
   }, [chatMessages, selectedDay.dayIndex]);
 
   useEffect(() => {
@@ -913,6 +957,7 @@ export default function AICoach() {
           item.id === messageId ? { ...item, actionStatus: action === 'apply' ? 'applied' : 'rejected' } : item,
         ),
       );
+      shouldJumpToLatestRef.current = true;
       setReloadKey((value) => value + 1);
     } catch {
       setError('Không thể cập nhật đề xuất lúc này. Vui lòng thử lại.');
@@ -1063,7 +1108,7 @@ export default function AICoach() {
               </div>
 
               <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto bg-bg-tertiary px-5 py-5">
-                <div className="space-y-4">
+                <div ref={chatContentRef} className="space-y-4">
                   {chatMessages.map((message) => (
                     <div
                       key={message.id}
@@ -1112,6 +1157,7 @@ export default function AICoach() {
                   ))}
 
                   {chatMessages.length === 0 ? <TodayDigestBubble day={selectedDay} /> : null}
+                  <div ref={chatBottomRef} className="h-px w-full" />
                 </div>
               </div>
 
