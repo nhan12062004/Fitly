@@ -1091,7 +1091,382 @@ export default function Progress() {
         </section>
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.65fr_1fr]">
+          <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.25fr_0.95fr]">
+            <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Toàn cảnh {viewModel.filterLabel}</p>
+                  <h2 className="mt-2 text-2xl font-black text-text-primary">Những con số thật sự cần nhìn</h2>
+                </div>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-warning/10 text-warning">
+                  <TrendingUp className="h-5 w-5" />
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Tập luyện</p>
+                  <p className="mt-3 text-2xl font-black text-text-primary">
+                    {hasWorkoutTarget
+                      ? `${viewModel.summary.workouts.completed}/${viewModel.summary.workouts.target}`
+                      : `${viewModel.summary.workouts.completed} buổi`}
+                  </p>
+                  <div className="mt-2">
+                    {hasWorkoutTarget ? (
+                      <SummaryDelta delta={viewModel.summary.workouts.delta} />
+                    ) : (
+                      <span className="text-xs font-semibold text-text-tertiary">Chưa có mục tiêu tuần</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Dinh dưỡng</p>
+                  <p className="mt-3 text-2xl font-black text-text-primary">
+                    {hasNutritionTarget
+                      ? `${viewModel.summary.nutrition.completed}/${viewModel.summary.nutrition.target}`
+                      : `${viewModel.summary.nutrition.loggedDays} ngày log`}
+                  </p>
+                  <div className="mt-2">
+                    {hasNutritionTarget ? (
+                      <SummaryDelta delta={viewModel.summary.nutrition.delta} />
+                    ) : (
+                      <span className="text-xs font-semibold text-text-tertiary">Thiếu mục tiêu kcal để đo độ bám plan</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4 sm:col-span-2 xl:col-span-1">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">
+                    {hasWeightSamples ? 'Cân nặng' : 'Streak'}
+                  </p>
+                  <p className="mt-3 text-2xl font-black text-text-primary">
+                    {hasWeightSamples ? formatSignedKg(viewModel.summary.weight.delta) : `${viewModel.summary.streakDays} ngày`}
+                  </p>
+                  <p className="mt-2 text-xs font-semibold text-text-secondary">
+                    {hasWeightSamples ? viewModel.summary.weight.status : 'Giữ nhịp đều để nhìn ra xu hướng rõ hơn'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-[24px] border border-border-primary bg-[linear-gradient(145deg,rgba(18,18,18,0.95),rgba(10,10,10,0.98))] p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="max-w-2xl">
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">AI Coach</p>
+                    <h3 className="mt-2 text-xl font-black text-text-primary">{viewModel.coach.title}</h3>
+                    <p className="mt-3 text-sm font-semibold leading-7 text-text-secondary">{viewModel.coach.body}</p>
+                  </div>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-ai/12 text-ai">
+                    <Brain className="h-5 w-5" />
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigate(viewModel.coach.actionHref)}
+                  className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                >
+                  {viewModel.coach.actionLabel}
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </article>
+
+            <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">{viewModel.actions.title}</p>
+                  <h2 className="mt-2 text-2xl font-black text-text-primary">3 việc nên ưu tiên ngay</h2>
+                </div>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-warning/10 text-warning">
+                  <Sparkles className="h-5 w-5" />
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                {viewModel.actions.items.map((item, index) => (
+                  <div key={item} className="flex items-start gap-3 rounded-[22px] border border-border-primary bg-bg-tertiary/45 px-4 py-4">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-black text-black">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm font-semibold leading-6 text-text-primary">{item}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <button
+                  type="button"
+                  onClick={() => navigate(viewModel.actions.primaryHref)}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                >
+                  {viewModel.actions.primaryLabel}
+                  <Sparkles className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(viewModel.actions.secondaryHref)}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-info/40 hover:text-info"
+                >
+                  {viewModel.actions.secondaryLabel}
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </article>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Tập luyện</p>
+                  <h2 className="mt-2 text-2xl font-black text-text-primary">
+                    {viewModel.workout.completedDays} buổi · {formatWholeNumber(viewModel.workout.totalMinutes)} phút
+                  </h2>
+                  <p className="mt-2 text-sm font-semibold text-text-secondary">
+                    ~{formatWholeNumber(viewModel.workout.totalCalories)} kcal · {viewModel.workout.stripLabel.toLowerCase()}
+                  </p>
+                </div>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                  <Dumbbell className="h-5 w-5" />
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+                {viewModel.workout.strip.map((day) => (
+                  <div
+                    key={day.dateKey}
+                    className={`rounded-[20px] border px-3 py-3 text-center ${
+                      day.completed
+                        ? 'border-accent/25 bg-accent/10'
+                        : day.planned
+                          ? 'border-warning/20 bg-warning/10'
+                          : 'border-border-primary bg-bg-tertiary/35'
+                    }`}
+                  >
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">{day.label}</p>
+                    <p className="mt-2 text-lg font-black text-text-primary">{day.dayNumber}</p>
+                    <p className={`mt-2 text-xs font-bold ${day.completed ? 'text-accent' : day.planned ? 'text-warning' : 'text-text-tertiary'}`}>
+                      {day.completed ? 'Hoàn thành' : day.planned ? 'Có lịch' : 'Nghỉ'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Nhóm cơ nổi bật</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {viewModel.workout.muscleGroups.length > 0 ? (
+                    viewModel.workout.muscleGroups.slice(0, 4).map((group) => (
+                      <span
+                        key={group.label}
+                        className="rounded-full border border-border-primary bg-bg-secondary px-3 py-2 text-xs font-black text-text-primary"
+                      >
+                        {group.label} {group.count}
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm font-semibold text-text-secondary">Chưa có đủ dữ liệu để nhận diện nhóm cơ tập nhiều nhất.</p>
+                  )}
+                </div>
+              </div>
+            </article>
+
+            <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Dinh dưỡng</p>
+                  <h2 className="mt-2 text-2xl font-black text-text-primary">
+                    {hasNutritionTarget
+                      ? `${formatWholeNumber(viewModel.nutrition.averageCalories)} / ${formatWholeNumber(viewModel.nutrition.targetCalories)} kcal`
+                      : `${formatWholeNumber(viewModel.nutrition.averageCalories)} kcal`}
+                  </h2>
+                  <p className="mt-2 text-sm font-semibold text-text-secondary">
+                    {hasProteinTarget
+                      ? `Protein ${formatWholeNumber(viewModel.nutrition.averageProtein)} / ${viewModel.nutrition.targetProtein}g · ${viewModel.nutrition.daysOnTarget} ngày trong mục tiêu`
+                      : `Protein trung bình ${formatWholeNumber(viewModel.nutrition.averageProtein)}g · ${viewModel.nutrition.loggedDays} ngày đã log`}
+                  </p>
+                </div>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-info/10 text-info">
+                  <Utensils className="h-5 w-5" />
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Calories trung bình</p>
+                  <p className="mt-3 text-2xl font-black text-text-primary">
+                    {formatWholeNumber(viewModel.nutrition.averageCalories)}
+                    <span className="ml-1 text-sm font-bold text-text-tertiary">kcal</span>
+                  </p>
+                </div>
+
+                <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Protein trung bình</p>
+                  <p className="mt-3 text-2xl font-black text-text-primary">
+                    {formatWholeNumber(viewModel.nutrition.averageProtein)}
+                    <span className="ml-1 text-sm font-bold text-text-tertiary">g</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={viewModel.nutrition.chart} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                      minTickGap={14}
+                    />
+                    <YAxis
+                      tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={52}
+                    />
+                    <Tooltip content={<NutritionTooltip />} />
+                    <Bar dataKey="calories" radius={[10, 10, 0, 0]}>
+                      {viewModel.nutrition.chart.map((entry) => (
+                        <Cell
+                          key={entry.dateKey}
+                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'rgb(34 197 94)' : 'rgb(249 115 22)'}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </article>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+            <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Cân nặng</p>
+                  <h2 className="mt-2 text-2xl font-black text-text-primary">
+                    {viewModel.weight.baseline !== null && viewModel.weight.latest !== null
+                      ? `${formatMetric(viewModel.weight.baseline, 1)} → ${formatMetric(viewModel.weight.latest, 1)} kg`
+                      : 'Chua co xu huong ro'}
+                  </h2>
+                  <p className="mt-2 text-sm font-semibold text-text-secondary">{viewModel.weight.helper}</p>
+                </div>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-info/10 text-info">
+                  <Scale className="h-5 w-5" />
+                </span>
+              </div>
+
+              {hasWeightSamples ? (
+                <>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Hiện tại</p>
+                      <p className="mt-3 text-2xl font-black text-text-primary">
+                        {viewModel.weight.latest !== null ? `${formatMetric(viewModel.weight.latest, 1)} kg` : '--'}
+                      </p>
+                    </div>
+                    <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Thay đổi</p>
+                      <p className="mt-3 text-2xl font-black text-text-primary">{formatSignedKg(viewModel.weight.change)}</p>
+                    </div>
+                  </div>
+
+                  {hasWeightTrend ? (
+                    <div className="mt-5 h-[240px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={viewModel.weight.chart} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+                          <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                            minTickGap={18}
+                          />
+                          <YAxis
+                            tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                            tickLine={false}
+                            axisLine={false}
+                            width={52}
+                            domain={['dataMin - 1', 'dataMax + 1']}
+                          />
+                          <Tooltip content={<WeightTooltip />} />
+                          <Line
+                            type="monotone"
+                            dataKey="weight"
+                            stroke="rgb(250 204 21)"
+                            strokeWidth={3}
+                            dot={{ fill: 'rgb(250 204 21)', r: 3 }}
+                            activeDot={{ r: 5 }}
+                            connectNulls={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="mt-5 rounded-[22px] border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
+                      <p className="text-sm font-black text-text-primary">Mới có một mốc cân nặng trong giai đoạn này</p>
+                      <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary">
+                        Cập nhật thêm 1-2 lần nữa để nhìn ra xu hướng rõ hơn.
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="mt-5 rounded-[22px] border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
+                  <p className="text-sm font-black text-text-primary">Chưa có dữ liệu cân nặng trong giai đoạn này</p>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary">
+                    Thêm vài mốc body metrics để biết tiến độ đang đi nhanh, chậm hay đúng hướng.
+                  </p>
+                </div>
+              )}
+            </article>
+
+            <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Ưu tiên lúc này</p>
+                  <h2 className="mt-2 text-2xl font-black text-text-primary">
+                    {viewModel.score.value !== null ? `${viewModel.score.value}/100` : 'Tập trung vào nhịp đều'}
+                  </h2>
+                  <p className="mt-2 text-sm font-semibold leading-7 text-text-secondary">{viewModel.score.helper}</p>
+                </div>
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-warning/10 text-warning">
+                  <Target className="h-5 w-5" />
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3">
+                <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Điểm mạnh</p>
+                  <div className="mt-3 grid gap-2">
+                    {(viewModel.score.strengths.length > 0 ? viewModel.score.strengths : ['Bạn đã bắt đầu tạo được dữ liệu để theo dõi tiến độ.']).map((item) => (
+                      <div key={item} className="flex items-start gap-2 text-sm font-semibold text-text-primary">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[22px] border border-border-primary bg-bg-tertiary/45 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Cần chỉnh</p>
+                  <div className="mt-3 grid gap-2">
+                    {(viewModel.score.improvements.length > 0 ? viewModel.score.improvements : ['Tiếp tục log đều thêm vài ngày để nhìn ra điểm cần chỉnh rõ hơn.']).map((item) => (
+                      <div key={item} className="flex items-start gap-2 text-sm font-semibold text-text-primary">
+                        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+          <section className="hidden grid grid-cols-1 gap-4 xl:grid-cols-[1.65fr_1fr]">
             <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1180,7 +1555,7 @@ export default function Progress() {
             </article>
           </section>
 
-          <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.45fr_1fr]">
+          <section className="hidden grid grid-cols-1 gap-4 lg:grid-cols-[1.45fr_1fr]">
             <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1298,7 +1673,7 @@ export default function Progress() {
             </article>
           </section>
 
-          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <section className="hidden grid grid-cols-1 gap-4 lg:grid-cols-2">
             <article className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1423,7 +1798,7 @@ export default function Progress() {
             </article>
           </section>
 
-          <section className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+          <section className="hidden rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">{viewModel.habits.title}</p>
@@ -1464,7 +1839,7 @@ export default function Progress() {
             </div>
           </section>
 
-          <section className="rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+          <section className="hidden rounded-[28px] border border-border-primary bg-bg-secondary/82 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-2xl">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">{viewModel.actions.title}</p>

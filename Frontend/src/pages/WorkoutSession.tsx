@@ -575,13 +575,13 @@ export default function WorkoutSession() {
 
   return (
     <div className="dashboard-page-shell flex flex-col text-sm pb-4 md:pb-6 lg:pb-7">
-      <div className="-mt-1 mb-3 flex items-center justify-between">
+      <div className="-mt-1 mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <button
           type="button"
           onClick={() => navigate('/exercises')}
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary"
+          className="inline-flex min-w-0 items-center gap-1.5 text-left text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 shrink-0" />
           Buổi tập: {activeExercise.name}
         </button>
         <button
@@ -590,16 +590,16 @@ export default function WorkoutSession() {
             setFeedbackCompletedAll(completedIds.length >= orderedSession.length && orderedSession.length > 0);
             setIsFeedbackModalOpen(true);
           }}
-          className="rounded-full border border-border-secondary bg-bg-tertiary px-4 py-2 text-xs font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent"
+          className="inline-flex h-11 items-center justify-center self-start rounded-full border border-border-secondary bg-bg-tertiary px-4 text-xs font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent sm:self-auto"
         >
           Kết thúc buổi tập
         </button>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-xl border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
-        <aside className="border-r border-border-primary bg-bg-secondary px-4 pt-4 pb-5">
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
+        <aside className="order-3 border-t border-border-primary bg-bg-secondary px-4 pt-4 pb-5 lg:col-span-2 xl:order-1 xl:col-span-1 xl:border-t-0 xl:border-r">
           <p className="text-sm font-black tracking-[0.08em] text-text-tertiary">Danh sách bài tập</p>
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
             {orderedSession.map((item, index) => {
               const isActive = index === activeIndex;
               const isDone = completedIds.includes(item.id);
@@ -653,13 +653,13 @@ export default function WorkoutSession() {
           </div>
         </aside>
 
-        <section className="relative min-h-0 overflow-y-auto px-4 py-5 md:px-8 bg-transparent">
+        <section className="order-1 relative min-h-0 overflow-y-auto bg-transparent px-4 py-5 md:px-6 lg:px-8 xl:order-2">
           <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
             <p className="text-xs font-black tracking-[0.08em] text-text-tertiary">
               Bài {Math.min(activeIndex + 1, orderedSession.length)} / {orderedSession.length}
             </p>
-            <h1 className="mt-2 text-3xl font-black text-text-primary md:text-4xl">{activeExercise.name}</h1>
-            <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-xs font-semibold text-text-secondary">
+            <h1 className="mt-2 text-3xl font-black leading-tight text-text-primary md:text-4xl">{activeExercise.name}</h1>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-text-secondary">
               <span>{activeExercise.exercises?.target_muscle || 'Cardio'}</span>
               <span>{activeExercise.reps} nhịp mỗi hiệp</span>
               <span>{activeExercise.sets} hiệp</span>
@@ -675,13 +675,13 @@ export default function WorkoutSession() {
               Chỉnh thông số
             </button>
 
-            <div className="mt-6 inline-flex flex-col md:flex-row items-center gap-4 md:gap-6 overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary/40 p-4 md:py-4 md:px-6">
-              <div className="w-48 md:w-[240px] shrink-0 flex justify-center">
+            <div className="mt-6 inline-flex w-full flex-col items-center gap-4 overflow-hidden rounded-[24px] border border-border-primary bg-bg-secondary/40 p-4 md:gap-6 md:p-6 lg:flex-row">
+              <div className="flex w-full max-w-[220px] shrink-0 justify-center md:max-w-[240px]">
                 <div className="aspect-square w-full overflow-hidden rounded-xl bg-transparent">
                   <ExercisePreview src={activeExercise.gif_url} alt={activeExercise.name} />
                 </div>
               </div>
-              <div className="w-full max-w-xs md:max-w-sm flex flex-col justify-center text-left">
+              <div className="w-full max-w-xl flex flex-col justify-center text-left">
                 <ol className="space-y-4 text-sm text-text-secondary leading-relaxed">
                   {activeExerciseSteps.map((step, index) => (
                     <li key={`${step}-${index}`} className="flex items-start gap-3">
@@ -695,12 +695,12 @@ export default function WorkoutSession() {
               </div>
             </div>
 
-            <div className="mt-8 grid w-full max-w-4xl grid-cols-[1fr_auto_1fr] items-center gap-4">
-              <div className="flex justify-end">
+            <div className="mt-8 grid w-full max-w-xl grid-cols-1 justify-items-center gap-3 lg:max-w-4xl lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+              <div className="flex w-full justify-center lg:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsRunning((prev) => !prev)}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-secondary bg-bg-secondary px-5 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-secondary bg-bg-secondary px-5 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent"
                 >
                   {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                   {isRunning ? 'Tạm dừng' : 'Bắt đầu'}
@@ -708,7 +708,7 @@ export default function WorkoutSession() {
               </div>
 
               <div
-                className="relative flex h-[160px] w-[160px] items-center justify-center rounded-full transition-all duration-700"
+                className="order-first relative flex h-[168px] w-[168px] items-center justify-center rounded-full transition-all duration-700 lg:order-none"
                 style={{
                   background: `conic-gradient(var(--accent-primary) 0deg ${timerAngle}deg, var(--accent-deep) ${timerAngle}deg 360deg)`
                 }}
@@ -722,7 +722,7 @@ export default function WorkoutSession() {
                 </div>
               </div>
 
-              <div className="flex justify-start">
+              <div className="flex w-full justify-center lg:justify-start">
                 <button
                   type="button"
                   onClick={async () => {
@@ -755,7 +755,7 @@ export default function WorkoutSession() {
                     setSecondsLeft(startingSeconds);
                     setIsRunning(false);
                   }}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-black hover:bg-accent-hover"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-black hover:bg-accent-hover"
                 >
                   Hoàn thành hiệp
                 </button>
@@ -777,8 +777,8 @@ export default function WorkoutSession() {
           </div>
         </section>
 
-        <aside className="border-l border-border-primary bg-bg-secondary px-4 pt-4 pb-5">
-          <div className="flex min-h-full flex-col gap-5">
+        <aside className="order-2 border-t border-border-primary bg-bg-secondary px-4 pt-4 pb-5 lg:border-t-0 lg:border-l xl:order-3">
+          <div className="grid min-h-full gap-5 sm:grid-cols-2 lg:grid-cols-1">
             <section className="space-y-3 px-3">
               <p className="text-sm font-black tracking-[0.08em] text-text-tertiary">Tiếp theo</p>
               {nextExercise ? (
@@ -800,8 +800,8 @@ export default function WorkoutSession() {
 
             <section className="space-y-3 px-3">
               <p className="text-xs font-black tracking-[0.08em] text-text-tertiary">Hiệp</p>
-              <div className="flex gap-2">
-                {Array.from({ length: Math.min(activeExercise.sets, 4) }).map((_, index) => {
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: activeExercise.sets }).map((_, index) => {
                   const isCompletedSet = index < completedSetCount;
                   const isCurrentSet = index === completedSetCount && completedSetCount < activeExercise.sets;
                   return (
@@ -853,7 +853,7 @@ export default function WorkoutSession() {
               </button>
             </div>
 
-            <section className="mt-auto mx-3 rounded-3xl border border-dashed border-border-secondary p-4">
+            <section className="mx-3 rounded-3xl border border-dashed border-border-secondary p-4 sm:col-span-2 lg:mt-auto lg:col-span-1">
               <p className="text-xs font-black tracking-[0.08em] text-text-tertiary">Ghi chú</p>
               <p className="mt-2 text-sm leading-6 text-text-secondary">
                 Giữ nhịp đều, siết core và hạ người có kiểm soát. Nếu mất form, giảm tốc độ trước khi tăng nhịp.
