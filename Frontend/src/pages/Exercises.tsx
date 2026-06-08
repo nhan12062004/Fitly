@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Plus, AlertCircle, Calendar, ImageOff,
-  ChevronDown, SlidersHorizontal, RotateCcw, Play, Eye, Layers, Repeat, Dumbbell, Flame
+  ChevronDown, SlidersHorizontal, RotateCcw, Play, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/Supabase';
@@ -168,7 +168,7 @@ const pickLatestPlan = (plans: any[] | null | undefined) => {
 
 
 // === Components ===
-const ExerciseThumb = ({ src, alt }: { src?: string; alt: string }) => {
+const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; className?: string }) => {
   const candidates = useMemo(() => {
     const primary = String(src || '').trim();
     if (!primary) return [];
@@ -202,7 +202,7 @@ const ExerciseThumb = ({ src, alt }: { src?: string; alt: string }) => {
       src={currentSrc}
       alt={alt}
       loading="lazy"
-      className="w-full h-full object-cover"
+      className={className || "w-full h-full object-cover"}
       onError={() => {
         if (candidateIndex < candidates.length - 1) {
           setCandidateIndex(candidateIndex + 1);
@@ -219,7 +219,7 @@ const ExerciseThumb = ({ src, alt }: { src?: string; alt: string }) => {
 // ====================================================================
 export const ExercisesSkeleton = () => {
   return (
-    <div className="flex-1 min-h-0 max-w-[1700px] mx-auto w-full flex flex-col gap-4 md:gap-5 animate-pulse">
+    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="bg-bg-secondary/40 border border-border-primary/50 rounded-xl p-4 md:p-5">
         <div className="mb-4 flex items-start gap-3">
           <div className="flex items-center gap-3">
@@ -909,7 +909,7 @@ export default function Exercises() {
     if (isLoading) return <ExercisesSkeleton />;
 
   return (
-    <div className="flex-1 min-h-0 max-w-[1700px] mx-auto w-full flex flex-col gap-4 md:gap-5 overflow-y-auto custom-scrollbar pr-1 text-sm">
+    <div className="dashboard-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
         <div className="mb-4 flex items-start gap-3">
           <div className="flex items-center gap-3">
@@ -928,53 +928,41 @@ export default function Exercises() {
           </div>
         </div>
 
-        <div className="bg-bg-tertiary/35 border border-border-primary rounded-xl p-3 md:p-4">
+        <div className="-ml-2 -mt-1 grid grid-cols-1 gap-5 md:gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-stretch">
           {selectedSessionExercise ? (
-            <div className="grid grid-cols-1 xl:grid-cols-[240px_minmax(0,1fr)_380px] gap-4 md:gap-5 items-stretch">
-              <div className="rounded-xl overflow-hidden border border-border-primary bg-bg-secondary h-[160px] md:h-[190px] xl:h-full">
-                <ExerciseThumb src={selectedSessionExercise.gif_url} alt={selectedSessionExercise.name} />
-              </div>
-              <div className="flex flex-col justify-center gap-4 md:gap-5 min-w-0">
-                <h2 className="text-xl md:text-2xl font-black text-text-primary leading-tight line-clamp-2">{selectedSessionExercise.name}</h2>
-                <div className="grid grid-cols-2 gap-2.5 text-base text-text-primary">
-                  <div className="inline-flex min-w-0 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5">
-                    <span className="inline-flex items-start gap-1.5">
-                      <Layers className="self-center w-4 h-4 text-accent md:w-[18px] md:h-[18px]" />
-                      <span className="inline-flex flex-col items-center">
-                        <span>{selectedExerciseStats.setsText}</span>
-                        <span className="text-xs text-accent-muted">Số hiệp</span>
-                      </span>
-                    </span>
+            <>
+              <article className="min-w-0 p-4 md:p-4 xl:pr-8">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[164px_minmax(0,540px)] lg:items-start lg:gap-5">
+                  <div className="overflow-hidden rounded-[22px] border border-border-primary bg-[#f7f4ef] h-[176px] lg:h-[176px]">
+                    <ExerciseThumb
+                      src={selectedSessionExercise.gif_url}
+                      alt={selectedSessionExercise.name}
+                      className="w-full h-full object-contain p-1.5"
+                    />
                   </div>
-                  <div className="inline-flex min-w-0 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5">
-                    <span className="inline-flex items-start gap-1.5">
-                      <Repeat className="self-center w-4 h-4 text-accent md:w-[18px] md:h-[18px]" />
-                      <span className="inline-flex flex-col items-start">
-                        <span>{selectedExerciseStats.repsText}</span>
-                        <span className="text-xs text-accent-muted">Số lần</span>
-                      </span>
-                    </span>
-                  </div>
-                  <div className="inline-flex min-w-0 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5">
-                    <span className="inline-flex items-start gap-1.5 text-text-primary">
-                      <Dumbbell className="self-center w-4 h-4 text-accent md:w-[18px] md:h-[18px]" />
-                      <span className="inline-flex flex-col items-center">
-                        <span>{selectedExerciseStats.weightText}</span>
-                        <span className="text-xs text-accent-muted">Mức tạ</span>
-                      </span>
-                    </span>
-                  </div>
-                  <div className="inline-flex min-w-0 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5">
-                    <span className="inline-flex items-start gap-1.5 text-text-primary">
-                      <Flame className="self-center w-4 h-4 text-accent md:w-[18px] md:h-[18px]" />
-                      <span className="inline-flex flex-col items-center">
-                        <span>{selectedExerciseStats.kcalText}</span>
-                        <span className="text-xs text-accent-muted">Calo đốt</span>
-                      </span>
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center justify-start gap-2.5">
+                  <div className="today-workout-feature flex flex-col justify-center gap-3.5 min-w-0 max-w-[540px]">
+                    <div className="min-w-0">
+                      <h2 className="text-xl md:text-[1.5rem] font-black text-text-primary leading-tight md:leading-[1.08] line-clamp-2">{selectedSessionExercise.name}</h2>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {selectedSessionExercise.exercises?.target_muscle ? (
+                          <span className="rounded-full border border-info/20 bg-info/10 px-3 py-1 text-xs font-bold text-info">
+                            {selectedSessionExercise.exercises.target_muscle}
+                          </span>
+                        ) : null}
+                        {selectedSessionExercise.exercises?.body_part ? (
+                          <span className="rounded-full border border-warning/20 bg-warning/10 px-3 py-1 text-xs font-bold text-warning">
+                            {selectedSessionExercise.exercises.body_part}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="today-workout-meta flex flex-wrap items-center gap-2">
+                      <span className="today-workout-meta-item">{selectedExerciseStats.setsText}</span>
+                      <span className="today-workout-meta-item">{selectedExerciseStats.repsText}</span>
+                      <span className="today-workout-meta-item">{selectedExerciseStats.weightText}</span>
+                      <span className="today-workout-meta-item">{selectedExerciseStats.kcalText}</span>
+                    </div>
+                <div className="today-workout-actions mt-1 flex flex-wrap items-center justify-start gap-2">
                   <button
                     onClick={() =>
                       navigate('/exercises/session', {
@@ -995,36 +983,35 @@ export default function Exercises() {
                     onClick={() => {
                       if (selectedSessionDetailExercise) openExerciseDetailsPage(selectedSessionDetailExercise);
                     }}
-                    className="h-10 px-4 rounded-xl border border-[#a7afbd]/45 bg-[#8b94a3]/55 text-white text-sm font-bold hover:border-[#b7bfcb]/60 hover:bg-[#98a1af]/65 transition-colors inline-flex items-center gap-2"
+                    className="h-10 px-4 rounded-xl border border-border-primary bg-bg-tertiary/45 text-text-primary text-sm font-bold hover:border-accent/30 hover:bg-bg-tertiary transition-colors inline-flex items-center gap-2"
                   >
                     <Eye className="w-4 h-4" />
                     Xem chi tiết
                   </button>
                 </div>
-              </div>
-              <div className="relative rounded-xl p-3 md:p-4 xl:pt-1 xl:pl-4 xl:before:content-[''] xl:before:absolute xl:before:left-[-8px] xl:before:-top-4 xl:before:-bottom-4 xl:before:w-px xl:before:bg-border-primary">
+                </div>
+                </div>
+              </article>
+              <aside className="today-workout-list relative min-w-0 p-4 md:p-4 xl:-ml-2 xl:self-stretch xl:pl-5 xl:pt-4 xl:before:absolute xl:before:bottom-4 xl:before:left-0 xl:before:top-4 xl:before:w-px xl:before:bg-border-primary/70 xl:before:content-['']">
                 <h3 className="mb-1 text-lg font-bold text-text-primary">Danh sách bài tập</h3>
-                <div className="space-y-2.5 max-h-[240px] overflow-y-auto custom-scrollbar pr-1">
+                <div className="today-workout-list-scroll mt-3.5 space-y-2.5 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
                   {session.slice(0, 4).map((ex, idx) => (
                     <button
                       key={ex.id}
                       onClick={() => setSelectedSessionId(ex.id)}
-                      className="w-full text-left rounded-lg px-0 py-1.5 transition-colors"
+                      className={`today-workout-list-item w-full text-left rounded-lg px-0 py-1.5 transition-colors ${ex.id === selectedSessionExercise.id ? 'today-workout-list-item-active' : ''}`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2 min-w-0">
-                        <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center self-center rounded-full border border-accent/55 text-xs font-black leading-none text-accent">{idx + 1}</span>
+                        <span className="today-workout-list-index inline-flex h-5 w-5 shrink-0 items-center justify-center self-center rounded-full border border-accent/55 text-xs font-black leading-none text-accent">{idx + 1}</span>
                           <span className={`text-sm font-medium ${ex.is_completed ? 'text-text-tertiary line-through' : 'text-text-primary'}`}>{ex.name}</span>
                         </div>
-                        <span className="shrink-0 text-sm font-medium text-text-tertiary">
-                          {`${ex.sets || 1} hiệp x ${ex.reps || '10'} lần x ${Math.max(0, Number(ex.weight_kg) || 0)} kg`}
-                        </span>
                       </div>
                     </button>
                   ))}
                 </div>
-              </div>
-            </div>
+              </aside>
+            </>
           ) : (
             <div className="h-[220px] flex flex-col items-center justify-center text-center">
               <AlertCircle className="w-10 h-10 text-text-tertiary mb-3" />
@@ -1151,7 +1138,7 @@ export default function Exercises() {
                   <button
                     type="button"
                     onClick={() => openExerciseDetailsPage(ex)}
-                    className="h-8 flex-1 rounded-lg border border-[#a7afbd]/45 bg-[#8b94a3]/55 text-xs font-bold text-white hover:border-[#b7bfcb]/60 hover:bg-[#98a1af]/65 transition-colors"
+                    className="h-8 flex-1 rounded-lg border border-border-primary bg-bg-tertiary/45 text-xs font-bold text-text-primary hover:border-accent/30 hover:bg-bg-tertiary transition-colors"
                   >
                     Xem chi tiết
                   </button>

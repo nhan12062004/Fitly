@@ -658,7 +658,7 @@ export default function Overview() {
   const streakHeroLabel = `Streak ${formatWholeNumber(stats.streak_days)} ngày`;
 
   return (
-    <div className="flex flex-col gap-4 md:gap-5">
+    <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <section className="overflow-hidden rounded-[28px] border border-border-primary bg-[linear-gradient(180deg,rgba(20,20,20,0.96),rgba(12,12,12,0.98))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.18)] md:px-6 md:py-5">
         <div className="min-w-0">
           <p className="text-sm font-black text-text-primary md:text-base">
@@ -872,7 +872,7 @@ function OverviewSkeleton() {
   const block = (className: string) => <div className={`rounded-full bg-bg-tertiary/70 ${className}`} />;
 
   return (
-    <div className="min-w-0 flex-1 animate-pulse" aria-hidden="true">
+    <div className="dashboard-page-shell min-w-0 animate-pulse pb-4 md:pb-6 lg:pb-7" aria-hidden="true">
       <div className="flex flex-col gap-4 md:gap-5">
         <section className="overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary/60 px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.12)] md:px-6 md:py-5">
           <div className="min-w-0">

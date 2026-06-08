@@ -305,8 +305,8 @@ const FoodPicker = ({
 
 export function DietPlanSkeleton() {
   return (
-    <div className="diet-page-shell min-h-[calc(100vh-80px)] w-full animate-pulse rounded-[28px] p-4 md:p-7">
-      <div className="mx-auto max-w-6xl">
+    <div className="dashboard-page-shell diet-page-shell min-h-[calc(100vh-80px)] w-full animate-pulse rounded-[28px] p-4 md:p-7">
+      <div className="mx-auto w-full max-w-6xl">
         <div className="mb-8 h-10 w-64 rounded-2xl bg-bg-tertiary" />
         <div className="grid gap-7 lg:grid-cols-[360px_minmax(0,1fr)]">
           <div className="space-y-5">
@@ -796,7 +796,7 @@ export default function DietPlan() {
   if (isLoading) return <DietPlanSkeleton />;
 
   return (
-    <div className="diet-page-shell -mx-4 min-h-[calc(100vh-80px)] w-screen max-w-[100vw] flex-none overflow-x-hidden overflow-y-auto px-4 py-5 md:mx-0 md:w-full md:max-w-full md:rounded-[28px] md:px-7 md:py-6">
+    <div className="dashboard-page-shell diet-page-shell min-h-[calc(100vh-80px)] w-full flex-none overflow-x-hidden overflow-y-auto py-5 md:rounded-[28px] md:py-6">
       <div className="mx-auto w-full max-w-6xl overflow-hidden">
         <div className="mb-6 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_488px] lg:items-start">
           <div className="min-w-0">

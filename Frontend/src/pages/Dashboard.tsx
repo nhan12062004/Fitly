@@ -97,8 +97,8 @@ export default function Dashboard() {
 
       <div className="flex-1 flex flex-col min-w-0 w-full h-screen overflow-y-auto custom-scrollbar">
         <TopBar onMenuClick={() => setIsMobileMenuOpen(true)} onProfileClick={() => setIsProfileOpen(true)} />
-        <main className="flex-1 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 flex flex-col xl:flex-row gap-6 min-w-0 relative">
-          <div className="w-full xl:-mt-2 xl:-mx-2 xl:-mb-2">
+        <main className="flex min-h-0 flex-1 flex-col gap-6 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 lg:px-7 xl:flex-row min-w-0 relative">
+          <div className="mx-auto w-full">
             <Suspense fallback={null}>
               <Outlet context={{ onProfileClick: () => setIsProfileOpen(true) }} />
             </Suspense>

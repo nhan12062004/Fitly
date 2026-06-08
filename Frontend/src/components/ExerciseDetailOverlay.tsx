@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ImageOff, Plus, Play, Layers, Crosshair, CircleDashed, Cog, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, ImageOff, Plus, Play, ChevronRight, X } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 
 export interface ExerciseDetailItem {
@@ -29,10 +29,56 @@ interface ExerciseDetailOverlayProps {
 type RelatedExercise = {
   id: string;
   name: string;
-  minutes: number;
   primaryMuscle: string;
   gif_url: string;
 };
+
+type FitnessIconProps = {
+  className?: string;
+};
+
+const MuscleRegionIcon = ({ className }: FitnessIconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <path
+      d="M9.5 4.5C9.5 3.67 10.17 3 11 3h2c.83 0 1.5.67 1.5 1.5v1.05c0 .4.16.78.44 1.06l1.44 1.44c.4.4.62.94.62 1.5v2.2c0 .33.13.65.37.88l1.1 1.1c.34.34.53.8.53 1.28V19a2 2 0 0 1-2 2h-1.5a1 1 0 0 1-1-1v-3.1c0-.5-.2-.98-.55-1.34L12 13.61l-1.95 1.95c-.35.36-.55.84-.55 1.34V20a1 1 0 0 1-1 1H7a2 2 0 0 1-2-2v-3.5c0-.48.19-.94.53-1.28l1.1-1.1c.24-.23.37-.55.37-.88v-2.2c0-.56.22-1.1.62-1.5l1.44-1.44c.28-.28.44-.66.44-1.06V4.5Z"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M9.25 9.75h5.5M9.75 18v-1.1c0-.93.37-1.82 1.03-2.47L12 13.21l1.22 1.22c.66.65 1.03 1.54 1.03 2.47V18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const TargetMuscleIcon = ({ className }: FitnessIconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <circle cx="12" cy="12" r="7.5" stroke="currentColor" strokeWidth="1.7" />
+    <circle cx="12" cy="12" r="3.25" stroke="currentColor" strokeWidth="1.7" />
+    <path d="M12 2.75v2.5M12 18.75v2.5M21.25 12h-2.5M5.25 12h-2.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    <path d="m16.25 7.75-1.8 1.8M9.55 14.45l-1.8 1.8M16.25 16.25l-1.8-1.8M9.55 9.55l-1.8-1.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+const SecondaryMuscleIcon = ({ className }: FitnessIconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <path
+      d="M8.5 14.25c.76-.88 1.17-1.99 1.17-3.15V9.5c0-.83.67-1.5 1.5-1.5h.8c.33 0 .64-.13.88-.37l1.03-1.03c.48-.48 1.26-.48 1.74 0l.88.88c.3.3.48.72.48 1.16v1.11c0 .97.34 1.9.96 2.65l1.06 1.29c.5.61.77 1.38.77 2.17V17a2 2 0 0 1-2 2h-2.65c-.8 0-1.55-.32-2.12-.88l-1.18-1.18a1.5 1.5 0 0 0-1.06-.44H10.5a2 2 0 0 1-2-2v-.25Z"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path d="M5 12.75h2.25a1.5 1.5 0 0 1 1.5 1.5v1.25" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13.75 10.75c.7 0 1.25.55 1.25 1.25s-.55 1.25-1.25 1.25-1.25-.55-1.25-1.25.55-1.25 1.25-1.25Z" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+);
+
+const EquipmentIcon = ({ className }: FitnessIconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+    <path d="M3.5 9.5h2v5h-2v-5ZM18.5 9.5h2v5h-2v-5ZM7 8h2.5v8H7V8ZM14.5 8H17v8h-2.5V8Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M9.5 12h5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+  </svg>
+);
 
 const normalizeGifUrl = (value: unknown): string => {
   const url = String(value || '').trim();
@@ -206,7 +252,6 @@ export default function ExerciseDetailOverlay({
       const mapped = rows.map((item: any) => ({
         id: String(item.id),
         name: String(item.name || 'Bài tập'),
-        minutes: 10,
         primaryMuscle: String(item.target_muscle || item.body_part || 'Co chính'),
         gif_url: normalizeGifUrl(item.image_url || '')
       }));
@@ -283,28 +328,28 @@ export default function ExerciseDetailOverlay({
               <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <div className="rounded-xl border border-border-primary bg-bg-tertiary/30 p-3.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
-                    <Layers className="h-3.5 w-3.5 text-accent" />
+                    <MuscleRegionIcon className="h-3.5 w-3.5 text-accent" />
                     Vùng co
                   </div>
                   <p className="mt-1.5 text-base font-semibold text-text-primary">{activeExercise.body_part || 'Không rõ'}</p>
                 </div>
                 <div className="rounded-xl border border-border-primary bg-bg-tertiary/30 p-3.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
-                    <Crosshair className="h-3.5 w-3.5 text-accent" />
+                    <TargetMuscleIcon className="h-3.5 w-3.5 text-accent" />
                     Co chính
                   </div>
                   <p className="mt-1.5 text-base font-semibold text-text-primary">{activeExercise.target_muscle || 'Không rõ'}</p>
                 </div>
                 <div className="rounded-xl border border-border-primary bg-bg-tertiary/30 p-3.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
-                    <CircleDashed className="h-3.5 w-3.5 text-accent" />
+                    <SecondaryMuscleIcon className="h-3.5 w-3.5 text-accent" />
                     Cơ phụ
                   </div>
                   <p className="mt-1.5 text-base font-semibold text-text-primary">{getSecondaryMuscles(activeExercise)}</p>
                 </div>
                 <div className="rounded-xl border border-border-primary bg-bg-tertiary/30 p-3.5">
                   <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
-                    <Cog className="h-3.5 w-3.5 text-accent" />
+                    <EquipmentIcon className="h-3.5 w-3.5 text-accent" />
                     Thiết bị
                   </div>
                   <p className="mt-1.5 text-base font-semibold text-text-primary">{activeExercise.equipment || 'Không dụng cụ'}</p>
@@ -365,7 +410,6 @@ export default function ExerciseDetailOverlay({
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-bold text-text-primary">{item.name}</p>
-                      <p className="mt-0.5 text-[11px] text-text-secondary">{item.minutes} phút</p>
                       <p className="mt-0.5 truncate text-[11px] text-text-tertiary">Cơ chính: {item.primaryMuscle}</p>
                     </div>
                     <ChevronRight className="h-3.5 w-3.5 text-text-tertiary" />

@@ -26,7 +26,7 @@ const toGifStorageUrl = (gifUrl: unknown, imageUrl: unknown): string => {
 
 function ExerciseDetailsSkeleton() {
   return (
-    <div className="flex-1 min-h-0 max-w-[1700px] mx-auto w-full animate-pulse">
+    <div className="dashboard-page-shell animate-pulse pb-4 md:pb-6 lg:pb-7">
       <div className="h-full rounded-xl border border-border-primary/50 bg-bg-secondary/40 p-4 md:p-5">
         <div className="mb-4 h-10 w-full rounded-xl bg-bg-tertiary/50" />
         <div className="grid gap-6 rounded-xl border border-border-primary/40 bg-bg-secondary/40 p-4 md:grid-cols-[minmax(0,0.9fr)_minmax(320px,1.1fr)] md:p-5">
@@ -227,7 +227,7 @@ export default function ExerciseDetails() {
   }
 
   return (
-    <div className="flex-1 min-h-0 max-w-[1700px] mx-auto w-full overflow-y-auto custom-scrollbar pr-1 text-sm">
+    <div className="dashboard-page-shell overflow-y-auto custom-scrollbar text-sm pb-4 md:pb-6 lg:pb-7">
       {saveMessage && (
         <div
           className={`fixed left-1/2 top-5 z-[200] -translate-x-1/2 rounded-lg border px-4 py-2.5 text-sm shadow-xl transition-all duration-300 ${

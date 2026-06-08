@@ -14,7 +14,7 @@ interface Exercise {
 
 export function CourseDetailsSkeleton() {
   return (
-    <div className="flex flex-col h-full mx-auto w-full gap-4 md:gap-6 px-0 overflow-hidden animate-pulse">
+    <div className="dashboard-page-shell flex flex-col h-full gap-4 md:gap-6 px-0 overflow-hidden animate-pulse">
       <div className="flex flex-col md:flex-row md:items-center gap-4 bg-bg-secondary/40 p-4 md:p-6 rounded-xl border border-border-primary/50 shrink-0">
         <div className="w-10 h-10 rounded-full bg-bg-tertiary" />
         <div className="flex-1 flex flex-col gap-2">
@@ -112,7 +112,7 @@ export default function CourseDetails() {
   if (loading) return <CourseDetailsSkeleton />;
 
   return (
-    <div className="flex flex-col h-full mx-auto w-full gap-4 md:gap-6 px-0 overflow-hidden animate-in fade-in duration-500">
+    <div className="dashboard-page-shell flex flex-col h-full gap-4 md:gap-6 px-0 overflow-hidden animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center gap-4 bg-bg-secondary p-4 md:p-6 rounded-xl border border-border-primary shrink-0">
         <button 
@@ -128,7 +128,7 @@ export default function CourseDetails() {
       </div>
 
       {/* Exercise List */}
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-1 pb-10">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pb-10">
         <h2 className="text-lg md:text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
           <Play className="w-5 h-5 text-accent" />
           Danh sách bài tập ({exercises.length})

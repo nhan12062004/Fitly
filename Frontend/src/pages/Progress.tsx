@@ -801,7 +801,7 @@ function NutritionTooltip({
 
 function ProgressSkeleton() {
   return (
-    <div className="flex flex-col gap-4 animate-pulse md:gap-5">
+    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="h-40 rounded-[28px] border border-border-primary/50 bg-bg-secondary/40" />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.7fr_1fr]">
         <div className="h-52 rounded-[28px] border border-border-primary/50 bg-bg-secondary/40" />
@@ -1023,7 +1023,7 @@ export default function Progress() {
   const hasWeightTrend = viewModel.weight.sampleCount > 1;
 
   return (
-    <div className="flex flex-col gap-4 md:gap-5">
+    <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <section className="overflow-hidden rounded-[30px] border border-border-primary bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.16),transparent_35%),radial-gradient(circle_at_85%_25%,rgba(56,189,248,0.14),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(9,9,11,0.98))] px-5 py-6 shadow-[0_24px_70px_rgba(0,0,0,0.18)] md:px-7 md:py-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">

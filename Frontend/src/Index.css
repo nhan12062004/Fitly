@@ -385,6 +385,14 @@ body {
 }
 
 @layer utilities {
+  .dashboard-page-shell {
+    width: 100%;
+    max-width: 1700px;
+    margin-inline: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
   .text-xs { font-size: 0.74rem; line-height: 1.25rem; }
   .text-sm { font-size: 0.84rem; line-height: 1.35rem; }
   .text-base { font-size: 0.95rem; line-height: 1.5rem; }
@@ -1584,14 +1592,27 @@ html, body, * {
   }
 }
 
-.today-workout-shell {
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    0 18px 38px rgba(0,0,0,0.16);
-}
-
 .today-workout-feature {
   min-width: 0;
+}
+
+.today-workout-meta {
+  margin-top: 0.15rem;
+}
+
+.today-workout-meta-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--border-primary) 76%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-tertiary) 68%, transparent);
+  padding: 0.42rem 0.78rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-secondary);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
 
 .today-workout-stats > div {
@@ -1706,10 +1727,6 @@ html, body, * {
   border-radius: 0.95rem;
 }
 
-.today-workout-list {
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
-}
-
 .today-workout-list-item {
   border: 1px solid color-mix(in srgb, var(--border-primary) 76%, transparent);
   border-radius: 20px;
@@ -1742,22 +1759,15 @@ html, body, * {
 }
 
 .today-workout-list-item > div {
-  display: block !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
 }
 
 .today-workout-list-item > div > div {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.65rem;
   min-width: 0;
-}
-
-.today-workout-list-item > div > span:last-child {
-  display: block;
-  margin-top: 0.45rem;
-  margin-left: 2.65rem;
-  font-size: 0.76rem;
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--text-secondary);
 }

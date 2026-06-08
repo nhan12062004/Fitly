@@ -128,7 +128,7 @@ const getExerciseSteps = (exercise: SessionExercise): string[] => {
 
 function WorkoutSessionSkeleton() {
   return (
-    <div className="mx-auto flex flex-1 min-h-0 w-full max-w-[1700px] flex-col overflow-hidden rounded-xl border border-border-primary/50 bg-bg-secondary/40 animate-pulse">
+    <div className="dashboard-page-shell flex flex-col overflow-hidden rounded-xl border border-border-primary/50 bg-bg-secondary/40 animate-pulse pb-4 md:pb-6 lg:pb-7">
       <div className="flex items-center justify-between border-b border-border-primary/50 px-4 py-3 md:px-6">
         <div className="h-6 w-64 rounded bg-bg-tertiary/60" />
         <div className="h-9 w-28 rounded-full bg-bg-tertiary/60" />
@@ -574,7 +574,7 @@ export default function WorkoutSession() {
   }
 
   return (
-    <div className="mx-auto flex flex-1 min-h-0 w-full max-w-[1700px] flex-col text-sm">
+    <div className="dashboard-page-shell flex flex-col text-sm pb-4 md:pb-6 lg:pb-7">
       <div className="-mt-1 mb-3 flex items-center justify-between">
         <button
           type="button"
