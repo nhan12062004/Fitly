@@ -238,6 +238,25 @@ export default function WorkoutSession() {
     return () => window.clearTimeout(id);
   }, []);
 
+  useEffect(() => {
+    const loadExistingWorkoutSession = async () => {
+      if (!user?.id || !state.logDate) return;
+      const { data, error } = await supabase
+        .from('daily_workout_sessions')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('log_date', state.logDate)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!error && data?.id) {
+        setWorkoutSessionId(data.id);
+      }
+    };
+
+    void loadExistingWorkoutSession();
+  }, [user?.id, state.logDate]);
+
   const totalSetsInSession = useMemo(
     () => orderedSession.reduce((sum, item) => sum + item.sets, 0),
     [orderedSession]
@@ -308,6 +327,20 @@ export default function WorkoutSession() {
     return pickLatestPlan(byWeek.data)?.id || null;
   };
 
+  const syncDailyWorkoutSessionExercise = async (
+    exercise: SessionExercise,
+    updates: Partial<Pick<SessionExercise, 'sets' | 'reps' | 'weight_kg' | 'rest_seconds' | 'is_completed'>>
+  ) => {
+    if (!workoutSessionId) return;
+    const { error } = await supabase
+      .from('daily_workout_session_exercises')
+      .update(updates)
+      .eq('session_id', workoutSessionId)
+      .eq('exercise_id', exercise.exercise_id)
+      .eq('order_index', exercise.order_index);
+    if (error) throw error;
+  };
+
   const saveExerciseConfig = async () => {
     if (!activeExercise) return;
 
@@ -357,23 +390,13 @@ export default function WorkoutSession() {
         .eq('log_date', state.logDate || '');
       if (updateDaily.error) throw updateDaily.error;
 
-      const weeklyPlanId = await resolveWeeklyPlanId();
-      if (weeklyPlanId) {
-        const dayOfWeek = getDayOfWeekIndex(new Date(`${state.logDate}T00:00:00`));
-        const updateWeekly = await supabase
-          .from('weekly_plan_exercises')
-          .update({
-            sets: nextSets,
-            reps: nextReps,
-            weight_kg: nextWeightKg,
-            rest_seconds: nextRestSeconds
-          })
-          .eq('weekly_plan_id', weeklyPlanId)
-          .eq('day_of_week', dayOfWeek)
-          .eq('exercise_id', previousExercise.exercise_id)
-          .eq('order_index', previousExercise.order_index);
-        if (updateWeekly.error) throw updateWeekly.error;
-      }
+      await syncDailyWorkoutSessionExercise(previousExercise, {
+        sets: nextSets,
+        reps: nextReps,
+        weight_kg: nextWeightKg,
+        rest_seconds: nextRestSeconds,
+        is_completed: nextIsCompleted
+      });
 
       setIsEditModalOpen(false);
     } catch (error: any) {
@@ -434,6 +457,23 @@ export default function WorkoutSession() {
       setCompletedIds(previousCompletedIds);
       setCompletedSetsByExercise(previousCompletedSets);
       setActiveIndex(activeIndex);
+      return;
+    }
+
+    const removedExercise = previousItems.find((item) => item.id === exerciseId);
+    if (removedExercise && workoutSessionId) {
+      const syncDeleteRes = await supabase
+        .from('daily_workout_session_exercises')
+        .delete()
+        .eq('session_id', workoutSessionId)
+        .eq('exercise_id', removedExercise.exercise_id)
+        .eq('order_index', removedExercise.order_index);
+      if (syncDeleteRes.error) {
+        setSessionItems(previousItems);
+        setCompletedIds(previousCompletedIds);
+        setCompletedSetsByExercise(previousCompletedSets);
+        setActiveIndex(activeIndex);
+      }
     }
   };
 
@@ -685,14 +725,29 @@ export default function WorkoutSession() {
               <div className="flex justify-start">
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     const nextCompletedSets = Math.min(activeExercise.sets, completedSetCount + 1);
                     setCompletedSetsByExercise((prev) => ({
                       ...prev,
                       [activeExercise.id]: nextCompletedSets
                     }));
                     if (nextCompletedSets >= activeExercise.sets) {
+                      setSessionItems((prev) =>
+                        prev.map((item) => (item.id === activeExercise.id ? { ...item, is_completed: true } : item))
+                      );
                       setCompletedIds((prev) => (prev.includes(activeExercise.id) ? prev : [...prev, activeExercise.id]));
+                      try {
+                        const updateDailyRes = await supabase
+                          .from('daily_exercise_sessions')
+                          .update({ is_completed: true })
+                          .eq('id', activeExercise.id)
+                          .eq('user_id', user?.id)
+                          .eq('log_date', state.logDate || '');
+                        if (updateDailyRes.error) throw updateDailyRes.error;
+                        await syncDailyWorkoutSessionExercise(activeExercise, { is_completed: true });
+                      } catch (error) {
+                        console.error('Không thể đồng bộ trạng thái hoàn thành bài tập:', error);
+                      }
                       if (activeIndex < orderedSession.length - 1) {
                         setActiveIndex((prev) => prev + 1);
                       }

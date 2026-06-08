@@ -403,6 +403,22 @@ export default function Exercises() {
     }
   };
 
+  const getLatestDailyWorkoutSessionId = async (logDate: string): Promise<string | null> => {
+    if (!user?.id || !logDate) return null;
+
+    const { data, error } = await supabase
+      .from('daily_workout_sessions')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('log_date', logDate)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.id || null;
+  };
+
   const clonePlanToToday = async () => {
     const weekStartKey = getWeekStartKey(new Date(`${vnToday}T00:00:00`));
     let plan: any = null;
@@ -502,6 +518,7 @@ export default function Exercises() {
 
   const toggleComplete = async (id: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
+    const sessionItem = session.find(s => s.id === id);
     setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: newStatus } : s));
 
     const { error } = await supabase
@@ -511,6 +528,31 @@ export default function Exercises() {
     if (error) {
       setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: currentStatus } : s));
       alert("Lỗi: " + (error.message || 'Cập nhật trạng thái thất bại'));
+    }
+    if (error) return;
+
+    if (!sessionItem?.exercise_id) return;
+
+    try {
+      const workoutSessionId = await getLatestDailyWorkoutSessionId(vnToday);
+      if (!workoutSessionId) return;
+
+      const syncResult = await supabase
+        .from('daily_workout_session_exercises')
+        .update({ is_completed: newStatus })
+        .eq('session_id', workoutSessionId)
+        .eq('exercise_id', sessionItem.exercise_id)
+        .eq('order_index', sessionItem.order_index);
+      if (syncResult.error) throw syncResult.error;
+    } catch (syncError: any) {
+      await supabase
+        .from('daily_exercise_sessions')
+        .update({ is_completed: currentStatus })
+        .eq('id', id);
+      setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: currentStatus } : s));
+      alert("Loi: " + (syncError?.message || 'Cap nhat trang thai that bai'));
+      return;
+      alert("Lá»—i: " + (syncError?.message || 'Cáº­p nháº­t tráº¡ng thÃ¡i tháº¥t báº¡i'));
     }
   };
 
@@ -528,49 +570,24 @@ export default function Exercises() {
       return;
     }
 
-    // Keep the current weekly plan in sync with today's session changes.
-    if (removedItem?.exercise_id && user?.id) {
-      const weekStartKey = getWeekStartKey(new Date(`${vnToday}T00:00:00`));
-      let weeklyPlanId: string | null = null;
-
-      const byWeek = await supabase
-        .from('weekly_plans')
-        .select('id, created_at, updated_at')
-        .eq('user_id', user.id)
-        .eq('week_start_date', weekStartKey)
-        .limit(20);
-
-      if (byWeek.error && isWeekStartColumnError(byWeek.error)) {
-        const fallback = await supabase
-          .from('weekly_plans')
-          .select('id, created_at, updated_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        weeklyPlanId = fallback.data?.id || null;
-      } else if (byWeek.error) {
-        weeklyPlanId = null;
-      } else {
-        weeklyPlanId = pickLatestPlan(byWeek.data)?.id || null;
-      }
-
-      if (weeklyPlanId) {
-        const toDelete = await supabase
-          .from('weekly_plan_exercises')
-          .select('id')
-          .eq('weekly_plan_id', weeklyPlanId)
-          .eq('day_of_week', currentDayIdx)
-          .eq('exercise_id', removedItem.exercise_id)
-          .order('order_index', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (toDelete.data?.id) {
-          await supabase.from('weekly_plan_exercises').delete().eq('id', toDelete.data.id);
+    if (removedItem?.exercise_id) {
+      try {
+        const workoutSessionId = await getLatestDailyWorkoutSessionId(vnToday);
+        if (workoutSessionId) {
+          const deleteWorkoutRow = await supabase
+            .from('daily_workout_session_exercises')
+            .delete()
+            .eq('session_id', workoutSessionId)
+            .eq('exercise_id', removedItem.exercise_id)
+            .eq('order_index', removedItem.order_index);
+          if (deleteWorkoutRow.error) throw deleteWorkoutRow.error;
         }
+      } catch (syncError) {
+        console.error('Error deleting daily workout session exercise:', syncError);
       }
     }
+    return;
+
   };
 
 
@@ -653,6 +670,18 @@ export default function Exercises() {
           { onConflict: 'user_id,log_date' }
         );
       if (upsertProgress.error) throw upsertProgress.error;
+
+      if (data) {
+        setSession(prev => [...prev, {
+          ...data,
+          name: (data.exercises as any)?.name || 'Exercise',
+          gif_url: normalizeGifUrl((data.exercises as any)?.image_url || '')
+        }]);
+      }
+      alert("Da them vao buoi tap hom nay");
+      return;
+      alert("ÄÃ£ thÃªm vÃ o buá»•i táº­p hÃ´m nay");
+      return;
 
       // Sync to the weekly plan for the current VN week/day.
       const weekStartKey = getWeekStartKey(new Date(`${vnToday}T00:00:00`));

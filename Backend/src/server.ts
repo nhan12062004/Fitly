@@ -61,6 +61,11 @@ const getWeekStartKey = (baseDate: Date): string => {
 };
 
 const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+const getDateKeyFromWeekStartAndDayIndex = (weekStartKey: string, dayIndex: number): string => {
+  const safeDayIndex = Math.max(0, Math.min(6, Number(dayIndex) || 0));
+  const baseDate = new Date(`${weekStartKey}T00:00:00`);
+  return getVietnamDateKey(addDays(baseDate, safeDayIndex));
+};
 
 const pickLatestByUpdatedAt = <T extends { updated_at?: string | null; created_at?: string | null }>(rows?: T[] | null): T | null => {
   if (!rows || rows.length === 0) return null;
@@ -1376,13 +1381,13 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       const planQuery = requestedWorkoutPlanId
         ? supabase
             .from('weekly_plans')
-            .select('id')
+            .select('id, week_start_date')
             .eq('id', requestedWorkoutPlanId)
             .eq('user_id', authUserId)
             .maybeSingle()
         : supabase
             .from('weekly_plans')
-            .select('id')
+            .select('id, week_start_date')
             .eq('user_id', authUserId)
             .eq('plan_status', 'active')
             .order('updated_at', { ascending: false })
@@ -1396,6 +1401,10 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
         });
       }
       const workoutPlanId = planRes.data.id;
+      const workoutWeekStartKey = DATE_KEY_REGEX.test(String(planRes.data.week_start_date || ''))
+        ? String(planRes.data.week_start_date)
+        : getWeekStartKey(new Date(`${getVietnamDateKey()}T00:00:00`));
+      const targetLogDate = getDateKeyFromWeekStartAndDayIndex(workoutWeekStartKey, dayOfWeek);
 
       const exercises = Array.isArray(newData.exercises) ? newData.exercises : [];
       const exerciseIds: string[] = [...new Set<string>(
@@ -1414,30 +1423,114 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
         return res.status(400).json({ error: `Invalid exercise_id: ${missingExerciseIds.join(', ')}` });
       }
 
-      const removeRes = await supabase
-        .from('weekly_plan_exercises')
-        .delete()
-        .eq('weekly_plan_id', workoutPlanId)
-        .eq('day_of_week', dayOfWeek);
-      if (removeRes.error) throw removeRes.error;
-
       const rows = exercises
         .map((item: any, index: number) => ({
-          weekly_plan_id: workoutPlanId,
-          day_of_week: dayOfWeek,
+          user_id: authUserId,
+          log_date: targetLogDate,
           exercise_id: item.exercise_id || null,
           sets: Math.max(1, Number(item.sets || 2)),
           reps: String(item.reps || '8-10'),
           weight_kg: Math.max(0, Number(item.weight_kg || 0)),
           rest_seconds: Math.max(30, Number(item.rest_seconds || 60)),
           order_index: index,
-          is_rest_day: false
+          is_completed: false
         }))
         .filter((row: any) => row.exercise_id);
 
+      const existingDailyRes = await supabase
+        .from('daily_exercise_sessions')
+        .select('id, is_completed')
+        .eq('user_id', authUserId)
+        .eq('log_date', targetLogDate);
+      if (existingDailyRes.error) throw existingDailyRes.error;
+      const hasStartedWorkout = (existingDailyRes.data || []).some((item: any) => !!item.is_completed);
+      if (hasStartedWorkout) {
+        return res.status(409).json({ error: 'Workout for this day has already started. Please adjust it inside the workout session.' });
+      }
+
+      if ((existingDailyRes.data || []).length > 0) {
+        const removeDailyRes = await supabase
+          .from('daily_exercise_sessions')
+          .delete()
+          .eq('user_id', authUserId)
+          .eq('log_date', targetLogDate);
+        if (removeDailyRes.error) throw removeDailyRes.error;
+      }
+
       if (rows.length > 0) {
-        const addRes = await supabase.from('weekly_plan_exercises').insert(rows);
-        if (addRes.error) throw addRes.error;
+        const addDailyRes = await supabase.from('daily_exercise_sessions').insert(rows);
+        if (addDailyRes.error) throw addDailyRes.error;
+      }
+
+      const dailyWorkoutSessionRes = await supabase
+        .from('daily_workout_sessions')
+        .select('id, status')
+        .eq('user_id', authUserId)
+        .eq('log_date', targetLogDate)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (dailyWorkoutSessionRes.error) throw dailyWorkoutSessionRes.error;
+
+      if (dailyWorkoutSessionRes.data?.status === 'completed') {
+        return res.status(409).json({ error: 'Workout session for this day is already completed.' });
+      }
+
+      const estimatedDuration = Math.max(10, rows.reduce((sum: number, item: any) => sum + Math.max(1, Number(item.sets) || 1), 0) * 2);
+      let dailyWorkoutSessionId = String(dailyWorkoutSessionRes.data?.id || '').trim();
+
+      if (!dailyWorkoutSessionId) {
+        const createDailyWorkoutSessionRes = await supabase
+          .from('daily_workout_sessions')
+          .insert({
+            user_id: authUserId,
+            weekly_plan_id: workoutPlanId,
+            log_date: targetLogDate,
+            title: `Buổi tập ${targetLogDate}`,
+            duration_minutes: estimatedDuration,
+            calories_burned: 0,
+            status: 'planned'
+          })
+          .select('id')
+          .single();
+        if (createDailyWorkoutSessionRes.error) throw createDailyWorkoutSessionRes.error;
+        dailyWorkoutSessionId = String(createDailyWorkoutSessionRes.data?.id || '');
+      } else {
+        const updateDailyWorkoutSessionRes = await supabase
+          .from('daily_workout_sessions')
+          .update({
+            weekly_plan_id: workoutPlanId,
+            title: `Buổi tập ${targetLogDate}`,
+            duration_minutes: estimatedDuration,
+            status: 'planned'
+          })
+          .eq('id', dailyWorkoutSessionId);
+        if (updateDailyWorkoutSessionRes.error) throw updateDailyWorkoutSessionRes.error;
+      }
+
+      if (dailyWorkoutSessionId) {
+        const removeDailyWorkoutExerciseRes = await supabase
+          .from('daily_workout_session_exercises')
+          .delete()
+          .eq('session_id', dailyWorkoutSessionId);
+        if (removeDailyWorkoutExerciseRes.error) throw removeDailyWorkoutExerciseRes.error;
+
+        if (rows.length > 0) {
+          const workoutSessionExerciseRows = rows.map((item: any) => ({
+            session_id: dailyWorkoutSessionId,
+            exercise_id: item.exercise_id,
+            sets: item.sets,
+            reps: item.reps,
+            weight_kg: item.weight_kg,
+            rest_seconds: item.rest_seconds,
+            order_index: item.order_index,
+            is_completed: false
+          }));
+          const addDailyWorkoutExerciseRes = await supabase
+            .from('daily_workout_session_exercises')
+            .insert(workoutSessionExerciseRows);
+          if (addDailyWorkoutExerciseRes.error) throw addDailyWorkoutExerciseRes.error;
+        }
       }
     } else if (adjustmentRes.data.plan_type === 'meal') {
       const requestedFoodPlanId = String((oldData as any).weekly_food_plan_id || '').trim();
