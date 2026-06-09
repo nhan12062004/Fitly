@@ -84,6 +84,8 @@ type ChatMessage = {
   id: string;
   role: 'assistant' | 'user' | 'system';
   content: string;
+  intent?: string | null;
+  responseMode?: 'plan_edit' | 'coach_advice' | 'support' | 'safety' | 'redirect';
   actionRequired?: boolean;
   actionType?: string | null;
   actionPayload?: unknown;
@@ -134,6 +136,7 @@ type AIChatApiResponse = {
   code?: string;
   reply: string;
   intent: string;
+  responseMode?: 'plan_edit' | 'coach_advice' | 'support' | 'safety' | 'redirect';
   actionRequired: boolean;
   actionType: string | null;
   actionPayload: unknown;
@@ -159,6 +162,15 @@ const getDatePartsInTimeZone = (date: Date, timeZone: string) => {
 const getVietnamDateKey = (date = new Date()) => {
   const { year, month, day } = getDatePartsInTimeZone(date, VIETNAM_TIMEZONE);
   return `${year}-${month}-${day}`;
+};
+
+const getVietnamDayBoundsUtc = (dateKey = getVietnamDateKey()) => {
+  const start = new Date(`${dateKey}T00:00:00+07:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
 };
 
 const getWeekStartKey = (baseDate: Date) => {
@@ -225,6 +237,40 @@ const inferChatTopic = (value: string): 'meal' | 'workout' | null => {
 };
 
 const includesAny = (value: string, terms: string[]) => terms.some((term) => value.includes(term));
+
+const inferResponseMode = (
+  intent?: string | null,
+  actionType?: string | null,
+): ChatMessage['responseMode'] => {
+  if (actionType) return 'plan_edit';
+  if (intent === 'injury_care') return 'safety';
+  if (intent === 'motivation') return 'support';
+  if (intent === 'out_of_scope') return 'redirect';
+  return 'coach_advice';
+};
+
+const getAssistantModeLabel = (message: ChatMessage) => {
+  if (message.responseMode === 'plan_edit') return 'Dieu chinh ke hoach';
+  if (message.responseMode === 'support') return 'Dong luc';
+  if (message.responseMode === 'safety') return 'An toan';
+  if (message.responseMode === 'redirect') return 'Pham vi AI Coach';
+  if (message.intent === 'recovery') return 'Phuc hoi';
+  if (message.intent === 'meal_plan' || message.intent === 'workout_plan') return 'Ke hoach hom nay';
+  return 'AI Coach';
+};
+
+const getAssistantBubbleClasses = (message: ChatMessage) => {
+  if (message.responseMode === 'safety') {
+    return 'border-warning/35 bg-warning/10 text-text-primary';
+  }
+  if (message.responseMode === 'support') {
+    return 'border-info/35 bg-info/10 text-text-primary';
+  }
+  if (message.responseMode === 'redirect') {
+    return 'border-border-primary bg-bg-secondary/55 text-text-secondary';
+  }
+  return 'border-border-primary bg-bg-secondary/75 text-text-secondary';
+};
 
 const isInjuryAdviceQuestion = (value: string) => {
   const normalized = normalizeVietnameseClient(value);
@@ -890,11 +936,14 @@ export default function AICoach() {
 
       shouldJumpToLatestRef.current = true;
       hasAutoScrolledChatRef.current = false;
+      const chatDayBounds = getVietnamDayBoundsUtc(todayDateKey);
 
       const chatRes = await supabase
         .from('ai_chat_messages')
         .select('*')
         .eq('user_id', user.id)
+        .gte('created_at', chatDayBounds.startIso)
+        .lt('created_at', chatDayBounds.endIso)
         .order('created_at', { ascending: false })
         .limit(RECENT_CHAT_LIMIT);
 
@@ -935,6 +984,8 @@ export default function AICoach() {
           id: String(item.id || ''),
           role,
           content,
+          intent: item.intent || null,
+          responseMode: inferResponseMode(item.intent, item.action_type),
           actionRequired: !!item.action_type,
           actionType: item.action_type || null,
           actionPayload: item.action_payload,
@@ -948,7 +999,7 @@ export default function AICoach() {
     };
 
     void fetchChat();
-  }, [user?.id, reloadKey]);
+  }, [user?.id, reloadKey, todayDateKey]);
 
   useLayoutEffect(() => {
     if (loading || !isLoggedIn || !plan) return;
@@ -1063,6 +1114,7 @@ export default function AICoach() {
       id: `user-${Date.now()}`,
       role: 'user',
       content: message,
+      responseMode: 'coach_advice',
       optimistic: true,
     };
 
@@ -1104,6 +1156,8 @@ export default function AICoach() {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
         content: replyContent,
+        intent: payload.intent || null,
+        responseMode: payload.responseMode || inferResponseMode(payload.intent, payload.actionType),
         actionRequired: !!payload.actionRequired,
         actionType: payload.actionType || null,
         actionPayload: payload.actionPayload,
@@ -1119,6 +1173,7 @@ export default function AICoach() {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
         content: buildCoachReply(selectedDay, message, previousTopic),
+        responseMode: 'coach_advice',
         optimistic: true,
       };
       shouldJumpToLatestRef.current = true;
@@ -1205,9 +1260,14 @@ export default function AICoach() {
                           className={`whitespace-pre-line break-words rounded-[18px] border px-4 py-3 text-sm font-normal leading-6 shadow-none ${
                             message.role === 'user'
                               ? 'border-accent bg-accent text-black'
-                              : 'border-border-primary bg-bg-secondary/75 text-text-secondary'
+                              : getAssistantBubbleClasses(message)
                           }`}
                         >
+                          {message.role === 'assistant' ? (
+                            <p className="mb-1 text-[11px] font-black uppercase tracking-[0.12em] text-ai">
+                              {getAssistantModeLabel(message)}
+                            </p>
+                          ) : null}
                           {message.content}
                         </div>
                         {message.role === 'assistant' && message.actionRequired ? (

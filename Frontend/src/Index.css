@@ -1022,22 +1022,27 @@ body {
     background: var(--bg-secondary);
     border-color: var(--border-primary);
     color: var(--text-primary);
-    box-shadow: 0 16px 34px rgba(0,0,0,0.18);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.08);
   }
 
   .diet-control {
-    box-shadow: 0 10px 24px rgba(0,0,0,0.14);
+    background: var(--bg-secondary);
+    border-color: var(--border-primary);
+    color: var(--text-primary);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.06);
   }
 
   .diet-control:hover,
   .diet-picker-item:hover {
-    border-color: rgb(var(--accent-rgb) / 0.20);
-    color: var(--accent-hover);
+    border-color: rgb(var(--accent-rgb) / 0.30);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
   }
 
   .diet-tabs {
-    background: var(--bg-tertiary);
-    box-shadow: inset 0 0 0 1px var(--border-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    box-shadow: none;
   }
 
   .diet-tab {
@@ -1045,7 +1050,7 @@ body {
   }
 
   .diet-tab:hover {
-    background: var(--bg-secondary);
+    background: var(--bg-tertiary);
     color: var(--text-primary);
   }
 
@@ -1054,14 +1059,14 @@ body {
   }
 
   .diet-tab-indicator {
-    background: var(--bg-secondary);
-    box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+    background: var(--bg-tertiary);
+    box-shadow: none;
   }
 
   .diet-tab-active {
-    background: var(--bg-secondary);
+    background: var(--bg-tertiary);
     color: var(--text-primary);
-    box-shadow: 0 10px 26px rgba(0,0,0,0.22);
+    box-shadow: none;
   }
 
   .diet-metric-card,
@@ -1069,19 +1074,17 @@ body {
     background: var(--bg-secondary);
     border-color: var(--border-primary);
     color: var(--text-primary);
-    box-shadow: 0 18px 50px rgba(0,0,0,0.12);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.08);
   }
 
   .diet-metric-card {
-    background:
-      radial-gradient(circle at 12% 10%, rgba(255,255,255,0.04), transparent 34%),
-      var(--bg-secondary);
+    background: var(--bg-secondary);
   }
 
   .diet-water-icon {
-    background: rgb(var(--info-rgb) / 0.12);
-    border-color: rgb(var(--info-rgb) / 0.2);
-    color: var(--info-primary);
+    background: var(--bg-tertiary);
+    border-color: var(--border-primary);
+    color: var(--text-secondary);
   }
 
   .diet-progress-track {
@@ -1092,17 +1095,17 @@ body {
     background: var(--bg-secondary);
     border-color: var(--border-primary);
     color: var(--text-primary);
-    box-shadow: 0 14px 32px rgba(0,0,0,0.12);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.08);
   }
 
   .diet-meal-card-active {
-    background: rgba(255,255,255,0.055);
+    background: var(--bg-secondary);
     border-color: rgb(var(--accent-rgb) / 0.20);
-    box-shadow: 0 18px 42px rgba(0,0,0,0.16);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.08);
   }
 
   .diet-meal-card:hover {
-    border-color: var(--border-secondary);
+    border-color: rgb(var(--accent-rgb) / 0.30);
   }
 
   .diet-meal-meta {
@@ -1173,12 +1176,13 @@ body {
     background: #ffffff;
     border-color: #e2e8f0;
     color: #020617;
-    box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.06);
   }
 
   .light .diet-tabs {
-    background: #f1f5f9;
-    box-shadow: inset 0 0 0 1px rgba(15,23,42,0.03);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: none;
   }
 
   .light .diet-tab {
@@ -1186,7 +1190,7 @@ body {
   }
 
   .light .diet-tab:hover {
-    background: rgba(255,255,255,0.72);
+    background: #f8fafc;
     color: #1e293b;
   }
 
@@ -1195,37 +1199,35 @@ body {
   }
 
   .light .diet-tab-indicator {
-    background: #ffffff;
-    box-shadow: 0 8px 18px rgba(15,23,42,0.12);
+    background: #f8fafc;
+    box-shadow: none;
   }
 
   .light .diet-tab-active {
-    background: #ffffff;
+    background: #f8fafc;
     color: #020617;
-    box-shadow: 0 8px 18px rgba(15,23,42,0.12);
+    box-shadow: none;
   }
 
   .light .diet-meal-card {
     background: #ffffff;
-    border-color: #dce5f1;
+    border-color: #e2e8f0;
     color: #020617;
-    box-shadow: 0 8px 20px rgba(15,23,42,0.05);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.06);
   }
 
   .light .diet-metric-card {
-    background:
-      radial-gradient(circle at 12% 10%, rgba(0,0,0,0.035), transparent 34%),
-      #ffffff;
+    background: #ffffff;
     border-color: #e2e8f0;
     color: #020617;
-    box-shadow: 0 18px 45px rgba(15,23,42,0.08);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.06);
   }
 
   .light .diet-meal-card-active {
-    background: rgba(255,255,255,0.86);
+    background: #ffffff;
     border-color: rgb(var(--accent-rgb) / 0.16);
     color: #020617;
-    box-shadow: 0 18px 42px rgba(15,23,42,0.08);
+    box-shadow: 0 10px 24px rgba(15,23,42,0.06);
   }
 
   .light .diet-macro-pill {

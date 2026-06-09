@@ -26,6 +26,7 @@ export const workoutAdjusterService = async (input: WorkoutAdjusterInput): Promi
   return {
     reply: 'Mình đề xuất buổi nhẹ hơn cho hôm nay: giảm khối lượng, tăng thời gian nghỉ để vẫn giữ nhịp tập.',
     intent: 'adjust_workout',
+    responseMode: 'plan_edit',
     confidence: 0.87,
     actionRequired: true,
     actionType: 'replace_today_workout',

@@ -26,6 +26,7 @@ export const mealAdjusterService = async (input: MealAdjusterInput): Promise<AIC
     return {
       reply: 'Minh chua du du lieu de doi mon hom nay. Hay tao hoac dong bo lai thuc don truoc.',
       intent: 'adjust_meal',
+      responseMode: 'plan_edit',
       confidence: 0.7,
       actionRequired: false,
       actionType: null,
@@ -39,6 +40,7 @@ export const mealAdjusterService = async (input: MealAdjusterInput): Promise<AIC
   return {
     reply: `Minh de xuat doi ${currentFoodName} sang ${replacement.name} de gon hon nhung van uu tien protein.`,
     intent: 'adjust_meal',
+    responseMode: 'plan_edit',
     confidence: 0.84,
     actionRequired: true,
     actionType: 'replace_today_meal',

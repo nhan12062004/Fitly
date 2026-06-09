@@ -52,11 +52,43 @@ const DAYS = [
 ];
 
 const MEAL_TYPES: Array<{ id: MealTypeId; label: string; time: string }> = [
-  { id: 'breakfast', label: 'BREAKFAST', time: '14:00' },
-  { id: 'lunch', label: 'LUNCH', time: '19:00' },
-  { id: 'dinner', label: 'DINNER', time: '02:00' },
+  { id: 'breakfast', label: 'BREAKFAST', time: '07:30' },
+  { id: 'lunch', label: 'LUNCH', time: '12:30' },
+  { id: 'dinner', label: 'DINNER', time: '19:00' },
   { id: 'snack', label: 'SNACK', time: '22:00' }
 ];
+
+const MEAL_TYPE_THEME: Record<MealTypeId, {
+  accent: string;
+  accentSoft: string;
+  accentStrong: string;
+  border: string;
+}> = {
+  breakfast: {
+    accent: '#f59e0b',
+    accentSoft: 'rgba(245,158,11,0.12)',
+    accentStrong: 'rgba(245,158,11,0.24)',
+    border: 'rgba(245,158,11,0.20)'
+  },
+  lunch: {
+    accent: '#22c55e',
+    accentSoft: 'rgba(34,197,94,0.12)',
+    accentStrong: 'rgba(34,197,94,0.24)',
+    border: 'rgba(34,197,94,0.20)'
+  },
+  dinner: {
+    accent: '#38bdf8',
+    accentSoft: 'rgba(56,189,248,0.12)',
+    accentStrong: 'rgba(56,189,248,0.24)',
+    border: 'rgba(56,189,248,0.20)'
+  },
+  snack: {
+    accent: '#fb7185',
+    accentSoft: 'rgba(251,113,133,0.12)',
+    accentStrong: 'rgba(251,113,133,0.24)',
+    border: 'rgba(251,113,133,0.20)'
+  }
+};
 
 const FOOD_CATEGORIES = ['Chất đạm', 'Carbs', 'Rau củ', 'Trái cây', 'Sữa', 'Bữa phụ'];
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
@@ -305,20 +337,24 @@ const FoodPicker = ({
 
 export function DietPlanSkeleton() {
   return (
-    <div className="dashboard-page-shell diet-page-shell min-h-[calc(100vh-80px)] w-full animate-pulse rounded-[28px] p-4 md:p-7">
-      <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-8 h-10 w-64 rounded-2xl bg-bg-tertiary" />
-        <div className="grid gap-7 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <div className="space-y-5">
-            <div className="h-80 rounded-[34px] bg-bg-tertiary" />
-            <div className="h-24 rounded-[28px] bg-bg-tertiary" />
-          </div>
-          <div className="space-y-3">
-            <div className="h-12 rounded-2xl bg-bg-tertiary" />
-            <div className="h-32 rounded-[28px] bg-bg-tertiary" />
-            <div className="h-36 rounded-[28px] bg-bg-tertiary" />
-            <div className="h-32 rounded-[28px] bg-bg-tertiary" />
-          </div>
+    <div className="dashboard-page-shell diet-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
+      <div className="w-full space-y-4">
+        <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+          <div className="h-40 rounded-xl bg-bg-tertiary" />
+        </div>
+        <div className="grid gap-3 lg:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className={`rounded-xl border border-border-primary bg-bg-secondary p-4 ${index === 0 ? 'lg:col-span-2' : ''}`}>
+              <div className="h-16 rounded-lg bg-bg-tertiary" />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+              <div className="h-36 rounded-lg bg-bg-tertiary" />
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -395,6 +431,55 @@ export default function DietPlan() {
 
   const calorieProgress = Math.min(100, Math.round((dayNutrition.calories / Math.max(1, targetCalories)) * 100));
   const waterProgress = Math.min(100, Math.round((waterIntake / Math.max(0.1, waterGoal)) * 100));
+  const remainingCalories = Math.max(0, targetCalories - dayNutrition.calories);
+  const remainingProtein = Math.max(0, macroTargets.protein - dayNutrition.protein);
+  const selectedDayDate = useMemo(() => addDays(selectedWeekStart, selectedDayId), [selectedDayId, selectedWeekStart]);
+  const selectedDayDateLabel = useMemo(
+    () => selectedDayDate.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' }),
+    [selectedDayDate]
+  );
+  const mealsWithFoodCount = useMemo(
+    () => MEAL_TYPES.filter((meal) => dayItems.some((item) => item.meal_type === meal.id)).length,
+    [dayItems]
+  );
+  const isTodaySelected = isCurrentWeek && selectedDayId === getTodayDayIndex();
+  const summaryChips = useMemo(() => ([
+    {
+      label: 'Kcal',
+      value: `${dayNutrition.calories.toLocaleString()}/${targetCalories.toLocaleString()}`,
+      color: '#f8fafc',
+      bg: 'rgba(255,255,255,0.06)',
+      border: 'rgba(255,255,255,0.10)'
+    },
+    {
+      label: 'P',
+      value: `${Math.round(dayNutrition.protein)}/${macroTargets.protein}`,
+      color: '#22c55e',
+      bg: 'rgba(34,197,94,0.12)',
+      border: 'rgba(34,197,94,0.20)'
+    },
+    {
+      label: 'C',
+      value: `${Math.round(dayNutrition.carbs)}/${macroTargets.carbs}`,
+      color: '#38bdf8',
+      bg: 'rgba(56,189,248,0.12)',
+      border: 'rgba(56,189,248,0.20)'
+    },
+    {
+      label: 'F',
+      value: `${Math.round(dayNutrition.fat)}/${macroTargets.fat}`,
+      color: '#f59e0b',
+      bg: 'rgba(245,158,11,0.12)',
+      border: 'rgba(245,158,11,0.20)'
+    },
+    {
+      label: 'Nước',
+      value: `${waterIntake.toFixed(1)}/${waterGoal.toFixed(1)}L`,
+      color: '#60a5fa',
+      bg: 'rgba(96,165,250,0.12)',
+      border: 'rgba(96,165,250,0.20)'
+    }
+  ]), [dayNutrition.calories, dayNutrition.carbs, dayNutrition.fat, dayNutrition.protein, macroTargets.carbs, macroTargets.fat, macroTargets.protein, targetCalories, waterGoal, waterIntake]);
 
   useEffect(() => {
     if (isCurrentWeek) setSelectedDayId(getTodayDayIndex());
@@ -590,6 +675,31 @@ export default function DietPlan() {
     setActiveMealType(mealType);
     setFoodPickerOpen(true);
   };
+
+  const quickSuggestMeal = useCallback((mealType: MealTypeId) => {
+    if (foods.length === 0) {
+      openFoodPicker(mealType);
+      return;
+    }
+
+    const existingFoodIds = new Set(
+      (weeklyPlan[selectedDayId] || [])
+        .filter((item) => item.meal_type === mealType)
+        .map((item) => item.food_id)
+    );
+    const mealIndex = Math.max(0, MEAL_TYPES.findIndex((meal) => meal.id === mealType));
+    const candidate =
+      foods.find((food, index) => !existingFoodIds.has(food.id) && (index + mealIndex + selectedDayId) % 2 === 0) ||
+      foods.find((food) => !existingFoodIds.has(food.id)) ||
+      foods[mealIndex % foods.length];
+
+    if (!candidate) {
+      openFoodPicker(mealType);
+      return;
+    }
+
+    addFoodToPlan(candidate, mealType);
+  }, [addFoodToPlan, foods, selectedDayId, weeklyPlan]);
 
   const autoCreateMenu = () => {
     if (foods.length === 0) {
@@ -796,243 +906,245 @@ export default function DietPlan() {
   if (isLoading) return <DietPlanSkeleton />;
 
   return (
-    <div className="dashboard-page-shell diet-page-shell min-h-[calc(100vh-80px)] w-full flex-none overflow-x-hidden overflow-y-auto py-5 md:rounded-[28px] md:py-6">
-      <div className="mx-auto w-full max-w-6xl overflow-hidden">
-        <div className="mb-6 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_488px] lg:items-start">
-          <div className="min-w-0">
-            <input
-              value={planName}
-              onChange={(event) => setPlanName(event.target.value)}
-              className="diet-title w-full bg-transparent text-3xl font-black tracking-tight outline-none md:text-4xl"
-              aria-label="Tên thực đơn"
-            />
-          </div>
-
-          <div className="diet-tabs min-w-0 overflow-x-auto rounded-[20px] p-1">
-            <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 md:min-w-0">
-              <span
-                className={`diet-tab-indicator pointer-events-none absolute rounded-2xl transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
-                style={{
-                  width: `${dayIndicatorStyle.width}px`,
-                  height: `${dayIndicatorStyle.height}px`,
-                  transform: `translate(${dayIndicatorStyle.x}px, ${dayIndicatorStyle.y}px)`
-                }}
-              />
-              {DAYS.map((day) => {
-                const dayDate = addDays(selectedWeekStart, day.id);
-                const isToday = toDateKey(dayDate) === todayKey;
-                const isSelected = selectedDayId === day.id;
-                const isTodayLabel = isCurrentWeek && isToday;
-                const label = isTodayLabel ? 'HÔM NAY' : day.label;
-
-                return (
-                  <button
-                    key={day.id}
-                    ref={(node) => {
-                      dayTabRefs.current[day.id] = node;
-                    }}
-                    type="button"
-                    onClick={() => setSelectedDayId(day.id)}
-                    className={`inline-flex min-h-[42px] items-center justify-center whitespace-nowrap rounded-2xl font-black uppercase leading-tight transition ${
-                      isTodayLabel
-                        ? 'px-4 pt-[1px] text-[9px] tracking-[0.08em] sm:text-[10px]'
-                        : 'px-3 text-[10px] tracking-[0.12em] sm:text-[11px]'
-                    } ${
-                      isSelected
-                        ? 'diet-tab-selected relative z-10'
-                        : 'diet-tab'
-                    }`}
-                    title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+    <div className="dashboard-page-shell diet-page-shell flex flex-col gap-4 overflow-x-hidden overflow-y-auto text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
+      <div className="w-full space-y-4 overflow-hidden">
+        <section
+          className="diet-card relative overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at top left, rgba(34,197,94,0.10), transparent 26%), radial-gradient(circle at top right, rgba(56,189,248,0.08), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))'
+          }}
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,rgba(34,197,94,0.0),rgba(34,197,94,0.35),rgba(56,189,248,0.25),rgba(34,197,94,0.0))]" />
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <h1 className="diet-title text-2xl font-black tracking-tight md:text-4xl">
+                {isTodaySelected ? 'Thực đơn hôm nay' : `Thực đơn ${DAYS[selectedDayId]?.full.toLowerCase()}`}
+              </h1>
+              <p className="diet-muted mt-2 text-sm font-semibold leading-6">
+                <span className="text-text-primary">{dayNutrition.calories.toLocaleString()} / {targetCalories.toLocaleString()} kcal</span>
+                {' • '}còn <span className="text-text-primary">{remainingCalories.toLocaleString()} kcal</span>
+                {' • '}thiếu <span className="text-warning">{Math.round(remainingProtein)}g protein</span>
+                {' • '}nước <span className="text-info">{waterIntake.toFixed(1)} / {waterGoal.toFixed(1)}L</span>
+              </p>
             </div>
-          </div>
-        </div>
 
-        <div className="grid min-w-0 gap-7 lg:grid-cols-[365px_minmax(0,1fr)] lg:items-start">
-          <aside className="w-full min-w-0 max-w-full space-y-5 lg:sticky lg:top-5">
-            <section className="diet-metric-card relative w-full min-w-0 max-w-full overflow-hidden rounded-[30px] border px-5 py-7 shadow-[0_18px_34px_rgba(15,23,42,0.18)] md:rounded-[34px] md:px-9 md:py-9">
-              <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_1px_1px,rgba(148,163,184,0.38)_1px,transparent_0)] [background-size:18px_18px]" />
-              <div className="relative">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text-tertiary">Calories nạp vào</p>
-                <div className="mt-3 flex items-end gap-2">
-                  <span className="text-5xl font-black leading-none tracking-[-0.04em] md:text-6xl">{dayNutrition.calories.toLocaleString()}</span>
-                  <span className="pb-2 text-lg font-black text-text-tertiary">/ {targetCalories.toLocaleString()}</span>
-                </div>
+            <div className="flex flex-col gap-3 lg:items-end">
+              <div className="diet-tabs min-w-0 overflow-x-auto rounded-xl p-1">
+                <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 md:min-w-0">
+                  <span
+                    className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
+                    style={{
+                      width: `${dayIndicatorStyle.width}px`,
+                      height: `${dayIndicatorStyle.height}px`,
+                      transform: `translate(${dayIndicatorStyle.x}px, ${dayIndicatorStyle.y}px)`
+                    }}
+                  />
+                  {DAYS.map((day) => {
+                    const dayDate = addDays(selectedWeekStart, day.id);
+                    const isToday = toDateKey(dayDate) === todayKey;
+                    const isSelected = selectedDayId === day.id;
+                    const isTodayLabel = isCurrentWeek && isToday;
+                    const label = isTodayLabel ? 'Hôm nay' : day.label;
 
-                <div className="mt-11 space-y-6">
-                  <MacroRow label="Protein" value={dayNutrition.protein} target={macroTargets.protein} color="#11d6a0" />
-                  <MacroRow label="Carbs" value={dayNutrition.carbs} target={macroTargets.carbs} color="#61a7ff" />
-                  <MacroRow label="Fats" value={dayNutrition.fat} target={macroTargets.fat} color="#ff9b22" />
+                    return (
+                      <button
+                        key={day.id}
+                        ref={(node) => {
+                          dayTabRefs.current[day.id] = node;
+                        }}
+                        type="button"
+                        onClick={() => setSelectedDayId(day.id)}
+                        className={`inline-flex min-h-[40px] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition ${
+                          isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
+                        }`}
+                        title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </section>
 
-            <section className="diet-card w-full max-w-full rounded-[28px] border px-5 py-5">
-              <div className="flex items-center gap-4">
-                <span className="diet-water-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border">
-                  <Droplet className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <span className="diet-muted text-[11px] font-black uppercase tracking-[0.18em]">Nước uống</span>
-                    <span className="text-[11px] font-black text-blue-500">
-                      {waterIntake.toFixed(1)} / {waterGoal.toFixed(1)} L
-                    </span>
-                  </div>
-                  <div className="diet-progress-track h-1 overflow-hidden rounded-full">
-                    <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${waterProgress}%` }} />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => saveWaterIntake(Math.min(waterGoal, roundMacro(waterIntake + 0.25)))}
-                  className="diet-control flex h-10 w-10 shrink-0 items-center justify-center rounded-full border"
-                  aria-label="Thêm nước"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-            </section>
-          </aside>
-
-          <main className="min-w-0">
-            <div className="mb-7 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-              <div>
-                <h2 className="diet-title text-2xl font-black tracking-tight">Lịch trình bữa ăn</h2>
-                <p className="diet-muted mt-1 text-sm font-semibold">
-                  {DAYS[selectedDayId]?.full} - {dayNutrition.calories.toLocaleString()} kcal ({calorieProgress}% mục tiêu)
-                </p>
-              </div>
               <button
                 type="button"
-                onClick={() => {
-                  setActiveMealType(getCurrentMealType());
-                  setFoodPickerOpen(true);
-                }}
-                className="diet-control inline-flex h-10 items-center justify-center gap-2 rounded-full border px-5 text-xs font-black transition"
+                onClick={autoCreateMenu}
+                className="diet-control inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border-primary px-4 text-sm font-black transition"
               >
                 <Bot className="h-4 w-4" />
-                Tạo thực đơn
+                Tạo lại AI
               </button>
             </div>
+          </div>
+        </section>
 
-            {restDays[selectedDayId] ? (
-              <div className="diet-card rounded-[28px] border px-6 py-12 text-center">
-                <p className="diet-title text-lg font-black">Ngày nghỉ</p>
-                <button
-                  type="button"
-                  onClick={() => setRestDays((prev) => ({ ...prev, [selectedDayId]: false }))}
-                  className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-black text-black"
-                >
-                  Bắt đầu lên thực đơn
-                </button>
+        <section className="overflow-x-auto">
+          <div className="flex min-w-max gap-2">
+            {summaryChips.map((chip) => (
+              <div
+                key={chip.label}
+                className="diet-card rounded-lg border px-3 py-2 text-sm font-black text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                style={{ backgroundColor: chip.bg, borderColor: chip.border }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: chip.color }} />
+                  <span className="text-text-secondary">{chip.label}</span>
+                  <span className="text-text-primary">{chip.value}</span>
+                </span>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {MEAL_TYPES.map((meal, mealIndex) => {
-                  const mealItems = dayItems.filter((item) => item.meal_type === meal.id);
-                  const mealCalories = Math.round(mealItems.reduce((sum, item) => sum + item.calories * item.quantity, 0));
-                  const firstItem = mealItems[0];
-                  const feedbackTarget = mealItems[0] || null;
-                  const isActive = activeMealType === meal.id;
-                  const names = mealItems.length > 0 ? mealItems.map((item) => item.name).join(' & ') : 'Chưa có món ăn';
-                  const protein = roundMacro(mealItems.reduce((sum, item) => sum + item.protein * item.quantity, 0));
-                  const carbs = roundMacro(mealItems.reduce((sum, item) => sum + item.carbs * item.quantity, 0));
-                  const fat = roundMacro(mealItems.reduce((sum, item) => sum + item.fat * item.quantity, 0));
+            ))}
+          </div>
+        </section>
 
-                  return (
-                    <article
-                      key={meal.id}
-                      onClick={() => openFoodPicker(meal.id)}
-                      className={`group min-w-0 cursor-pointer rounded-[28px] border transition ${
-                        isActive
-                          ? 'diet-meal-card-active'
-                          : 'diet-meal-card'
-                      }`}
-                    >
-                      <div className="flex min-h-[122px] items-center gap-4 px-4 py-4 sm:min-h-[138px] sm:gap-5 sm:px-5">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openFoodPicker(meal.id);
-                          }}
-                          className={`h-[92px] w-[92px] shrink-0 overflow-hidden rounded-xl sm:h-[100px] sm:w-[100px] ${
-                            mealItems.length === 0 ? 'diet-empty-thumb border border-dashed' : ''
-                          }`}
-                          aria-label={`Thêm món cho ${meal.label}`}
-                        >
-                          {mealItems.length > 0 ? (
-                            <FoodImage src={resolveFoodImage(firstItem as unknown as Food, mealIndex)} alt={firstItem.name} muted={!isActive && mealIndex >= 2} />
-                          ) : (
-                            <span className="diet-empty-thumb flex h-full w-full flex-col items-center justify-center gap-1">
-                              <Plus className="h-5 w-5" />
-                            </span>
-                          )}
-                        </button>
+        <main className="min-w-0 space-y-4">
+          {restDays[selectedDayId] ? (
+            <div className="diet-card rounded-xl border border-border-primary bg-bg-secondary px-6 py-12 text-center">
+              <p className="diet-title text-lg font-black">Ngày nghỉ</p>
+              <button
+                type="button"
+                onClick={() => setRestDays((prev) => ({ ...prev, [selectedDayId]: false }))}
+                className="mt-4 rounded-xl bg-accent px-5 py-2.5 text-sm font-black text-black"
+              >
+                Bật lại thực đơn
+              </button>
+            </div>
+          ) : (
+            MEAL_TYPES.map((meal, mealIndex) => {
+              const mealItems = dayItems.filter((item) => item.meal_type === meal.id);
+              const mealCalories = Math.round(mealItems.reduce((sum, item) => sum + item.calories * item.quantity, 0));
+              const firstItem = mealItems[0];
+              const feedbackTarget = mealItems[0] || null;
+              const hasItems = mealItems.length > 0;
+              const names = hasItems ? mealItems.map((item) => item.name).join(' + ') : 'Chưa có món cho bữa này';
+              const protein = roundMacro(mealItems.reduce((sum, item) => sum + item.protein * item.quantity, 0));
+              const carbs = roundMacro(mealItems.reduce((sum, item) => sum + item.carbs * item.quantity, 0));
+              const fat = roundMacro(mealItems.reduce((sum, item) => sum + item.fat * item.quantity, 0));
+              const categories = Array.from(new Set(mealItems.map((item) => item.category).filter(Boolean)));
+              const mealDescription = hasItems
+                ? categories.join(', ') || `${mealItems.length} món đã chọn`
+                : '';
+              const mealTheme = MEAL_TYPE_THEME[meal.id];
 
-                        <div className="min-w-0 flex-1">
-                          <div className={`mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] sm:text-[11px] ${isActive ? 'text-accent-hover' : 'diet-meal-meta'}`}>
-                            {meal.label} + {meal.time}
-                          </div>
-                          <h3 className={`line-clamp-2 text-[15px] font-black leading-5 sm:text-base ${isActive ? 'text-accent-hover' : mealIndex >= 2 ? 'diet-meal-muted-name' : 'diet-strong'}`}>{names}</h3>
-                          <div className={`mt-3 inline-flex items-center overflow-hidden rounded-xl border text-xs font-black ${
-                            isActive ? 'border-accent/25 bg-accent/10 text-accent-muted' : 'diet-macro-pill'
-                          }`}>
-                            <span className="px-3 py-2">P: {protein}g</span>
-                            <span className={`h-4 w-px ${isActive ? 'bg-border-primary' : 'diet-macro-separator'}`} />
-                            <span className="px-3 py-2">C: {carbs}g</span>
-                            <span className={`h-4 w-px ${isActive ? 'bg-border-primary' : 'diet-macro-separator'}`} />
-                            <span className="px-3 py-2">F: {fat}g</span>
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            {[
-                              { type: 'liked', label: 'Đã ăn' },
-                              { type: 'disliked', label: 'Không thích' },
-                              { type: 'not_enough', label: 'Không đủ no' },
-                              { type: 'hard_to_cook', label: 'Khó nấu' },
-                              { type: 'too_expensive', label: 'Đổi món' }
-                            ].map((fb) => (
-                              <button
-                                key={fb.type}
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  if (!feedbackTarget) return;
-                                  void submitMealFeedback(
-                                    feedbackTarget,
-                                    fb.type as 'liked' | 'disliked' | 'too_much' | 'not_enough' | 'hard_to_cook' | 'too_expensive'
-                                  );
-                                }}
-                                disabled={!feedbackTarget}
-                                className="rounded-full border border-border-primary bg-bg-primary/70 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-text-secondary transition-colors hover:border-accent/30 hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {fb.label}
-                              </button>
-                            ))}
-                          </div>
+              return (
+                <article
+                  key={meal.id}
+                  className="diet-card relative overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5"
+                  style={{
+                    backgroundImage: `linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.01)), radial-gradient(circle at top right, ${mealTheme.accentSoft}, transparent 30%)`
+                  }}
+                >
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${mealTheme.accentStrong}, transparent 72%)` }} />
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <span
+                        className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-black"
+                        style={{
+                          color: mealTheme.accent,
+                          borderColor: mealTheme.border,
+                          backgroundColor: mealTheme.accentSoft
+                        }}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: mealTheme.accent }} />
+                        {meal.label.charAt(0) + meal.label.slice(1).toLowerCase()} • {meal.time}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[2rem] font-black leading-none text-text-primary">{mealCalories}</p>
+                      <p className="text-[11px] font-black text-text-tertiary">kcal</p>
+                    </div>
+                  </div>
+
+                  {hasItems ? (
+                    <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start">
+                      <button
+                        type="button"
+                        onClick={() => openFoodPicker(meal.id)}
+                        className="h-[92px] w-full shrink-0 overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary md:w-[96px]"
+                        aria-label={`Chọn lại món cho ${meal.label}`}
+                      >
+                        <FoodImage src={resolveFoodImage(firstItem as unknown as Food, mealIndex)} alt={firstItem.name} />
+                      </button>
+
+                      <div className="min-w-0 flex-1">
+                        <h3 className="diet-title text-[22px] font-black leading-tight text-text-primary">{names}</h3>
+                        {mealDescription && (
+                          <p className="diet-muted mt-1 text-sm font-semibold leading-6">{mealDescription}</p>
+                        )}
+                        <div className="mt-3 flex flex-wrap gap-2.5 text-sm font-black text-text-primary">
+                          <span className="rounded-full border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)] px-3 py-1 text-[#b9f5cf]">P:{protein}g</span>
+                          <span className="rounded-full border border-[rgba(56,189,248,0.18)] bg-[rgba(56,189,248,0.10)] px-3 py-1 text-[#c5ebff]">C:{carbs}g</span>
+                          <span className="rounded-full border border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.10)] px-3 py-1 text-[#ffd9a8]">F:{fat}g</span>
                         </div>
-
-                        <div className="flex shrink-0 items-start self-start pt-1 text-right sm:pt-2">
-                          <div className="text-right">
-                            <span className={`text-2xl font-black leading-none sm:text-[24px] ${isActive ? 'text-accent-hover' : mealIndex >= 2 ? 'diet-meal-muted-value' : 'diet-strong'}`}>
-                              {mealCalories}
-                            </span>
-                            <span className={`ml-1 text-[10px] font-black ${isActive ? 'text-accent-muted' : 'diet-meal-meta'}`}>kcal</span>
-                          </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!feedbackTarget) return;
+                              void submitMealFeedback(feedbackTarget, 'liked');
+                            }}
+                            className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
+                          >
+                            Đã ăn
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!feedbackTarget) return;
+                              void submitMealFeedback(feedbackTarget, 'disliked');
+                            }}
+                            className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
+                          >
+                            Đổi món
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openFoodPicker(meal.id)}
+                            className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
+                          >
+                            ...
+                          </button>
                         </div>
                       </div>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
-          </main>
-        </div>
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
+                      <div
+                        className="flex h-[92px] w-full shrink-0 items-center justify-center rounded-xl border md:w-[96px]"
+                        style={{ borderColor: mealTheme.border, backgroundColor: mealTheme.accentSoft }}
+                      >
+                        <Utensils className="h-7 w-7" style={{ color: mealTheme.accent }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-bold text-text-primary">Chưa có món cho bữa này</p>
+                        <p className="diet-muted mt-1 text-sm font-semibold leading-6">
+                          AI có thể gợi ý món phù hợp với mục tiêu calories và protein của hôm nay.
+                        </p>
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-2 md:mt-0">
+                        <button
+                          type="button"
+                          onClick={() => quickSuggestMeal(meal.id)}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
+                        >
+                          <Bot className="h-4 w-4" />
+                          AI chọn món
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openFoodPicker(meal.id)}
+                          className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
+                        >
+                          Tự chọn món
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              );
+            })
+          )}
+        </main>
       </div>
 
       <FoodPicker

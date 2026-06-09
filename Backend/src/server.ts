@@ -8,13 +8,13 @@ import { supabase } from './config/Supabase';
 import { initTelegramBot, getTelegramReminderStatus, sendWaterReminders, sendSleepReminders } from './TelegramBot';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { resolveWeeklyWorkouts } from './lib/WorkoutFrequency';
-import { detectIntent, extractDayIndexFromText } from './services/ai/aiRouterService';
+import { detectIntent, extractDayIndexFromText, getResponseModeForIntent } from './services/ai/aiRouterService';
 import { aiChatService } from './services/ai/aiChatService';
 import { aiPlannerService } from './services/ai/aiPlannerService';
 import { workoutAdjusterService } from './services/ai/workoutAdjusterService';
 import { mealAdjusterService } from './services/ai/mealAdjusterService';
 import { progressAnalyzerService } from './services/ai/progressAnalyzerService';
-import { AIChatResponse } from './services/ai/types';
+import { AIChatResponse, AIIntent } from './services/ai/types';
 import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservability';
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
@@ -61,6 +61,14 @@ const getWeekStartKey = (baseDate: Date): string => {
 };
 
 const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+const getVietnamDayBoundsUtc = (dateKey = getVietnamDateKey()) => {
+  const start = new Date(`${dateKey}T00:00:00+07:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
+};
 const getDateKeyFromWeekStartAndDayIndex = (weekStartKey: string, dayIndex: number): string => {
   const safeDayIndex = Math.max(0, Math.min(6, Number(dayIndex) || 0));
   const baseDate = new Date(`${weekStartKey}T00:00:00`);
@@ -196,6 +204,9 @@ const DAY_TO_INDEX: Record<string, number> = {
 
 const isValidDayIndex = (value: unknown): value is number =>
   Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 6;
+
+const isMealIntent = (intent: AIIntent): boolean =>
+  intent === 'meal_plan' || intent === 'adjust_meal' || intent === 'create_meal_plan';
 
 type NormalizedAiPlan = {
   workoutPlan: {
@@ -1221,6 +1232,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     const requestedWeekStartDate = String(weekStartDate || '').trim() || null;
 
     incrementMetric('totalChatRequests');
+    const chatDayBounds = getVietnamDayBoundsUtc();
     const weeklyPlanQuery = requestedWeekStartDate
       ? supabase
           .from('weekly_plans')
@@ -1290,6 +1302,8 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .from('ai_chat_messages')
         .select('role, content, created_at')
         .eq('user_id', authUserId)
+        .gte('created_at', chatDayBounds.startIso)
+        .lt('created_at', chatDayBounds.endIso)
         .order('created_at', { ascending: false })
         .limit(8)
     ]);
@@ -1349,7 +1363,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         targetMeals: Number((weekPlanRes.data as any)?.meals_per_day || 0)
       });
     } else {
-      aiResponse = await aiChatService(normalizedMessage, {
+      aiResponse = await aiChatService(normalizedMessage, intent, {
         todayWorkoutCount: targetWorkoutRows.length,
         todayMealCount: targetMealRows.length,
         todayDayIndex: todayDayIndex,
@@ -1391,8 +1405,9 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
 
     const normalizedResponse: AIChatResponse = {
       ...aiResponse,
-      intent,
-      confidence
+      intent: aiResponse.intent || intent,
+      responseMode: aiResponse.responseMode || getResponseModeForIntent(aiResponse.intent || intent),
+      confidence: aiResponse.confidence || confidence
     };
     detectedActionType = normalizedResponse.actionType;
     if (!AI_ACTION_FLOW_ENABLED) {
@@ -1425,7 +1440,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       user_id: authUserId,
       role: 'assistant',
       content: String(normalizedResponse.reply || '').slice(0, 5000),
-      intent,
+      intent: normalizedResponse.intent,
       confidence: normalizedResponse.confidence,
       action_type: normalizedResponse.actionType,
       action_payload: normalizedResponse.actionPayload
@@ -1437,7 +1452,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     let adjustmentId: string | undefined;
     if (normalizedResponse.actionRequired && normalizedResponse.actionType) {
       incrementMetric('actionRequiredCount');
-      const oldData = normalizedResponse.intent.includes('meal')
+      const oldData = isMealIntent(normalizedResponse.intent)
         ? {
             weekly_food_plan_id: (todayMealRes.data as any)?.id || null,
             day_of_week: dayIndex,
@@ -1467,7 +1482,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           };
       const adjustmentInsert = await supabase.from('ai_plan_adjustments').insert({
         user_id: authUserId,
-        plan_type: normalizedResponse.intent.includes('meal') ? 'meal' : 'workout',
+        plan_type: isMealIntent(normalizedResponse.intent) ? 'meal' : 'workout',
         source_type: 'chat',
         old_data: oldData,
         new_data: normalizedResponse.actionPayload,

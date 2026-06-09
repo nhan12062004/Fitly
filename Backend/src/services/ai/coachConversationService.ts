@@ -1,4 +1,4 @@
-import { AIChatContext, AIChatMealSummary } from './types';
+import { AIChatContext, AIChatMealSummary, AIIntent, AIResponseMode } from './types';
 
 export type CoachChatMessage = {
   role: 'user' | 'assistant' | 'system';
@@ -11,6 +11,8 @@ type CoachPromptContext = AIChatContext & {
   actionLog?: string;
   todayStatus?: string;
   guestMode?: boolean;
+  detectedIntent?: AIIntent;
+  responseMode?: AIResponseMode;
 };
 
 type CoachCompletionInput = {
@@ -72,6 +74,8 @@ export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => 
   const health = context?.health || {};
   const dayLabel = context?.targetDayLabel || 'Hom nay';
   const platform = context?.platform === 'telegram' ? 'Telegram' : 'web AI Coach';
+  const detectedIntent = context?.detectedIntent || 'general_health';
+  const responseMode = context?.responseMode || 'coach_advice';
 
   return `Ban la "Fitly AI" - huan luyen vien ca nhan va chuyen gia dinh duong cua ung dung Fitly.
 
@@ -100,6 +104,14 @@ ${formatMealsForPrompt(context?.meals)}
 ${context?.todayStatus ? `[TIEN DO HOM NAY]\n${context.todayStatus}\n` : ''}
 ${context?.actionLog ? `[HE THONG VUA THUC HIEN]\n${context.actionLog}\n` : ''}
 ${context?.extraContext ? `[DU LIEU TRENDfit MO RONG]\n${context.extraContext}\n` : ''}
+
+[PHAN LOAI CAU HOI]
+- Intent hien tai: ${detectedIntent}
+- Kieu tra loi: ${responseMode}
+- Neu la coach_advice, tra loi nhu coach thuc te va co the noi cach dieu chinh, nhung khong mac dinh sua plan.
+- Neu la support, rut muc tieu xuong thanh 1 buoc rat nho co the lam ngay.
+- Neu la safety, uu tien huong dan than trong va dau hieu can di kham.
+- Neu la redirect, nhac gon rang Fitly tap trung vao workout, meal plan, phuc hoi va suc khoe.
 
 [QUY TAC SU DUNG DU LIEU]
 1. Uu tien du lieu Fitly trong prompt. Neu thieu du lieu, noi ro "minh chua thay du lieu nay trong Fitly" roi dua phuong an tam thoi.

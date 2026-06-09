@@ -22,6 +22,7 @@ export const progressAnalyzerService = async (input: ProgressAnalyzerInput): Pro
   return {
     reply: `Tien do tap luyen tuan nay: ${workoutAdherence}% muc tieu. ${nutritionText} Neu thay qua tai, minh co the de xuat tuan tiep theo nhe hon de duy tri nhip.`,
     intent: 'analyze_progress',
+    responseMode: 'coach_advice',
     confidence: 0.82,
     actionRequired: false,
     actionType: null,

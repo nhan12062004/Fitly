@@ -1,11 +1,24 @@
 export type AIIntent =
-  | 'advice'
+  | 'workout_plan'
+  | 'meal_plan'
+  | 'recovery'
+  | 'injury_care'
+  | 'motivation'
+  | 'general_health'
+  | 'out_of_scope'
   | 'view_day_plan'
   | 'create_workout_plan'
   | 'create_meal_plan'
   | 'adjust_workout'
   | 'adjust_meal'
   | 'analyze_progress';
+
+export type AIResponseMode =
+  | 'plan_edit'
+  | 'coach_advice'
+  | 'support'
+  | 'safety'
+  | 'redirect';
 
 export type AIActionType =
   | 'replace_today_workout'
@@ -52,6 +65,7 @@ export type AIActionPayload =
 export type AIChatResponse = {
   reply: string;
   intent: AIIntent;
+  responseMode: AIResponseMode;
   confidence: number;
   actionRequired: boolean;
   actionType: AIActionType | null;

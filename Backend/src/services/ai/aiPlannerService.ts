@@ -13,6 +13,7 @@ export const aiPlannerService = async (intent: AIIntent, input: PlannerInput): P
     return {
       reply: `Minh se tao lich tap tuan moi voi khoang ${input.weeklyWorkouts} buoi, uu tien muc tieu ${goal}.`,
       intent,
+      responseMode: 'plan_edit',
       confidence: 0.78,
       actionRequired: true,
       actionType: 'create_weekly_workout_plan',
@@ -29,6 +30,7 @@ export const aiPlannerService = async (intent: AIIntent, input: PlannerInput): P
   return {
     reply: `Minh se tao thuc don tuan moi voi ${input.mealsPerDay} bua/ngay, bam sat muc tieu ${goal}.`,
     intent,
+    responseMode: 'plan_edit',
     confidence: 0.78,
     actionRequired: true,
     actionType: 'create_weekly_meal_plan',

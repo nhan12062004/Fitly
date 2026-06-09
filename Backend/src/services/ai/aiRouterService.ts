@@ -1,4 +1,4 @@
-import { AIChatContext, AIIntent } from './types';
+import { AIChatContext, AIIntent, AIResponseMode } from './types';
 
 type IntentDetectionResult = {
   intent: AIIntent;
@@ -33,6 +33,22 @@ export const extractDayIndexFromText = (message: string): number | null => {
 };
 
 const hasAny = (value: string, terms: string[]) => terms.some((term) => value.includes(term));
+
+export const getResponseModeForIntent = (intent: AIIntent): AIResponseMode => {
+  if (
+    intent === 'adjust_workout' ||
+    intent === 'adjust_meal' ||
+    intent === 'create_workout_plan' ||
+    intent === 'create_meal_plan'
+  ) {
+    return 'plan_edit';
+  }
+
+  if (intent === 'injury_care') return 'safety';
+  if (intent === 'motivation') return 'support';
+  if (intent === 'out_of_scope') return 'redirect';
+  return 'coach_advice';
+};
 
 export const isInjuryAdviceRequest = (message: string): boolean => {
   const normalized = normalizeVietnameseText(message);
@@ -82,9 +98,11 @@ export const isInjuryAdviceRequest = (message: string): boolean => {
   return mentionsPainOrInjury && (mentionsBodyArea || asksForCare);
 };
 
-export const detectIntent = (message: string, _context?: AIChatContext): IntentDetectionResult => {
+export const detectIntent = (message: string, context?: AIChatContext): IntentDetectionResult => {
   const normalized = normalizeVietnameseText(message);
   const referencedDayIndex = extractDayIndexFromText(message);
+  const todayWorkoutCount = Number(context?.todayWorkoutCount || 0);
+  const todayMealCount = Number(context?.todayMealCount || 0);
 
   const mentionsWorkout =
     normalized.includes('bai tap') ||
@@ -110,49 +128,120 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
     normalized.includes('kcal') ||
     normalized.includes('meal');
 
+  const mentionsRecovery = hasAny(normalized, [
+    'phuc hoi',
+    'hoi phuc',
+    'gian co',
+    'stretch',
+    'khoi dong',
+    'ha nhiet',
+    'ngu',
+    'mat ngu',
+    'nghi ngoi',
+    'met',
+    'doms',
+    'dau co',
+    'cang co',
+    'u nuoc',
+    'uong nuoc',
+    'bo sung',
+    'cardio nhe',
+  ]);
+
+  const mentionsMotivation = hasAny(normalized, [
+    'luoi',
+    'nan',
+    'chan tap',
+    'mat dong luc',
+    'khong co dong luc',
+    'khong muon tap',
+    'bo tap',
+    'bo bua',
+    'tri hoan',
+    'khong theo duoc',
+    'khong duy tri duoc',
+  ]);
+
+  const mentionsOutOfScope = hasAny(normalized, [
+    'email',
+    'cv',
+    'bitcoin',
+    'crypto',
+    'vang',
+    'chung khoan',
+    'co phieu',
+    'lap trinh',
+    'code',
+    'fix bug',
+    've may bay',
+    'du lich',
+  ]);
+
   const asksForSchedule =
     normalized.includes('xem lich') ||
     normalized.includes('lich hom nay') ||
     normalized.includes('hom nay co') ||
     normalized.includes('co nhung') ||
-    normalized.includes('gom nhung') ||
-    normalized.includes('bao nhieu bai') ||
-    normalized.includes('bao nhieu mon') ||
-    normalized.includes('xem bai tap') ||
-    normalized.includes('xem thuc don') ||
-    referencedDayIndex !== null;
+      normalized.includes('gom nhung') ||
+      normalized.includes('bao nhieu bai') ||
+      normalized.includes('bao nhieu mon') ||
+      normalized.includes('xem bai tap') ||
+      normalized.includes('xem thuc don') ||
+      referencedDayIndex !== null;
+
+  const asksForMealChange = hasAny(normalized, [
+    'doi mon',
+    'doi bua',
+    'doi thuc don',
+    'khong thich mon',
+    'thay mon',
+    'goi y mon khac',
+    'gon hon',
+  ]);
+
+  const asksForWorkoutChange = hasAny(normalized, [
+    'doi bai tap',
+    'bai tap khac',
+    'thay bai tap',
+    'doi dong tac',
+    'thay dong tac',
+    'rut gon buoi tap',
+    'rut gon',
+    'nhe hon',
+    'giam tai',
+    'giam do nang',
+    '10 phut',
+    'dieu chinh',
+  ]);
+
+  const mentionsGeneralHealth = hasAny(normalized, [
+    'suc khoe',
+    'an kieng',
+    'dinh duong',
+    'protein',
+    'dam',
+    'chat beo',
+    'tinh bot',
+    'kcal',
+    'calo',
+    'nuoc',
+    'ngu',
+    'stress',
+  ]);
 
   if (isInjuryAdviceRequest(normalized)) {
-    return { intent: 'advice', confidence: 0.9 };
+    return { intent: 'injury_care', confidence: 0.94 };
   }
 
-  if (
-    normalized.includes('doi mon') ||
-    normalized.includes('doi bua') ||
-    normalized.includes('doi thuc don') ||
-    normalized.includes('khong thich mon') ||
-    normalized.includes('an gi') ||
-    normalized.includes('toi nay an') ||
-    normalized.includes('trua nay an') ||
-    normalized.includes('sang nay an') ||
-    normalized.includes('goi y mon') ||
-    normalized.includes('gon hon')
-  ) {
+  if (mentionsMotivation) {
+    return { intent: 'motivation', confidence: 0.9 };
+  }
+
+  if (asksForMealChange) {
     return { intent: 'adjust_meal', confidence: 0.84 };
   }
 
-  if (
-    normalized.includes('doi bai tap') ||
-    normalized.includes('bai tap khac') ||
-    normalized.includes('thay bai tap') ||
-    normalized.includes('doi dong tac') ||
-    normalized.includes('thay dong tac') ||
-    normalized.includes('met') ||
-    normalized.includes('10 phut') ||
-    normalized.includes('bai nhe') ||
-    normalized.includes('nhe hon') ||
-    normalized.includes('dieu chinh')
-  ) {
+  if (asksForWorkoutChange) {
     return { intent: 'adjust_workout', confidence: 0.86 };
   }
 
@@ -164,7 +253,19 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
       normalized.includes('hom nay') ||
       normalized.includes('thuc don'))
   ) {
-    return { intent: 'view_day_plan', confidence: 0.88 };
+    if (mentionsMeal && !mentionsWorkout) {
+      return { intent: 'meal_plan', confidence: 0.88 };
+    }
+
+    if (mentionsWorkout && !mentionsMeal) {
+      return { intent: 'workout_plan', confidence: 0.88 };
+    }
+
+    if (todayWorkoutCount > 0 || todayMealCount > 0) {
+      return { intent: todayWorkoutCount >= todayMealCount ? 'workout_plan' : 'meal_plan', confidence: 0.84 };
+    }
+
+    return { intent: 'general_health', confidence: 0.72 };
   }
 
   if (normalized.includes('tao lich tap') || normalized.includes('lich tap tuan')) {
@@ -179,5 +280,25 @@ export const detectIntent = (message: string, _context?: AIChatContext): IntentD
     return { intent: 'analyze_progress', confidence: 0.78 };
   }
 
-  return { intent: 'advice', confidence: 0.62 };
+  if (mentionsRecovery) {
+    return { intent: 'recovery', confidence: 0.82 };
+  }
+
+  if (mentionsMeal) {
+    return { intent: 'meal_plan', confidence: 0.74 };
+  }
+
+  if (mentionsWorkout) {
+    return { intent: 'workout_plan', confidence: 0.74 };
+  }
+
+  if (mentionsGeneralHealth) {
+    return { intent: 'general_health', confidence: 0.68 };
+  }
+
+  if (mentionsOutOfScope) {
+    return { intent: 'out_of_scope', confidence: 0.85 };
+  }
+
+  return { intent: 'general_health', confidence: 0.58 };
 };

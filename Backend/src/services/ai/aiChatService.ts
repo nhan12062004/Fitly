@@ -1,6 +1,6 @@
-import { isInjuryAdviceRequest, normalizeVietnameseText } from './aiRouterService';
 import { askFitlyCoach } from './coachConversationService';
-import { AIChatContext, AIChatMealSummary, AIChatResponse } from './types';
+import { getResponseModeForIntent, normalizeVietnameseText } from './aiRouterService';
+import { AIChatContext, AIChatMealSummary, AIChatResponse, AIIntent } from './types';
 
 const getMealTypeLabel = (mealType?: string | null): string => {
   const key = String(mealType || '').toLowerCase();
@@ -16,14 +16,11 @@ const formatMealCalories = (meal: AIChatMealSummary): number => {
   return Math.round(Number(meal.calories || 0) * quantity);
 };
 
-export const aiChatService = async (message: string, context?: AIChatContext): Promise<AIChatResponse> => {
+const buildPlanOverviewReply = (message: string, context?: AIChatContext): string => {
   const normalized = normalizeVietnameseText(message);
   const dayLabel = context?.targetDayLabel || 'Hom nay';
-  const todayWorkoutCount = Number(context?.todayWorkoutCount || 0);
-  const todayMealCount = Number(context?.todayMealCount || 0);
   const exercises = Array.isArray(context?.exercises) ? context.exercises : [];
   const meals = Array.isArray(context?.meals) ? context.meals : [];
-
   const wantsWorkout =
     normalized.includes('bai tap') ||
     normalized.includes('tap gi') ||
@@ -34,19 +31,9 @@ export const aiChatService = async (message: string, context?: AIChatContext): P
     normalized.includes('mon an') ||
     normalized.includes('mon') ||
     normalized.includes('bua') ||
-    normalized.includes('bua an') ||
     normalized.includes('an gi') ||
-    normalized.includes('toi nay an') ||
-    normalized.includes('trua nay an') ||
-    normalized.includes('sang nay an') ||
-    normalized.includes('goi y mon') ||
     normalized.includes('protein') ||
-    normalized.includes('dam') ||
-    normalized.includes('kcal') ||
     normalized.includes('meal');
-  const wantsHighProteinMeal =
-    (normalized.includes('protein') || normalized.includes('dam')) &&
-    (normalized.includes('bua') || normalized.includes('mon') || normalized.includes('an'));
   const wantsPlanDetails =
     normalized.includes('xem lich') ||
     normalized.includes('lich hom nay') ||
@@ -58,19 +45,187 @@ export const aiChatService = async (message: string, context?: AIChatContext): P
     normalized.includes('xem bai tap') ||
     normalized.includes('xem thuc don');
 
+  const includeWorkout = wantsPlanDetails || wantsWorkout || (!wantsMeal && exercises.length > 0);
+  const includeMeal = wantsPlanDetails || wantsMeal || (!wantsWorkout && meals.length > 0);
+  const sections: string[] = [];
+
+  if (includeWorkout) {
+    if (exercises.length > 0) {
+      const lines = exercises
+        .slice(0, 5)
+        .map((exercise, index) => {
+          const parts = [
+            `${index + 1}. ${exercise.name || 'Bai tap'}`,
+            `${Number(exercise.sets || 3)} set x ${exercise.reps || '8-12'}`,
+          ];
+          if (Number(exercise.rest_seconds || 0) > 0) {
+            parts.push(`nghi ${Number(exercise.rest_seconds)}s`);
+          }
+          return parts.join(' - ');
+        })
+        .join('\n');
+      sections.push(`${dayLabel} co ${exercises.length} bai tap:\n${lines}`);
+    } else {
+      sections.push(`${dayLabel} hien chua co bai tap nao trong lich.`);
+    }
+  }
+
+  if (includeMeal) {
+    if (meals.length > 0) {
+      const lines = meals
+        .slice(0, 5)
+        .map((meal, index) => {
+          const calories = formatMealCalories(meal);
+          const quantity = Number(meal.quantity || 1);
+          return `${index + 1}. ${getMealTypeLabel(meal.meal_type)} - ${meal.name || 'Mon an'} x${quantity} (${calories} kcal)`;
+        })
+        .join('\n');
+      sections.push(`${dayLabel} co ${meals.length} mon an:\n${lines}`);
+    } else {
+      sections.push(`${dayLabel} hien chua co mon an nao trong thuc don.`);
+    }
+  }
+
+  if (sections.length === 0) {
+    return `${dayLabel} hien chua co du lieu workout hoac meal plan. Ban co the yeu cau tao lai lich hoac noi ro muc tieu hom nay de minh goi y theo tinh huong.`;
+  }
+
+  return sections.join('\n\n');
+};
+
+const buildInjuryCareReply = (): string =>
+  [
+    'Neu ban dang dau, sung, te, choang vang, hoac co dau hieu chan thuong ro, hay uu tien an toan truoc va tam dung cac bai tap tac dong manh ngay luc nay.',
+    'Cach xu ly muc co ban: nghi ngoi, chuom lanh 15-20 phut moi lan, bang ep nhe neu co sung, ke cao vung bi dau, va tranh cac dong tac gay tang dau.',
+    'Neu dau tang, khong chiu luc duoc, sung bam tim ro, te, bien dang khop, choang vang, hoac sau 2-3 ngay khong giam, ban nen di kham co xuong khop hoac y te the thao.',
+  ].join('\n\n');
+
+const buildRecoveryReply = (context?: AIChatContext): string => {
+  const dayLabel = context?.targetDayLabel || 'Hom nay';
+  const exercises = Array.isArray(context?.exercises) ? context.exercises : [];
+  const meals = Array.isArray(context?.meals) ? context.meals : [];
+
+  if (exercises.length > 0) {
+    const firstExercise = exercises[0];
+    const restSeconds = Math.max(75, Number(firstExercise?.rest_seconds || 60));
+    return [
+      `${dayLabel} neu ban thay met, uu tien giam 1 set moi bai, giu ky thuat sach, va tang thoi gian nghi len khoang ${restSeconds} giay.`,
+      'Sau buoi tap, nen bu protein, bu nuoc, di bo nhe 5-10 phut, va ngu du. Neu muon, minh co the rut gon buoi tap hom nay thanh phien ban de phuc hoi hon.',
+    ].join('\n\n');
+  }
+
+  if (meals.length > 0) {
+    return [
+      `${dayLabel} ban co the uu tien phuc hoi bang cach giu du protein, them nuoc, rau, va mot nguon tinh bot vua phai quanh buoi tap.`,
+      'Neu ban muon, minh co the goi y mot bua gon hon nhung van ho tro phuc hoi tot.',
+    ].join('\n\n');
+  }
+
+  return [
+    `${dayLabel} minh chua thay du workout hoac meal plan cu the, nen uu tien phuc hoi co ban: ngu du, uong nuoc, an du protein, va van dong nhe trong nguong de chiu.`,
+    'Neu ban noi ro dang met, dau co, hay muon nhe buoi tap, minh se goi y sat hon.',
+  ].join('\n\n');
+};
+
+const buildMotivationReply = (context?: AIChatContext): string => {
+  const dayLabel = context?.targetDayLabel || 'Hom nay';
+  const workoutCount = Number(context?.todayWorkoutCount || 0);
+  const mealCount = Number(context?.todayMealCount || 0);
+
+  if (workoutCount > 0) {
+    return [
+      `Neu ${dayLabel.toLowerCase()} ban dang luoi hoac mat nhip, dung nghi den ca buoi tap. Chi can bat dau bang 10 phut dau tien hoac 1 bai dau tien.`,
+      'Hoan thanh diem bat dau do truoc, sau do moi quyet dinh co tap tiep hay khong. Neu ban muon, minh co the rut gon buoi hom nay de de vao nhip hon.',
+    ].join('\n\n');
+  }
+
+  if (mealCount > 0) {
+    return [
+      `Neu ban de bo bua hoac khong muon an theo ke hoach ${dayLabel.toLowerCase()}, hay giu muc tieu nho: an dung 1 bua chinh hoac giu du protein cho bua sap toi.`,
+      'Chi can bam sat mot diem nho hom nay la du de giu nhiep. Neu can, minh co the doi sang lua chon gon hon.',
+    ].join('\n\n');
+  }
+
+  return [
+    'Neu hom nay ban mat dong luc, dung ep ban than vao muc tieu qua lon. Chon 1 viec rat nho de bat dau: di bo 10 phut, uong nuoc, hoac an dung 1 bua.',
+    'Sau khi lam xong viec nho do, minh co the giup ban len buoc tiep theo.',
+  ].join('\n\n');
+};
+
+const buildGeneralHealthReply = (context?: AIChatContext): string => {
+  const dayLabel = context?.targetDayLabel || 'Hom nay';
+  const todayWorkoutCount = Number(context?.todayWorkoutCount || 0);
+  const todayMealCount = Number(context?.todayMealCount || 0);
+
+  if (todayWorkoutCount + todayMealCount > 0) {
+    return `${dayLabel} hien co ${todayWorkoutCount} bai tap va ${todayMealCount} mon an. Ban co the hoi ro hon ve workout, meal plan, phuc hoi, giam met, hoac cach bam sat muc tieu hom nay.`;
+  }
+
+  return `${dayLabel} minh chua thay du lich tap hoac thuc don. Ban co the hoi ve dinh duong, phuc hoi, hoac yeu cau tao lai ke hoach de minh ho tro sat hon.`;
+};
+
+const buildOutOfScopeReply = (): string =>
+  'Minh tap trung vao workout, meal plan, phuc hoi, va thoi quen suc khoe. Neu ban can, hay hoi minh ve buoi tap hom nay, thuc don, giam met, phuc hoi, hoac cach giu dong luc.';
+
+const getFallbackReply = (message: string, intent: AIIntent, context?: AIChatContext): string => {
+  if (intent === 'injury_care') return buildInjuryCareReply();
+  if (intent === 'recovery') return buildRecoveryReply(context);
+  if (intent === 'motivation') return buildMotivationReply(context);
+  if (intent === 'out_of_scope') return buildOutOfScopeReply();
+  if (intent === 'workout_plan' || intent === 'meal_plan' || intent === 'view_day_plan') {
+    return buildPlanOverviewReply(message, context);
+  }
+  return buildGeneralHealthReply(context);
+};
+
+const getIntentConfidence = (intent: AIIntent): number => {
+  if (intent === 'injury_care') return 0.92;
+  if (intent === 'motivation') return 0.88;
+  if (intent === 'recovery') return 0.84;
+  if (intent === 'out_of_scope') return 0.84;
+  if (intent === 'workout_plan' || intent === 'meal_plan' || intent === 'view_day_plan') return 0.82;
+  return 0.7;
+};
+
+export const aiChatService = async (
+  message: string,
+  detectedIntent: AIIntent,
+  context?: AIChatContext,
+): Promise<AIChatResponse> => {
+  const responseMode = getResponseModeForIntent(detectedIntent);
+
+  if (detectedIntent === 'injury_care' || detectedIntent === 'out_of_scope') {
+    return {
+      reply: getFallbackReply(message, detectedIntent, context),
+      intent: detectedIntent,
+      responseMode,
+      confidence: getIntentConfidence(detectedIntent),
+      actionRequired: false,
+      actionType: null,
+      actionPayload: null,
+    };
+  }
+
   try {
     const aiReply = await askFitlyCoach({
       userMessage: message,
-      context: { ...context, platform: 'web' },
+      context: {
+        ...context,
+        platform: 'web',
+        detectedIntent,
+        responseMode,
+      },
       history: context?.chatHistory,
       maxTokens: 1024,
-      temperature: 0.7,
+      temperature: detectedIntent === 'motivation' ? 0.75 : 0.6,
     });
+
     if (aiReply) {
       return {
         reply: aiReply,
-        intent: 'advice',
-        confidence: 0.88,
+        intent: detectedIntent,
+        responseMode,
+        confidence: getIntentConfidence(detectedIntent),
         actionRequired: false,
         actionType: null,
         actionPayload: null,
@@ -80,130 +235,11 @@ export const aiChatService = async (message: string, context?: AIChatContext): P
     console.warn('[aiChatService] Groq chat fallback:', error?.message || error);
   }
 
-  if (isInjuryAdviceRequest(normalized)) {
-    return {
-      reply: [
-        'Neu ban dau khop co chan sau khi danh cau long, truoc mat hay xem nhu dau/cang co hoac bong gan nhe va dung cac hoat dong tac dong manh trong 24-48 gio.',
-        'Cach giam dau an toan: nghi ngoi, chuom lanh 15-20 phut moi lan va lap lai vai lan trong ngay, bang ep nhe neu co sung, ke cao chan khi nam/ngoi, tranh chay nhay va tranh tap cac bai dung nhieu co chan.',
-        'Chi nen xoay co chan nhe trong nguong khong dau. Neu dau tang, sung/bam tim ro, khong chiu luc duoc, te/bien dang khop, hoac sau 2-3 ngay khong giam, ban nen di kham co xuong khop/chan thuong the thao.',
-      ].join('\n\n'),
-      intent: 'advice',
-      confidence: 0.9,
-      actionRequired: false,
-      actionType: null,
-      actionPayload: null,
-    };
-  }
-
-  if (wantsHighProteinMeal) {
-    return {
-      reply: [
-        'Mot bua nhieu protein de lam: 180g uc ga ap chao hoac ca ngu/ca hoi, 1 chen com hoac 200g khoai, them mot phan rau lon.',
-        'Neu muon gon hon: 2 trung + 200g sua chua Hy Lap khong duong + 1 qua chuoi + mot it yen mach. Muc tieu la khoang 35-50g protein cho mot bua.',
-        'Giu dau mo vua phai, uu tien luoc/ap chao/nuong de no lau ma khong doi calories qua cao.',
-      ].join('\n\n'),
-      intent: 'advice',
-      confidence: 0.88,
-      actionRequired: false,
-      actionType: null,
-      actionPayload: null,
-    };
-  }
-
-  if (wantsPlanDetails) {
-    const sections: string[] = [];
-
-    if (!wantsMeal || wantsWorkout) {
-      if (exercises.length > 0) {
-        const exerciseLines = exercises
-          .slice(0, 5)
-          .map((exercise, index) => {
-            const parts = [
-              `${index + 1}. ${exercise.name || 'Bai tap'}`,
-              `${Number(exercise.sets || 3)} sets x ${exercise.reps || '8-12'}`,
-            ];
-            if (Number(exercise.rest_seconds || 0) > 0) {
-              parts.push(`nghi ${Number(exercise.rest_seconds)}s`);
-            }
-            return parts.join(' - ');
-          })
-          .join('\n');
-        sections.push(`${dayLabel} co ${exercises.length} bai tap:\n${exerciseLines}`);
-      } else {
-        sections.push(`${dayLabel} hien chua co bai tap nao trong lich.`);
-      }
-    }
-
-    if (!wantsWorkout || wantsMeal) {
-      if (meals.length > 0) {
-        const mealLines = meals
-          .slice(0, 5)
-          .map((meal, index) => {
-            const calories = formatMealCalories(meal);
-            const quantity = Number(meal.quantity || 1);
-            return `${index + 1}. ${getMealTypeLabel(meal.meal_type)} - ${meal.name || 'Mon an'} x${quantity} (${calories} kcal)`;
-          })
-          .join('\n');
-        sections.push(`${dayLabel} co ${meals.length} mon an:\n${mealLines}`);
-      } else {
-        sections.push(`${dayLabel} hien chua co mon an nao trong thuc don.`);
-      }
-    }
-
-    return {
-      reply: sections.join('\n\n'),
-      intent: 'view_day_plan',
-      confidence: 0.9,
-      actionRequired: false,
-      actionType: null,
-      actionPayload: null,
-    };
-  }
-
-  if (wantsMeal) {
-    if (meals.length > 0) {
-      const mealLines = meals
-        .slice(0, 4)
-        .map((meal, index) => {
-          const calories = formatMealCalories(meal);
-          const quantity = Number(meal.quantity || 1);
-          return `${index + 1}. ${getMealTypeLabel(meal.meal_type)} - ${meal.name || 'Mon an'} x${quantity} (${calories} kcal)`;
-        })
-        .join('\n');
-
-      return {
-        reply: `${dayLabel} dang co ${meals.length} mon an. Ban co the uu tien cac lua chon nay:\n${mealLines}`,
-        intent: 'view_day_plan',
-        confidence: 0.88,
-        actionRequired: false,
-        actionType: null,
-        actionPayload: null,
-      };
-    }
-
-    const dinnerHint = normalized.includes('toi nay') || normalized.includes('bua toi');
-    const lunchHint = normalized.includes('trua nay') || normalized.includes('bua trua');
-    const mealLabel = dinnerHint ? 'bua toi' : lunchHint ? 'bua trua' : 'bua an';
-
-    return {
-      reply: `${dayLabel} hien chua co mon nao trong meal plan. Neu ban can mot goi y nhanh cho ${mealLabel}, hay uu tien 1 nguon dam nac nhu uc ga/ca/trung, them rau, va 1 phan tinh bot vua phai nhu com, khoai hoac yen mach.`,
-      intent: 'advice',
-      confidence: 0.82,
-      actionRequired: false,
-      actionType: null,
-      actionPayload: null,
-    };
-  }
-
-  const reply =
-    todayWorkoutCount + todayMealCount > 0
-      ? `${dayLabel} hien co ${todayWorkoutCount} bai tap va ${todayMealCount} mon an. Neu ban muon, minh co the lam buoi tap nhe hon, doi mon gon hon, hoac toi uu theo muc tieu tang co/giam mo.`
-      : `${dayLabel} chua co du lich de toi uu. Ban co the yeu cau tao lai lich, doi mon, hoac noi ro tinh trang nhu "hom nay met" hay "chi co 10 phut".`;
-
   return {
-    reply,
-    intent: 'advice',
-    confidence: 0.66,
+    reply: getFallbackReply(message, detectedIntent, context),
+    intent: detectedIntent,
+    responseMode,
+    confidence: getIntentConfidence(detectedIntent),
     actionRequired: false,
     actionType: null,
     actionPayload: null,
