@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 
 interface Food {
   id: string;
@@ -40,6 +41,18 @@ interface PlanFood {
 }
 
 type MealTypeId = 'breakfast' | 'lunch' | 'snack' | 'dinner';
+
+type DietPlanPageCache = {
+  foods: Food[];
+  selectedDayId: number;
+  weeklyPlan: Record<number, PlanFood[]>;
+  restDays: Record<number, boolean>;
+  planId: string | null;
+  planName: string;
+  targetCalories: number;
+  waterIntake: number;
+  waterGoal: number;
+};
 
 const DAYS = [
   { id: 0, label: 'TH 2', full: 'Thứ 2' },
@@ -95,6 +108,9 @@ const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DEFAULT_CALORIE_TARGET = 2400;
 const DEFAULT_WATER_TARGET = 2.5;
 const DEFAULT_PLAN_NAME = 'Thực đơn';
+
+let dietPlanFoodCache: Food[] | null = null;
+const dietPlanPageCache = new Map<string, DietPlanPageCache>();
 
 const SAMPLE_IMAGES = [
   'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=320&q=80',
@@ -339,21 +355,41 @@ export function DietPlanSkeleton() {
   return (
     <div className="dashboard-page-shell diet-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="w-full space-y-4">
-        <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
-          <div className="h-40 rounded-xl bg-bg-tertiary" />
-        </div>
-        <div className="grid gap-3 lg:grid-cols-5">
+        <SkeletonHero titleWidth="w-[62%] max-w-[20rem]" chips={4} />
+
+        <div className="flex min-w-max gap-2 overflow-x-auto">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className={`rounded-xl border border-border-primary bg-bg-secondary p-4 ${index === 0 ? 'lg:col-span-2' : ''}`}>
-              <div className="h-16 rounded-lg bg-bg-tertiary" />
+            <div key={index} className="rounded-lg border border-border-primary bg-bg-secondary/60 px-3 py-2 shadow-[0_10px_28px_rgba(0,0,0,0.08)]">
+              <div className={`h-5 rounded-md bg-bg-tertiary/75 ${index === 0 ? 'w-28' : 'w-20'}`} />
             </div>
           ))}
         </div>
+
         <div className="space-y-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
-              <div className="h-36 rounded-lg bg-bg-tertiary" />
-            </div>
+            <SkeletonSurface key={index} className="p-4 md:p-5">
+              <div className="flex items-start justify-between gap-4">
+                {SkeletonBlock('h-5 w-28 rounded-md')}
+                <div className="text-right">
+                  <div className="h-8 w-10 rounded-md bg-bg-tertiary/80" />
+                  <div className="mt-1 h-3 w-8 rounded bg-bg-tertiary/60" />
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
+                <div className="h-[92px] w-full rounded-xl border border-border-primary/60 bg-bg-tertiary/40 md:w-[96px]" />
+                <div className="min-w-0 flex-1">
+                  <div className="h-6 w-52 rounded-md bg-bg-tertiary/85" />
+                  <div className="mt-2 h-4 w-full max-w-[340px] rounded-md bg-bg-tertiary/60" />
+                  <div className="mt-1 h-4 w-full max-w-[260px] rounded-md bg-bg-tertiary/45" />
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <div className="h-10 w-32 rounded-xl bg-bg-tertiary/80" />
+                <div className="h-10 w-28 rounded-xl border border-border-primary bg-bg-tertiary/35" />
+              </div>
+            </SkeletonSurface>
           ))}
         </div>
       </div>
@@ -363,20 +399,24 @@ export function DietPlanSkeleton() {
 
 export default function DietPlan() {
   const { user } = useAuth();
+  const initialWeekStart = getWeekStart(getVietnamTodayDate());
+  const initialWeekKey = toDateKey(initialWeekStart);
+  const initialDietCache = user?.id ? dietPlanPageCache.get(`${user.id}:${initialWeekKey}`) || null : null;
   const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
   const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
-  const [foods, setFoods] = useState<Food[]>([]);
-  const [selectedDayId, setSelectedDayId] = useState(getTodayDayIndex());
-  const [weeklyPlan, setWeeklyPlan] = useState<Record<number, PlanFood[]>>({});
-  const [restDays, setRestDays] = useState<Record<number, boolean>>({});
-  const [planId, setPlanId] = useState<string | null>(null);
-  const [planName, setPlanName] = useState(DEFAULT_PLAN_NAME);
-  const [isLoading, setIsLoading] = useState(true);
+  const [foods, setFoods] = useState<Food[]>(() => initialDietCache?.foods || dietPlanFoodCache || []);
+  const [selectedDayId, setSelectedDayId] = useState(() => initialDietCache?.selectedDayId ?? getTodayDayIndex());
+  const [weeklyPlan, setWeeklyPlan] = useState<Record<number, PlanFood[]>>(() => initialDietCache?.weeklyPlan || {});
+  const [restDays, setRestDays] = useState<Record<number, boolean>>(() => initialDietCache?.restDays || {});
+  const [planId, setPlanId] = useState<string | null>(() => initialDietCache?.planId || null);
+  const [planName, setPlanName] = useState(() => initialDietCache?.planName || DEFAULT_PLAN_NAME);
+  const [isLoading, setIsLoading] = useState(() => !initialDietCache);
+  const [, setIsRefreshing] = useState(false);
   const [, setIsSaving] = useState(false);
-  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(() => getWeekStart(getVietnamTodayDate()));
-  const [targetCalories, setTargetCalories] = useState(DEFAULT_CALORIE_TARGET);
-  const [waterIntake, setWaterIntake] = useState(1.8);
-  const [waterGoal, setWaterGoal] = useState(DEFAULT_WATER_TARGET);
+  const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(initialWeekStart);
+  const [targetCalories, setTargetCalories] = useState(() => initialDietCache?.targetCalories || DEFAULT_CALORIE_TARGET);
+  const [waterIntake, setWaterIntake] = useState(() => initialDietCache?.waterIntake ?? 1.8);
+  const [waterGoal, setWaterGoal] = useState(() => initialDietCache?.waterGoal || DEFAULT_WATER_TARGET);
   const [foodPickerOpen, setFoodPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('all');
@@ -391,6 +431,7 @@ export default function DietPlan() {
 
   const selectedWeekKey = useMemo(() => toDateKey(selectedWeekStart), [selectedWeekStart]);
   const todayKey = useMemo(() => getVietnamDateKey(), [selectedWeekKey]);
+  const cacheKey = user?.id ? `${user.id}:${selectedWeekKey}` : null;
   const isCurrentWeek = selectedWeekKey === toDateKey(getWeekStart(getVietnamTodayDate()));
 
   const dayItems = weeklyPlan[selectedDayId] || [];
@@ -514,6 +555,11 @@ export default function DietPlan() {
     let cancelled = false;
 
     async function fetchFoods() {
+      if (dietPlanFoodCache) {
+        setFoods(dietPlanFoodCache);
+        return;
+      }
+
       const { data, error } = await supabase.from('foods').select('*').order('name');
       if (error) {
         console.error(error);
@@ -521,7 +567,7 @@ export default function DietPlan() {
       }
 
       if (!cancelled && data) {
-        setFoods(data.map((food: any) => ({
+        const normalizedFoods = data.map((food: any) => ({
           id: food.id,
           name: food.name || '',
           category: food.category || '',
@@ -531,7 +577,9 @@ export default function DietPlan() {
           fat: Number(food.fat || 0),
           serving_unit: food.serving_unit || '100g',
           image_url: food.image_url || ''
-        })));
+        }));
+        dietPlanFoodCache = normalizedFoods;
+        setFoods(normalizedFoods);
       }
     }
 
@@ -568,7 +616,20 @@ export default function DietPlan() {
     let cancelled = false;
 
     async function fetchWeeklyPlan() {
-      setIsLoading(true);
+      const cached = cacheKey ? dietPlanPageCache.get(cacheKey) || null : null;
+      if (cached) {
+        setFoods(cached.foods);
+        setSelectedDayId(cached.selectedDayId);
+        setWeeklyPlan(cached.weeklyPlan);
+        setRestDays(cached.restDays);
+        setPlanId(cached.planId);
+        setPlanName(cached.planName);
+        setTargetCalories(cached.targetCalories);
+        setWaterIntake(cached.waterIntake);
+        setWaterGoal(cached.waterGoal);
+      }
+      setIsLoading(!cached);
+      setIsRefreshing(!!cached);
       try {
         let nextPlanId: string | null = null;
         let nextPlanName = DEFAULT_PLAN_NAME;
@@ -635,7 +696,10 @@ export default function DietPlan() {
       } catch (error) {
         console.error(error);
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) {
+          setIsLoading(false);
+          setIsRefreshing(false);
+        }
       }
     }
 
@@ -643,7 +707,22 @@ export default function DietPlan() {
     return () => {
       cancelled = true;
     };
-  }, [user, selectedWeekKey]);
+  }, [user, selectedWeekKey, cacheKey]);
+
+  useEffect(() => {
+    if (!cacheKey) return;
+    dietPlanPageCache.set(cacheKey, {
+      foods,
+      selectedDayId,
+      weeklyPlan,
+      restDays,
+      planId,
+      planName,
+      targetCalories,
+      waterIntake,
+      waterGoal
+    });
+  }, [cacheKey, foods, selectedDayId, weeklyPlan, restDays, planId, planName, targetCalories, waterIntake, waterGoal]);
 
   const addFoodToPlan = useCallback((food: Food, mealType: MealTypeId = activeMealType) => {
     setWeeklyPlan((prev) => ({

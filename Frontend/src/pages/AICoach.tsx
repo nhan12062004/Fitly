@@ -11,6 +11,7 @@ import {
 import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const RECENT_CHAT_LIMIT = 80;
@@ -93,6 +94,16 @@ type ChatMessage = {
   actionStatus?: 'idle' | 'applied' | 'rejected';
   optimistic?: boolean;
 };
+
+type AICoachPageCache = {
+  plan: WeeklyPlan | null;
+  items: PlanExercise[];
+  foodItems: FoodPlanItem[];
+  lifestyle: LifestyleSummary | null;
+  chatMessages: ChatMessage[];
+};
+
+const aiCoachPageCache = new Map<string, AICoachPageCache>();
 
 type WorkoutProposalPayload = {
   day_of_week: number;
@@ -482,8 +493,58 @@ const mergeOptimisticChatMessages = (serverMessages: ChatMessage[], currentMessa
 
 function AICoachSkeleton() {
   return (
-    <div className="w-full animate-pulse">
-      <div className="h-[780px] rounded-xl border border-border-primary bg-bg-secondary" />
+    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
+      <SkeletonHero titleWidth="w-[68%] max-w-[21rem]" chips={3} />
+
+      <SkeletonSurface className="overflow-hidden">
+        <div className="border-b border-border-primary px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-bg-tertiary/75" />
+            <div className="min-w-0 flex-1">
+              {SkeletonBlock('h-5 w-28 rounded-lg')}
+              {SkeletonBlock('mt-2 h-3 w-40 rounded-lg')}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid min-h-[620px] grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1.15fr)_380px]">
+          <div className="space-y-4 bg-bg-tertiary/18 px-5 py-5">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div
+                key={index}
+                className={`flex ${index % 3 === 1 ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`max-w-[78%] ${index % 3 === 1 ? 'rounded-[18px] bg-bg-tertiary/70' : 'rounded-xl border border-border-primary bg-bg-secondary/70'} px-4 py-3`}>
+                  {SkeletonBlock(`h-3 rounded-lg ${index % 2 === 0 ? 'w-20' : 'w-28'}`)}
+                  {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
+                  {SkeletonBlock('mt-2 h-3 w-[88%] rounded-lg')}
+                  {index % 2 === 0 ? SkeletonBlock('mt-2 h-3 w-[72%] rounded-lg') : null}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-border-primary px-4 py-5 xl:border-l xl:border-t-0">
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border-primary bg-bg-tertiary/25 p-4">
+                {SkeletonBlock('h-3 w-24')}
+                {SkeletonBlock('mt-3 h-6 w-[72%] rounded-xl')}
+                {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
+                {SkeletonBlock('mt-2 h-3 w-[84%] rounded-lg')}
+              </div>
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="rounded-xl border border-border-primary bg-bg-tertiary/20 p-4">
+                  {SkeletonBlock('h-3 w-20')}
+                  <div className="mt-3 space-y-2">
+                    <div className="h-14 rounded-xl bg-bg-tertiary/55" />
+                    <div className="h-14 rounded-xl bg-bg-tertiary/40" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </SkeletonSurface>
     </div>
   );
 }
@@ -727,29 +788,35 @@ function TodayDigestBubble({ day }: { day: DayPlan }) {
 
 export default function AICoach() {
   const { user, isLoggedIn, refreshTick, profile, isPremium, refreshProfile, openPremiumModal } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [plan, setPlan] = useState<WeeklyPlan | null>(null);
-  const [items, setItems] = useState<PlanExercise[]>([]);
-  const [foodItems, setFoodItems] = useState<FoodPlanItem[]>([]);
-  const [lifestyle, setLifestyle] = useState<LifestyleSummary | null>(null);
+  const initialTodayDateKey = getVietnamDateKey();
+  const initialWeekStartKey = getWeekStartKey(new Date(`${initialTodayDateKey}T00:00:00`));
+  const initialCoachCache = user?.id ? aiCoachPageCache.get(`${user.id}:${initialWeekStartKey}:${initialTodayDateKey}`) || null : null;
+  const [loading, setLoading] = useState(() => !initialCoachCache);
+  const [, setIsRefreshingPlan] = useState(false);
+  const [, setIsRefreshingChat] = useState(false);
+  const [plan, setPlan] = useState<WeeklyPlan | null>(() => initialCoachCache?.plan || null);
+  const [items, setItems] = useState<PlanExercise[]>(() => initialCoachCache?.items || []);
+  const [foodItems, setFoodItems] = useState<FoodPlanItem[]>(() => initialCoachCache?.foodItems || []);
+  const [lifestyle, setLifestyle] = useState<LifestyleSummary | null>(() => initialCoachCache?.lifestyle || null);
   const [error, setError] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => initialCoachCache?.chatMessages || []);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatContentRef = useRef<HTMLDivElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const submitLockRef = useRef(false);
   const lastSubmitRef = useRef<{ message: string; at: number } | null>(null);
-  const hasHydratedPlanRef = useRef(false);
+  const hasHydratedPlanRef = useRef(!!initialCoachCache);
   const chatMessagesRef = useRef<ChatMessage[]>([]);
   const hasAutoScrolledChatRef = useRef(false);
   const shouldJumpToLatestRef = useRef(true);
 
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${todayDateKey}T00:00:00`)), [todayDateKey]);
+  const cacheKey = user?.id ? `${user.id}:${weekStartKey}:${todayDateKey}` : null;
   const profileCreatedAt = profile?.created_at ? new Date(profile.created_at) : null;
   const freeUsedAt = profile?.ai_coach_free_used_at ? new Date(profile.ai_coach_free_used_at) : null;
   const trialEndsAt = profileCreatedAt ? new Date(profileCreatedAt.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
@@ -758,17 +825,28 @@ export default function AICoach() {
 
   useEffect(() => {
     const loadPlan = async () => {
+      const cached = cacheKey ? aiCoachPageCache.get(cacheKey) || null : null;
       if (!user?.id) {
         setPlan(null);
         setItems([]);
         setFoodItems([]);
         setLifestyle(null);
         setLoading(false);
+        setIsRefreshingPlan(false);
         return;
       }
 
-      if (!hasHydratedPlanRef.current) {
+      if (cached) {
+        setPlan(cached.plan);
+        setItems(cached.items);
+        setFoodItems(cached.foodItems);
+        setLifestyle(cached.lifestyle);
+      }
+
+      if (!hasHydratedPlanRef.current && !cached) {
         setLoading(true);
+      } else if (cached) {
+        setIsRefreshingPlan(true);
       }
       setError('');
 
@@ -857,11 +935,12 @@ export default function AICoach() {
       } finally {
         hasHydratedPlanRef.current = true;
         setLoading(false);
+        setIsRefreshingPlan(false);
       }
     };
 
     void loadPlan();
-  }, [user?.id, refreshTick, weekStartKey, reloadKey]);
+  }, [user?.id, refreshTick, weekStartKey, reloadKey, cacheKey]);
 
   const generateCoachPlan = async () => {
     if (!user?.id) return;
@@ -927,15 +1006,21 @@ export default function AICoach() {
   const selectedDay = days[todayDayIndex] || days[0];
   useEffect(() => {
     const fetchChat = async () => {
+      const cached = cacheKey ? aiCoachPageCache.get(cacheKey) || null : null;
       if (!user?.id) {
         shouldJumpToLatestRef.current = true;
         hasAutoScrolledChatRef.current = false;
         setChatMessages([]);
+        setIsRefreshingChat(false);
         return;
       }
 
       shouldJumpToLatestRef.current = true;
       hasAutoScrolledChatRef.current = false;
+      if (cached) {
+        setChatMessages(cached.chatMessages);
+        setIsRefreshingChat(true);
+      }
       const chatDayBounds = getVietnamDayBoundsUtc(todayDateKey);
 
       const chatRes = await supabase
@@ -952,6 +1037,7 @@ export default function AICoach() {
           const optimisticMessages = current.filter((message) => message.optimistic);
           return optimisticMessages.length > 0 ? optimisticMessages : [];
         });
+        setIsRefreshingChat(false);
         return;
       }
 
@@ -996,10 +1082,11 @@ export default function AICoach() {
       });
 
       setChatMessages((current) => mergeOptimisticChatMessages(serverMessages, current));
+      setIsRefreshingChat(false);
     };
 
     void fetchChat();
-  }, [user?.id, reloadKey, todayDateKey]);
+  }, [user?.id, reloadKey, todayDateKey, cacheKey]);
 
   useLayoutEffect(() => {
     if (loading || !isLoggedIn || !plan) return;
@@ -1060,6 +1147,17 @@ export default function AICoach() {
   useEffect(() => {
     chatMessagesRef.current = chatMessages;
   }, [chatMessages]);
+
+  useEffect(() => {
+    if (!cacheKey) return;
+    aiCoachPageCache.set(cacheKey, {
+      plan,
+      items,
+      foodItems,
+      lifestyle,
+      chatMessages
+    });
+  }, [cacheKey, plan, items, foodItems, lifestyle, chatMessages]);
 
   const handleAdjustmentAction = async (messageId: string, adjustmentId: string, action: 'apply' | 'reject') => {
     if (!user?.id) return;

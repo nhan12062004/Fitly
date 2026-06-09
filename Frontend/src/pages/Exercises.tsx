@@ -8,6 +8,7 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { estimateExerciseKcalRealistic, parseRepsInput } from '../utils/Kcal';
 import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
+import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 
 interface SessionExercise {
   id: string;
@@ -253,72 +254,67 @@ const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; cla
 export const ExercisesSkeleton = () => {
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <div className="bg-bg-secondary/40 border border-border-primary/50 rounded-xl p-4 md:p-5">
-        <div className="mb-4 flex items-start gap-3">
-          <div className="flex items-center gap-3">
-            <div className="h-7 w-44 bg-bg-tertiary rounded-lg" />
-            <div className="h-4 w-32 bg-bg-tertiary rounded-md" />
-          </div>
-        </div>
+      <SkeletonHero titleWidth="w-[58%] max-w-[18rem]" chips={2} />
 
-        <div className="bg-bg-tertiary/35 border border-border-primary/50 rounded-xl p-3 md:p-4">
+      <SkeletonSurface className="p-4 md:p-5">
+        <div className="rounded-xl border border-border-primary/50 bg-bg-tertiary/25 p-3 md:p-4">
           <div className="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)_380px] gap-4 md:gap-5 items-stretch">
             <div className="rounded-xl border border-border-primary/30 bg-bg-tertiary/20 h-[180px] md:h-[210px] xl:h-full" />
             <div className="flex flex-col justify-center gap-4 md:gap-5 min-w-0">
-              <div className="h-7 w-2/3 bg-bg-tertiary rounded-lg" />
+              {SkeletonBlock('h-7 w-2/3 rounded-lg')}
               <div className="ml-0 flex flex-wrap items-start gap-x-14 gap-y-3">
-                <div className="h-10 w-24 bg-bg-tertiary rounded-lg" />
-                <div className="h-10 w-24 bg-bg-tertiary rounded-lg" />
-                <div className="h-10 w-24 bg-bg-tertiary rounded-lg" />
+                <div className="h-10 w-24 rounded-lg bg-bg-tertiary/70" />
+                <div className="h-10 w-24 rounded-lg bg-bg-tertiary/70" />
+                <div className="h-10 w-24 rounded-lg bg-bg-tertiary/70" />
               </div>
               <div className="mt-1 flex flex-wrap items-center justify-start gap-2.5">
-                <div className="h-10 w-36 bg-bg-tertiary rounded-xl" />
-                <div className="h-10 w-28 bg-bg-tertiary rounded-xl" />
+                <div className="h-10 w-36 rounded-xl bg-bg-tertiary/75" />
+                <div className="h-10 w-28 rounded-xl border border-border-primary bg-bg-tertiary/35" />
               </div>
             </div>
             <div className="relative rounded-xl p-3 md:p-4 xl:pt-1 xl:pl-6">
-              <div className="mb-1 h-6 w-40 bg-bg-tertiary rounded-lg" />
+              {SkeletonBlock('mb-1 h-6 w-40 rounded-lg')}
               <div className="space-y-2.5 max-h-[240px]">
-                <div className="h-8 w-full bg-bg-tertiary rounded-lg" />
-                <div className="h-8 w-full bg-bg-tertiary rounded-lg" />
-                <div className="h-8 w-full bg-bg-tertiary rounded-lg" />
-                <div className="h-8 w-full bg-bg-tertiary rounded-lg" />
-                <div className="h-8 w-full bg-bg-tertiary rounded-lg" />
+                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
+                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
+                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
+                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
+                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </SkeletonSurface>
 
-      <div className="bg-bg-secondary/40 border border-border-primary/50 rounded-xl p-4 md:p-5">
+      <SkeletonSurface className="p-4 md:p-5">
         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
           <div>
-            <div className="h-6 w-40 bg-bg-tertiary rounded-lg" />
+            {SkeletonBlock('h-6 w-40 rounded-lg')}
             <div className="mt-2 flex flex-wrap gap-2">
-              <div className="h-7 w-16 bg-bg-tertiary rounded-lg" />
-              <div className="h-7 w-16 bg-bg-tertiary rounded-lg" />
-              <div className="h-7 w-16 bg-bg-tertiary rounded-lg" />
-              <div className="h-7 w-16 bg-bg-tertiary rounded-lg" />
-              <div className="h-7 w-16 bg-bg-tertiary rounded-lg" />
-              <div className="h-7 w-16 bg-bg-tertiary rounded-lg" />
+              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
+              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
+              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
+              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
+              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
+              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
             </div>
           </div>
-          <div className="h-8 w-24 bg-bg-tertiary rounded-lg shrink-0" />
+          <div className="h-8 w-24 rounded-lg shrink-0 bg-bg-tertiary/70" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="overflow-hidden rounded-xl border border-border-primary/30 bg-bg-tertiary/20">
               <div className="relative aspect-[16/9] bg-bg-secondary/50" />
               <div className="p-3">
-                <div className="h-4 w-3/4 bg-bg-tertiary rounded" />
-                <div className="mt-2 h-3 w-5/6 bg-bg-tertiary rounded" />
-                <div className="mt-1 h-3 w-1/2 bg-bg-tertiary rounded" />
-                <div className="mt-3 h-8 w-full bg-bg-secondary/50 rounded-lg" />
+                <div className="h-4 w-3/4 rounded bg-bg-tertiary/75" />
+                <div className="mt-2 h-3 w-5/6 rounded bg-bg-tertiary/60" />
+                <div className="mt-1 h-3 w-1/2 rounded bg-bg-tertiary/50" />
+                <div className="mt-3 h-8 w-full rounded-lg border border-border-primary bg-bg-tertiary/35" />
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </SkeletonSurface>
     </div>
   );
 };
@@ -333,6 +329,7 @@ export default function Exercises() {
 
   const [session, setSession] = useState<SessionExercise[]>(() => cacheForToday?.session || []);
   const [isLoading, setIsLoading] = useState(() => !cacheForToday);
+  const [, setIsRefreshing] = useState(false);
   const [isSavingExercise, setIsSavingExercise] = useState(false);
   const [library, setLibrary] = useState<ExerciseLibraryItem[]>(() => cacheForToday?.library || []);
   const [vnToday, setVnToday] = useState(() => getVietnamDateKey());
@@ -380,7 +377,11 @@ export default function Exercises() {
   }, [user]);
 
   const loadSession = async (silent = false) => {
-    if (!silent) setIsLoading(true);
+    if (silent) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
     try {
       // 1. Check if session already exists for today
       const { data: existingSession } = await supabase
@@ -408,7 +409,11 @@ export default function Exercises() {
     } catch (e) {
       console.error('Error loading session:', e);
     } finally {
-      if (!silent) setIsLoading(false);
+      if (silent) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -998,7 +1003,7 @@ export default function Exercises() {
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
-        <div className="mb-4 flex items-start gap-3">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-xl md:text-2xl font-black text-text-primary">Bài tập hôm nay</h1>
             <div className="flex items-center gap-1.5 text-xs md:text-sm text-text-tertiary">

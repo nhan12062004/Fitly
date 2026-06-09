@@ -240,6 +240,7 @@ export default function Overview() {
   const navigate = useNavigate();
   const { user, isLoggedIn, profile, refreshTick } = useAuth();
   const [loading, setLoading] = useState(() => !overviewCache);
+  const [, setIsRefreshing] = useState(false);
   const [stats, setStats] = useState(() => overviewCache?.stats || initialStats);
   const [todayExercises, setTodayExercises] = useState<OverviewExercise[]>(() => overviewCache?.todayExercises || []);
   const [todayMealItems, setTodayMealItems] = useState<OverviewMealItem[]>(() => overviewCache?.todayMealItems || []);
@@ -351,7 +352,9 @@ export default function Overview() {
 
     async function fetchData() {
       if (!user) return;
-      setLoading(!overviewCache);
+      const hasCache = !!overviewCache;
+      setLoading(!hasCache);
+      setIsRefreshing(hasCache);
       try {
         const today = new Date();
         const todayStr = getVietnamDateKey(today);
@@ -562,6 +565,7 @@ export default function Overview() {
         console.error(e);
       } finally {
         setLoading(false);
+        setIsRefreshing(false);
       }
     }
 
@@ -570,6 +574,7 @@ export default function Overview() {
     } else {
       overviewCache = null;
       setLoading(false);
+      setIsRefreshing(false);
       setStats(initialStats);
       setTodayExercises([]);
       setTodayMealItems([]);
@@ -660,13 +665,15 @@ export default function Overview() {
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <section className="overflow-hidden rounded-xl border border-border-primary bg-[linear-gradient(180deg,rgba(20,20,20,0.96),rgba(12,12,12,0.98))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.18)] md:px-6 md:py-5">
-        <div className="min-w-0">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
           <p className="text-sm font-black text-text-primary md:text-base">
             {greetingLabel}, {userName} <span aria-hidden>👋</span>
           </p>
-          <p className="mt-1 text-sm font-semibold text-text-secondary md:text-[15px]">
-            {heroTaskSummary}
-          </p>
+            <p className="mt-1 text-sm font-semibold text-text-secondary md:text-[15px]">
+              {heroTaskSummary}
+            </p>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold md:text-sm">

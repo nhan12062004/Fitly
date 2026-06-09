@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, Info } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
+import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 
 interface Exercise {
   id: string;
@@ -12,29 +13,31 @@ interface Exercise {
   instructions?: string[] | string;
 }
 
+type CourseDetailsCache = {
+  exercises: Exercise[];
+  courseTitle: string;
+  courseDesc: string;
+};
+
+const courseDetailsCache = new Map<string, CourseDetailsCache>();
+
 export function CourseDetailsSkeleton() {
   return (
-    <div className="dashboard-page-shell flex flex-col h-full gap-4 md:gap-6 px-0 overflow-hidden animate-pulse">
-      <div className="flex flex-col md:flex-row md:items-center gap-4 bg-bg-secondary/40 p-4 md:p-6 rounded-xl border border-border-primary/50 shrink-0">
-        <div className="w-10 h-10 rounded-full bg-bg-tertiary" />
-        <div className="flex-1 flex flex-col gap-2">
-          <div className="h-6 w-48 bg-bg-tertiary rounded-lg" />
-          <div className="h-4 w-96 bg-bg-tertiary rounded-lg" />
-        </div>
-      </div>
+    <div className="dashboard-page-shell flex flex-col gap-4 md:gap-5 animate-pulse pb-4 md:pb-6 lg:pb-7">
+      <SkeletonHero titleWidth="w-[54%] max-w-[18rem]" chips={2} />
 
-      <div className="flex-1">
-        <div className="h-5 w-48 bg-bg-secondary/40 border border-border-primary/50 rounded-lg mb-4" />
+      <SkeletonSurface className="p-4 md:p-5">
+        {SkeletonBlock('mb-4 h-5 w-48 rounded-lg')}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-bg-secondary/40 border border-border-primary/50 rounded-xl h-72 flex flex-col gap-3 p-4">
+            <div key={i} className="rounded-xl border border-border-primary/50 bg-bg-tertiary/20 h-72 flex flex-col gap-3 p-4">
               <div className="h-44 w-full bg-bg-tertiary rounded-xl" />
-              <div className="h-4 w-24 bg-bg-tertiary rounded-lg" />
-              <div className="h-3 w-40 bg-bg-tertiary rounded-lg" />
+              {SkeletonBlock('h-4 w-24 rounded-lg')}
+              {SkeletonBlock('h-3 w-40 rounded-lg')}
             </div>
           ))}
         </div>
-      </div>
+      </SkeletonSurface>
     </div>
   );
 }
@@ -42,14 +45,24 @@ export function CourseDetailsSkeleton() {
 export default function CourseDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [courseTitle, setCourseTitle] = useState('');
-  const [courseDesc, setCourseDesc] = useState('');
+  const cacheKey = String(id || 'default');
+  const initialCache = courseDetailsCache.get(cacheKey) || null;
+  const [exercises, setExercises] = useState<Exercise[]>(() => initialCache?.exercises || []);
+  const [loading, setLoading] = useState(() => !initialCache);
+  const [, setIsRefreshing] = useState(false);
+  const [courseTitle, setCourseTitle] = useState(() => initialCache?.courseTitle || '');
+  const [courseDesc, setCourseDesc] = useState(() => initialCache?.courseDesc || '');
 
   useEffect(() => {
     async function fetchCourse() {
-      setLoading(true);
+      const cached = courseDetailsCache.get(cacheKey) || null;
+      if (cached) {
+        setExercises(cached.exercises);
+        setCourseTitle(cached.courseTitle);
+        setCourseDesc(cached.courseDesc);
+      }
+      setLoading(!cached);
+      setIsRefreshing(!!cached);
       let queryBodyPart = '';
       let title = '';
       let desc = '';
@@ -96,6 +109,11 @@ export default function CourseDetails() {
             return { ...ex, gif_url: url };
           });
           setExercises(normalized);
+          courseDetailsCache.set(cacheKey, {
+            exercises: normalized,
+            courseTitle: title,
+            courseDesc: desc
+          });
         } else if (error) {
           console.error(error);
         }
@@ -103,11 +121,12 @@ export default function CourseDetails() {
         console.error(err);
       } finally {
         setLoading(false);
+        setIsRefreshing(false);
       }
     }
 
     fetchCourse();
-  }, [id]);
+  }, [id, cacheKey]);
 
   if (loading) return <CourseDetailsSkeleton />;
 

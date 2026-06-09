@@ -3,10 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import ExerciseDetailOverlay, { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
+import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 
 interface ExerciseDetailsLocationState {
   exercise?: ExerciseDetailItem;
 }
+
+const exerciseDetailsCache = new Map<string, ExerciseDetailItem>();
 
 const normalizeMediaUrl = (value: unknown): string => {
   const url = String(value || '').trim();
@@ -45,14 +48,14 @@ const getManualSuggestedWeightKg = (equipment?: string | null): number | null =>
 
 function ExerciseDetailsSkeleton() {
   return (
-    <div className="dashboard-page-shell animate-pulse pb-4 md:pb-6 lg:pb-7">
-      <div className="h-full rounded-xl border border-border-primary/50 bg-bg-secondary/40 p-4 md:p-5">
-        <div className="mb-4 h-10 w-full rounded-xl bg-bg-tertiary/50" />
-        <div className="grid gap-6 rounded-xl border border-border-primary/40 bg-bg-secondary/40 p-4 md:grid-cols-[minmax(0,0.9fr)_minmax(320px,1.1fr)] md:p-5">
+    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
+      <SkeletonHero titleWidth="w-[56%] max-w-[18rem]" chips={2} />
+      <SkeletonSurface className="p-4 md:p-5">
+        <div className="grid gap-6 rounded-xl border border-border-primary/40 bg-bg-tertiary/18 p-4 md:grid-cols-[minmax(0,0.9fr)_minmax(320px,1.1fr)] md:p-5">
           <div>
             <div className="aspect-video w-full rounded-xl border border-border-primary/40 bg-bg-tertiary/30" />
             <div className="mt-6 rounded-xl border border-border-primary/40 bg-bg-tertiary/20 p-4">
-              <div className="h-5 w-44 rounded bg-bg-tertiary/60" />
+              {SkeletonBlock('h-5 w-44 rounded')}
               <div className="mt-3 space-y-2.5">
                 <div className="h-4 w-full rounded bg-bg-tertiary/50" />
                 <div className="h-4 w-11/12 rounded bg-bg-tertiary/50" />
@@ -76,7 +79,7 @@ function ExerciseDetailsSkeleton() {
             <div className="h-28 rounded-xl border border-border-primary/40 bg-bg-tertiary/20" />
           </div>
         </div>
-      </div>
+      </SkeletonSurface>
     </div>
   );
 }
@@ -86,13 +89,16 @@ export default function ExerciseDetails() {
   const location = useLocation();
   const { user } = useAuth();
   const state = (location.state || {}) as ExerciseDetailsLocationState;
-  const [exerciseDetail, setExerciseDetail] = useState<ExerciseDetailItem | null>(state.exercise || null);
+  const cachedExercise = state.exercise?.id ? exerciseDetailsCache.get(String(state.exercise.id)) || null : null;
+  const initialExerciseDetail = state.exercise || cachedExercise || null;
+  const [exerciseDetail, setExerciseDetail] = useState<ExerciseDetailItem | null>(initialExerciseDetail);
   const [isResolvingDetail, setIsResolvingDetail] = useState(() => !!state.exercise?.id);
+  const [, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | ''>('');
   const [toastVisible, setToastVisible] = useState(false);
-  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isPageLoading, setIsPageLoading] = useState(() => !initialExerciseDetail);
 
   const getVietnamDateKey = (date = new Date()): string => {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -199,18 +205,20 @@ export default function ExerciseDetails() {
   }, [saveMessage]);
 
   useEffect(() => {
-    const id = window.setTimeout(() => setIsPageLoading(false), 200);
-    return () => window.clearTimeout(id);
-  }, []);
-
-  useEffect(() => {
     const exerciseId = state.exercise?.id;
     if (!exerciseId) {
       setIsResolvingDetail(false);
+      setIsPageLoading(false);
       return;
     }
 
     const fetchDetail = async () => {
+      const cached = exerciseDetailsCache.get(String(exerciseId)) || null;
+      if (cached) {
+        setExerciseDetail(cached);
+      }
+      setIsPageLoading(!cached && !state.exercise);
+      setIsRefreshing(!!cached || !!state.exercise);
       try {
         const { data } = await supabase
           .from('exercises')
@@ -220,7 +228,7 @@ export default function ExerciseDetails() {
 
         if (!data) return;
 
-        setExerciseDetail({
+        const resolvedDetail = {
           id: String(data.id),
           name: String(data.name || state.exercise?.name || 'Bài tập'),
           target_muscle: String(data.target_muscle || ''),
@@ -231,16 +239,20 @@ export default function ExerciseDetails() {
           secondary_muscles: (data as any).secondary_muscles || [],
           description: String(state.exercise?.description || ''),
           image_url: normalizeMediaUrl((data as any).image_url || '')
-        });
+        };
+        exerciseDetailsCache.set(String(data.id), resolvedDetail);
+        setExerciseDetail(resolvedDetail);
       } finally {
         setIsResolvingDetail(false);
+        setIsPageLoading(false);
+        setIsRefreshing(false);
       }
     };
 
     fetchDetail();
   }, [state.exercise?.id]);
 
-  if (isPageLoading || isResolvingDetail) {
+  if (isPageLoading || (isResolvingDetail && !exerciseDetail)) {
     return <ExerciseDetailsSkeleton />;
   }
 

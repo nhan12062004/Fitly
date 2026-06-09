@@ -1,28 +1,40 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
+
+const placeholderPageCache = new Set<string>();
 
 export function PlaceholderSkeleton() {
   return (
-    <div className="flex-1 flex flex-col gap-4 md:gap-5 min-w-0 animate-pulse">
-      <div className="rounded-2xl bg-bg-secondary/40 border border-border-primary/50 h-[220px] md:h-[260px] w-full" />
+    <div className="dashboard-page-shell flex flex-col gap-4 md:gap-5 min-w-0 animate-pulse pb-4 md:pb-6 lg:pb-7">
+      <SkeletonHero titleWidth="w-[44%] max-w-[16rem]" chips={2} />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
-        <div className="bg-bg-secondary/40 rounded-xl border border-border-primary/50 h-52" />
-        <div className="bg-bg-secondary/40 rounded-xl border border-border-primary/50 h-52" />
-        <div className="bg-bg-secondary/40 rounded-xl border border-border-primary/50 h-52" />
+        <SkeletonSurface className="h-52" />
+        <SkeletonSurface className="h-52" />
+        <SkeletonSurface className="h-52" />
       </div>
-      <div className="bg-bg-secondary/40 rounded-xl border border-border-primary/50 h-64" />
+      <SkeletonSurface className="p-5 md:p-6">
+        {SkeletonBlock('h-6 w-52 rounded-xl')}
+        {SkeletonBlock('mt-4 h-4 w-full rounded-lg')}
+        {SkeletonBlock('mt-2 h-4 w-[86%] rounded-lg')}
+        {SkeletonBlock('mt-6 h-11 w-40 rounded-xl')}
+      </SkeletonSurface>
     </div>
   );
 }
 
 export default function PlaceholderPage({ title }: { title: string }) {
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !placeholderPageCache.has(title));
   const { refreshTick } = useAuth();
 
   useEffect(() => {
     // Giả lập loading 500ms mỗi khi chuyển danh mục hoặc refresh
-    setLoading(true);
-    const timer = setTimeout(() => setLoading(false), 500);
+    const hasCache = placeholderPageCache.has(title);
+    setLoading(!hasCache);
+    const timer = setTimeout(() => {
+      placeholderPageCache.add(title);
+      setLoading(false);
+    }, hasCache ? 180 : 500);
     return () => clearTimeout(timer);
   }, [title, refreshTick]);
 

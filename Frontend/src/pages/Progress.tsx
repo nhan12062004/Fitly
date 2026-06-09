@@ -27,6 +27,7 @@ import {
 } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
+import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -171,6 +172,12 @@ type ProgressViewModel = {
     secondaryHref: string;
   };
 };
+
+type ProgressPageCache = {
+  viewModel: ProgressViewModel | null;
+};
+
+const progressPageCache = new Map<string, ProgressPageCache>();
 
 function getDatePartsInTimeZone(date: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -802,16 +809,107 @@ function NutritionTooltip({
 function ProgressSkeleton() {
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <div className="h-40 rounded-[28px] border border-border-primary/50 bg-bg-secondary/40" />
+      <SkeletonHero titleWidth="w-[64%] max-w-[24rem]" chips={3} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.7fr_1fr]">
-        <div className="h-52 rounded-[28px] border border-border-primary/50 bg-bg-secondary/40" />
-        <div className="h-52 rounded-[28px] border border-border-primary/50 bg-bg-secondary/40" />
+        <SkeletonSurface className="rounded-[28px] p-5 md:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              {SkeletonBlock('h-3 w-28')}
+              {SkeletonBlock('mt-3 h-7 w-[62%] rounded-xl')}
+            </div>
+            <div className="h-12 w-12 rounded-2xl bg-bg-tertiary/70" />
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="rounded-[22px] border border-border-primary bg-bg-tertiary/30 p-4">
+                {SkeletonBlock('h-3 w-20')}
+                {SkeletonBlock('mt-3 h-7 w-20 rounded-xl')}
+                {SkeletonBlock('mt-2 h-3 w-28 rounded-lg')}
+              </div>
+            ))}
+          </div>
+        </SkeletonSurface>
+        <SkeletonSurface className="rounded-[28px] p-5 md:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              {SkeletonBlock('h-3 w-24')}
+              {SkeletonBlock('mt-3 h-7 w-[54%] rounded-xl')}
+            </div>
+            <div className="h-12 w-12 rounded-2xl bg-bg-tertiary/70" />
+          </div>
+          <div className="mt-5 space-y-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="flex items-start gap-3 rounded-[22px] border border-border-primary bg-bg-tertiary/30 px-4 py-4">
+                <div className="h-8 w-8 rounded-full bg-bg-secondary/90" />
+                <div className="min-w-0 flex-1">
+                  {SkeletonBlock('h-3 w-full rounded-lg')}
+                  {SkeletonBlock('mt-2 h-3 w-[82%] rounded-lg')}
+                </div>
+              </div>
+            ))}
+          </div>
+        </SkeletonSurface>
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="h-80 rounded-[28px] border border-border-primary/50 bg-bg-secondary/40" />
-        <div className="h-80 rounded-[28px] border border-border-primary/50 bg-bg-secondary/40" />
+        <SkeletonSurface className="rounded-[28px] p-5 md:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              {SkeletonBlock('h-3 w-24')}
+              {SkeletonBlock('mt-3 h-7 w-[56%] rounded-xl')}
+            </div>
+            <div className="h-12 w-12 rounded-2xl bg-bg-tertiary/70" />
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+            {Array.from({ length: 7 }).map((_, index) => (
+              <div key={index} className="rounded-2xl border border-border-primary bg-bg-tertiary/25 px-3 py-4">
+                {SkeletonBlock('mx-auto h-3 w-8 rounded-lg')}
+                <div className="mt-3 h-16 rounded-xl bg-bg-tertiary/55" />
+              </div>
+            ))}
+          </div>
+        </SkeletonSurface>
+        <SkeletonSurface className="rounded-[28px] p-5 md:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              {SkeletonBlock('h-3 w-24')}
+              {SkeletonBlock('mt-3 h-7 w-[52%] rounded-xl')}
+            </div>
+            <div className="h-12 w-12 rounded-2xl bg-bg-tertiary/70" />
+          </div>
+          <div className="mt-5 space-y-3">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={index}>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  {SkeletonBlock('h-3 w-16 rounded-lg')}
+                  {SkeletonBlock('h-3 w-20 rounded-lg')}
+                </div>
+                <div className="h-2 rounded-full bg-bg-tertiary/55">
+                  <div className="h-full rounded-full bg-bg-tertiary" style={{ width: `${70 - index * 8}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SkeletonSurface>
       </div>
-      <div className="h-72 rounded-[28px] border border-border-primary/50 bg-bg-secondary/40" />
+      <SkeletonSurface className="rounded-[28px] p-5 md:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            {SkeletonBlock('h-3 w-24')}
+            {SkeletonBlock('mt-3 h-7 w-[42%] rounded-xl')}
+          </div>
+          <div className="h-12 w-12 rounded-2xl bg-bg-tertiary/70" />
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="rounded-[22px] border border-border-primary bg-bg-tertiary/25 p-4">
+              {SkeletonBlock('h-3 w-20')}
+              {SkeletonBlock('mt-3 h-6 w-[72%] rounded-xl')}
+              {SkeletonBlock('mt-2 h-3 w-full rounded-lg')}
+              {SkeletonBlock('mt-2 h-3 w-[84%] rounded-lg')}
+            </div>
+          ))}
+        </div>
+      </SkeletonSurface>
     </div>
   );
 }
@@ -836,9 +934,12 @@ function SummaryDelta({ delta }: { delta: number | null }) {
 export default function Progress() {
   const navigate = useNavigate();
   const { user, isLoggedIn, refreshTick } = useAuth();
+  const initialProgressCache = user?.id ? progressPageCache.get(`${user.id}:7:${getVietnamDateKey()}`) || null : null;
   const [rangeDays, setRangeDays] = useState<TimeRangeValue>(7);
-  const [loading, setLoading] = useState(true);
-  const [viewModel, setViewModel] = useState<ProgressViewModel | null>(null);
+  const [loading, setLoading] = useState(() => !initialProgressCache);
+  const [, setIsRefreshing] = useState(false);
+  const [viewModel, setViewModel] = useState<ProgressViewModel | null>(() => initialProgressCache?.viewModel || null);
+  const cacheKey = user?.id ? `${user.id}:${rangeDays}:${getVietnamDateKey()}` : null;
 
   useEffect(() => {
     let isMounted = true;
@@ -848,11 +949,17 @@ export default function Progress() {
         if (isMounted) {
           setViewModel(null);
           setLoading(false);
+          setIsRefreshing(false);
         }
         return;
       }
 
-      setLoading(true);
+      const cached = cacheKey ? progressPageCache.get(cacheKey) || null : null;
+      if (isMounted && cached) {
+        setViewModel(cached.viewModel);
+      }
+      setLoading(!cached);
+      setIsRefreshing(!!cached);
 
       try {
         const endDateKey = getVietnamDateKey();
@@ -992,15 +1099,23 @@ export default function Progress() {
 
         if (isMounted) {
           setViewModel(nextViewModel);
+          if (cacheKey) {
+            progressPageCache.set(cacheKey, {
+              viewModel: nextViewModel
+            });
+          }
         }
       } catch (error) {
         console.error(error);
         if (isMounted) {
-          setViewModel(null);
+          if (!cached) {
+            setViewModel(null);
+          }
         }
       } finally {
         if (isMounted) {
           setLoading(false);
+          setIsRefreshing(false);
         }
       }
     }
@@ -1010,7 +1125,7 @@ export default function Progress() {
     return () => {
       isMounted = false;
     };
-  }, [user, isLoggedIn, rangeDays, refreshTick]);
+  }, [user, isLoggedIn, rangeDays, refreshTick, cacheKey]);
 
   if (loading) return <ProgressSkeleton />;
   if (!viewModel) return <ProgressSkeleton />;
@@ -1034,21 +1149,23 @@ export default function Progress() {
             </p>
           </div>
 
-          <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-md">
-            {TIME_RANGES.map((range) => (
-              <button
-                key={range.value}
-                type="button"
-                onClick={() => setRangeDays(range.value)}
-                className={`rounded-2xl px-4 py-2 text-sm font-black transition-colors ${
-                  rangeDays === range.value
-                    ? 'bg-accent text-black'
-                    : 'text-white/72 hover:text-white'
-                }`}
-              >
-                {range.label}
-              </button>
-            ))}
+          <div className="flex flex-col items-stretch gap-2">
+            <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-md">
+              {TIME_RANGES.map((range) => (
+                <button
+                  key={range.value}
+                  type="button"
+                  onClick={() => setRangeDays(range.value)}
+                  className={`rounded-2xl px-4 py-2 text-sm font-black transition-colors ${
+                    rangeDays === range.value
+                      ? 'bg-accent text-black'
+                      : 'text-white/72 hover:text-white'
+                  }`}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>

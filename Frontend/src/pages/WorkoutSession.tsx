@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Pause, Play, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
+import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 
 interface SessionExercise {
   id: string;
@@ -159,37 +160,36 @@ const getExerciseSteps = (exercise: SessionExercise): string[] => {
 
 function WorkoutSessionSkeleton() {
   return (
-    <div className="dashboard-page-shell flex flex-col overflow-hidden rounded-xl border border-border-primary/50 bg-bg-secondary/40 animate-pulse pb-4 md:pb-6 lg:pb-7">
-      <div className="flex items-center justify-between border-b border-border-primary/50 px-4 py-3 md:px-6">
-        <div className="h-6 w-64 rounded bg-bg-tertiary/60" />
-        <div className="h-9 w-28 rounded-full bg-bg-tertiary/60" />
-      </div>
-      <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_300px]">
-        <aside className="border-r border-border-primary/50 px-4 pt-4 pb-5">
-          <div className="h-4 w-32 rounded bg-bg-tertiary/60" />
-          <div className="mt-4 space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="h-16 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-            ))}
-          </div>
-        </aside>
-        <section className="min-h-0 px-4 py-5 md:px-8">
-          <div className="mx-auto flex max-w-3xl flex-col items-center">
-            <div className="h-4 w-28 rounded bg-bg-tertiary/60" />
-            <div className="mt-2 h-10 w-2/3 rounded bg-bg-tertiary/60" />
-            <div className="mt-2 h-4 w-72 rounded bg-bg-tertiary/50" />
-            <div className="mt-6 h-72 w-full rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-            <div className="mt-8 h-40 w-[420px] max-w-full rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-          </div>
-        </section>
-        <aside className="border-l border-border-primary/50 px-4 pt-4 pb-5">
-          <div className="space-y-4">
-            <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-            <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-            <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-          </div>
-        </aside>
-      </div>
+    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
+      <SkeletonHero titleWidth="w-[60%] max-w-[19rem]" chips={2} />
+      <SkeletonSurface className="overflow-hidden">
+        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_300px]">
+          <aside className="border-b border-border-primary/50 px-4 py-4 xl:border-b-0 xl:border-r">
+            {SkeletonBlock('h-4 w-32')}
+            <div className="mt-4 space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="h-16 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+              ))}
+            </div>
+          </aside>
+          <section className="min-h-0 px-4 py-5 md:px-8">
+            <div className="mx-auto flex max-w-3xl flex-col items-center">
+              {SkeletonBlock('h-4 w-28')}
+              {SkeletonBlock('mt-2 h-10 w-2/3 rounded-xl')}
+              {SkeletonBlock('mt-2 h-4 w-72')}
+              <div className="mt-6 h-72 w-full rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+              <div className="mt-8 h-40 w-[420px] max-w-full rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+            </div>
+          </section>
+          <aside className="border-t border-border-primary/50 px-4 py-4 xl:border-l xl:border-t-0">
+            <div className="space-y-4">
+              <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+              <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+              <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+            </div>
+          </aside>
+        </div>
+      </SkeletonSurface>
     </div>
   );
 }
@@ -198,8 +198,9 @@ export default function WorkoutSession() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const [isPageLoading, setIsPageLoading] = useState(true);
   const state = (location.state || {}) as WorkoutSessionLocationState;
+  const [isPageLoading, setIsPageLoading] = useState(() => !state.session || state.session.length === 0);
+  const [, setIsRefreshing] = useState(false);
   const [sessionItems, setSessionItems] = useState<SessionExercise[]>(() =>
     [...(state.session || [])].sort((a, b) => a.order_index - b.order_index)
   );
@@ -265,23 +266,30 @@ export default function WorkoutSession() {
   }, [isRunning, secondsLeft]);
 
   useEffect(() => {
-    const id = window.setTimeout(() => setIsPageLoading(false), 200);
-    return () => window.clearTimeout(id);
-  }, []);
-
-  useEffect(() => {
     const loadExistingWorkoutSession = async () => {
-      if (!user?.id || !state.logDate) return;
-      const { data, error } = await supabase
-        .from('daily_workout_sessions')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('log_date', state.logDate)
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!error && data?.id) {
-        setWorkoutSessionId(data.id);
+      if (!user?.id || !state.logDate) {
+        setIsPageLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+      const hasWarmState = !!state.session?.length;
+      setIsPageLoading(!hasWarmState);
+      setIsRefreshing(hasWarmState);
+      try {
+        const { data, error } = await supabase
+          .from('daily_workout_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('log_date', state.logDate)
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!error && data?.id) {
+          setWorkoutSessionId(data.id);
+        }
+      } finally {
+        setIsPageLoading(false);
+        setIsRefreshing(false);
       }
     };
 
