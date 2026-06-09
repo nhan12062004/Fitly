@@ -212,6 +212,8 @@ type NormalizedAiPlan = {
         reps: string;
         weight_kg: number;
         rest_seconds: number;
+        target_rpe: number;
+        load_instruction: string;
         note: string;
       }>;
     }>;
@@ -260,6 +262,8 @@ const normalizeAiPlanPayload = (raw: any): NormalizedAiPlan => {
         reps: String(ex.reps || '10-12').slice(0, 20),
         weight_kg: Math.max(0, Number(ex.weight_kg) || 0),
         rest_seconds: Math.max(30, Math.min(240, Number(ex.rest_seconds) || 60)),
+        target_rpe: Math.max(5, Math.min(10, Number(ex.target_rpe) || 7)),
+        load_instruction: String(ex.load_instruction || '').slice(0, 160),
         note: String(ex.note || '').slice(0, 200)
       }))
     };
@@ -302,6 +306,178 @@ const normalizeAiPlanPayload = (raw: any): NormalizedAiPlan => {
     }
   };
 };
+
+const parseAverageReps = (repsText: string): number => {
+  const numbers = String(repsText || '')
+    .match(/\d+/g)
+    ?.map(Number)
+    .filter((value) => Number.isFinite(value)) || [];
+  if (numbers.length === 0) return 10;
+  if (numbers.length === 1) return numbers[0];
+  return Math.round((numbers[0] + numbers[numbers.length - 1]) / 2);
+};
+
+const estimatePlannedExerciseKcal = ({
+  exercise,
+  bodyWeightKg,
+  sets,
+  repsText,
+  weightKg,
+  restSeconds
+}: {
+  exercise?: any;
+  bodyWeightKg: number;
+  sets: number;
+  repsText: string;
+  weightKg: number;
+  restSeconds: number;
+}): number => {
+  const safeSets = Math.max(1, Number(sets) || 1);
+  const safeReps = Math.max(1, parseAverageReps(repsText));
+  const safeWeightKg = Math.max(0, Number(weightKg) || 0);
+  const safeBodyWeightKg = Math.max(40, Number(bodyWeightKg) || 70);
+  const workSeconds = safeSets * safeReps * (safeWeightKg > 0 ? 3.2 : 2.6);
+  const pauseSeconds = Math.max(0, safeSets - 1) * Math.max(0, Number(restSeconds) || 0);
+  const totalMinutes = Math.max(1, (workSeconds + pauseSeconds) / 60);
+  const basePerMinute = Math.max(2.5, Number(exercise?.calories_per_minute) || 5.5);
+  const relativeLoad = safeWeightKg / safeBodyWeightKg;
+  const loadFactor = Math.min(1.35, Math.max(0.9, 0.95 + relativeLoad * 1.1));
+  const densityFactor = Math.min(1.2, Math.max(0.92, 0.9 + (workSeconds / Math.max(1, workSeconds + pauseSeconds)) * 0.32));
+  return Math.max(6, Math.min(300, Math.round(basePerMinute * totalMinutes * loadFactor * densityFactor)));
+};
+
+const buildWeeklyWorkoutPlanRow = ({
+  weeklyPlanId,
+  dayIndex,
+  item,
+  orderIndex,
+  exercise,
+  bodyWeightKg
+}: {
+  weeklyPlanId: string;
+  dayIndex: number;
+  item: any;
+  orderIndex: number;
+  exercise?: any;
+  bodyWeightKg: number;
+}) => {
+  const plannedSets = Math.max(1, Math.min(6, Number(item.sets) || 3));
+  const plannedReps = String(item.reps || '10-12').slice(0, 20);
+  const plannedWeightKg = Math.max(0, Number(item.weight_kg) || 0);
+  const plannedRestSeconds = Math.max(30, Math.min(180, Number(item.rest_seconds) || 60));
+  const targetRpe = Math.max(5, Math.min(10, Number(item.target_rpe) || 7));
+  const estimatedKcal = estimatePlannedExerciseKcal({
+    exercise,
+    bodyWeightKg,
+    sets: plannedSets,
+    repsText: plannedReps,
+    weightKg: plannedWeightKg,
+    restSeconds: plannedRestSeconds
+  });
+
+  return {
+    weekly_plan_id: weeklyPlanId,
+    day_of_week: dayIndex,
+    exercise_id: String(item.exercise_id || ''),
+    sets: plannedSets,
+    reps: plannedReps,
+    weight_kg: plannedWeightKg,
+    rest_seconds: plannedRestSeconds,
+    order_index: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : orderIndex,
+    is_rest_day: false,
+    planned_sets: plannedSets,
+    planned_reps: plannedReps,
+    planned_weight_kg: plannedWeightKg,
+    planned_rest_seconds: plannedRestSeconds,
+    target_rpe: targetRpe,
+    estimated_kcal: estimatedKcal,
+    ai_note: String(item.note || '').slice(0, 200) || null,
+    load_instruction: String(item.load_instruction || '').slice(0, 160) || null
+  };
+};
+
+const buildDailyExerciseSessionRow = ({
+  userId,
+  logDate,
+  exerciseId,
+  orderIndex,
+  weeklyPlanExerciseId,
+  plannedSets,
+  plannedReps,
+  plannedWeightKg,
+  plannedRestSeconds,
+  targetRpe,
+  estimatedKcal,
+  loadAdjustmentNote
+}: {
+  userId: string;
+  logDate: string;
+  exerciseId: string;
+  orderIndex: number;
+  weeklyPlanExerciseId?: string | null;
+  plannedSets: number;
+  plannedReps: string;
+  plannedWeightKg: number;
+  plannedRestSeconds: number;
+  targetRpe?: number | null;
+  estimatedKcal?: number | null;
+  loadAdjustmentNote?: string | null;
+}) => ({
+  user_id: userId,
+  log_date: logDate,
+  weekly_plan_exercise_id: weeklyPlanExerciseId || null,
+  exercise_id: exerciseId,
+  sets: plannedSets,
+  reps: plannedReps,
+  weight_kg: plannedWeightKg,
+  rest_seconds: plannedRestSeconds,
+  order_index: orderIndex,
+  is_completed: false,
+  planned_sets: plannedSets,
+  planned_reps: plannedReps,
+  planned_weight_kg: plannedWeightKg,
+  planned_rest_seconds: plannedRestSeconds,
+  actual_sets: plannedSets,
+  actual_reps: plannedReps,
+  actual_weight_kg: plannedWeightKg,
+  actual_rest_seconds: plannedRestSeconds,
+  target_rpe: Math.max(5, Math.min(10, Number(targetRpe) || 7)),
+  estimated_kcal: Math.max(0, Number(estimatedKcal) || 0),
+  actual_kcal_estimated: 0,
+  completed_sets: 0,
+  load_adjustment_note: loadAdjustmentNote || null
+});
+
+const buildWorkoutSessionExerciseRow = ({
+  sessionId,
+  dailyExerciseSession
+}: {
+  sessionId: string;
+  dailyExerciseSession: any;
+}) => ({
+  session_id: sessionId,
+  daily_exercise_session_id: dailyExerciseSession.id || null,
+  weekly_plan_exercise_id: dailyExerciseSession.weekly_plan_exercise_id || null,
+  exercise_id: dailyExerciseSession.exercise_id,
+  sets: dailyExerciseSession.sets,
+  reps: dailyExerciseSession.reps,
+  weight_kg: dailyExerciseSession.weight_kg,
+  rest_seconds: dailyExerciseSession.rest_seconds,
+  order_index: dailyExerciseSession.order_index,
+  is_completed: !!dailyExerciseSession.is_completed,
+  planned_sets: dailyExerciseSession.planned_sets ?? dailyExerciseSession.sets,
+  planned_reps: dailyExerciseSession.planned_reps ?? dailyExerciseSession.reps,
+  planned_weight_kg: dailyExerciseSession.planned_weight_kg ?? dailyExerciseSession.weight_kg,
+  planned_rest_seconds: dailyExerciseSession.planned_rest_seconds ?? dailyExerciseSession.rest_seconds,
+  actual_sets: dailyExerciseSession.actual_sets ?? dailyExerciseSession.sets,
+  actual_reps: dailyExerciseSession.actual_reps ?? dailyExerciseSession.reps,
+  actual_weight_kg: dailyExerciseSession.actual_weight_kg ?? dailyExerciseSession.weight_kg,
+  actual_rest_seconds: dailyExerciseSession.actual_rest_seconds ?? dailyExerciseSession.rest_seconds,
+  target_rpe: Math.max(5, Math.min(10, Number(dailyExerciseSession.target_rpe) || 7)),
+  estimated_kcal: Math.max(0, Number(dailyExerciseSession.estimated_kcal) || 0),
+  actual_kcal_estimated: Math.max(0, Number(dailyExerciseSession.actual_kcal_estimated) || 0),
+  completed_sets: Math.max(0, Number(dailyExerciseSession.completed_sets) || 0)
+});
 
 class ApiRequestError extends Error {
   status: number;
@@ -398,6 +574,7 @@ async function generateWeeklyCoachPlanForUser(params: {
   const exercises = clampList(exerciseCatalogRes.data as any[], 80);
   const foods = clampList(foodCatalogRes.data as any[], 100);
   const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
+  const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
   const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
   const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.activity_level, lifestyle.weekly_workouts);
   const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
@@ -505,7 +682,7 @@ Rules:
 - Prefer foods whose meal_type, goal_type, allergens, price_level, cooking_time_minutes and region match the user profile.
 - Avoid foods whose allergens conflict with allergies_or_medical_history.
 - Training days should match weekly_workouts. Rest days: is_rest_day=true and no exercises.
-- Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, order_index.
+- Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
 - Avoid exercises that conflict with injuries, health conditions, location, or equipment.
 - Each day must include exactly ${mealsPerDay} meals.
@@ -528,7 +705,10 @@ JSON schema (fixed):
             "exercise_id": "exact id from catalog",
             "sets": 3,
             "reps": 12,
+            "weight_kg": 12.5,
             "rest_seconds": 60,
+            "target_rpe": 7,
+            "load_instruction": "chon muc ta con du 2 reps",
             "note": "short coaching note"
           }
         ]
@@ -1412,11 +1592,21 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
           .map((item: any) => String(item?.exercise_id || '').trim())
           .filter((id: string) => Boolean(id))
       )];
+      const latestBodyMetricsRes = await supabase
+        .from('body_metrics')
+        .select('weight')
+        .eq('user_id', authUserId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latestBodyMetricsRes.error) throw latestBodyMetricsRes.error;
+      const bodyWeightKg = Math.max(40, Number(latestBodyMetricsRes.data?.weight) || 70);
       const validExercisesRes = await supabase
         .from('exercises')
-        .select('id')
+        .select('id, calories_per_minute')
         .in('id', exerciseIds);
       if (validExercisesRes.error) throw validExercisesRes.error;
+      const exerciseMetaById = new Map<string, any>((validExercisesRes.data || []).map((item: any) => [String(item.id), item]));
       const existingExerciseIds = new Set<string>((validExercisesRes.data || []).map((item: any) => String(item.id)));
       const missingExerciseIds = exerciseIds.filter((id) => !existingExerciseIds.has(id));
       if (missingExerciseIds.length > 0) {
@@ -1424,18 +1614,35 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       }
 
       const rows = exercises
-        .map((item: any, index: number) => ({
-          user_id: authUserId,
-          log_date: targetLogDate,
-          exercise_id: item.exercise_id || null,
-          sets: Math.max(1, Number(item.sets || 2)),
-          reps: String(item.reps || '8-10'),
-          weight_kg: Math.max(0, Number(item.weight_kg || 0)),
-          rest_seconds: Math.max(30, Number(item.rest_seconds || 60)),
-          order_index: index,
-          is_completed: false
-        }))
-        .filter((row: any) => row.exercise_id);
+        .map((item: any, index: number) => {
+          const exerciseId = String(item.exercise_id || '').trim();
+          if (!exerciseId) return null;
+          const plannedSets = Math.max(1, Number(item.sets || 2));
+          const plannedReps = String(item.reps || '8-10').slice(0, 20);
+          const plannedWeightKg = Math.max(0, Number(item.weight_kg || 0));
+          const plannedRestSeconds = Math.max(30, Number(item.rest_seconds || 60));
+          return buildDailyExerciseSessionRow({
+            userId: String(authUserId),
+            logDate: targetLogDate,
+            exerciseId,
+            orderIndex: index,
+            plannedSets,
+            plannedReps,
+            plannedWeightKg,
+            plannedRestSeconds,
+            targetRpe: Math.max(5, Math.min(10, Number(item.target_rpe) || 7)),
+            estimatedKcal: estimatePlannedExerciseKcal({
+              exercise: exerciseMetaById.get(exerciseId),
+              bodyWeightKg,
+              sets: plannedSets,
+              repsText: plannedReps,
+              weightKg: plannedWeightKg,
+              restSeconds: plannedRestSeconds
+            }),
+            loadAdjustmentNote: String(item.load_instruction || item.note || '').slice(0, 160) || null
+          });
+        })
+        .filter(Boolean) as any[];
 
       const existingDailyRes = await supabase
         .from('daily_exercise_sessions')
@@ -1518,13 +1725,27 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
         if (rows.length > 0) {
           const workoutSessionExerciseRows = rows.map((item: any) => ({
             session_id: dailyWorkoutSessionId,
+            daily_exercise_session_id: null,
+            weekly_plan_exercise_id: null,
             exercise_id: item.exercise_id,
             sets: item.sets,
             reps: item.reps,
             weight_kg: item.weight_kg,
             rest_seconds: item.rest_seconds,
             order_index: item.order_index,
-            is_completed: false
+            is_completed: false,
+            planned_sets: item.planned_sets,
+            planned_reps: item.planned_reps,
+            planned_weight_kg: item.planned_weight_kg,
+            planned_rest_seconds: item.planned_rest_seconds,
+            actual_sets: item.actual_sets,
+            actual_reps: item.actual_reps,
+            actual_weight_kg: item.actual_weight_kg,
+            actual_rest_seconds: item.actual_rest_seconds,
+            target_rpe: item.target_rpe,
+            estimated_kcal: item.estimated_kcal,
+            actual_kcal_estimated: item.actual_kcal_estimated,
+            completed_sets: item.completed_sets
           }));
           const addDailyWorkoutExerciseRes = await supabase
             .from('daily_workout_session_exercises')
@@ -1856,6 +2077,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const exercises = clampList(exerciseCatalogRes.data as any[], 80);
     const foods = clampList(foodCatalogRes.data as any[], 100);
     const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
+    const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
     const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
     const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.activity_level, lifestyle.weekly_workouts);
     const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
@@ -1955,7 +2177,7 @@ Rules:
 - Prefer foods whose meal_type, goal_type, allergens, price_level, cooking_time_minutes and region match the user profile.
 - Avoid foods whose allergens conflict with allergies_or_medical_history.
 - Training days should match weekly_workouts. Rest days: is_rest_day=true and no exercises.
-- Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, order_index.
+- Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
 - Avoid exercises that conflict with injuries, health conditions, location, or equipment.
 - Each day must include exactly ${mealsPerDay} meals.
@@ -1974,13 +2196,16 @@ JSON schema (fixed):
         "type": "workout",
         "duration_minutes": 25,
         "exercises": [
-          {
-            "exercise_id": "exact id from catalog",
-            "sets": 3,
-            "reps": 12,
-            "rest_seconds": 60,
-            "note": "short coaching note"
-          }
+           {
+             "exercise_id": "exact id from catalog",
+             "sets": 3,
+             "reps": 12,
+             "weight_kg": 12.5,
+             "rest_seconds": 60,
+             "target_rpe": 7,
+             "load_instruction": "chon muc ta con du 2 reps",
+             "note": "short coaching note"
+           }
         ]
       }
     ],
@@ -2080,7 +2305,15 @@ JSON schema (fixed):
           weight_kg: 0,
           rest_seconds: 0,
           order_index: 0,
-          is_rest_day: true
+          is_rest_day: true,
+          planned_sets: 0,
+          planned_reps: '0',
+          planned_weight_kg: 0,
+          planned_rest_seconds: 0,
+          target_rpe: 0,
+          estimated_kcal: 0,
+          ai_note: null,
+          load_instruction: null
         });
         continue;
       }
@@ -2088,17 +2321,16 @@ JSON schema (fixed):
       day.exercises.forEach((item: any, index: number) => {
         const exerciseId = String(item.exercise_id || '');
         if (!exerciseIds.has(exerciseId)) return;
-        workoutRows.push({
-          weekly_plan_id: weeklyPlanId,
-          day_of_week: dayIndex,
-          exercise_id: exerciseId,
-          sets: Math.max(1, Math.min(6, Number(item.sets) || 3)),
-          reps: String(item.reps || '10-12').slice(0, 20),
-          weight_kg: Math.max(0, Number(item.weight_kg) || 0),
-          rest_seconds: Math.max(30, Math.min(180, Number(item.rest_seconds) || 60)),
-          order_index: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : index,
-          is_rest_day: false
-        });
+        workoutRows.push(
+          buildWeeklyWorkoutPlanRow({
+            weeklyPlanId,
+            dayIndex,
+            item: { ...item, exercise_id: exerciseId },
+            orderIndex: index,
+            exercise: exerciseById.get(exerciseId),
+            bodyWeightKg: Number(bodyMetrics.weight || 70)
+          })
+        );
       });
     }
     if (workoutRows.length > 0) {

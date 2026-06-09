@@ -1,4 +1,4 @@
--- AUTO-GENERATED from Supabase on 2026-06-04T09:55:13.919Z
+-- AUTO-GENERATED from Supabase on 2026-06-09T04:30:07.662Z
 -- Source RPC: export_public_tables_structure
 -- Note: schema only. Data snapshots are intentionally excluded to avoid leaking sensitive records.
 
@@ -61,9 +61,41 @@ CREATE TABLE public.daily_exercise_sessions (
   rest_seconds integer DEFAULT 60,
   order_index integer,
   is_completed boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now()
+  created_at timestamp with time zone DEFAULT now(),
+  weekly_plan_exercise_id uuid,
+  planned_sets integer,
+  planned_reps text,
+  planned_weight_kg numeric,
+  planned_rest_seconds integer,
+  actual_sets integer,
+  actual_reps text,
+  actual_weight_kg numeric,
+  actual_rest_seconds integer,
+  target_rpe numeric(3,1),
+  estimated_kcal integer DEFAULT 0,
+  actual_kcal_estimated integer DEFAULT 0,
+  completed_sets integer DEFAULT 0,
+  load_adjustment_note text
 );
--- 5. Table: daily_meal_logs
+-- 5. Table: daily_exercise_set_logs
+CREATE TABLE public.daily_exercise_set_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  daily_exercise_session_id uuid NOT NULL,
+  workout_session_exercise_id uuid,
+  set_number integer NOT NULL,
+  planned_reps text,
+  target_weight_kg numeric,
+  actual_reps integer,
+  actual_weight_kg numeric,
+  rest_seconds integer,
+  rpe numeric(3,1),
+  estimated_kcal integer DEFAULT 0,
+  notes text,
+  is_completed boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
+);
+-- 6. Table: daily_meal_logs
 CREATE TABLE public.daily_meal_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,
@@ -88,7 +120,7 @@ CREATE TABLE public.daily_meal_logs (
   notes text,
   ai_estimate jsonb
 );
--- 6. Table: daily_progress_logs
+-- 7. Table: daily_progress_logs
 CREATE TABLE public.daily_progress_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,
@@ -99,7 +131,7 @@ CREATE TABLE public.daily_progress_logs (
   water_intake_ml integer DEFAULT 0,
   sleep_hours double precision DEFAULT 0
 );
--- 7. Table: daily_workout_session_exercises
+-- 8. Table: daily_workout_session_exercises
 CREATE TABLE public.daily_workout_session_exercises (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   session_id uuid,
@@ -110,9 +142,23 @@ CREATE TABLE public.daily_workout_session_exercises (
   rest_seconds integer DEFAULT 60,
   order_index integer NOT NULL,
   is_completed boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now()
+  created_at timestamp with time zone DEFAULT now(),
+  daily_exercise_session_id uuid,
+  weekly_plan_exercise_id uuid,
+  planned_sets integer,
+  planned_reps text,
+  planned_weight_kg numeric,
+  planned_rest_seconds integer,
+  actual_sets integer,
+  actual_reps text,
+  actual_weight_kg numeric,
+  actual_rest_seconds integer,
+  target_rpe numeric(3,1),
+  estimated_kcal integer DEFAULT 0,
+  actual_kcal_estimated integer DEFAULT 0,
+  completed_sets integer DEFAULT 0
 );
--- 8. Table: daily_workout_sessions
+-- 9. Table: daily_workout_sessions
 CREATE TABLE public.daily_workout_sessions (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,
@@ -126,7 +172,7 @@ CREATE TABLE public.daily_workout_sessions (
   completed_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now()
 );
--- 9. Table: exercises
+-- 10. Table: exercises
 CREATE TABLE public.exercises (
   id text NOT NULL PRIMARY KEY,
   name text NOT NULL,
@@ -146,7 +192,7 @@ CREATE TABLE public.exercises (
   calories_per_minute numeric,
   movement_pattern text
 );
--- 10. Table: featured_courses
+-- 11. Table: featured_courses
 CREATE TABLE public.featured_courses (
   id text NOT NULL PRIMARY KEY,
   title text NOT NULL,
@@ -155,7 +201,7 @@ CREATE TABLE public.featured_courses (
   order_index integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now()
 );
--- 11. Table: foods
+-- 12. Table: foods
 CREATE TABLE public.foods (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   name text NOT NULL,
@@ -175,7 +221,7 @@ CREATE TABLE public.foods (
   region text DEFAULT 'Vietnam'::text,
   is_easy_to_prepare boolean DEFAULT true
 );
--- 12. Table: goals
+-- 13. Table: goals
 CREATE TABLE public.goals (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL,
@@ -185,7 +231,7 @@ CREATE TABLE public.goals (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
 );
--- 13. Table: health_conditions
+-- 14. Table: health_conditions
 CREATE TABLE public.health_conditions (
   user_id uuid NOT NULL PRIMARY KEY,
   medical_history text,
@@ -198,7 +244,7 @@ CREATE TABLE public.health_conditions (
   sleep_quality text,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );
--- 14. Table: lifestyle_settings
+-- 15. Table: lifestyle_settings
 CREATE TABLE public.lifestyle_settings (
   user_id uuid NOT NULL PRIMARY KEY,
   fitness_goal character varying(50),
@@ -221,7 +267,7 @@ CREATE TABLE public.lifestyle_settings (
   calories_burn_goal numeric DEFAULT 500,
   meals_per_day integer DEFAULT 3
 );
--- 15. Table: meal_feedback
+-- 16. Table: meal_feedback
 CREATE TABLE public.meal_feedback (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,
@@ -230,7 +276,7 @@ CREATE TABLE public.meal_feedback (
   comment text,
   created_at timestamp with time zone DEFAULT now()
 );
--- 16. Table: profiles
+-- 17. Table: profiles
 CREATE TABLE public.profiles (
   id uuid NOT NULL PRIMARY KEY,
   full_name text,
@@ -246,7 +292,7 @@ CREATE TABLE public.profiles (
   membership_tier text NOT NULL DEFAULT 'free'::text,
   ai_coach_free_used_at timestamp with time zone
 );
--- 17. Table: telegram_reminder_dispatches
+-- 18. Table: telegram_reminder_dispatches
 CREATE TABLE public.telegram_reminder_dispatches (
   reminder_key text NOT NULL PRIMARY KEY,
   reminder_type text NOT NULL,
@@ -254,7 +300,7 @@ CREATE TABLE public.telegram_reminder_dispatches (
   slot_label text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
 );
--- 18. Table: user_custom_foods
+-- 19. Table: user_custom_foods
 CREATE TABLE public.user_custom_foods (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL,
@@ -274,7 +320,7 @@ CREATE TABLE public.user_custom_foods (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
 );
--- 19. Table: weekly_food_items
+-- 20. Table: weekly_food_items
 CREATE TABLE public.weekly_food_items (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   food_plan_id uuid,
@@ -290,7 +336,7 @@ CREATE TABLE public.weekly_food_items (
   is_rest_day boolean DEFAULT false,
   created_at timestamp with time zone DEFAULT now()
 );
--- 20. Table: weekly_food_plans
+-- 21. Table: weekly_food_plans
 CREATE TABLE public.weekly_food_plans (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,
@@ -302,7 +348,7 @@ CREATE TABLE public.weekly_food_plans (
   generated_by text DEFAULT 'ai'::text,
   ai_explanation text
 );
--- 21. Table: weekly_plan_exercises
+-- 22. Table: weekly_plan_exercises
 CREATE TABLE public.weekly_plan_exercises (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   weekly_plan_id uuid,
@@ -314,9 +360,17 @@ CREATE TABLE public.weekly_plan_exercises (
   rest_seconds integer DEFAULT 60,
   order_index integer NOT NULL,
   is_rest_day boolean DEFAULT false,
-  created_at timestamp with time zone DEFAULT now()
+  created_at timestamp with time zone DEFAULT now(),
+  planned_sets integer,
+  planned_reps text,
+  planned_weight_kg numeric,
+  planned_rest_seconds integer,
+  target_rpe numeric(3,1),
+  estimated_kcal integer DEFAULT 0,
+  ai_note text,
+  load_instruction text
 );
--- 22. Table: weekly_plans
+-- 23. Table: weekly_plans
 CREATE TABLE public.weekly_plans (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,
@@ -329,7 +383,7 @@ CREATE TABLE public.weekly_plans (
   generated_by text DEFAULT 'ai'::text,
   ai_explanation text
 );
--- 23. Table: workout_session_feedback
+-- 24. Table: workout_session_feedback
 CREATE TABLE public.workout_session_feedback (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid,

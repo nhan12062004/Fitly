@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ImageOff, Plus, Play, ChevronRight, X } from 'lucide-react';
+import { ArrowLeft, ChevronRight, ImageOff, Play, Plus, X } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 
 export interface ExerciseDetailItem {
@@ -46,7 +46,13 @@ const MuscleRegionIcon = ({ className }: FitnessIconProps) => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-    <path d="M9.25 9.75h5.5M9.75 18v-1.1c0-.93.37-1.82 1.03-2.47L12 13.21l1.22 1.22c.66.65 1.03 1.54 1.03 2.47V18" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    <path
+      d="M9.25 9.75h5.5M9.75 18v-1.1c0-.93.37-1.82 1.03-2.47L12 13.21l1.22 1.22c.66.65 1.03 1.54 1.03 2.47V18"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
@@ -110,7 +116,7 @@ const toTextList = (value: unknown): string[] => {
       return parsed.map((item) => String(item || '').trim()).filter(Boolean);
     }
   } catch {
-    // ignore
+    // ignore malformed JSON values from the database
   }
 
   return raw
@@ -183,7 +189,7 @@ export default function ExerciseDetailOverlay({
   useEffect(() => {
     setActiveExercise(exercise);
   }, [exercise.id, exercise.gif_url, exercise.image_url, exercise.imageUrl]);
-  
+
   useEffect(() => {
     setIsGifModalOpen(false);
   }, [activeExercise.id]);
@@ -192,9 +198,36 @@ export default function ExerciseDetailOverlay({
   const gifMedia = toGifStorageUrl(activeExercise.gif_url, activeExercise.image_url || activeExercise.imageUrl);
   const gifSrc = gifMedia;
   const previewImageSrc = normalizeGifUrl(activeExercise.image_url || activeExercise.imageUrl || activeExercise.gif_url);
+  const metadataItems = [
+    {
+      key: 'body-part',
+      label: 'Vùng cơ',
+      value: activeExercise.body_part || 'Không rõ',
+      Icon: MuscleRegionIcon
+    },
+    {
+      key: 'target-muscle',
+      label: 'Cơ chính',
+      value: activeExercise.target_muscle || 'Không rõ',
+      Icon: TargetMuscleIcon
+    },
+    {
+      key: 'secondary-muscles',
+      label: 'Cơ phụ',
+      value: getSecondaryMuscles(activeExercise),
+      Icon: SecondaryMuscleIcon
+    },
+    {
+      key: 'equipment',
+      label: 'Thiết bị',
+      value: activeExercise.equipment || 'Không dụng cụ',
+      Icon: EquipmentIcon
+    }
+  ];
 
   useEffect(() => {
     let cancelled = false;
+
     const loadRelated = async () => {
       const targetMuscle = String(activeExercise.target_muscle || '').trim();
       const bodyPart = String(activeExercise.body_part || '').trim();
@@ -203,11 +236,10 @@ export default function ExerciseDetailOverlay({
         return;
       }
 
-      const baseSelect =
-        'id, name, target_muscle, body_part, gif_url, image_url';
+      const baseSelect = 'id, name, target_muscle, body_part, gif_url, image_url';
 
-      // 1) Try strongest match: same target muscle.
       let rows: any[] = [];
+
       if (targetMuscle) {
         const byTarget = await supabase
           .from('exercises')
@@ -218,7 +250,6 @@ export default function ExerciseDetailOverlay({
         rows = byTarget.data || [];
       }
 
-      // 2) Fallback: same body part (if not enough results).
       if (rows.length < 4 && bodyPart) {
         const byBodyPart = await supabase
           .from('exercises')
@@ -227,7 +258,7 @@ export default function ExerciseDetailOverlay({
           .eq('body_part', bodyPart)
           .limit(12);
         const more = byBodyPart.data || [];
-        const seen = new Set(rows.map((r) => String(r.id)));
+        const seen = new Set(rows.map((row) => String(row.id)));
         for (const item of more) {
           const id = String(item.id);
           if (!seen.has(id)) {
@@ -237,7 +268,6 @@ export default function ExerciseDetailOverlay({
         }
       }
 
-      // 3) Last fallback: any exercises.
       if (rows.length === 0) {
         const anyRows = await supabase
           .from('exercises')
@@ -252,13 +282,15 @@ export default function ExerciseDetailOverlay({
       const mapped = rows.map((item: any) => ({
         id: String(item.id),
         name: String(item.name || 'Bài tập'),
-        primaryMuscle: String(item.target_muscle || item.body_part || 'Co chính'),
-        gif_url: normalizeGifUrl(item.image_url || '')
+        primaryMuscle: String(item.target_muscle || item.body_part || 'Cơ chính'),
+        gif_url: normalizeGifUrl(item.image_url || item.gif_url || '')
       }));
+
       setRelatedExercises(mapped);
     };
 
     loadRelated();
+
     return () => {
       cancelled = true;
     };
@@ -270,6 +302,7 @@ export default function ExerciseDetailOverlay({
       .select('id, name, target_muscle, body_part, gif_url, image_url, equipment, instructions, secondary_muscles')
       .eq('id', exerciseId)
       .maybeSingle();
+
     if (!data) return;
 
     setActiveExercise({
@@ -297,83 +330,79 @@ export default function ExerciseDetailOverlay({
         </div>
 
         <div className="space-y-4">
-          <div className="grid gap-4 rounded-xl border border-border-primary bg-bg-secondary/85 p-3 md:p-4 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="relative overflow-hidden rounded-xl bg-transparent p-0">
-              <button
-                type="button"
-                onClick={() => setIsGifModalOpen(true)}
-                className="absolute right-3 top-3 z-10 inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-primary bg-bg-secondary/90 px-2.5 text-xs font-semibold text-text-primary"
-              >
-                <Play className="h-3.5 w-3.5" />
-                Xem GIF
-              </button>
-              {previewImageSrc ? (
-                <img
-                  key={previewImageSrc}
-                  src={previewImageSrc}
-                  alt={activeExercise.name}
-                  className="h-[260px] w-full rounded-lg object-cover md:h-[320px]"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="flex h-[260px] w-full items-center justify-center rounded-lg text-text-tertiary md:h-[320px]">
-                  <ImageOff className="h-6 w-6" />
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col">
-              <h2 className="text-3xl font-bold text-text-primary">{activeExercise.name}</h2>
-
-              <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                <div className="rounded-xl border border-border-primary bg-bg-tertiary/30 p-3.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
-                    <MuscleRegionIcon className="h-3.5 w-3.5 text-accent" />
-                    Vùng co
+          <div className="rounded-2xl border border-border-primary bg-bg-secondary/85 p-3 md:p-4 lg:p-5">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.94fr)_minmax(360px,1.06fr)] lg:items-stretch lg:gap-6">
+              <div className="relative overflow-hidden rounded-2xl border border-border-primary/70 bg-[#f8f6f1] p-3 sm:p-4">
+                <button
+                  type="button"
+                  onClick={() => setIsGifModalOpen(true)}
+                  className="absolute right-3 top-3 z-10 inline-flex h-8 items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary/90 px-3 text-xs font-semibold text-text-primary backdrop-blur-sm"
+                >
+                  <Play className="h-3.5 w-3.5" />
+                  Xem GIF
+                </button>
+                {previewImageSrc ? (
+                  <img
+                    key={previewImageSrc}
+                    src={previewImageSrc}
+                    alt={activeExercise.name}
+                    className="h-[180px] w-full object-contain sm:h-[220px] lg:h-[260px]"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="flex h-[180px] w-full items-center justify-center text-text-tertiary sm:h-[220px] lg:h-[260px]">
+                    <ImageOff className="h-6 w-6" />
                   </div>
-                  <p className="mt-1.5 text-base font-semibold text-text-primary">{activeExercise.body_part || 'Không rõ'}</p>
-                </div>
-                <div className="rounded-xl border border-border-primary bg-bg-tertiary/30 p-3.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
-                    <TargetMuscleIcon className="h-3.5 w-3.5 text-accent" />
-                    Co chính
-                  </div>
-                  <p className="mt-1.5 text-base font-semibold text-text-primary">{activeExercise.target_muscle || 'Không rõ'}</p>
-                </div>
-                <div className="rounded-xl border border-border-primary bg-bg-tertiary/30 p-3.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
-                    <SecondaryMuscleIcon className="h-3.5 w-3.5 text-accent" />
-                    Cơ phụ
-                  </div>
-                  <p className="mt-1.5 text-base font-semibold text-text-primary">{getSecondaryMuscles(activeExercise)}</p>
-                </div>
-                <div className="rounded-xl border border-border-primary bg-bg-tertiary/30 p-3.5">
-                  <div className="flex items-center gap-2 text-xs font-bold text-text-tertiary">
-                    <EquipmentIcon className="h-3.5 w-3.5 text-accent" />
-                    Thiết bị
-                  </div>
-                  <p className="mt-1.5 text-base font-semibold text-text-primary">{activeExercise.equipment || 'Không dụng cụ'}</p>
-                </div>
+                )}
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => onAdd(activeExercise)}
-                  disabled={isSaving}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-black hover:bg-accent-hover disabled:opacity-60"
-                >
-                  <Plus className="h-4 w-4" />
-                  Thêm vào buổi tập
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onStartNow?.(activeExercise)}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-secondary px-5 text-sm font-bold text-text-primary hover:border-border-secondary"
-                >
-                  <Play className="h-4 w-4" />
-                  Bắt đầu ngay
-                </button>
+              <div className="flex flex-col justify-between">
+                <div>
+                  <h2 className="text-[1.7rem] font-bold leading-tight text-text-primary sm:text-[2rem] lg:text-[2.35rem]">
+                    {activeExercise.name}
+                  </h2>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:mt-5">
+                    {metadataItems.map(({ key, label, value, Icon }) => (
+                      <div
+                        key={key}
+                        className="flex items-start gap-3 rounded-xl border border-border-primary/70 bg-bg-tertiary/20 px-3.5 py-3"
+                      >
+                        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-black uppercase tracking-[0.12em] text-text-tertiary">
+                            {label}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold leading-5 text-text-primary sm:text-[15px]">
+                            {value}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:mt-5">
+                  <button
+                    type="button"
+                    onClick={() => onStartNow?.(activeExercise)}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-black hover:bg-accent-hover"
+                  >
+                    <Play className="h-4 w-4" />
+                    Bắt đầu ngay
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAdd(activeExercise)}
+                    disabled={isSaving}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-secondary px-5 text-sm font-bold text-text-primary hover:border-border-secondary disabled:opacity-60"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Thêm vào buổi tập
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -383,7 +412,10 @@ export default function ExerciseDetailOverlay({
               <h3 className="text-2xl font-bold text-text-primary">Hướng dẫn thực hiện</h3>
               <ol className="mt-4 space-y-3">
                 {instructions.map((step, index) => (
-                  <li key={`${step}-${index}`} className="flex gap-2.5 border-b border-border-primary/60 pb-2.5 text-sm leading-relaxed text-text-secondary last:border-b-0 last:pb-0">
+                  <li
+                    key={`${step}-${index}`}
+                    className="flex gap-2.5 border-b border-border-primary/60 pb-2.5 text-sm leading-relaxed text-text-secondary last:border-b-0 last:pb-0"
+                  >
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-black text-black">
                       {index + 1}
                     </span>
@@ -423,12 +455,12 @@ export default function ExerciseDetailOverlay({
 
       {isGifModalOpen && (
         <div
-          className="fixed inset-0 z-[220] bg-black/65 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
           onClick={() => setIsGifModalOpen(false)}
         >
           <div
-            className="relative inline-block max-w-[calc(100vw-2rem)] rounded-2xl border border-border-primary bg-[#0b0b0b] p-2 overflow-visible"
-            onClick={(e) => e.stopPropagation()}
+            className="relative inline-block max-w-[calc(100vw-2rem)] overflow-visible rounded-2xl border border-border-primary bg-[#0b0b0b] p-2"
+            onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
@@ -455,6 +487,3 @@ export default function ExerciseDetailOverlay({
     </div>
   );
 }
-
-
-

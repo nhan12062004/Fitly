@@ -16,10 +16,24 @@ interface SessionExercise {
   gif_url: string;
   sets: number;
   reps: string;
-  weight_kg: number;
+  weight_kg: number | null;
   rest_seconds: number;
   order_index: number;
   is_completed: boolean;
+  weekly_plan_exercise_id?: string | null;
+  planned_sets?: number | null;
+  planned_reps?: string | null;
+  planned_weight_kg?: number | null;
+  planned_rest_seconds?: number | null;
+  actual_sets?: number | null;
+  actual_reps?: string | null;
+  actual_weight_kg?: number | null;
+  actual_rest_seconds?: number | null;
+  target_rpe?: number | null;
+  estimated_kcal?: number | null;
+  actual_kcal_estimated?: number | null;
+  completed_sets?: number | null;
+  load_adjustment_note?: string | null;
   exercises?: {
     name?: string;
     gif_url?: string;
@@ -38,6 +52,25 @@ interface ExerciseLibraryItem extends ExerciseDetailItem {
   gif_url: string;
   equipment?: string;
 }
+
+const isBodyweightExercise = (equipment?: string | null): boolean => {
+  const normalized = normalizeForMatch(String(equipment || ''));
+  return (
+    normalized.includes('khong dung cu') ||
+    normalized.includes('bodyweight') ||
+    normalized.includes('body weight')
+  );
+};
+
+const getManualSuggestedWeightKg = (equipment?: string | null): number | null =>
+  isBodyweightExercise(equipment) ? 0 : null;
+
+const formatWeightKg = (value: unknown, emptyLabel = 'Chưa đặt'): string => {
+  if (value === null || value === undefined || value === '') return emptyLabel;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return emptyLabel;
+  return `${parsed} kg`;
+};
 
 type ExercisesPageCache = {
   vnToday: string;
@@ -453,13 +486,27 @@ export default function Exercises() {
         const sessionItems = planExercises.map((p, idx) => ({
           user_id: user?.id,
           log_date: vnToday,
+          weekly_plan_exercise_id: p.id || null,
           exercise_id: p.exercise_id,
           sets: p.sets,
           reps: p.reps,
           weight_kg: p.weight_kg,
           rest_seconds: p.rest_seconds,
           order_index: idx,
-          is_completed: false
+          is_completed: false,
+          planned_sets: p.planned_sets ?? p.sets,
+          planned_reps: p.planned_reps ?? p.reps,
+          planned_weight_kg: p.planned_weight_kg ?? p.weight_kg,
+          planned_rest_seconds: p.planned_rest_seconds ?? p.rest_seconds,
+          actual_sets: p.planned_sets ?? p.sets,
+          actual_reps: p.planned_reps ?? p.reps,
+          actual_weight_kg: p.planned_weight_kg ?? p.weight_kg,
+          actual_rest_seconds: p.planned_rest_seconds ?? p.rest_seconds,
+          target_rpe: p.target_rpe ?? 7,
+          estimated_kcal: p.estimated_kcal ?? 0,
+          actual_kcal_estimated: 0,
+          completed_sets: 0,
+          load_adjustment_note: p.load_instruction || null
         }));
 
         const { data: inserted, error } = await supabase
@@ -498,13 +545,27 @@ export default function Exercises() {
             if (!sessionError && newSession?.id) {
               const newExerciseRows = inserted.map((item) => ({
                 session_id: newSession.id,
+                daily_exercise_session_id: item.id,
+                weekly_plan_exercise_id: item.weekly_plan_exercise_id || null,
                 exercise_id: item.exercise_id,
                 sets: item.sets,
                 reps: item.reps,
                 weight_kg: item.weight_kg,
                 rest_seconds: item.rest_seconds,
                 order_index: item.order_index,
-                is_completed: false
+                is_completed: false,
+                planned_sets: item.planned_sets ?? item.sets,
+                planned_reps: item.planned_reps ?? item.reps,
+                planned_weight_kg: item.planned_weight_kg ?? item.weight_kg,
+                planned_rest_seconds: item.planned_rest_seconds ?? item.rest_seconds,
+                actual_sets: item.actual_sets ?? item.sets,
+                actual_reps: item.actual_reps ?? item.reps,
+                actual_weight_kg: item.actual_weight_kg ?? item.weight_kg,
+                actual_rest_seconds: item.actual_rest_seconds ?? item.rest_seconds,
+                target_rpe: item.target_rpe ?? 7,
+                estimated_kcal: item.estimated_kcal ?? 0,
+                actual_kcal_estimated: item.actual_kcal_estimated ?? 0,
+                completed_sets: item.completed_sets ?? 0
               }));
               await supabase.from('daily_workout_session_exercises').insert(newExerciseRows);
             }
@@ -597,12 +658,12 @@ export default function Exercises() {
     try {
       const cleanSets = 3;
       const cleanReps = '12';
-      const cleanKg = 20;
+      const cleanKg = getManualSuggestedWeightKg(exerciseToSave.equipment);
       const cleanKcal = estimateExerciseKcalRealistic({
         exercise: exerciseToSave,
         sets: cleanSets,
         repsText: cleanReps,
-        externalLoadKg: cleanKg,
+        externalLoadKg: cleanKg ?? 0,
         userWeightKg,
         restSeconds: 60
       });
@@ -619,7 +680,19 @@ export default function Exercises() {
           weight_kg: cleanKg,
           rest_seconds: 60,
           order_index: session.length,
-          is_completed: false
+          is_completed: false,
+          planned_sets: cleanSets,
+          planned_reps: cleanReps,
+          planned_weight_kg: cleanKg,
+          planned_rest_seconds: 60,
+          actual_sets: cleanSets,
+          actual_reps: cleanReps,
+          actual_weight_kg: cleanKg,
+          actual_rest_seconds: 60,
+          target_rpe: 7,
+          estimated_kcal: cleanKcal,
+          actual_kcal_estimated: 0,
+          completed_sets: 0
         })
         .select(`
           *,
@@ -641,13 +714,27 @@ export default function Exercises() {
         if (existingSession?.id) {
           await supabase.from('daily_workout_session_exercises').insert({
             session_id: existingSession.id,
+            daily_exercise_session_id: data?.id || null,
+            weekly_plan_exercise_id: data?.weekly_plan_exercise_id || null,
             exercise_id: exerciseToSave.id,
             sets: cleanSets,
             reps: cleanReps,
             weight_kg: cleanKg,
             rest_seconds: 60,
             order_index: session.length,
-            is_completed: false
+            is_completed: false,
+            planned_sets: cleanSets,
+            planned_reps: cleanReps,
+            planned_weight_kg: cleanKg,
+            planned_rest_seconds: 60,
+            actual_sets: cleanSets,
+            actual_reps: cleanReps,
+            actual_weight_kg: cleanKg,
+            actual_rest_seconds: 60,
+            target_rpe: 7,
+            estimated_kcal: cleanKcal,
+            actual_kcal_estimated: 0,
+            completed_sets: 0
           });
         }
       } catch (e) {
@@ -810,12 +897,12 @@ export default function Exercises() {
   };
   const selectedExerciseStats = useMemo(() => {
     if (!selectedSessionExercise) {
-      return { setsText: '0 hiệp', repsText: '0 lần', weightText: '0 kg', kcalText: '~0 kcal' };
+      return { setsText: '0 hiệp', repsText: '0 lần', weightText: 'Chưa đặt', kcalText: '~0 kcal' };
     }
     const sets = Math.max(1, Number(selectedSessionExercise.sets) || 1);
     const reps = Math.max(1, parseRepsInput(String(selectedSessionExercise.reps || '10')));
     const restSeconds = Math.max(0, Number(selectedSessionExercise.rest_seconds) || 0);
-    const weightKg = Math.max(0, Number(selectedSessionExercise.weight_kg) || 0);
+    const weightKg = selectedSessionExercise.actual_weight_kg ?? selectedSessionExercise.weight_kg;
     const kcal = estimateExerciseKcalRealistic({
       exercise: {
         target_muscle: selectedSessionExercise.exercises?.target_muscle || '',
@@ -823,14 +910,14 @@ export default function Exercises() {
       },
       sets,
       repsText: String(selectedSessionExercise.reps || '10'),
-      externalLoadKg: weightKg,
+      externalLoadKg: weightKg ?? 0,
       userWeightKg,
       restSeconds
     });
     return {
       setsText: `${sets} hiệp`,
       repsText: `${reps} lần`,
-      weightText: `${weightKg} kg`,
+      weightText: formatWeightKg(weightKg),
       kcalText: `~${kcal} kcal`
     };
   }, [selectedSessionExercise, userWeightKg]);

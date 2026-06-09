@@ -24,6 +24,25 @@ const toGifStorageUrl = (gifUrl: unknown, imageUrl: unknown): string => {
   return image.replace(/\.(jpg|jpeg|png|webp)(?=($|\?))/i, '.gif');
 };
 
+const normalizeForMatch = (value: unknown): string =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
+
+const isBodyweightExercise = (equipment?: string | null): boolean => {
+  const normalized = normalizeForMatch(equipment);
+  return (
+    normalized.includes('khong dung cu') ||
+    normalized.includes('bodyweight') ||
+    normalized.includes('body weight')
+  );
+};
+
+const getManualSuggestedWeightKg = (equipment?: string | null): number | null =>
+  isBodyweightExercise(equipment) ? 0 : null;
+
 function ExerciseDetailsSkeleton() {
   return (
     <div className="dashboard-page-shell animate-pulse pb-4 md:pb-6 lg:pb-7">
@@ -124,16 +143,32 @@ export default function ExerciseDetails() {
         .maybeSingle();
 
       const nextOrder = Number(latestRow?.order_index ?? -1) + 1;
+      const defaultSets = 3;
+      const defaultReps = '12';
+      const defaultWeightKg = getManualSuggestedWeightKg(exercise.equipment);
+      const defaultRestSeconds = 45;
       const { error } = await supabase.from('daily_exercise_sessions').insert({
         user_id: user.id,
         log_date: today,
         exercise_id: exercise.id,
-        sets: 3,
-        reps: '12',
-        weight_kg: 0,
-        rest_seconds: 45,
+        sets: defaultSets,
+        reps: defaultReps,
+        weight_kg: defaultWeightKg,
+        rest_seconds: defaultRestSeconds,
         order_index: nextOrder,
-        is_completed: false
+        is_completed: false,
+        planned_sets: defaultSets,
+        planned_reps: defaultReps,
+        planned_weight_kg: defaultWeightKg,
+        planned_rest_seconds: defaultRestSeconds,
+        actual_sets: defaultSets,
+        actual_reps: defaultReps,
+        actual_weight_kg: defaultWeightKg,
+        actual_rest_seconds: defaultRestSeconds,
+        target_rpe: 7,
+        estimated_kcal: 0,
+        actual_kcal_estimated: 0,
+        completed_sets: 0
       });
 
       if (error) throw error;
@@ -248,7 +283,8 @@ export default function ExerciseDetails() {
         isSaving={isSaving}
         onClose={() => navigate('/exercises')}
         onAdd={addExerciseToToday}
-        onStartNow={(exercise) =>
+        onStartNow={(exercise) => {
+          const defaultWeightKg = getManualSuggestedWeightKg(exercise.equipment);
           navigate('/exercises/session', {
             state: {
               session: [
@@ -259,10 +295,22 @@ export default function ExerciseDetails() {
                   gif_url: exercise.gif_url,
                   sets: 3,
                   reps: '12',
-                  weight_kg: 0,
+                  weight_kg: defaultWeightKg,
                   rest_seconds: 45,
                   order_index: 0,
                   is_completed: false,
+                  planned_sets: 3,
+                  planned_reps: '12',
+                  planned_weight_kg: defaultWeightKg,
+                  planned_rest_seconds: 45,
+                  actual_sets: 3,
+                  actual_reps: '12',
+                  actual_weight_kg: defaultWeightKg,
+                  actual_rest_seconds: 45,
+                  target_rpe: 7,
+                  estimated_kcal: 0,
+                  actual_kcal_estimated: 0,
+                  completed_sets: 0,
                   exercises: {
                     target_muscle: exercise.target_muscle,
                     body_part: exercise.body_part,
@@ -273,8 +321,8 @@ export default function ExerciseDetails() {
               ],
               selectedSessionId: `detail-${exercise.id}`
             }
-          })
-        }
+          });
+        }}
         embedded
       />
     </div>

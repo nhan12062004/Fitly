@@ -659,7 +659,7 @@ export default function Overview() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="overflow-hidden rounded-[28px] border border-border-primary bg-[linear-gradient(180deg,rgba(20,20,20,0.96),rgba(12,12,12,0.98))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.18)] md:px-6 md:py-5">
+      <section className="overflow-hidden rounded-xl border border-border-primary bg-[linear-gradient(180deg,rgba(20,20,20,0.96),rgba(12,12,12,0.98))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.18)] md:px-6 md:py-5">
         <div className="min-w-0">
           <p className="text-sm font-black text-text-primary md:text-base">
             {greetingLabel}, {userName} <span aria-hidden>👋</span>
@@ -686,7 +686,7 @@ export default function Overview() {
       </section>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:col-span-2 md:p-6 xl:col-span-1">
+        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:col-span-2 md:p-6 xl:col-span-1">
           {hasWorkoutPlan ? (
             <>
               <div className="flex items-start justify-between gap-4">
@@ -702,7 +702,7 @@ export default function Overview() {
                 </span>
               </div>
 
-              <div className="flex flex-1 flex-col rounded-[24px] border border-border-primary bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4">
+              <div className="flex flex-1 flex-col rounded-xl border border-border-primary bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">Danh sách bài</p>
                   <span className="rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-black text-text-secondary">
@@ -712,7 +712,7 @@ export default function Overview() {
 
                 <ol className="mt-4 space-y-2.5">
                   {todayExercises.slice(0, 3).map((exercise, index) => (
-                    <li key={`${exercise.name}-${index}`} className="flex items-start gap-3 rounded-2xl border border-border-primary/80 bg-bg-tertiary/35 px-3 py-3">
+                    <li key={`${exercise.name}-${index}`} className="flex items-start gap-3 rounded-lg border border-border-primary/80 bg-bg-tertiary/35 px-3 py-3">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-secondary text-xs font-black text-text-secondary">
                         {index + 1}
                       </span>
@@ -724,7 +724,7 @@ export default function Overview() {
                   ))}
                 </ol>
 
-                <div className="mt-4 rounded-2xl border border-accent/15 bg-accent/8 px-4 py-3">
+                <div className="mt-4 rounded-xl border border-accent/15 bg-accent/8 px-4 py-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.14em] text-accent">Gợi ý nhanh</p>
                   <p className="mt-1 text-sm font-semibold leading-6 text-text-secondary">
                     {workoutCompleted
@@ -758,21 +758,21 @@ export default function Overview() {
                       }
                     })
                   }
-                  className="inline-flex h-12 items-center justify-center rounded-2xl bg-accent px-4 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-black transition-colors hover:bg-accent-hover"
                 >
                   Bắt đầu buổi tập
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/smart-planner')}
-                  className="inline-flex h-12 items-center justify-center rounded-2xl border border-border-primary bg-bg-tertiary/45 px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
                 >
                   Đổi buổi nhẹ hơn
                 </button>
               </div>
             </>
           ) : (
-            <div className="mt-6 flex flex-1 flex-col justify-center rounded-2xl border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
+            <div className="mt-6 flex flex-1 flex-col justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
               <Sparkles className="mx-auto h-9 w-9 text-ai" />
               <p className="mx-auto mt-4 w-full max-w-[18rem] min-w-0 break-words text-sm font-semibold leading-6 text-text-secondary sm:max-w-[26rem]">
                 Trợ lý cá nhân có thể tạo lịch tập và thực đơn dựa trên mục tiêu của bạn.
@@ -780,7 +780,7 @@ export default function Overview() {
               <button
                 type="button"
                 onClick={() => navigate('/smart-planner')}
-                className="mx-auto mt-5 inline-flex h-11 items-center justify-center rounded-2xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                className="mx-auto mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
               >
                 Tạo kế hoạch với Trợ lý cá nhân
               </button>
@@ -788,7 +788,7 @@ export default function Overview() {
           )}
         </article>
 
-        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">2. Thực đơn hôm nay</p>
@@ -819,7 +819,7 @@ export default function Overview() {
             <button
               type="button"
               onClick={() => navigate('/diet-plan')}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-info/40 hover:text-info"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-info/40 hover:text-info"
             >
               Xem thực đơn
               <ChevronRight className="h-4 w-4" />
@@ -827,7 +827,7 @@ export default function Overview() {
           </div>
         </article>
 
-        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">3. Tiến độ hôm nay</p>
@@ -854,7 +854,7 @@ export default function Overview() {
             ))}
           </div>
 
-          <div className="mt-auto rounded-2xl border border-border-primary bg-bg-tertiary/45 px-4 py-4">
+          <div className="mt-auto rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-4">
             <div className="flex items-center gap-3">
               <Droplet className="h-5 w-5 text-info" />
               <p className="text-sm font-semibold leading-6 text-text-secondary">
@@ -874,7 +874,7 @@ function OverviewSkeleton() {
   return (
     <div className="dashboard-page-shell min-w-0 animate-pulse pb-4 md:pb-6 lg:pb-7" aria-hidden="true">
       <div className="flex flex-col gap-4 md:gap-5">
-        <section className="overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary/60 px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.12)] md:px-6 md:py-5">
+        <section className="overflow-hidden rounded-xl border border-border-primary bg-bg-secondary/60 px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.12)] md:px-6 md:py-5">
           <div className="min-w-0">
             {block('h-4 w-28')}
             {block('mt-3 h-7 w-[72%] max-w-[22rem] rounded-2xl')}
@@ -891,17 +891,17 @@ function OverviewSkeleton() {
         </section>
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:col-span-2 md:p-6 xl:col-span-1">
+          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:col-span-2 md:p-6 xl:col-span-1">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 {block('h-3 w-28')}
-                {block('mt-4 h-8 w-[88%] rounded-[18px]')}
+                {block('mt-4 h-8 w-[88%] rounded-xl')}
                 {block('mt-3 h-4 w-[72%]')}
               </div>
               <div className="h-12 w-12 shrink-0 rounded-2xl bg-bg-tertiary/60" />
             </div>
 
-            <div className="flex flex-1 flex-col rounded-[24px] border border-border-primary bg-bg-tertiary/25 p-4">
+            <div className="flex flex-1 flex-col rounded-xl border border-border-primary bg-bg-tertiary/25 p-4">
               <div className="flex items-center justify-between gap-3">
                 {block('h-3 w-24')}
                 <div className="h-6 w-14 rounded-full bg-bg-tertiary/55" />
@@ -911,7 +911,7 @@ function OverviewSkeleton() {
                 {Array.from({ length: 3 }).map((_, index) => (
                   <div
                     key={index}
-                    className="flex items-start gap-3 rounded-2xl border border-border-primary/80 bg-bg-tertiary/35 px-3 py-3"
+                    className="flex items-start gap-3 rounded-lg border border-border-primary/80 bg-bg-tertiary/35 px-3 py-3"
                   >
                     <div className="h-8 w-8 shrink-0 rounded-full bg-bg-secondary/90" />
                     <div className="min-w-0 flex-1">
@@ -922,7 +922,7 @@ function OverviewSkeleton() {
                 ))}
               </div>
 
-              <div className="mt-4 rounded-2xl border border-border-primary bg-bg-tertiary/30 px-4 py-3">
+              <div className="mt-4 rounded-xl border border-border-primary bg-bg-tertiary/30 px-4 py-3">
                 {block('h-3 w-20')}
                 {block('mt-2 h-3 w-full rounded-lg')}
                 {block('mt-2 h-3 w-[90%] rounded-lg')}
@@ -930,12 +930,12 @@ function OverviewSkeleton() {
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
-              <div className="h-12 rounded-2xl bg-bg-tertiary/70" />
-              <div className="h-12 rounded-2xl border border-border-primary bg-bg-tertiary/35" />
+              <div className="h-12 rounded-xl bg-bg-tertiary/70" />
+              <div className="h-12 rounded-xl border border-border-primary bg-bg-tertiary/35" />
             </div>
           </article>
 
-          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:p-6">
+          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 {block('h-3 w-28')}
@@ -962,11 +962,11 @@ function OverviewSkeleton() {
             </div>
 
             <div className="mt-auto border-t border-border-primary/70 pt-4">
-              <div className="h-11 rounded-2xl border border-border-primary bg-bg-tertiary/40" />
+              <div className="h-11 rounded-xl border border-border-primary bg-bg-tertiary/40" />
             </div>
           </article>
 
-          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-[28px] border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:p-6">
+          <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/60 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.1)] md:p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 {block('h-3 w-28')}
@@ -991,7 +991,7 @@ function OverviewSkeleton() {
               ))}
             </div>
 
-            <div className="mt-auto rounded-2xl border border-border-primary bg-bg-tertiary/35 px-4 py-4">
+            <div className="mt-auto rounded-xl border border-border-primary bg-bg-tertiary/35 px-4 py-4">
               {block('h-3 w-full rounded-lg')}
               {block('mt-2 h-3 w-[88%] rounded-lg')}
             </div>

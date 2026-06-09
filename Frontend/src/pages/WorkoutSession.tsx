@@ -11,10 +11,24 @@ interface SessionExercise {
   gif_url: string;
   sets: number;
   reps: string;
-  weight_kg: number;
+  weight_kg: number | null;
   rest_seconds: number;
   order_index: number;
   is_completed: boolean;
+  weekly_plan_exercise_id?: string | null;
+  planned_sets?: number | null;
+  planned_reps?: string | null;
+  planned_weight_kg?: number | null;
+  planned_rest_seconds?: number | null;
+  actual_sets?: number | null;
+  actual_reps?: string | null;
+  actual_weight_kg?: number | null;
+  actual_rest_seconds?: number | null;
+  target_rpe?: number | null;
+  estimated_kcal?: number | null;
+  actual_kcal_estimated?: number | null;
+  completed_sets?: number | null;
+  load_adjustment_note?: string | null;
   instructions?: string[] | string;
   exercises?: {
     target_muscle?: string;
@@ -73,6 +87,23 @@ const formatClock = (totalSeconds: number) => {
   const minutes = Math.floor(safe / 60);
   const seconds = safe % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
+const parseRepAverage = (value: string): number => {
+  const numbers = String(value || '')
+    .match(/\d+/g)
+    ?.map(Number)
+    .filter((item) => Number.isFinite(item)) || [];
+  if (numbers.length === 0) return 10;
+  if (numbers.length === 1) return numbers[0];
+  return Math.round((numbers[0] + numbers[numbers.length - 1]) / 2);
+};
+
+const formatWeightKg = (value: unknown, emptyLabel = 'Chưa đặt'): string => {
+  if (value === null || value === undefined || value === '') return emptyLabel;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return emptyLabel;
+  return `${parsed} kg`;
 };
 
 const getWeekStartKey = (baseDate: Date): string => {
@@ -272,11 +303,15 @@ export default function WorkoutSession() {
   const activeExerciseSteps = activeExercise ? getExerciseSteps(activeExercise) : [];
 
   const updateEditForm = (exercise: SessionExercise | null) => {
+    const setsValue = Math.max(1, Number(exercise?.actual_sets ?? exercise?.sets) || 1);
+    const repsValue = String((exercise?.actual_reps ?? exercise?.reps) || '12');
+    const resolvedWeightKg = exercise?.actual_weight_kg ?? exercise?.weight_kg;
+    const restValue = Math.max(0, Number(exercise?.actual_rest_seconds ?? exercise?.rest_seconds) || 45);
     setEditForm({
-      sets: String(Math.max(1, Number(exercise?.sets) || 1)),
-      reps: String(exercise?.reps || '12'),
-      weightKg: String(Math.max(0, Number(exercise?.weight_kg) || 0)),
-      restSeconds: String(Math.max(0, Number(exercise?.rest_seconds) || 45))
+      sets: String(setsValue),
+      reps: repsValue,
+      weightKg: resolvedWeightKg === null || resolvedWeightKg === undefined ? '' : String(resolvedWeightKg),
+      restSeconds: String(restValue)
     });
   };
 
@@ -329,7 +364,7 @@ export default function WorkoutSession() {
 
   const syncDailyWorkoutSessionExercise = async (
     exercise: SessionExercise,
-    updates: Partial<Pick<SessionExercise, 'sets' | 'reps' | 'weight_kg' | 'rest_seconds' | 'is_completed'>>
+    updates: Record<string, unknown>
   ) => {
     if (!workoutSessionId) return;
     const { error } = await supabase
@@ -341,12 +376,56 @@ export default function WorkoutSession() {
     if (error) throw error;
   };
 
+  const upsertSetExecutionLog = async ({
+    exercise,
+    setNumber,
+    isCompleted
+  }: {
+    exercise: SessionExercise;
+    setNumber: number;
+    isCompleted: boolean;
+  }) => {
+    const actualReps = parseRepAverage(String((exercise.actual_reps ?? exercise.reps) || '10'));
+    const actualWeightKg =
+      exercise.actual_weight_kg === null || exercise.actual_weight_kg === undefined
+        ? exercise.weight_kg ?? null
+        : Math.max(0, Number(exercise.actual_weight_kg) || 0);
+    const plannedWeightKg =
+      exercise.planned_weight_kg === null || exercise.planned_weight_kg === undefined
+        ? exercise.weight_kg ?? null
+        : Math.max(0, Number(exercise.planned_weight_kg) || 0);
+    const estimatedKcal = Math.max(
+      1,
+      Math.round((Number(exercise.estimated_kcal || 0) || 0) / Math.max(1, Number(exercise.actual_sets ?? exercise.sets) || 1))
+    );
+
+    const { error } = await supabase
+      .from('daily_exercise_set_logs')
+      .upsert(
+        {
+          daily_exercise_session_id: exercise.id,
+          set_number: setNumber,
+          planned_reps: String((exercise.planned_reps ?? exercise.reps) || ''),
+          target_weight_kg: plannedWeightKg,
+          actual_reps: actualReps,
+          actual_weight_kg: actualWeightKg,
+          rest_seconds: selectedRestSeconds,
+          estimated_kcal: estimatedKcal,
+          is_completed: isCompleted
+        },
+        { onConflict: 'daily_exercise_session_id,set_number' }
+      );
+
+    if (error) throw error;
+  };
+
   const saveExerciseConfig = async () => {
     if (!activeExercise) return;
 
     const nextSets = Math.max(1, Number(editForm.sets) || 1);
     const nextReps = String(editForm.reps || '').trim() || '12';
-    const nextWeightKg = Math.max(0, Number(editForm.weightKg) || 0);
+    const trimmedWeightKg = String(editForm.weightKg || '').trim();
+    const nextWeightKg = trimmedWeightKg === '' ? null : Math.max(0, Number(trimmedWeightKg) || 0);
     const nextRestSeconds = Math.max(0, Number(editForm.restSeconds) || 0);
     const previousExercise = activeExercise;
     const previousCompletedSetCount = completedSetsByExercise[previousExercise.id] || 0;
@@ -358,7 +437,12 @@ export default function WorkoutSession() {
       reps: nextReps,
       weight_kg: nextWeightKg,
       rest_seconds: nextRestSeconds,
-      is_completed: nextIsCompleted
+      is_completed: nextIsCompleted,
+      actual_sets: nextSets,
+      actual_reps: nextReps,
+      actual_weight_kg: nextWeightKg,
+      actual_rest_seconds: nextRestSeconds,
+      completed_sets: nextCompletedSetCount
     };
 
     setIsSavingEdit(true);
@@ -383,7 +467,12 @@ export default function WorkoutSession() {
           reps: nextReps,
           weight_kg: nextWeightKg,
           rest_seconds: nextRestSeconds,
-          is_completed: nextIsCompleted
+          is_completed: nextIsCompleted,
+          actual_sets: nextSets,
+          actual_reps: nextReps,
+          actual_weight_kg: nextWeightKg,
+          actual_rest_seconds: nextRestSeconds,
+          completed_sets: nextCompletedSetCount
         })
         .eq('id', previousExercise.id)
         .eq('user_id', user?.id)
@@ -395,7 +484,12 @@ export default function WorkoutSession() {
         reps: nextReps,
         weight_kg: nextWeightKg,
         rest_seconds: nextRestSeconds,
-        is_completed: nextIsCompleted
+        is_completed: nextIsCompleted,
+        actual_sets: nextSets,
+        actual_reps: nextReps,
+        actual_weight_kg: nextWeightKg,
+        actual_rest_seconds: nextRestSeconds,
+        completed_sets: nextCompletedSetCount
       });
 
       setIsEditModalOpen(false);
@@ -495,7 +589,10 @@ export default function WorkoutSession() {
         const completedCount = completedIds.length;
         const totalSets = orderedSession.reduce((sum, item) => sum + item.sets, 0);
         const estimatedDuration = Math.round(totalSets * 1.5);
-        const estimatedCalories = Math.round(completedSetsInSession * 4);
+        const estimatedCalories = orderedSession.reduce(
+          (sum, item) => sum + Math.max(0, Number(item.actual_kcal_estimated ?? item.estimated_kcal) || 0),
+          0
+        );
         const { data: newSession, error: sessionError } = await supabase
           .from('daily_workout_sessions')
           .insert({
@@ -518,13 +615,27 @@ export default function WorkoutSession() {
           // Step 2: Insert exercises into daily_workout_session_exercises
           const exerciseRows = orderedSession.map((item) => ({
             session_id: newSession.id,
+            daily_exercise_session_id: item.id,
+            weekly_plan_exercise_id: item.weekly_plan_exercise_id || null,
             exercise_id: item.exercise_id,
             sets: item.sets,
             reps: item.reps,
             weight_kg: item.weight_kg,
             rest_seconds: item.rest_seconds,
             order_index: item.order_index,
-            is_completed: completedIds.includes(item.id)
+            is_completed: completedIds.includes(item.id),
+            planned_sets: item.planned_sets ?? item.sets,
+            planned_reps: item.planned_reps ?? item.reps,
+            planned_weight_kg: item.planned_weight_kg ?? item.weight_kg,
+            planned_rest_seconds: item.planned_rest_seconds ?? item.rest_seconds,
+            actual_sets: item.actual_sets ?? item.sets,
+            actual_reps: item.actual_reps ?? item.reps,
+            actual_weight_kg: item.actual_weight_kg ?? item.weight_kg,
+            actual_rest_seconds: item.actual_rest_seconds ?? item.rest_seconds,
+            target_rpe: item.target_rpe ?? 7,
+            estimated_kcal: item.estimated_kcal ?? 0,
+            actual_kcal_estimated: item.actual_kcal_estimated ?? 0,
+            completed_sets: completedSetsByExercise[item.id] || (completedIds.includes(item.id) ? item.sets : 0)
           }));
           await supabase.from('daily_workout_session_exercises').insert(exerciseRows);
         }
@@ -663,7 +774,7 @@ export default function WorkoutSession() {
               <span>{activeExercise.exercises?.target_muscle || 'Cardio'}</span>
               <span>{activeExercise.reps} nhịp mỗi hiệp</span>
               <span>{activeExercise.sets} hiệp</span>
-              <span>{activeExercise.weight_kg} kg</span>
+              <span>{formatWeightKg(activeExercise.actual_weight_kg ?? activeExercise.weight_kg)}</span>
               <span>Nghỉ {activeExercise.rest_seconds}s</span>
             </div>
             <button
@@ -727,24 +838,73 @@ export default function WorkoutSession() {
                   type="button"
                   onClick={async () => {
                     const nextCompletedSets = Math.min(activeExercise.sets, completedSetCount + 1);
+                    const nextActualKcal = Math.max(
+                      0,
+                      Math.round((Number(activeExercise.estimated_kcal || 0) || 0) * (nextCompletedSets / Math.max(1, activeExercise.sets)))
+                    );
                     setCompletedSetsByExercise((prev) => ({
                       ...prev,
                       [activeExercise.id]: nextCompletedSets
                     }));
+                    setSessionItems((prev) =>
+                      prev.map((item) =>
+                        item.id === activeExercise.id
+                          ? { ...item, completed_sets: nextCompletedSets, actual_kcal_estimated: nextActualKcal }
+                          : item
+                      )
+                    );
+                    try {
+                      await supabase
+                        .from('daily_exercise_sessions')
+                        .update({
+                          completed_sets: nextCompletedSets,
+                          actual_kcal_estimated: nextActualKcal
+                        })
+                        .eq('id', activeExercise.id)
+                        .eq('user_id', user?.id)
+                        .eq('log_date', state.logDate || '');
+                      await syncDailyWorkoutSessionExercise(activeExercise, {
+                        completed_sets: nextCompletedSets,
+                        actual_kcal_estimated: nextActualKcal
+                      });
+                      await upsertSetExecutionLog({
+                        exercise: {
+                          ...activeExercise,
+                          completed_sets: nextCompletedSets,
+                          actual_kcal_estimated: nextActualKcal
+                        },
+                        setNumber: nextCompletedSets,
+                        isCompleted: true
+                      });
+                    } catch (error) {
+                      console.error('Khong the dong bo du lieu set tap:', error);
+                    }
                     if (nextCompletedSets >= activeExercise.sets) {
                       setSessionItems((prev) =>
-                        prev.map((item) => (item.id === activeExercise.id ? { ...item, is_completed: true } : item))
+                        prev.map((item) =>
+                          item.id === activeExercise.id
+                            ? { ...item, is_completed: true, completed_sets: nextCompletedSets, actual_kcal_estimated: nextActualKcal }
+                            : item
+                        )
                       );
                       setCompletedIds((prev) => (prev.includes(activeExercise.id) ? prev : [...prev, activeExercise.id]));
                       try {
                         const updateDailyRes = await supabase
                           .from('daily_exercise_sessions')
-                          .update({ is_completed: true })
+                          .update({
+                            is_completed: true,
+                            completed_sets: nextCompletedSets,
+                            actual_kcal_estimated: nextActualKcal
+                          })
                           .eq('id', activeExercise.id)
                           .eq('user_id', user?.id)
                           .eq('log_date', state.logDate || '');
                         if (updateDailyRes.error) throw updateDailyRes.error;
-                        await syncDailyWorkoutSessionExercise(activeExercise, { is_completed: true });
+                        await syncDailyWorkoutSessionExercise(activeExercise, {
+                          is_completed: true,
+                          completed_sets: nextCompletedSets,
+                          actual_kcal_estimated: nextActualKcal
+                        });
                       } catch (error) {
                         console.error('Không thể đồng bộ trạng thái hoàn thành bài tập:', error);
                       }

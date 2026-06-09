@@ -437,7 +437,7 @@ const mergeOptimisticChatMessages = (serverMessages: ChatMessage[], currentMessa
 function AICoachSkeleton() {
   return (
     <div className="w-full animate-pulse">
-      <div className="h-[780px] rounded-[24px] border border-border-primary bg-bg-secondary" />
+      <div className="h-[780px] rounded-xl border border-border-primary bg-bg-secondary" />
     </div>
   );
 }
@@ -456,7 +456,7 @@ function ActionProposalCard({
   if (actionType === 'replace_today_meal') {
     const payload = actionPayload as MealProposalPayload;
     return (
-      <div className="ai-surface mt-2 rounded-2xl border p-3 text-sm text-text-primary">
+      <div className="ai-surface mt-2 rounded-xl border p-3 text-sm text-text-primary">
         <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">Đề xuất đổi món</p>
         <p className="mt-2 font-black">
           {payload?.old_food_name || 'Món cũ'} {' -> '} {payload?.new_food_name || 'Món mới'}
@@ -513,7 +513,7 @@ function WorkoutProposalCard({ payload }: { payload: WorkoutProposalPayload }) {
   }, [exerciseIds]);
 
   return (
-    <div className="ai-surface mt-2 rounded-2xl border p-3 text-sm text-text-primary">
+    <div className="ai-surface mt-2 rounded-xl border p-3 text-sm text-text-primary">
       <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">Đề xuất mới</p>
       <p className="mt-2 font-black">
         {Number(payload?.duration_minutes || 0)} phút, {exercises.length} bài tập
@@ -529,7 +529,7 @@ function WorkoutProposalCard({ payload }: { payload: WorkoutProposalPayload }) {
           const focus = meta?.body_part || meta?.target_muscle || '';
 
           return (
-            <div key={`${exercise.exercise_id || 'exercise'}-${index}`} className="flex items-center gap-3 rounded-2xl border border-border-primary/80 bg-bg-primary/35 px-3 py-3">
+            <div key={`${exercise.exercise_id || 'exercise'}-${index}`} className="flex items-center gap-3 rounded-lg border border-border-primary/80 bg-bg-primary/35 px-3 py-3">
               <div className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary">
                 <ExerciseThumb src={imageUrl} alt={title} />
               </div>
@@ -567,7 +567,7 @@ function SummaryBubble({
       <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ai text-white shadow-[0_10px_24px_rgb(var(--ai-rgb)_/_0.22)]">
         {icon}
       </div>
-      <div className="max-w-[88%] rounded-[26px] border border-border-primary bg-bg-secondary px-4 py-4 text-[15px] leading-7 text-text-primary shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
+      <div className="max-w-[88%] rounded-xl border border-border-primary bg-bg-secondary px-4 py-4 text-[15px] leading-7 text-text-primary shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
         <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">{title}</p>
         <div className="mt-2">{children}</div>
       </div>
@@ -640,7 +640,7 @@ function TodayDigestBubble({ day }: { day: DayPlan }) {
                 {day.exercises.slice(0, 4).map((item, index) => {
                   const imageUrl = item.exercises?.image_url || item.exercises?.gif_url || '';
                   return (
-                    <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-border-primary/80 bg-bg-primary/35 px-3 py-3">
+                    <div key={item.id} className="flex items-center gap-3 rounded-lg border border-border-primary/80 bg-bg-primary/35 px-3 py-3">
                       <div className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary">
                         <ExerciseThumb src={imageUrl} alt={item.exercises?.name || 'Bài tập'} />
                       </div>
@@ -1142,14 +1142,14 @@ export default function AICoach() {
     <div className="contents xl:flex xl:flex-col xl:gap-5">
       <div className="-mt-1 w-full space-y-4 text-sm text-text-primary">
         {error ? (
-          <div className="flex items-center gap-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div className="flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             <AlertCircle className="h-4 w-4" />
             {error}
           </div>
         ) : null}
 
         {!isLoggedIn || !plan ? (
-          <section className="rounded-[24px] border border-border-primary bg-bg-secondary px-6 py-12 text-center shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
+          <section className="rounded-xl border border-border-primary bg-bg-secondary px-6 py-12 text-center shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-ai/12 text-ai">
               <Sparkles className="h-8 w-8" />
             </div>
@@ -1162,7 +1162,7 @@ export default function AICoach() {
                 type="button"
                 onClick={handleGenerateAction}
                 disabled={isGenerating}
-                className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-accent px-6 text-sm font-black text-black hover:bg-accent-hover disabled:opacity-60"
+                className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-accent px-6 text-sm font-black text-black hover:bg-accent-hover disabled:opacity-60"
               >
                 {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {isGenerating ? 'Đang tạo kế hoạch...' : 'Tạo kế hoạch từ dữ liệu của tôi'}
@@ -1171,7 +1171,7 @@ export default function AICoach() {
           </section>
         ) : (
           <section>
-            <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-[24px] border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+            <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
               <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-text-primary">
@@ -1243,7 +1243,7 @@ export default function AICoach() {
               </div>
 
               <div className="shrink-0 border-t border-border-primary bg-bg-tertiary px-5 pb-4 pt-4">
-                <div className="flex items-center gap-3 rounded-[20px] border border-border-primary bg-bg-secondary px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+                <div className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-secondary px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
                   <textarea
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
