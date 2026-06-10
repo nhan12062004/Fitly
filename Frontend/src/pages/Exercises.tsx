@@ -4,11 +4,11 @@ import {
   ChevronDown, SlidersHorizontal, RotateCcw, Play, Eye
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { estimateExerciseKcalRealistic, parseRepsInput } from '../utils/Kcal';
 import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
-import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
+import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
 
 interface SessionExercise {
   id: string;
@@ -73,11 +73,34 @@ const formatWeightKg = (value: unknown, emptyLabel = 'Chưa đặt'): string => 
   return `${parsed} kg`;
 };
 
+const parseRepAverage = (value: string): number => {
+  const numbers = String(value || '')
+    .match(/\d+/g)
+    ?.map(Number)
+    .filter((item) => Number.isFinite(item)) || [];
+  if (numbers.length === 0) return 10;
+  if (numbers.length === 1) return numbers[0];
+  return Math.round((numbers[0] + numbers[numbers.length - 1]) / 2);
+};
+
+const getResolvedExerciseKcal = (exercise?: SessionExercise | null): number => {
+  const actualKcal = Number(exercise?.actual_kcal_estimated);
+  if (Number.isFinite(actualKcal) && actualKcal > 0) {
+    return Math.max(0, Math.round(actualKcal));
+  }
+
+  const estimatedKcal = Number(exercise?.estimated_kcal);
+  if (Number.isFinite(estimatedKcal)) {
+    return Math.max(0, Math.round(estimatedKcal));
+  }
+
+  return 0;
+};
+
 type ExercisesPageCache = {
   vnToday: string;
   session: SessionExercise[];
   library: ExerciseLibraryItem[];
-  userWeightKg: number;
 };
 
 let exercisesPageCache: ExercisesPageCache | null = null;
@@ -253,55 +276,76 @@ const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; cla
 // ====================================================================
 export const ExercisesSkeleton = () => {
   return (
-    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <SkeletonHero titleWidth="w-[58%] max-w-[18rem]" chips={2} />
-
-      <SkeletonSurface className="p-4 md:p-5">
-        <div className="rounded-xl border border-border-primary/50 bg-bg-tertiary/25 p-3 md:p-4">
-          <div className="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)_380px] gap-4 md:gap-5 items-stretch">
-            <div className="rounded-xl border border-border-primary/30 bg-bg-tertiary/20 h-[180px] md:h-[210px] xl:h-full" />
-            <div className="flex flex-col justify-center gap-4 md:gap-5 min-w-0">
-              {SkeletonBlock('h-7 w-2/3 rounded-lg')}
-              <div className="ml-0 flex flex-wrap items-start gap-x-14 gap-y-3">
-                <div className="h-10 w-24 rounded-lg bg-bg-tertiary/70" />
-                <div className="h-10 w-24 rounded-lg bg-bg-tertiary/70" />
-                <div className="h-10 w-24 rounded-lg bg-bg-tertiary/70" />
-              </div>
-              <div className="mt-1 flex flex-wrap items-center justify-start gap-2.5">
-                <div className="h-10 w-36 rounded-xl bg-bg-tertiary/75" />
-                <div className="h-10 w-28 rounded-xl border border-border-primary bg-bg-tertiary/35" />
-              </div>
-            </div>
-            <div className="relative rounded-xl p-3 md:p-4 xl:pt-1 xl:pl-6">
-              {SkeletonBlock('mb-1 h-6 w-40 rounded-lg')}
-              <div className="space-y-2.5 max-h-[240px]">
-                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
-                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
-                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
-                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
-                <div className="h-8 w-full rounded-lg bg-bg-tertiary/70" />
-              </div>
+    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7" aria-hidden="true">
+      <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="flex items-center gap-3">
+            {SkeletonBlock('h-7 w-44 rounded-lg')}
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-4 rounded-full bg-bg-tertiary/70" />
+              {SkeletonBlock('h-4 w-32 rounded-lg')}
             </div>
           </div>
         </div>
-      </SkeletonSurface>
 
-      <SkeletonSurface className="p-4 md:p-5">
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+        <div className="-ml-2 -mt-1 grid grid-cols-1 gap-5 md:gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-stretch">
+          <article className="min-w-0 p-4 md:p-4 xl:pr-8">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[164px_minmax(0,540px)] lg:items-start lg:gap-5">
+              <div className="h-[176px] overflow-hidden rounded-[22px] border border-border-primary bg-bg-tertiary/25" />
+              <div className="flex min-w-0 max-w-[540px] flex-col justify-center gap-3.5">
+                <div className="min-w-0">
+                  {SkeletonBlock('h-8 w-[72%] rounded-xl')}
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <div className="h-7 w-24 rounded-full bg-bg-tertiary/70" />
+                    <div className="h-7 w-24 rounded-full bg-bg-tertiary/70" />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="h-9 w-24 rounded-full bg-bg-tertiary/65" />
+                  <div className="h-9 w-24 rounded-full bg-bg-tertiary/65" />
+                  <div className="h-9 w-24 rounded-full bg-bg-tertiary/65" />
+                  <div className="h-9 w-24 rounded-full bg-bg-tertiary/65" />
+                </div>
+                <div className="mt-1 flex flex-wrap items-center justify-start gap-2">
+                  <div className="h-10 w-40 rounded-xl bg-bg-tertiary/75" />
+                  <div className="h-10 w-28 rounded-xl border border-border-primary bg-bg-tertiary/35" />
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <aside className="relative min-w-0 p-4 md:p-4 xl:-ml-2 xl:self-stretch xl:pl-5 xl:pt-4 xl:before:absolute xl:before:bottom-4 xl:before:left-0 xl:before:top-4 xl:before:w-px xl:before:bg-border-primary/70 xl:before:content-['']">
+            {SkeletonBlock('mb-1 h-6 w-40 rounded-lg')}
+            <div className="mt-3.5 space-y-2.5 max-h-[320px] pr-1">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="rounded-lg px-0 py-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <div className="h-5 w-5 shrink-0 rounded-full bg-bg-tertiary/70" />
+                      {SkeletonBlock('h-4 w-40 rounded-lg')}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+        <div className="relative mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            {SkeletonBlock('h-6 w-40 rounded-lg')}
+            {SkeletonBlock('h-8 w-48 rounded-xl')}
             <div className="mt-2 flex flex-wrap gap-2">
-              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
-              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
-              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
-              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
-              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
-              <div className="h-7 w-16 rounded-lg bg-bg-tertiary/70" />
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="h-8 w-16 rounded-lg bg-bg-tertiary/70" />
+              ))}
             </div>
           </div>
-          <div className="h-8 w-24 rounded-lg shrink-0 bg-bg-tertiary/70" />
+          <div className="h-9 w-24 shrink-0 rounded-lg bg-bg-tertiary/70" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="overflow-hidden rounded-xl border border-border-primary/30 bg-bg-tertiary/20">
               <div className="relative aspect-[16/9] bg-bg-secondary/50" />
@@ -314,7 +358,7 @@ export const ExercisesSkeleton = () => {
             </div>
           ))}
         </div>
-      </SkeletonSurface>
+      </div>
     </div>
   );
 };
@@ -333,7 +377,6 @@ export default function Exercises() {
   const [isSavingExercise, setIsSavingExercise] = useState(false);
   const [library, setLibrary] = useState<ExerciseLibraryItem[]>(() => cacheForToday?.library || []);
   const [vnToday, setVnToday] = useState(() => getVietnamDateKey());
-  const [userWeightKg, setUserWeightKg] = useState(() => cacheForToday?.userWeightKg || 70);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [appliedMuscleFilter, setAppliedMuscleFilter] = useState('all');
@@ -360,21 +403,6 @@ export default function Exercises() {
       loadLibrary();
     }
   }, [user, vnToday]);
-
-  useEffect(() => {
-    const loadWeight = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from('body_metrics')
-        .select('weight')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      setUserWeightKg(Math.max(45, Number(data?.weight || 70)));
-    };
-    loadWeight();
-  }, [user]);
 
   const loadSession = async (silent = false) => {
     if (silent) {
@@ -664,48 +692,29 @@ export default function Exercises() {
       const cleanSets = 3;
       const cleanReps = '12';
       const cleanKg = getManualSuggestedWeightKg(exerciseToSave.equipment);
-      const cleanKcal = estimateExerciseKcalRealistic({
-        exercise: exerciseToSave,
-        sets: cleanSets,
-        repsText: cleanReps,
-        externalLoadKg: cleanKg ?? 0,
-        userWeightKg,
-        restSeconds: 60
-      });
-
-      // Save today's exercise session
-      const { data, error } = await supabase
-        .from('daily_exercise_sessions')
-        .insert({
-          user_id: user.id,
-          log_date: vnToday,
-          exercise_id: exerciseToSave.id,
+      const response = await fetchWithAuth('/api/workout/daily-exercises', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          logDate: vnToday,
+          exerciseId: exerciseToSave.id,
           sets: cleanSets,
           reps: cleanReps,
-          weight_kg: cleanKg,
-          rest_seconds: 60,
-          order_index: session.length,
-          is_completed: false,
-          planned_sets: cleanSets,
-          planned_reps: cleanReps,
-          planned_weight_kg: cleanKg,
-          planned_rest_seconds: 60,
-          actual_sets: cleanSets,
-          actual_reps: cleanReps,
-          actual_weight_kg: cleanKg,
-          actual_rest_seconds: 60,
-          target_rpe: 7,
-          estimated_kcal: cleanKcal,
-          actual_kcal_estimated: 0,
-          completed_sets: 0
+          weightKg: cleanKg,
+          restSeconds: 60,
+          orderIndex: session.length
         })
-        .select(`
-          *,
-        exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
-        `)
-        .single();
-      if (error) throw error;
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(payload?.error || 'Thêm bài tập thất bại'));
+      }
+      const data = payload?.exercise as SessionExercise | undefined;
+      const cleanKcal = getResolvedExerciseKcal(data);
 
+      /*
       // Sync to new daily_workout_session_exercises if a session already exists
       try {
         const { data: existingSession } = await supabase
@@ -746,6 +755,7 @@ export default function Exercises() {
         console.error('Lỗi khi đồng bộ sang daily_workout_session_exercises:', e);
       }
 
+      */
       // Keep kcal from popup in daily progress summary
       const progress = await supabase
         .from('daily_progress_logs')
@@ -775,6 +785,7 @@ export default function Exercises() {
       alert("ÄÃ£ thÃªm vÃ o buá»•i táº­p hÃ´m nay");
       return;
 
+      /*
       // Sync to the weekly plan for the current VN week/day.
       const weekStartKey = getWeekStartKey(new Date(`${vnToday}T00:00:00`));
       let weeklyPlanId: string | null = null;
@@ -862,6 +873,7 @@ export default function Exercises() {
         }]);
       }
       alert("Đã thêm vào buổi tập hôm nay");
+      */
     } catch (e: any) {
       alert("Lỗi: " + (e?.message || 'Lưu bài tập thất bại'));
     } finally {
@@ -905,27 +917,16 @@ export default function Exercises() {
       return { setsText: '0 hiệp', repsText: '0 lần', weightText: 'Chưa đặt', kcalText: '~0 kcal' };
     }
     const sets = Math.max(1, Number(selectedSessionExercise.sets) || 1);
-    const reps = Math.max(1, parseRepsInput(String(selectedSessionExercise.reps || '10')));
-    const restSeconds = Math.max(0, Number(selectedSessionExercise.rest_seconds) || 0);
+    const reps = Math.max(1, parseRepAverage(String(selectedSessionExercise.reps || '10')));
     const weightKg = selectedSessionExercise.actual_weight_kg ?? selectedSessionExercise.weight_kg;
-    const kcal = estimateExerciseKcalRealistic({
-      exercise: {
-        target_muscle: selectedSessionExercise.exercises?.target_muscle || '',
-        body_part: selectedSessionExercise.exercises?.body_part || ''
-      },
-      sets,
-      repsText: String(selectedSessionExercise.reps || '10'),
-      externalLoadKg: weightKg ?? 0,
-      userWeightKg,
-      restSeconds
-    });
+    const kcal = getResolvedExerciseKcal(selectedSessionExercise);
     return {
       setsText: `${sets} hiệp`,
       repsText: `${reps} lần`,
       weightText: formatWeightKg(weightKg),
       kcalText: `~${kcal} kcal`
     };
-  }, [selectedSessionExercise, userWeightKg]);
+  }, [selectedSessionExercise]);
   const muscleAliases: Record<string, string[]> = {
     all: [],
     back: ['back', 'lung', 'co xo', 'xa', 'trap', 'lat', 'upper back'],
@@ -977,10 +978,9 @@ export default function Exercises() {
     exercisesPageCache = {
       vnToday,
       session,
-      library,
-      userWeightKg
+      library
     };
-  }, [user, vnToday, session, library, userWeightKg]);
+  }, [user, vnToday, session, library]);
 
   useEffect(() => {
     setVisibleLibraryCount(LIBRARY_VISIBLE_BATCH_SIZE);
@@ -1075,7 +1075,7 @@ export default function Exercises() {
                     onClick={() => {
                       if (selectedSessionDetailExercise) openExerciseDetailsPage(selectedSessionDetailExercise);
                     }}
-                    className="h-10 px-4 rounded-xl border border-border-primary bg-bg-tertiary/45 text-text-primary text-sm font-bold hover:border-accent/30 hover:bg-bg-tertiary transition-colors inline-flex items-center gap-2"
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
                   >
                     <Eye className="w-4 h-4" />
                     Xem chi tiết
@@ -1230,7 +1230,7 @@ export default function Exercises() {
                   <button
                     type="button"
                     onClick={() => openExerciseDetailsPage(ex)}
-                    className="h-8 flex-1 rounded-lg border border-border-primary bg-bg-tertiary/45 text-xs font-bold text-text-primary hover:border-accent/30 hover:bg-bg-tertiary transition-colors"
+                    className="h-8 flex-1 rounded-lg border border-border-primary bg-bg-tertiary/45 px-3 text-xs font-bold text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
                   >
                     Xem chi tiết
                   </button>

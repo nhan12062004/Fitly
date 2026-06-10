@@ -253,30 +253,6 @@ export default function Overview() {
   const prevRefreshTickRef = useRef(refreshTick);
   const skipRefreshTickRef = useRef<number | null>(null);
 
-  const parseReps = (reps: string | null | undefined): number => {
-    if (!reps) return 10;
-    const nums = String(reps).match(/\d+/g)?.map(Number).filter((n) => !Number.isNaN(n)) || [];
-    if (nums.length === 0) return 10;
-    if (nums.length === 1) return nums[0];
-    return Math.round((nums[0] + nums[nums.length - 1]) / 2);
-  };
-
-  const estimateExerciseKcal = (
-    item: { sets?: number | null; reps?: string | null; weight_kg?: number | null; rest_seconds?: number | null },
-    userWeightKg: number
-  ): number => {
-    const sets = Math.max(1, Number(item.sets || 0));
-    const reps = Math.max(1, parseReps(item.reps));
-    const rest = Math.max(0, Number(item.rest_seconds || 0));
-    const weightKg = Math.max(0, Number(item.weight_kg || 0));
-    const workSeconds = sets * reps * 2.8;
-    const restSeconds = Math.max(0, sets - 1) * rest;
-    const durationMinutes = Math.max(1, (workSeconds + restSeconds) / 60);
-    const met = weightKg > 0 ? 6.0 : 5.0;
-    const kcal = (met * 3.5 * Math.max(45, userWeightKg) / 200) * durationMinutes;
-    return Math.round(Math.min(250, Math.max(8, kcal)));
-  };
-
   const resolveMealMetric = (primary: unknown, fallback: unknown): number => {
     const primaryValue = Number(primary);
     if (Number.isFinite(primaryValue) && primaryValue > 0) return primaryValue;
@@ -362,7 +338,6 @@ export default function Overview() {
         const [
           lifestyleRes,
           progressLogRes,
-          latestBodyRes,
           todaySessionsRes,
           dailyMealLogsRes,
           healthRes,
@@ -370,18 +345,22 @@ export default function Overview() {
         ] = await Promise.all([
           supabase.from('lifestyle_settings').select('workout_duration, daily_water_goal, target_calories, meals_per_day').eq('user_id', user.id).maybeSingle(),
           supabase.from('daily_progress_logs').select('water_intake_ml, sleep_hours').eq('user_id', user.id).eq('log_date', todayStr).maybeSingle(),
-          supabase.from('body_metrics').select('weight').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, exercises:exercise_id(name, gif_url, image_url, instructions, target_muscle, body_part, difficulty)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
+          supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, gif_url, image_url, instructions, target_muscle, body_part, difficulty)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
           supabase.from('daily_meal_logs').select('calories, protein, carbs, fat, quantity, is_completed').eq('user_id', user.id).eq('log_date', todayStr).eq('is_completed', true),
           supabase.from('health_conditions').select('sleep_hours').eq('user_id', user.id).maybeSingle(),
           supabase.from('weekly_food_plans').select('id').eq('user_id', user.id).eq('week_start_date', weekStartKey).order('updated_at', { ascending: false }).limit(1)
         ]);
 
-        const userWeight = Number(latestBodyRes.data?.weight || 70);
         const todaySessions = todaySessionsRes.data || [];
         const completedSessions = todaySessions.filter((session: any) => !!session.is_completed);
         const estimatedCaloriesFromSessions = completedSessions.reduce(
-          (sum: number, item: any) => sum + estimateExerciseKcal(item, userWeight),
+          (sum: number, item: any) => {
+            const actualKcal = Number(item.actual_kcal_estimated);
+            if (Number.isFinite(actualKcal) && actualKcal > 0) {
+              return sum + actualKcal;
+            }
+            return sum + Math.max(0, Number(item.estimated_kcal) || 0);
+          },
           0
         );
         const remainingWorkoutCount = Math.max(0, todaySessions.length - completedSessions.length);
@@ -409,7 +388,13 @@ export default function Overview() {
           weight_kg: session.weight_kg || 0,
           rest_seconds: session.rest_seconds || 0,
           is_completed: !!session.is_completed,
-          kcal: estimateExerciseKcal(session, userWeight)
+          kcal: (() => {
+            const actualKcal = Number(session.actual_kcal_estimated);
+            if (Number.isFinite(actualKcal) && actualKcal > 0) {
+              return Math.round(actualKcal);
+            }
+            return Math.max(0, Math.round(Number(session.estimated_kcal) || 0));
+          })()
         }));
         setTodayExercises(nextTodayExercises);
 

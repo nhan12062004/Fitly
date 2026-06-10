@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Pause, Play, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
-import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
+import { SkeletonBlock } from '../components/PageSkeleton';
 
 interface SessionExercise {
   id: string;
@@ -160,36 +161,123 @@ const getExerciseSteps = (exercise: SessionExercise): string[] => {
 
 function WorkoutSessionSkeleton() {
   return (
-    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <SkeletonHero titleWidth="w-[60%] max-w-[19rem]" chips={2} />
-      <SkeletonSurface className="overflow-hidden">
-        <div className="grid min-h-0 grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)_300px]">
-          <aside className="border-b border-border-primary/50 px-4 py-4 xl:border-b-0 xl:border-r">
-            {SkeletonBlock('h-4 w-32')}
-            <div className="mt-4 space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="h-16 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+    <div className="dashboard-page-shell flex flex-col animate-pulse text-sm pb-4 md:pb-6 lg:pb-7" aria-hidden="true">
+      <div className="-mt-1 mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="inline-flex min-w-0 items-center gap-1.5">
+          <div className="h-4 w-4 rounded-full bg-bg-tertiary/70" />
+          {SkeletonBlock('h-4 w-40 rounded-lg')}
+        </div>
+        <div className="h-11 w-32 rounded-full bg-bg-tertiary/70" />
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
+        <aside className="order-3 border-t border-border-primary bg-bg-secondary px-4 pb-5 pt-4 lg:col-span-2 xl:order-1 xl:col-span-1 xl:border-r xl:border-t-0">
+          {SkeletonBlock('h-4 w-32')}
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-start gap-3 rounded-2xl border border-border-primary bg-bg-secondary px-3 py-3">
+                <div className="mt-0.5 h-6 w-6 shrink-0 rounded-full bg-bg-tertiary/70" />
+                <div className="min-w-0 flex-1">
+                  {SkeletonBlock('h-4 w-[78%] rounded-lg')}
+                  {SkeletonBlock('mt-2 h-3 w-24 rounded-lg')}
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <section className="order-1 relative min-h-0 overflow-y-auto bg-transparent px-4 py-5 md:px-6 lg:px-8 xl:order-2">
+          <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
+            {SkeletonBlock('h-4 w-24 rounded-lg')}
+            {SkeletonBlock('mt-2 h-10 w-[68%] rounded-xl')}
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="h-4 w-20 rounded-lg bg-bg-tertiary/70" />
               ))}
             </div>
-          </aside>
-          <section className="min-h-0 px-4 py-5 md:px-8">
-            <div className="mx-auto flex max-w-3xl flex-col items-center">
-              {SkeletonBlock('h-4 w-28')}
-              {SkeletonBlock('mt-2 h-10 w-2/3 rounded-xl')}
-              {SkeletonBlock('mt-2 h-4 w-72')}
-              <div className="mt-6 h-72 w-full rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-              <div className="mt-8 h-40 w-[420px] max-w-full rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+            <div className="mt-4 h-10 w-36 rounded-xl border border-border-primary bg-bg-secondary/70" />
+
+            <div className="mt-6 inline-flex w-full flex-col items-center gap-4 overflow-hidden rounded-[24px] border border-border-primary bg-bg-secondary/40 p-4 md:gap-6 md:p-6 lg:flex-row">
+              <div className="flex w-full max-w-[220px] shrink-0 justify-center md:max-w-[240px]">
+                <div className="aspect-square w-full rounded-xl bg-bg-tertiary/35" />
+              </div>
+              <div className="w-full max-w-xl">
+                <div className="space-y-4 text-left">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div key={index} className="flex items-start gap-3">
+                      <div className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-bg-tertiary/70" />
+                      <div className="min-w-0 flex-1">
+                        {SkeletonBlock('h-4 w-full rounded-lg')}
+                        {index % 2 === 0 ? SkeletonBlock('mt-2 h-4 w-[88%] rounded-lg') : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </section>
-          <aside className="border-t border-border-primary/50 px-4 py-4 xl:border-l xl:border-t-0">
-            <div className="space-y-4">
-              <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-              <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
-              <div className="h-24 rounded-2xl border border-border-primary/40 bg-bg-tertiary/20" />
+
+            <div className="mt-8 grid w-full max-w-xl grid-cols-1 justify-items-center gap-3 lg:max-w-4xl lg:grid-cols-[1fr_auto_1fr] lg:items-center">
+              <div className="flex w-full justify-center lg:justify-end">
+                <div className="h-11 w-full rounded-xl border border-border-primary bg-bg-secondary/70" />
+              </div>
+              <div className="order-first flex h-[168px] w-[168px] items-center justify-center rounded-full bg-bg-tertiary/45 lg:order-none">
+                <div className="h-[152px] w-[152px] rounded-full bg-bg-secondary" />
+              </div>
+              <div className="flex w-full justify-center lg:justify-start">
+                <div className="h-11 w-full rounded-xl bg-bg-tertiary/75" />
+              </div>
             </div>
-          </aside>
-        </div>
-      </SkeletonSurface>
+
+            <div className="mt-10 w-full">
+              <div className="mb-2 flex items-center justify-between">
+                {SkeletonBlock('h-4 w-24 rounded-lg')}
+                {SkeletonBlock('h-4 w-10 rounded-lg')}
+              </div>
+              <div className="h-2 rounded-full bg-bg-tertiary/60" />
+            </div>
+          </div>
+        </section>
+
+        <aside className="order-2 border-t border-border-primary bg-bg-secondary px-4 pb-5 pt-4 lg:border-l lg:border-t-0 xl:order-3">
+          <div className="grid min-h-full gap-5 sm:grid-cols-2 lg:grid-cols-1">
+            <section className="space-y-3 px-3">
+              {SkeletonBlock('h-4 w-20 rounded-lg')}
+              <div className="flex items-center gap-3">
+                <div className="h-20 w-20 shrink-0 rounded-xl bg-bg-tertiary/35" />
+                <div className="min-w-0 flex-1">
+                  {SkeletonBlock('h-4 w-[82%] rounded-lg')}
+                  {SkeletonBlock('mt-2 h-4 w-[58%] rounded-lg')}
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-3 px-3">
+              {SkeletonBlock('h-4 w-12 rounded-lg')}
+              <div className="flex flex-wrap gap-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="h-8 w-8 rounded-full bg-bg-tertiary/70" />
+                ))}
+              </div>
+            </section>
+
+            <section className="space-y-2.5 px-3">
+              {SkeletonBlock('h-4 w-24 rounded-lg')}
+              <div className="h-11 rounded-xl border border-border-primary bg-bg-secondary/70" />
+            </section>
+
+            <div className="px-3">
+              <div className="h-11 rounded-xl border border-border-primary bg-bg-secondary/70" />
+            </div>
+
+            <section className="mx-3 rounded-3xl border border-dashed border-border-secondary p-4 sm:col-span-2 lg:mt-auto lg:col-span-1">
+              {SkeletonBlock('h-4 w-16 rounded-lg')}
+              {SkeletonBlock('mt-3 h-4 w-full rounded-lg')}
+              {SkeletonBlock('mt-2 h-4 w-[84%] rounded-lg')}
+              {SkeletonBlock('mt-2 h-4 w-[72%] rounded-lg')}
+            </section>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
@@ -370,63 +458,6 @@ export default function WorkoutSession() {
     return pickLatestPlan(byWeek.data)?.id || null;
   };
 
-  const syncDailyWorkoutSessionExercise = async (
-    exercise: SessionExercise,
-    updates: Record<string, unknown>
-  ) => {
-    if (!workoutSessionId) return;
-    const { error } = await supabase
-      .from('daily_workout_session_exercises')
-      .update(updates)
-      .eq('session_id', workoutSessionId)
-      .eq('exercise_id', exercise.exercise_id)
-      .eq('order_index', exercise.order_index);
-    if (error) throw error;
-  };
-
-  const upsertSetExecutionLog = async ({
-    exercise,
-    setNumber,
-    isCompleted
-  }: {
-    exercise: SessionExercise;
-    setNumber: number;
-    isCompleted: boolean;
-  }) => {
-    const actualReps = parseRepAverage(String((exercise.actual_reps ?? exercise.reps) || '10'));
-    const actualWeightKg =
-      exercise.actual_weight_kg === null || exercise.actual_weight_kg === undefined
-        ? exercise.weight_kg ?? null
-        : Math.max(0, Number(exercise.actual_weight_kg) || 0);
-    const plannedWeightKg =
-      exercise.planned_weight_kg === null || exercise.planned_weight_kg === undefined
-        ? exercise.weight_kg ?? null
-        : Math.max(0, Number(exercise.planned_weight_kg) || 0);
-    const estimatedKcal = Math.max(
-      1,
-      Math.round((Number(exercise.estimated_kcal || 0) || 0) / Math.max(1, Number(exercise.actual_sets ?? exercise.sets) || 1))
-    );
-
-    const { error } = await supabase
-      .from('daily_exercise_set_logs')
-      .upsert(
-        {
-          daily_exercise_session_id: exercise.id,
-          set_number: setNumber,
-          planned_reps: String((exercise.planned_reps ?? exercise.reps) || ''),
-          target_weight_kg: plannedWeightKg,
-          actual_reps: actualReps,
-          actual_weight_kg: actualWeightKg,
-          rest_seconds: selectedRestSeconds,
-          estimated_kcal: estimatedKcal,
-          is_completed: isCompleted
-        },
-        { onConflict: 'daily_exercise_session_id,set_number' }
-      );
-
-    if (error) throw error;
-  };
-
   const saveExerciseConfig = async () => {
     if (!activeExercise) return;
 
@@ -468,38 +499,38 @@ export default function WorkoutSession() {
     setIsRunning(false);
 
     try {
-      const updateDaily = await supabase
-        .from('daily_exercise_sessions')
-        .update({
+      const response = await fetchWithAuth(`/api/workout/daily-exercises/${previousExercise.id}/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           sets: nextSets,
           reps: nextReps,
-          weight_kg: nextWeightKg,
-          rest_seconds: nextRestSeconds,
-          is_completed: nextIsCompleted,
-          actual_sets: nextSets,
-          actual_reps: nextReps,
-          actual_weight_kg: nextWeightKg,
-          actual_rest_seconds: nextRestSeconds,
-          completed_sets: nextCompletedSetCount
+          weightKg: nextWeightKg,
+          restSeconds: nextRestSeconds
         })
-        .eq('id', previousExercise.id)
-        .eq('user_id', user?.id)
-        .eq('log_date', state.logDate || '');
-      if (updateDaily.error) throw updateDaily.error;
-
-      await syncDailyWorkoutSessionExercise(previousExercise, {
-        sets: nextSets,
-        reps: nextReps,
-        weight_kg: nextWeightKg,
-        rest_seconds: nextRestSeconds,
-        is_completed: nextIsCompleted,
-        actual_sets: nextSets,
-        actual_reps: nextReps,
-        actual_weight_kg: nextWeightKg,
-        actual_rest_seconds: nextRestSeconds,
-        completed_sets: nextCompletedSetCount
       });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(payload?.error || 'Cap nhat thong so that bai'));
+      }
 
+      const savedExercise = payload?.exercise as SessionExercise | undefined;
+      if (savedExercise) {
+        setSessionItems((prev) =>
+          prev.map((item) =>
+            item.id === previousExercise.id
+              ? {
+                  ...savedExercise,
+                  name: item.name,
+                  gif_url: item.gif_url,
+                  exercises: savedExercise.exercises ?? item.exercises
+                }
+              : item
+          )
+        );
+      }
       setIsEditModalOpen(false);
     } catch (error: any) {
       setSessionItems((prev) => prev.map((item) => (item.id === previousExercise.id ? previousExercise : item)));
@@ -845,11 +876,8 @@ export default function WorkoutSession() {
                 <button
                   type="button"
                   onClick={async () => {
-                    const nextCompletedSets = Math.min(activeExercise.sets, completedSetCount + 1);
-                    const nextActualKcal = Math.max(
-                      0,
-                      Math.round((Number(activeExercise.estimated_kcal || 0) || 0) * (nextCompletedSets / Math.max(1, activeExercise.sets)))
-                    );
+                    let nextCompletedSets = Math.min(activeExercise.sets, completedSetCount + 1);
+                    let nextActualKcal = Math.max(0, Number(activeExercise.actual_kcal_estimated) || 0);
                     setCompletedSetsByExercise((prev) => ({
                       ...prev,
                       [activeExercise.id]: nextCompletedSets
@@ -862,28 +890,43 @@ export default function WorkoutSession() {
                       )
                     );
                     try {
-                      await supabase
-                        .from('daily_exercise_sessions')
-                        .update({
-                          completed_sets: nextCompletedSets,
-                          actual_kcal_estimated: nextActualKcal
-                        })
-                        .eq('id', activeExercise.id)
-                        .eq('user_id', user?.id)
-                        .eq('log_date', state.logDate || '');
-                      await syncDailyWorkoutSessionExercise(activeExercise, {
-                        completed_sets: nextCompletedSets,
-                        actual_kcal_estimated: nextActualKcal
-                      });
-                      await upsertSetExecutionLog({
-                        exercise: {
-                          ...activeExercise,
-                          completed_sets: nextCompletedSets,
-                          actual_kcal_estimated: nextActualKcal
+                      const response = await fetchWithAuth(`/api/workout/daily-exercises/${activeExercise.id}/complete-set`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
                         },
-                        setNumber: nextCompletedSets,
-                        isCompleted: true
+                        body: JSON.stringify({
+                          restSeconds: selectedRestSeconds
+                        })
                       });
+                      const payload = await response.json().catch(() => ({}));
+                      if (!response.ok) {
+                        throw new Error(String(payload?.error || 'Khong the dong bo du lieu set tap'));
+                      }
+                      const savedExercise = payload?.exercise as SessionExercise | undefined;
+                      nextCompletedSets = Math.max(
+                        completedSetCount,
+                        Number(savedExercise?.completed_sets ?? nextCompletedSets)
+                      );
+                      nextActualKcal = Math.max(
+                        0,
+                        Number(savedExercise?.actual_kcal_estimated ?? nextActualKcal)
+                      );
+                      if (savedExercise) {
+                        setSessionItems((prev) =>
+                          prev.map((item) =>
+                            item.id === activeExercise.id
+                              ? {
+                                  ...item,
+                                  ...savedExercise,
+                                  name: item.name,
+                                  gif_url: item.gif_url,
+                                  exercises: savedExercise.exercises ?? item.exercises
+                                }
+                              : item
+                          )
+                        );
+                      }
                     } catch (error) {
                       console.error('Khong the dong bo du lieu set tap:', error);
                     }
@@ -908,11 +951,6 @@ export default function WorkoutSession() {
                           .eq('user_id', user?.id)
                           .eq('log_date', state.logDate || '');
                         if (updateDailyRes.error) throw updateDailyRes.error;
-                        await syncDailyWorkoutSessionExercise(activeExercise, {
-                          is_completed: true,
-                          completed_sets: nextCompletedSets,
-                          actual_kcal_estimated: nextActualKcal
-                        });
                       } catch (error) {
                         console.error('Không thể đồng bộ trạng thái hoàn thành bài tập:', error);
                       }

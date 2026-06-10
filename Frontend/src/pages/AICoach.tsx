@@ -11,7 +11,7 @@ import {
 import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
+import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const RECENT_CHAT_LIMIT = 80;
@@ -493,58 +493,147 @@ const mergeOptimisticChatMessages = (serverMessages: ChatMessage[], currentMessa
 
 function AICoachSkeleton() {
   return (
-    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <SkeletonHero titleWidth="w-[68%] max-w-[21rem]" chips={3} />
-
-      <SkeletonSurface className="overflow-hidden">
-        <div className="border-b border-border-primary px-4 py-3">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-bg-tertiary/75" />
-            <div className="min-w-0 flex-1">
-              {SkeletonBlock('h-5 w-28 rounded-lg')}
-              {SkeletonBlock('mt-2 h-3 w-40 rounded-lg')}
+    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7" aria-hidden="true">
+      <section>
+        <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+          <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-bg-tertiary/75" />
+              <div className="min-w-0 flex-1">
+                {SkeletonBlock('h-5 w-28 rounded-lg')}
+                {SkeletonBlock('mt-2 h-3 w-44 rounded-lg')}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="grid min-h-[620px] grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1.15fr)_380px]">
-          <div className="space-y-4 bg-bg-tertiary/18 px-5 py-5">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className={`flex ${index % 3 === 1 ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`max-w-[78%] ${index % 3 === 1 ? 'rounded-[18px] bg-bg-tertiary/70' : 'rounded-xl border border-border-primary bg-bg-secondary/70'} px-4 py-3`}>
-                  {SkeletonBlock(`h-3 rounded-lg ${index % 2 === 0 ? 'w-20' : 'w-28'}`)}
-                  {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
-                  {SkeletonBlock('mt-2 h-3 w-[88%] rounded-lg')}
-                  {index % 2 === 0 ? SkeletonBlock('mt-2 h-3 w-[72%] rounded-lg') : null}
-                </div>
-              </div>
-            ))}
-          </div>
+          <div className="min-h-0 flex-1 overflow-hidden bg-bg-tertiary px-5 py-5">
+            <div className="flex h-full flex-col gap-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-1 h-8 w-8 shrink-0 rounded-full bg-ai/70" />
+                <div className="w-full max-w-[980px] space-y-4">
+                  <div className="rounded-[20px] border border-border-primary bg-bg-secondary px-4 py-4">
+                    {SkeletonBlock('h-3 w-20 rounded-lg')}
+                    {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
+                    {SkeletonBlock('mt-2 h-3 w-[82%] rounded-lg')}
+                  </div>
 
-          <div className="border-t border-border-primary px-4 py-5 xl:border-l xl:border-t-0">
-            <div className="space-y-4">
-              <div className="rounded-xl border border-border-primary bg-bg-tertiary/25 p-4">
-                {SkeletonBlock('h-3 w-24')}
-                {SkeletonBlock('mt-3 h-6 w-[72%] rounded-xl')}
-                {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
-                {SkeletonBlock('mt-2 h-3 w-[84%] rounded-lg')}
-              </div>
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div key={index} className="rounded-xl border border-border-primary bg-bg-tertiary/20 p-4">
-                  {SkeletonBlock('h-3 w-20')}
-                  <div className="mt-3 space-y-2">
-                    <div className="h-14 rounded-xl bg-bg-tertiary/55" />
-                    <div className="h-14 rounded-xl bg-bg-tertiary/40" />
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                    <SkeletonSurface className="flex min-h-[280px] min-w-0 flex-col gap-4 bg-bg-secondary/80 p-4 shadow-none">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          {SkeletonBlock('h-3 w-24')}
+                          {SkeletonBlock('mt-4 h-6 w-[84%] rounded-xl')}
+                          {SkeletonBlock('mt-3 h-4 w-[60%]')}
+                        </div>
+                        <div className="h-10 w-10 shrink-0 rounded-2xl bg-bg-tertiary/60" />
+                      </div>
+
+                      <div className="flex flex-1 flex-col rounded-xl border border-border-primary bg-bg-tertiary/25 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          {SkeletonBlock('h-3 w-20')}
+                          <div className="h-6 w-12 rounded-full bg-bg-tertiary/55" />
+                        </div>
+
+                        <div className="mt-3 space-y-2.5">
+                          {Array.from({ length: 3 }).map((_, index) => (
+                            <div
+                              key={index}
+                              className="flex items-start gap-3 rounded-lg border border-border-primary/80 bg-bg-tertiary/35 px-3 py-3"
+                            >
+                              <div className="h-8 w-8 shrink-0 rounded-full bg-bg-secondary/90" />
+                              <div className="min-w-0 flex-1">
+                                {SkeletonBlock('h-4 w-[80%] rounded-lg')}
+                                {SkeletonBlock('mt-2 h-3 w-20 rounded-lg')}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </SkeletonSurface>
+
+                    <SkeletonSurface className="flex min-h-[280px] min-w-0 flex-col gap-4 bg-bg-secondary/80 p-4 shadow-none">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          {SkeletonBlock('h-3 w-24')}
+                          {SkeletonBlock('mt-4 h-5 w-[76%] rounded-xl')}
+                          {SkeletonBlock('mt-3 h-5 w-[56%] rounded-xl')}
+                        </div>
+                        <div className="h-10 w-10 shrink-0 rounded-2xl bg-bg-tertiary/60" />
+                      </div>
+
+                      <div className="space-y-3">
+                        {Array.from({ length: 4 }).map((_, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-tertiary/35 px-3 py-3"
+                          >
+                            <div className="h-8 w-8 shrink-0 rounded-full bg-bg-secondary/90" />
+                            <div className="min-w-0 flex-1">
+                              {SkeletonBlock('h-4 w-[72%] rounded-lg')}
+                              {SkeletonBlock('mt-2 h-3 w-20 rounded-lg')}
+                            </div>
+                            <div className="h-4 w-14 shrink-0 rounded-lg bg-bg-tertiary/60" />
+                          </div>
+                        ))}
+                      </div>
+                    </SkeletonSurface>
+
+                    <SkeletonSurface className="flex min-h-[280px] min-w-0 flex-col gap-4 bg-bg-secondary/80 p-4 shadow-none">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          {SkeletonBlock('h-3 w-24')}
+                          {SkeletonBlock('mt-4 h-5 w-[68%] rounded-xl')}
+                        </div>
+                        <div className="h-10 w-10 shrink-0 rounded-2xl bg-bg-tertiary/60" />
+                      </div>
+
+                      <div className="space-y-4">
+                        {Array.from({ length: 3 }).map((_, index) => (
+                          <div key={index}>
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              {SkeletonBlock('h-4 w-24 rounded-lg')}
+                              {SkeletonBlock('h-4 w-12 rounded-lg')}
+                            </div>
+                            <div className="h-2 rounded-full bg-bg-tertiary/60" />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-auto rounded-xl border border-border-primary bg-bg-tertiary/30 px-4 py-3">
+                        {SkeletonBlock('h-3 w-full rounded-lg')}
+                        {SkeletonBlock('mt-2 h-3 w-[78%] rounded-lg')}
+                      </div>
+                    </SkeletonSurface>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div className="flex justify-end">
+                <div className="w-full max-w-[320px] rounded-[18px] bg-bg-secondary/80 px-4 py-3">
+                  {SkeletonBlock('h-3 w-20 rounded-lg')}
+                  {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="mt-1 h-8 w-8 shrink-0 rounded-full bg-ai/55" />
+                <div className="w-full max-w-[560px] rounded-[18px] border border-border-primary bg-bg-secondary/80 px-4 py-3">
+                  {SkeletonBlock('h-3 w-16 rounded-lg')}
+                  {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
+                  {SkeletonBlock('mt-2 h-3 w-[88%] rounded-lg')}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </SkeletonSurface>
+
+          <div className="shrink-0 border-t border-border-primary bg-bg-tertiary px-5 pb-4 pt-4">
+            <div className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-secondary px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+              {SkeletonBlock('h-4 flex-1 rounded-lg')}
+              <div className="h-10 w-10 rounded-[14px] bg-bg-tertiary/60" />
+            </div>
+          </div>
+        </article>
+      </section>
     </div>
   );
 }

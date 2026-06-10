@@ -9,9 +9,9 @@ export function PlaceholderSkeleton() {
     <div className="dashboard-page-shell flex flex-col gap-4 md:gap-5 min-w-0 animate-pulse pb-4 md:pb-6 lg:pb-7">
       <SkeletonHero titleWidth="w-[44%] max-w-[16rem]" chips={2} />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-5">
-        <SkeletonSurface className="h-52" />
-        <SkeletonSurface className="h-52" />
-        <SkeletonSurface className="h-52" />
+        <SkeletonSurface className="h-52">{null}</SkeletonSurface>
+        <SkeletonSurface className="h-52">{null}</SkeletonSurface>
+        <SkeletonSurface className="h-52">{null}</SkeletonSurface>
       </div>
       <SkeletonSurface className="p-5 md:p-6">
         {SkeletonBlock('h-6 w-52 rounded-xl')}
