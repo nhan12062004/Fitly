@@ -645,7 +645,6 @@ export default function Exercises() {
         .eq('id', id);
       setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: currentStatus } : s));
       alert("Loi: " + (syncError?.message || 'Cap nhat trang thai that bai'));
-      return;
       alert("Lá»—i: " + (syncError?.message || 'Cáº­p nháº­t tráº¡ng thÃ¡i tháº¥t báº¡i'));
     }
   };
@@ -661,7 +660,6 @@ export default function Exercises() {
         setSession(prev => [...prev, removedItem].sort((a, b) => a.order_index - b.order_index));
       }
       alert("Lỗi: " + (deleteSessionError.message || 'Xóa bài tập thất bại'));
-      return;
     }
 
     if (removedItem?.exercise_id) {
@@ -780,8 +778,8 @@ export default function Exercises() {
           gif_url: normalizeGifUrl((data.exercises as any)?.image_url || '')
         }]);
       }
-      alert("Da them vao buoi tap hom nay");
-      return;
+      alert('Da them vao buoi tap hom nay');
+      /*
       alert("ÄÃ£ thÃªm vÃ o buá»•i táº­p hÃ´m nay");
       return;
 
