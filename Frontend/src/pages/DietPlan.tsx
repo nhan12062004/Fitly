@@ -215,27 +215,6 @@ const FoodImage = ({ src, alt, muted = false }: { src: string; alt: string; mute
   );
 };
 
-const MacroRow = ({ label, value, target, color }: { label: string; value: number; target: number; color: string }) => {
-  const width = Math.min(100, Math.round((value / Math.max(1, target)) * 100));
-
-  return (
-    <div className="min-w-0">
-      <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-[11px] font-black text-text-secondary">
-          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
-          {label}
-        </span>
-        <span className="text-[11px] font-black text-text-primary">
-          {Math.round(value)} <span className="text-text-tertiary">/{target}g</span>
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-tertiary">
-        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${width}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
-};
-
 const FoodPicker = ({
   open,
   foods,
@@ -484,43 +463,47 @@ export default function DietPlan() {
     [dayItems]
   );
   const isTodaySelected = isCurrentWeek && selectedDayId === getTodayDayIndex();
-  const summaryChips = useMemo(() => ([
-    {
-      label: 'Kcal',
-      value: `${dayNutrition.calories.toLocaleString()}/${targetCalories.toLocaleString()}`,
-      color: '#f8fafc',
-      bg: 'rgba(255,255,255,0.06)',
-      border: 'rgba(255,255,255,0.10)'
-    },
-    {
-      label: 'P',
-      value: `${Math.round(dayNutrition.protein)}/${macroTargets.protein}`,
-      color: '#22c55e',
-      bg: 'rgba(34,197,94,0.12)',
-      border: 'rgba(34,197,94,0.20)'
-    },
-    {
-      label: 'C',
-      value: `${Math.round(dayNutrition.carbs)}/${macroTargets.carbs}`,
-      color: '#38bdf8',
-      bg: 'rgba(56,189,248,0.12)',
-      border: 'rgba(56,189,248,0.20)'
-    },
-    {
-      label: 'F',
-      value: `${Math.round(dayNutrition.fat)}/${macroTargets.fat}`,
-      color: '#f59e0b',
-      bg: 'rgba(245,158,11,0.12)',
-      border: 'rgba(245,158,11,0.20)'
-    },
-    {
-      label: 'Nước',
-      value: `${waterIntake.toFixed(1)}/${waterGoal.toFixed(1)}L`,
-      color: '#60a5fa',
-      bg: 'rgba(96,165,250,0.12)',
-      border: 'rgba(96,165,250,0.20)'
-    }
-  ]), [dayNutrition.calories, dayNutrition.carbs, dayNutrition.fat, dayNutrition.protein, macroTargets.carbs, macroTargets.fat, macroTargets.protein, targetCalories, waterGoal, waterIntake]);
+  const highlightedMealId = isTodaySelected ? getCurrentMealType() : null;
+  const mealSummaries = useMemo(
+    () =>
+      MEAL_TYPES.map((meal, mealIndex) => {
+        const items = dayItems.filter((item) => item.meal_type === meal.id);
+        const mealCalories = Math.round(items.reduce((sum, item) => sum + item.calories * item.quantity, 0));
+        const firstItem = items[0];
+        const hasItems = items.length > 0;
+        const protein = roundMacro(items.reduce((sum, item) => sum + item.protein * item.quantity, 0));
+        const carbs = roundMacro(items.reduce((sum, item) => sum + item.carbs * item.quantity, 0));
+        const fat = roundMacro(items.reduce((sum, item) => sum + item.fat * item.quantity, 0));
+        const categories = Array.from(new Set(items.map((item) => item.category).filter(Boolean)));
+
+        return {
+          ...meal,
+          mealIndex,
+          items,
+          mealCalories,
+          firstItem,
+          feedbackTarget: firstItem || null,
+          hasItems,
+          names: hasItems ? items.map((item) => item.name).join(' + ') : 'Chưa có món cho bữa này',
+          protein,
+          carbs,
+          fat,
+          categories,
+          mealDescription: hasItems ? categories.join(', ') || `${items.length} món đã chọn` : '',
+          mealTheme: MEAL_TYPE_THEME[meal.id],
+          isHighlighted: highlightedMealId === meal.id
+        };
+      }),
+    [dayItems, highlightedMealId]
+  );
+  const featuredMeal = useMemo(
+    () =>
+      mealSummaries.find((meal) => meal.id === highlightedMealId && meal.hasItems) ||
+      mealSummaries.find((meal) => meal.hasItems) ||
+      mealSummaries[0] ||
+      null,
+    [highlightedMealId, mealSummaries]
+  );
 
   useEffect(() => {
     if (isCurrentWeek) setSelectedDayId(getTodayDayIndex());
@@ -987,243 +970,212 @@ export default function DietPlan() {
   return (
     <div className="dashboard-page-shell diet-page-shell flex flex-col gap-4 overflow-x-hidden overflow-y-auto text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="w-full space-y-4 overflow-hidden">
-        <section
-          className="diet-card relative overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at top left, rgba(34,197,94,0.10), transparent 26%), radial-gradient(circle at top right, rgba(56,189,248,0.08), transparent 24%), linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01))'
-          }}
-        >
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,rgba(34,197,94,0.0),rgba(34,197,94,0.35),rgba(56,189,248,0.25),rgba(34,197,94,0.0))]" />
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="min-w-0">
-              <h1 className="diet-title text-2xl font-black tracking-tight md:text-4xl">
+        <section className="diet-card rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <h1 className="text-2xl font-black tracking-tight text-text-primary md:text-3xl">
                 {isTodaySelected ? 'Thực đơn hôm nay' : `Thực đơn ${DAYS[selectedDayId]?.full.toLowerCase()}`}
               </h1>
-              <p className="diet-muted mt-2 text-sm font-semibold leading-6">
-                <span className="text-text-primary">{dayNutrition.calories.toLocaleString()} / {targetCalories.toLocaleString()} kcal</span>
-                {' • '}còn <span className="text-text-primary">{remainingCalories.toLocaleString()} kcal</span>
-                {' • '}thiếu <span className="text-warning">{Math.round(remainingProtein)}g protein</span>
-                {' • '}nước <span className="text-info">{waterIntake.toFixed(1)} / {waterGoal.toFixed(1)}L</span>
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3 lg:items-end">
-              <div className="diet-tabs min-w-0 overflow-x-auto rounded-xl p-1">
-                <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 md:min-w-0">
-                  <span
-                    className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
-                    style={{
-                      width: `${dayIndicatorStyle.width}px`,
-                      height: `${dayIndicatorStyle.height}px`,
-                      transform: `translate(${dayIndicatorStyle.x}px, ${dayIndicatorStyle.y}px)`
-                    }}
-                  />
-                  {DAYS.map((day) => {
-                    const dayDate = addDays(selectedWeekStart, day.id);
-                    const isToday = toDateKey(dayDate) === todayKey;
-                    const isSelected = selectedDayId === day.id;
-                    const isTodayLabel = isCurrentWeek && isToday;
-                    const label = isTodayLabel ? 'Hôm nay' : day.label;
-
-                    return (
-                      <button
-                        key={day.id}
-                        ref={(node) => {
-                          dayTabRefs.current[day.id] = node;
-                        }}
-                        type="button"
-                        onClick={() => setSelectedDayId(day.id)}
-                        className={`inline-flex min-h-[40px] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition ${
-                          isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
-                        }`}
-                        title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
 
               <button
                 type="button"
                 onClick={autoCreateMenu}
-                className="diet-control inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border-primary px-4 text-sm font-black transition"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
               >
                 <Bot className="h-4 w-4" />
                 Tạo lại AI
               </button>
             </div>
-          </div>
-        </section>
 
-        <section className="overflow-x-auto">
-          <div className="flex min-w-max gap-2">
-            {summaryChips.map((chip) => (
-              <div
-                key={chip.label}
-                className="diet-card rounded-lg border px-3 py-2 text-sm font-black text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                style={{ backgroundColor: chip.bg, borderColor: chip.border }}
-              >
-                <span className="inline-flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: chip.color }} />
-                  <span className="text-text-secondary">{chip.label}</span>
-                  <span className="text-text-primary">{chip.value}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <main className="min-w-0 space-y-4">
-          {restDays[selectedDayId] ? (
-            <div className="diet-card rounded-xl border border-border-primary bg-bg-secondary px-6 py-12 text-center">
-              <p className="diet-title text-lg font-black">Ngày nghỉ</p>
-              <button
-                type="button"
-                onClick={() => setRestDays((prev) => ({ ...prev, [selectedDayId]: false }))}
-                className="mt-4 rounded-xl bg-accent px-5 py-2.5 text-sm font-black text-black"
-              >
-                Bật lại thực đơn
-              </button>
-            </div>
-          ) : (
-            MEAL_TYPES.map((meal, mealIndex) => {
-              const mealItems = dayItems.filter((item) => item.meal_type === meal.id);
-              const mealCalories = Math.round(mealItems.reduce((sum, item) => sum + item.calories * item.quantity, 0));
-              const firstItem = mealItems[0];
-              const feedbackTarget = mealItems[0] || null;
-              const hasItems = mealItems.length > 0;
-              const names = hasItems ? mealItems.map((item) => item.name).join(' + ') : 'Chưa có món cho bữa này';
-              const protein = roundMacro(mealItems.reduce((sum, item) => sum + item.protein * item.quantity, 0));
-              const carbs = roundMacro(mealItems.reduce((sum, item) => sum + item.carbs * item.quantity, 0));
-              const fat = roundMacro(mealItems.reduce((sum, item) => sum + item.fat * item.quantity, 0));
-              const categories = Array.from(new Set(mealItems.map((item) => item.category).filter(Boolean)));
-              const mealDescription = hasItems
-                ? categories.join(', ') || `${mealItems.length} món đã chọn`
-                : '';
-              const mealTheme = MEAL_TYPE_THEME[meal.id];
-
-              return (
-                <article
-                  key={meal.id}
-                  className="diet-card relative overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5"
+            <div className="rounded-xl border border-border-primary bg-bg-tertiary/40 p-1">
+              <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 overflow-x-auto md:min-w-0">
+                <span
+                  className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
                   style={{
-                    backgroundImage: `linear-gradient(180deg, rgba(255,255,255,0.018), rgba(255,255,255,0.01)), radial-gradient(circle at top right, ${mealTheme.accentSoft}, transparent 30%)`
+                    width: `${dayIndicatorStyle.width}px`,
+                    height: `${dayIndicatorStyle.height}px`,
+                    transform: `translate(${dayIndicatorStyle.x}px, ${dayIndicatorStyle.y}px)`
                   }}
-                >
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${mealTheme.accentStrong}, transparent 72%)` }} />
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <span
-                        className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-black"
-                        style={{
-                          color: mealTheme.accent,
-                          borderColor: mealTheme.border,
-                          backgroundColor: mealTheme.accentSoft
-                        }}
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: mealTheme.accent }} />
-                        {meal.label.charAt(0) + meal.label.slice(1).toLowerCase()} • {meal.time}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[2rem] font-black leading-none text-text-primary">{mealCalories}</p>
-                      <p className="text-[11px] font-black text-text-tertiary">kcal</p>
-                    </div>
-                  </div>
+                />
+                {DAYS.map((day) => {
+                  const dayDate = addDays(selectedWeekStart, day.id);
+                  const isToday = toDateKey(dayDate) === todayKey;
+                  const isSelected = selectedDayId === day.id;
+                  const isTodayLabel = isCurrentWeek && isToday;
+                  const label = isTodayLabel ? 'Hôm nay' : day.label;
 
-                  {hasItems ? (
-                    <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start">
+                  return (
+                    <button
+                      key={day.id}
+                      ref={(node) => {
+                        dayTabRefs.current[day.id] = node;
+                      }}
+                      type="button"
+                      onClick={() => setSelectedDayId(day.id)}
+                      className={`inline-flex min-h-[40px] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition ${
+                        isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
+                      }`}
+                      title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-text-secondary">Calories</p>
+                <p className="mt-2 text-lg font-black text-text-primary">
+                  {dayNutrition.calories.toLocaleString()} / {targetCalories.toLocaleString()}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-text-tertiary">Còn {remainingCalories.toLocaleString()} kcal</p>
+              </div>
+              <div className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-text-secondary">Protein</p>
+                <p className="mt-2 text-lg font-black text-text-primary">{Math.round(dayNutrition.protein)} / {macroTargets.protein}g</p>
+                <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingProtein)}g</p>
+              </div>
+              <div className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-text-secondary">Nước</p>
+                <p className="mt-2 text-lg font-black text-text-primary">{waterIntake.toFixed(1)} / {waterGoal.toFixed(1)}L</p>
+                <p className="mt-1 text-xs font-semibold text-text-tertiary">{waterProgress}% mục tiêu</p>
+              </div>
+            </div>
+
+            {restDays[selectedDayId] ? (
+              <div className="rounded-[22px] border border-border-primary bg-[#f7f4ef] px-5 py-6 text-[#1f2937]">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#8a6d1a]">Recovery day</p>
+                <h2 className="mt-2 text-2xl font-black leading-tight">Ngày nghỉ để hồi phục</h2>
+                <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#4b5563]">
+                  Không cần hiển thị quá nhiều chi tiết cho ngày này. Bạn có thể bật lại thực đơn hoặc để AI tạo lại menu nhẹ hơn.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRestDays((prev) => ({ ...prev, [selectedDayId]: false }))}
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
+                >
+                  Bật lại thực đơn
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-xl font-black text-text-primary md:text-2xl">Các bữa trong ngày</h2>
+              <p className="mt-1 text-sm font-semibold text-text-secondary">
+                {mealsWithFoodCount}/{MEAL_TYPES.length} bữa đã có món. Mỗi card chỉ giữ trạng thái và hành động chính để dễ đọc hơn trên mobile.
+              </p>
+            </div>
+            <div className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-2 text-sm font-bold text-text-secondary">
+              {planName}
+            </div>
+          </div>
+
+          <main className="mt-4 grid gap-3 md:grid-cols-2">
+            {mealSummaries.map((meal) => (
+              <article
+                key={meal.id}
+                className={`rounded-xl border p-4 transition-colors ${
+                  meal.isHighlighted
+                    ? 'border-accent/35 bg-accent/8'
+                    : 'border-border-primary bg-bg-tertiary/20'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p
+                      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-black"
+                      style={{
+                        color: meal.mealTheme.accent,
+                        borderColor: meal.mealTheme.border,
+                        backgroundColor: meal.mealTheme.accentSoft
+                      }}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: meal.mealTheme.accent }} />
+                      {meal.label.charAt(0) + meal.label.slice(1).toLowerCase()} • {meal.time}
+                    </p>
+                    <h3 className="mt-3 line-clamp-2 text-lg font-black text-text-primary">
+                      {meal.hasItems ? meal.names : 'Chưa có món cho bữa này'}
+                    </h3>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-2xl font-black leading-none text-text-primary">{meal.mealCalories}</p>
+                    <p className="mt-1 text-[11px] font-bold text-text-tertiary">kcal</p>
+                  </div>
+                </div>
+
+                <p className="mt-3 text-sm font-semibold leading-6 text-text-secondary">
+                  {meal.hasItems
+                    ? `${meal.items.length} món • P ${meal.protein}g • C ${meal.carbs}g • F ${meal.fat}g`
+                    : 'AI có thể gợi ý món phù hợp, hoặc bạn tự chọn món cho bữa này.'}
+                </p>
+
+                {meal.hasItems ? (
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-text-tertiary">
+                    {meal.items.slice(0, 2).map((item) => (
+                      <span key={item.tempId} className="rounded-full border border-border-primary bg-bg-secondary/70 px-3 py-1">
+                        {item.name}
+                      </span>
+                    ))}
+                    {meal.items.length > 2 ? (
+                      <span className="rounded-full border border-border-primary bg-bg-secondary/70 px-3 py-1">
+                        +{meal.items.length - 2} món
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {meal.hasItems ? (
+                    <>
                       <button
                         type="button"
-                        onClick={() => openFoodPicker(meal.id)}
-                        className="h-[92px] w-full shrink-0 overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary md:w-[96px]"
-                        aria-label={`Chọn lại món cho ${meal.label}`}
+                        onClick={() => {
+                          if (!meal.feedbackTarget) return;
+                          void submitMealFeedback(meal.feedbackTarget, 'liked');
+                        }}
+                        className="inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
                       >
-                        <FoodImage src={resolveFoodImage(firstItem as unknown as Food, mealIndex)} alt={firstItem.name} />
+                        Đã ăn
                       </button>
-
-                      <div className="min-w-0 flex-1">
-                        <h3 className="diet-title text-[22px] font-black leading-tight text-text-primary">{names}</h3>
-                        {mealDescription && (
-                          <p className="diet-muted mt-1 text-sm font-semibold leading-6">{mealDescription}</p>
-                        )}
-                        <div className="mt-3 flex flex-wrap gap-2.5 text-sm font-black text-text-primary">
-                          <span className="rounded-full border border-[rgba(34,197,94,0.18)] bg-[rgba(34,197,94,0.10)] px-3 py-1 text-[#b9f5cf]">P:{protein}g</span>
-                          <span className="rounded-full border border-[rgba(56,189,248,0.18)] bg-[rgba(56,189,248,0.10)] px-3 py-1 text-[#c5ebff]">C:{carbs}g</span>
-                          <span className="rounded-full border border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.10)] px-3 py-1 text-[#ffd9a8]">F:{fat}g</span>
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!feedbackTarget) return;
-                              void submitMealFeedback(feedbackTarget, 'liked');
-                            }}
-                            className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
-                          >
-                            Đã ăn
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!feedbackTarget) return;
-                              void submitMealFeedback(feedbackTarget, 'disliked');
-                            }}
-                            className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
-                          >
-                            Đổi món
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openFoodPicker(meal.id)}
-                            className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
-                          >
-                            ...
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center">
-                      <div
-                        className="flex h-[92px] w-full shrink-0 items-center justify-center rounded-xl border md:w-[96px]"
-                        style={{ borderColor: mealTheme.border, backgroundColor: mealTheme.accentSoft }}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!meal.feedbackTarget) return;
+                          void submitMealFeedback(meal.feedbackTarget, 'disliked');
+                        }}
+                        className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
                       >
-                        <Utensils className="h-7 w-7" style={{ color: mealTheme.accent }} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-base font-bold text-text-primary">Chưa có món cho bữa này</p>
-                        <p className="diet-muted mt-1 text-sm font-semibold leading-6">
-                          AI có thể gợi ý món phù hợp với mục tiêu calories và protein của hôm nay.
-                        </p>
-                      </div>
-                      <div className="mt-1 flex flex-wrap gap-2 md:mt-0">
-                        <button
-                          type="button"
-                          onClick={() => quickSuggestMeal(meal.id)}
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
-                        >
-                          <Bot className="h-4 w-4" />
-                          AI chọn món
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openFoodPicker(meal.id)}
-                          className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
-                        >
-                          Tự chọn món
-                        </button>
-                      </div>
-                    </div>
+                        Đổi món
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => quickSuggestMeal(meal.id)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
+                    >
+                      <Bot className="h-4 w-4" />
+                      AI chọn món
+                    </button>
                   )}
-                </article>
-              );
-            })
-          )}
-        </main>
+                  <button
+                    type="button"
+                    onClick={() => openFoodPicker(meal.id)}
+                    className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
+                  >
+                    Tự chọn món
+                  </button>
+                </div>
+              </article>
+            ))}
+          </main>
+        </section>
       </div>
 
       <FoodPicker
