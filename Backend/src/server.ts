@@ -1554,11 +1554,24 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
   let detectedActionType: string | null | undefined;
   try {
     authUserId = await getAuthUserId(req);
-    const { message, selectedDayIndex, weekStartDate } = req.body || {};
+    const { message, selectedDayIndex, weekStartDate, clientHistory } = req.body || {};
     if (!authUserId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     const normalizedMessage = typeof message === 'string' ? message.trim() : '';
+    const normalizedClientHistory = Array.isArray(clientHistory)
+      ? clientHistory
+          .filter((item: any) => {
+            const role = String(item?.role || '');
+            const content = String(item?.content || '').trim();
+            return (role === 'user' || role === 'assistant') && content.length > 0;
+          })
+          .slice(-10)
+          .map((item: any) => ({
+            role: String(item.role) === 'assistant' ? 'assistant' as const : 'user' as const,
+            content: String(item.content || '').trim().slice(0, 1200)
+          }))
+      : [];
     const hasSelectedDayIndex = Object.prototype.hasOwnProperty.call(req.body || {}, 'selectedDayIndex');
     const hasWeekStartDate = Object.prototype.hasOwnProperty.call(req.body || {}, 'weekStartDate');
 
@@ -1622,7 +1635,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-    const [todayWorkoutRes, todayMealRes, weekPlanRes, feedbackRes, profileRes, bodyMetricsRes, healthRes, recentChatRes] = await Promise.all([
+    const [todayWorkoutRes, todayMealRes, weekPlanRes, feedbackRes, profileRes, bodyMetricsRes, healthRes, recentChatRes, dailyExerciseSessionsRes] = await Promise.all([
       weeklyPlanQuery,
       weeklyFoodPlanQuery,
       supabase
@@ -1660,13 +1673,43 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .gte('created_at', chatDayBounds.startIso)
         .lt('created_at', chatDayBounds.endIso)
         .order('created_at', { ascending: false })
-        .limit(8)
+        .limit(8),
+      supabase
+        .from('daily_exercise_sessions')
+        .select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, exercises:exercise_id(name, body_part, target_muscle)')
+        .eq('user_id', authUserId)
+        .eq('log_date', getVietnamDateKey())
+        .order('order_index', { ascending: true })
     ]);
 
     const workoutRows = (todayWorkoutRes.data as any)?.weekly_plan_exercises || [];
     const mealRows = (todayMealRes.data as any)?.weekly_food_items || [];
-    const targetWorkoutRows = workoutRows.filter((row: any) => Number(row.day_of_week) === dayIndex && row.exercise_id);
+    const planWorkoutRows = workoutRows.filter((row: any) => Number(row.day_of_week) === dayIndex && row.exercise_id);
+    const dailyWorkoutRows = ((dailyExerciseSessionsRes.data || []) as any[])
+      .filter((row: any) => row.exercise_id)
+      .map((row: any) => ({
+        ...row,
+        day_of_week: todayDayIndex
+      }));
+    const targetWorkoutRows =
+      dayIndex === todayDayIndex && dailyWorkoutRows.length > 0 ? dailyWorkoutRows : planWorkoutRows;
     const targetMealRows = mealRows.filter((row: any) => Number(row.day_of_week) === dayIndex && row.food_id);
+    const dbChatHistory = ((recentChatRes.data || []) as any[])
+      .reverse()
+      .map((item: any) => ({
+        role: item.role === 'assistant' || item.role === 'system' ? item.role : 'user',
+        content: String(item.content || '').trim(),
+      }))
+      .filter((item: any) => item.content);
+    const mergedChatHistory = [...dbChatHistory, ...normalizedClientHistory]
+      .reduce((items: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>, item) => {
+        const previous = items[items.length - 1];
+        if (!previous || previous.role !== item.role || previous.content !== item.content) {
+          items.push(item);
+        }
+        return items;
+      }, [])
+      .slice(-10);
 
     const { intent, confidence } = detectIntent(normalizedMessage, {
       todayWorkoutCount: targetWorkoutRows.length,
@@ -1728,12 +1771,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         bodyMetrics: bodyMetricsRes.data || null,
         lifestyle: weekPlanRes.data || null,
         health: healthRes.data || null,
-        chatHistory: ((recentChatRes.data || []) as any[])
-          .reverse()
-          .map((item: any) => ({
-            role: item.role === 'assistant' || item.role === 'system' ? item.role : 'user',
-            content: String(item.content || ''),
-          })),
+        chatHistory: mergedChatHistory,
         exercises: targetWorkoutRows.map((row: any) => ({
           exercise_id: row.exercise_id,
           name: row.exercises?.name || null,

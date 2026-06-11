@@ -334,7 +334,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
   return (
     <div className="profile-modal-root fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="profile-modal-backdrop absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
+      <div className="profile-modal-backdrop absolute inset-0 themed-modal-backdrop backdrop-blur-md" onClick={onClose} />
 
       {/* Modal Content */}
       <div className="profile-modal relative w-full max-w-4xl bg-bg-secondary border border-border-primary rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in duration-300">
@@ -345,7 +345,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             <Sparkles className="w-4 h-4 text-accent animate-pulse" />
             <span className="text-[9px] font-bold text-accent uppercase tracking-[3px]">{"Trợ lý cá nhân"}</span>
           </div>
-          <h2 className="text-xl md:text-2xl font-black text-text-primary text-white">
+          <h2 className="text-xl md:text-2xl font-black text-text-primary text-text-primary">
             {isEditing ? "Chỉnh sửa hồ sơ sức khỏe" : `Hồ sơ sức khỏe của bạn`}
           </h2>
           <p className="text-[11px] text-text-secondary">
@@ -359,7 +359,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             {!isEditing && (
               <button
                 onClick={() => setIsEditing(true)}
-                className="flex items-center gap-2 text-white hover:text-accent transition-colors group pr-2"
+                className="flex items-center gap-2 text-text-primary hover:text-accent transition-colors group pr-2"
               >
                 <PencilLine className="w-4 h-4" />
                 <span className="text-[10px] font-bold uppercase hidden sm:block">{"Chỉnh sửa"}</span>
@@ -368,7 +368,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             {isOpen && onClose && (
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-xl transition-all text-text-tertiary hover:text-white group"
+                className="p-2 hover:bg-bg-tertiary rounded-xl transition-all text-text-tertiary hover:text-text-primary group"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -380,7 +380,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
         <form onSubmit={handleSubmit} className="profile-modal-body flex-1 overflow-y-auto p-6 md:p-8 space-y-10 custom-scrollbar">
           {isEditing && (
             <div className="bg-red-500/10 border border-red-500/20 p-2 rounded-lg mb-4 text-center">
-              <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-white">{"Lưu ý: Các trường có dấu * là bắt buộc phải điền"}</p>
+              <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-text-primary">{"Lưu ý: Các trường có dấu * là bắt buộc phải điền"}</p>
             </div>
           )}
           <fieldset disabled={!isEditing} className="profile-modal-fieldset space-y-10 disabled:opacity-90">
@@ -388,33 +388,33 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             <section className="space-y-4">
               <div className="flex items-center gap-3 border-l-4 border-accent pl-4">
                 <User className="w-5 h-5 text-accent" />
-                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-white">{"1. Nhân khẩu học & Nghề nghiệp"}</h3>
+                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-text-primary">{"1. Nhân khẩu học & Nghề nghiệp"}</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Họ và tên"} <span className="text-red-500">*</span></label>
-                  <input required name="full_name" value={formData.full_name} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && !formData.full_name ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white disabled:bg-bg-tertiary/20 disabled:border-transparent`} placeholder={"Nguyễn Văn A"} />
+                  <input required name="full_name" value={formData.full_name} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && !formData.full_name ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary disabled:bg-bg-tertiary/20 disabled:border-transparent`} placeholder={"Nguyễn Văn A"} />
                   {isSubmitted && !formData.full_name && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng nhập họ và tên</p>}
                 </div>
                 <div className="space-y-1.5 opacity-70">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Email (Tự điền)"} <span className="text-red-500">*</span></label>
-                  <input readOnly type="email" name="email" value={formData.email} className="w-full bg-bg-tertiary/50 border border-border-primary rounded-xl py-2 px-3 text-sm outline-none cursor-not-allowed text-white" />
+                  <input readOnly type="email" name="email" value={formData.email} className="w-full bg-bg-tertiary/50 border border-border-primary rounded-xl py-2 px-3 text-sm outline-none cursor-not-allowed text-text-primary" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Số điện thoại"} <span className="text-red-500">*</span></label>
-                  <input required type="tel" name="phone" value={formData.phone} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && !formData.phone ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white disabled:bg-bg-tertiary/20 disabled:border-transparent`} placeholder={"090 123 4567"} />
+                  <input required type="tel" name="phone" value={formData.phone} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && !formData.phone ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary disabled:bg-bg-tertiary/20 disabled:border-transparent`} placeholder={"090 123 4567"} />
                   {isSubmitted && !formData.phone && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng nhập số điện thoại</p>}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Ngày sinh"} <span className="text-red-500">*</span></label>
-                  <input required type="date" name="birthday" value={formData.birthday} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && !formData.birthday ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white disabled:bg-bg-tertiary/20 disabled:border-transparent`} />
+                  <input required type="date" name="birthday" value={formData.birthday} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && !formData.birthday ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary disabled:bg-bg-tertiary/20 disabled:border-transparent`} />
                   {isSubmitted && !formData.birthday && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng chọn ngày sinh</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Giới tính"} <span className="text-red-500">*</span></label>
-                  <select name="gender" value={formData.gender} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && !formData.gender ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white disabled:bg-bg-tertiary/20 disabled:border-transparent disabled:appearance-none`}>
+                  <select name="gender" value={formData.gender} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && !formData.gender ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary disabled:bg-bg-tertiary/20 disabled:border-transparent disabled:appearance-none`}>
                     <option value="Nam">{"Nam"}</option>
                     <option value="Nữ">{"Nữ"}</option>
                     <option value="Khác">{"Khác"}</option>
@@ -423,7 +423,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Công việc hiện tại"}</label>
-                  <input name="job" value={formData.job} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white disabled:bg-bg-tertiary/20 disabled:border-transparent" placeholder={"Vd: Văn phòng, Tự do..."} />
+                  <input name="job" value={formData.job} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary disabled:bg-bg-tertiary/20 disabled:border-transparent" placeholder={"Vd: Văn phòng, Tự do..."} />
                 </div>
               </div>
             </section>
@@ -431,41 +431,41 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             <section className="space-y-4">
               <div className="flex items-center gap-3 border-l-4 border-blue-400 pl-4">
                 <Ruler className="w-5 h-5 text-blue-400" />
-                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-white">{"2. Chỉ số cơ thể & Thành phần mỡ"}</h3>
+                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-text-primary">{"2. Chỉ số cơ thể & Thành phần mỡ"}</h3>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Chiều cao (cm)"} <span className="text-red-500">*</span></label>
-                  <input required type="number" name="height" value={formData.height} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && (!formData.height || formData.height === '0') ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-400 text-white`} placeholder="175" />
+                  <input required type="number" name="height" value={formData.height} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && (!formData.height || formData.height === '0') ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-400 text-text-primary`} placeholder="175" />
                   {isSubmitted && (!formData.height || formData.height === '0') && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng nhập chiều cao</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Cân nặng (kg)"} <span className="text-red-500">*</span></label>
-                  <input required type="number" name="weight" value={formData.weight} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && (!formData.weight || formData.weight === '0') ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-400 text-white`} placeholder="70" />
+                  <input required type="number" name="weight" value={formData.weight} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && (!formData.weight || formData.weight === '0') ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-400 text-text-primary`} placeholder="70" />
                   {isSubmitted && (!formData.weight || formData.weight === '0') && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng nhập cân nặng</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Cân nặng đích (kg)"} <span className="text-red-500">*</span></label>
-                  <input required type="number" name="target_weight" value={formData.target_weight} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && (!formData.target_weight || formData.target_weight === '0') ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-400 text-white`} placeholder="65" />
+                  <input required type="number" name="target_weight" value={formData.target_weight} onChange={handleInputChange} className={`w-full bg-bg-tertiary border ${isSubmitted && (!formData.target_weight || formData.target_weight === '0') ? 'border-red-500 animate-pulse' : 'border-border-primary'} rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-400 text-text-primary`} placeholder="65" />
                   {isSubmitted && (!formData.target_weight || formData.target_weight === '0') && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng nhập cân nặng đích</p>}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"% Mỡ cơ thể (nếu biết)"}</label>
-                  <input type="number" name="body_fat" value={formData.body_fat} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-400 text-white" placeholder="15" />
+                  <input type="number" name="body_fat" value={formData.body_fat} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-400 text-text-primary" placeholder="15" />
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-4 bg-bg-tertiary/30 p-4 rounded-2xl border border-border-primary/50">
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold text-text-tertiary uppercase text-center block">{"Vòng ngực"}</label>
-                  <input type="number" name="chest" value={formData.chest} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-lg py-1.5 px-2 text-center text-xs outline-none focus:border-blue-400 text-white" />
+                  <input type="number" name="chest" value={formData.chest} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-lg py-1.5 px-2 text-center text-xs outline-none focus:border-blue-400 text-text-primary" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold text-text-tertiary uppercase text-center block">{"Vòng bụng"}</label>
-                  <input type="number" name="waist" value={formData.waist} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-lg py-1.5 px-2 text-center text-xs outline-none focus:border-blue-400 text-white" />
+                  <input type="number" name="waist" value={formData.waist} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-lg py-1.5 px-2 text-center text-xs outline-none focus:border-blue-400 text-text-primary" />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[9px] font-bold text-text-tertiary uppercase text-center block">{"Vòng mông"}</label>
-                  <input type="number" name="hips" value={formData.hips} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-lg py-1.5 px-2 text-center text-xs outline-none focus:border-blue-400 text-white" />
+                  <input type="number" name="hips" value={formData.hips} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-lg py-1.5 px-2 text-center text-xs outline-none focus:border-blue-400 text-text-primary" />
                 </div>
                 <div className="space-y-1 flex flex-col justify-center items-center">
                   <label className="text-[9px] font-bold text-accent uppercase text-center block">{"Chỉ số BMI"}</label>
@@ -480,12 +480,12 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             <section className="space-y-4">
               <div className="flex items-center gap-3 border-l-4 border-accent pl-4">
                 <Apple className="w-5 h-5 text-accent" />
-                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-white">{"3. Chế độ dinh dưỡng & Ăn uống"}</h3>
+                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-text-primary">{"3. Chế độ dinh dưỡng & Ăn uống"}</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Chế độ ăn & Sở thích"}</label>
-                  <select name="diet_preference" value={formData.diet_preference} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white">
+                  <select name="diet_preference" value={formData.diet_preference} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary">
                     <option value="Bình thường">{"Bình thường"}</option>
                     <option value="Ăn chay">{"Ăn chay"}</option>
                     <option value="Ăn nhiều đạm (High Protein)">{"Ăn nhiều đạm (High Protein)"}</option>
@@ -495,7 +495,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Khả năng nấu nướng"}</label>
-                  <select name="cooking_ability" value={formData.cooking_ability} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white">
+                  <select name="cooking_ability" value={formData.cooking_ability} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary">
                     <option value="Tự nấu 100%">{"Tự nấu 100%"}</option>
                     <option value="Ăn ngoài quán">{"Ăn ngoài quán"}</option>
                     <option value="Ăn trưa ở ngoài, tối tự nấu">{"Ăn trưa ở ngoài, tối tự nấu"}</option>
@@ -506,7 +506,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Số bữa ăn/ngày"}</label>
-                  <select name="meals_per_day" value={formData.meals_per_day} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white">
+                  <select name="meals_per_day" value={formData.meals_per_day} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary">
                     <option value="2">{"2 bữa"}</option>
                     <option value="3">{"3 bữa chính"}</option>
                     <option value="4">{"3 bữa chính + 1 bữa phụ"}</option>
@@ -517,12 +517,12 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Mục tiêu uống nước (L/ngày)"}</label>
                   <div className="relative">
                     <Droplet className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-blue-400" />
-                    <input type="number" step="0.1" name="daily_water_goal" value={formData.daily_water_goal} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 pl-9 pr-3 text-sm outline-none focus:border-accent text-white" />
+                    <input type="number" step="0.1" name="daily_water_goal" value={formData.daily_water_goal} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 pl-9 pr-3 text-sm outline-none focus:border-accent text-text-primary" />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Ngân sách ăn uống"}</label>
-                  <select name="budget_level" value={formData.budget_level} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white">
+                  <select name="budget_level" value={formData.budget_level} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary">
                     <option value="Tiết kiệm">{"Tiết kiệm"}</option>
                     <option value="Trung bình">{"Trung bình"}</option>
                     <option value="Thoải mái">{"Thoải mái"}</option>
@@ -585,7 +585,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                             setNewAllergy('');
                             setShowAllergyInput(false);
                           }}
-                          className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-white transition-colors"
+                          className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-accent text-text-primary transition-colors"
                           placeholder="Vd: Hải sản, Sữa/Lactose, Đậu phộng, v.v..."
                         />
                       </div>
@@ -593,7 +593,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                       <button
                         type="button"
                         onClick={() => setShowAllergyInput(true)}
-                        className="flex items-center gap-1.5 text-white hover:text-accent text-sm py-1.5 font-medium transition-colors group mt-1"
+                        className="flex items-center gap-1.5 text-text-primary hover:text-accent text-sm py-1.5 font-medium transition-colors group mt-1"
                       >
                         <Plus className="w-4 h-4 transition-transform group-hover:scale-110" />
                         <span>Thêm món</span>
@@ -608,12 +608,12 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             <section className="space-y-4">
               <div className="flex items-center gap-3 border-l-4 border-red-500 pl-4">
                 <Stethoscope className="w-5 h-5 text-red-500" />
-                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-white">{"4. Tình trạng sức khỏe & Y tế"}</h3>
+                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-text-primary">{"4. Tình trạng sức khỏe & Y tế"}</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Khói thuốc & Rượu bia"}</label>
-                  <select name="smoke_drink" value={formData.smoke_drink} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-red-500 text-white">
+                  <select name="smoke_drink" value={formData.smoke_drink} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-red-500 text-text-primary">
                     <option value="Không bao giờ">{"Không bao giờ"}</option>
                     <option value="Thỉnh thoảng">{"Thỉnh thoảng"}</option>
                     <option value="Thường xuyên">{"Thường xuyên"}</option>
@@ -621,7 +621,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Các loại thuốc đang sử dụng"}</label>
-                  <select name="medications" value={formData.medications} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-red-500 text-white">
+                  <select name="medications" value={formData.medications} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-red-500 text-text-primary">
                     <option value="Không sử dụng thuốc">{"Không sử dụng thuốc"}</option>
                     <option value="Thuốc huyết áp">{"Thuốc huyết áp"}</option>
                     <option value="Thuốc tiểu đường / kiểm soát đường huyết">{"Thuốc tiểu đường / kiểm soát đường huyết"}</option>
@@ -642,13 +642,13 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
               {formData.medications === 'Khác' && (
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Nhập thêm nếu cần"}</label>
-                  <input name="medications_extra" value={formData.medications_extra} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-red-500 text-white" placeholder={"Ví dụ: thuốc huyết áp, thuốc tiểu đường, thuốc giảm đau khớp..."} />
+                  <input name="medications_extra" value={formData.medications_extra} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-red-500 text-text-primary" placeholder={"Ví dụ: thuốc huyết áp, thuốc tiểu đường, thuốc giảm đau khớp..."} />
                 </div>
               )}
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Vấn đề sức khỏe hoặc chấn thương nào cần lưu ý"}</label>
-                <textarea name="health_condition" value={formData.health_condition} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 h-24 text-sm outline-none focus:border-red-500 text-white" placeholder={"Vd: Cao huyết áp, Thoát vị đĩa đệm, Đau đầu gối..."} />
+                <textarea name="health_condition" value={formData.health_condition} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 h-24 text-sm outline-none focus:border-red-500 text-text-primary" placeholder={"Vd: Cao huyết áp, Thoát vị đĩa đệm, Đau đầu gối..."} />
               </div>
 
               <div className="bg-red-500/5 border border-red-500/20 p-3 rounded-xl">
@@ -662,12 +662,12 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             <section className="space-y-4">
               <div className="flex items-center gap-3 border-l-4 border-orange-500 pl-4">
                 <Zap className="w-5 h-5 text-orange-500" />
-                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-white">{"5. Kinh nghiệm & Thói quen vận động"}</h3>
+                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-text-primary">{"5. Kinh nghiệm & Thói quen vận động"}</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Tính chất công việc"}</label>
-                  <select name="work_nature" value={formData.work_nature} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-white">
+                  <select name="work_nature" value={formData.work_nature} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-text-primary">
                     <option value="Ngồi văn phòng nhiều">{"Ngồi văn phòng nhiều"}</option>
                     <option value="Di chuyển nhẹ nhàng">{"Di chuyển nhẹ nhàng"}</option>
                     <option value="Vận động liên tục (Lao động tay chân)">{"Vận động liên tục (Lao động tay chân)"}</option>
@@ -675,7 +675,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Địa điểm tập luyện"}</label>
-                  <select name="workout_location" value={formData.workout_location} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-white">
+                  <select name="workout_location" value={formData.workout_location} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-text-primary">
                     <option value="Phòng Gym">{"Phòng Gym"}</option>
                     <option value="Tập tại nhà (Home Workout)">{"Tập tại nhà (Home Workout)"}</option>
                     <option value="Công viên / Ngoài trời">{"Công viên / Ngoài trời"}</option>
@@ -686,7 +686,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Kinh nghiệm tập"}</label>
-                  <select name="experience_level" value={formData.experience_level} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-white">
+                  <select name="experience_level" value={formData.experience_level} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-text-primary">
                     <option value="Người mới hoàn toàn">{"Người mới hoàn toàn"}</option>
                     <option value="Dưới 6 tháng">{"Dưới 6 tháng"}</option>
                     <option value="6 tháng - 2 năm">{"6 tháng - 2 năm"}</option>
@@ -695,7 +695,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Tần suất tập mong muốn"}</label>
-                  <select name="activity_level" value={normalizeWorkoutFrequency(formData.activity_level)} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-white">
+                  <select name="activity_level" value={normalizeWorkoutFrequency(formData.activity_level)} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-text-primary">
                     {WORKOUT_FREQUENCY_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
@@ -718,7 +718,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                         className={`min-w-[3.5rem] rounded-xl border px-3 py-2 text-center text-sm font-black transition-colors ${
                           active
                             ? 'border-orange-500 bg-orange-500/20 text-orange-400 shadow-[0_0_0_1px_rgba(249,115,22,0.25)]'
-                            : 'border-border-primary bg-bg-tertiary text-text-secondary hover:border-orange-500/45 hover:text-white'
+                            : 'border-border-primary bg-bg-tertiary text-text-secondary hover:border-orange-500/45 hover:text-text-primary'
                         }`}
                       >
                         {minutes}
@@ -731,7 +731,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Dụng cụ sẵn có"}</label>
-                  <select name="equipment_available" value={formData.equipment_available} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-white">
+                  <select name="equipment_available" value={formData.equipment_available} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-text-primary">
                     <option value="Đầy đủ tạ & máy móc">{"Đầy đủ tạ & máy móc"}</option>
                     <option value="Tạ đơn & Thảm">{"Tạ đơn & Thảm"}</option>
                     <option value="Dây kháng lực">{"Dây kháng lực"}</option>
@@ -740,7 +740,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Số giờ ngủ/ngày"}</label>
-                  <select name="sleep_hours" value={formData.sleep_hours} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-white">
+                  <select name="sleep_hours" value={formData.sleep_hours} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-text-primary">
                     <option value="4">{"Dưới 5 giờ"}</option>
                     <option value="6">{"5-6 giờ"}</option>
                     <option value="7">{"7-8 giờ"}</option>
@@ -749,7 +749,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Chất lượng giấc ngủ"}</label>
-                  <select name="sleep_quality" value={formData.sleep_quality} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-white">
+                  <select name="sleep_quality" value={formData.sleep_quality} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-orange-500 text-text-primary">
                     <option value="Rất tốt (Sâu giấc, tỉnh táo)">{"Rất tốt (Sâu giấc, tỉnh táo)"}</option>
                     <option value="Bình thường (Hay thức giấc)">{"Bình thường (Hay thức giấc)"}</option>
                     <option value="Kém (Khó ngủ, mệt mỏi)">{"Kém (Khó ngủ, mệt mỏi)"}</option>
@@ -759,7 +759,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
 
               <div className="bg-orange-500/5 border border-orange-500/20 p-3 rounded-xl flex gap-3 items-center">
                 <Clock className="w-4 h-4 text-orange-500 shrink-0" />
-                <p className="text-[9px] text-text-tertiary uppercase tracking-wider font-bold leading-relaxed text-white">
+                <p className="text-[9px] text-text-tertiary uppercase tracking-wider font-bold leading-relaxed text-text-primary">
                   {"Giấc ngủ ảnh hưởng 80% quá trình phục hồi. Trợ lý cá nhân sẽ cân đối bài tập dựa trên khả năng hồi phục của bạn."}
                 </p>
               </div>
@@ -769,12 +769,12 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             <section className="space-y-4">
               <div className="flex items-center gap-3 border-l-4 border-purple-500 pl-4">
                 <Heart className="w-5 h-5 text-purple-500" />
-                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-white">{"6. Tâm lý & Động lực"}</h3>
+                <h3 className="text-lg font-bold text-text-primary uppercase tracking-tight text-text-primary">{"6. Tâm lý & Động lực"}</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5 min-w-0">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Mức độ Stress hàng ngày"}</label>
-                  <select name="stress_level" value={formData.stress_level} onChange={handleInputChange} className="w-full min-w-0 bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-purple-500 text-white truncate">
+                  <select name="stress_level" value={formData.stress_level} onChange={handleInputChange} className="w-full min-w-0 bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-purple-500 text-text-primary truncate">
                     <option value="Thấp - Cuộc sống thoải mái">{"Thấp - Cuộc sống thoải mái"}</option>
                     <option value="Trung bình - Áp lực công việc nhẹ">{"Trung bình - Áp lực công việc nhẹ"}</option>
                     <option value="Cao - Thường xuyên căng thẳng">{"Cao - Thường xuyên căng thẳng"}</option>
@@ -782,7 +782,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
                 </div>
                 <div className="space-y-1.5 min-w-0">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Động lực lớn nhất"}</label>
-                  <select name="motivation" value={normalizeMotivation(formData.motivation)} onChange={handleInputChange} className="w-full min-w-0 bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-purple-500 text-white truncate">
+                  <select name="motivation" value={normalizeMotivation(formData.motivation)} onChange={handleInputChange} className="w-full min-w-0 bg-bg-tertiary border border-border-primary rounded-xl py-2 px-3 text-sm outline-none focus:border-purple-500 text-text-primary truncate">
                     {MOTIVATION_OPTIONS.map((option) => (
                       <option key={option} value={option}>{option}</option>
                     ))}
@@ -791,12 +791,12 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Thông điệp gửi Trợ lý cá nhân"}</label>
-                <textarea name="expectations" value={formData.expectations} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 h-20 text-sm outline-none focus:border-purple-500 text-white" placeholder={"Ví dụ: Tôi muốn tập trung vào phần mông, không thích ăn rau cải, muốn bài tập nhẹ cho đầu gối..."} />
+                <textarea name="expectations" value={formData.expectations} onChange={handleInputChange} className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 h-20 text-sm outline-none focus:border-purple-500 text-text-primary" placeholder={"Ví dụ: Tôi muốn tập trung vào phần mông, không thích ăn rau cải, muốn bài tập nhẹ cho đầu gối..."} />
               </div>
             </section>
             <div className="bg-accent/5 border border-accent/20 p-4 rounded-2xl flex gap-3">
               <CheckCircle2 className="w-5 h-5 text-accent shrink-0" />
-              <p className="text-[10px] text-text-secondary leading-relaxed uppercase tracking-wider text-white">
+              <p className="text-[10px] text-text-secondary leading-relaxed uppercase tracking-wider text-text-primary">
                 {"Xác nhận: Thông tin này là cơ sở để Trợ lý cá nhân cá nhân hóa lộ trình của bạn."}
               </p>
             </div>
@@ -812,14 +812,14 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
             <div className="flex gap-3 w-full sm:w-auto">
               <button
                 onClick={() => setIsEditing(false)}
-                className="flex-1 sm:flex-none border border-border-primary text-text-secondary hover:text-white font-bold py-2.5 px-8 rounded-xl hover:bg-white/5 transition-all text-sm"
+                className="flex-1 sm:flex-none border border-border-primary text-text-secondary hover:text-text-primary font-bold py-2.5 px-8 rounded-xl hover:bg-bg-tertiary/70 transition-all text-sm"
               >
                 {"HỦY"}
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex-1 sm:flex-none bg-accent text-black font-black py-2.5 px-8 rounded-xl hover:bg-accent-hover hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xl disabled:opacity-50 text-sm"
+                className="flex-1 sm:flex-none bg-accent text-text-inverse font-black py-2.5 px-8 rounded-xl hover:bg-accent-hover hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xl disabled:opacity-50 text-sm"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>{"CẬP NHẬT HỒ SƠ"} <Zap className="w-4 h-4" /></>}
               </button>
@@ -827,7 +827,7 @@ export default function ProfileModal({ onComplete, isOpen, onClose }: ProfileMod
           ) : (
             <button
               onClick={onClose}
-              className="w-full sm:w-auto bg-white/5 border border-white/10 hover:bg-white/10 text-white font-bold py-2.5 px-8 rounded-xl transition-all text-sm"
+              className="w-full sm:w-auto bg-bg-tertiary/55 border border-border-primary hover:bg-bg-tertiary text-text-primary font-bold py-2.5 px-8 rounded-xl transition-all text-sm"
             >
               {"ĐÓNG"}
             </button>

@@ -84,6 +84,13 @@ export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => 
 - Neu la Telegram, cau tra loi can gon hon, de doc tren dien thoai.
 - Neu la web AI Coach, co the viet thanh cac doan ngan hoac gach dau dong ro rang.
 
+[LUONG HOI THOAI]
+- Luon doc lich su hoi thoai gan nhat de hieu cac cau ngan nhu "con gi nua", "bai nao", "co nhung bai tap gi", "mon nao", "chi tiet hon".
+- Neu nguoi dung hoi tiep cung chu de, tiep tuc tu y truoc do va dao sau vao chi tiet tiep theo, khong reset ve loi chao/mo dau.
+- Khong lap lai y het cau tra loi vua gui. Neu noi dung giong nhau, doi sang liet ke, so sanh, sap thu tu uu tien, hoac dua buoc tiep theo.
+- Neu nguoi dung chi chao hoi, chao lai ngan gon va gan voi du lieu ngay dang chon.
+- Neu nguoi dung hoi bai tap hom nay hoac hoi tiep ve workout, hay liet ke bai tap hien co truoc, kem set/reps/rest neu co.
+
 [HO SO NGUOI DUNG]
 - Ten: ${compactValue((profile as any).full_name)}
 - Can nang: ${compactValue((body as any).weight)}kg | Chieu cao: ${compactValue((body as any).height)}cm | Muc tieu can nang: ${compactValue((body as any).target_weight)}kg

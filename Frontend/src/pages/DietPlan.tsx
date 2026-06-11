@@ -980,7 +980,7 @@ export default function DietPlan() {
               <button
                 type="button"
                 onClick={autoCreateMenu}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover"
               >
                 <Bot className="h-4 w-4" />
                 Tạo lại AI
@@ -1045,16 +1045,16 @@ export default function DietPlan() {
             </div>
 
             {restDays[selectedDayId] ? (
-              <div className="rounded-[22px] border border-border-primary bg-[#f7f4ef] px-5 py-6 text-[#1f2937]">
-                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#8a6d1a]">Recovery day</p>
+              <div className="themed-subtle-panel rounded-[22px] border px-5 py-6 text-text-primary">
+                <p className="text-[11px] font-black uppercase tracking-[0.16em] text-warning">Recovery day</p>
                 <h2 className="mt-2 text-2xl font-black leading-tight">Ngày nghỉ để hồi phục</h2>
-                <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#4b5563]">
+                <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">
                   Không cần hiển thị quá nhiều chi tiết cho ngày này. Bạn có thể bật lại thực đơn hoặc để AI tạo lại menu nhẹ hơn.
                 </p>
                 <button
                   type="button"
                   onClick={() => setRestDays((prev) => ({ ...prev, [selectedDayId]: false }))}
-                  className="mt-4 inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover"
                 >
                   Bật lại thực đơn
                 </button>
@@ -1139,7 +1139,7 @@ export default function DietPlan() {
                           if (!meal.feedbackTarget) return;
                           void submitMealFeedback(meal.feedbackTarget, 'liked');
                         }}
-                        className="inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
+                        className="inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover"
                       >
                         Đã ăn
                       </button>
@@ -1158,7 +1158,7 @@ export default function DietPlan() {
                     <button
                       type="button"
                       onClick={() => quickSuggestMeal(meal.id)}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-black transition hover:bg-accent-hover"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover"
                     >
                       <Bot className="h-4 w-4" />
                       AI chọn món

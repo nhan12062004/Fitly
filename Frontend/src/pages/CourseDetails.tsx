@@ -157,7 +157,7 @@ export default function CourseDetails() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
             {exercises.map((ex) => (
               <div key={ex.id} className="bg-bg-secondary border border-border-primary rounded-xl overflow-hidden hover:border-accent transition-all group flex flex-col cursor-pointer">
-                <div className="h-40 sm:h-48 w-full bg-white relative overflow-hidden shrink-0">
+                <div className="themed-image-surface h-40 sm:h-48 w-full relative overflow-hidden shrink-0">
                   {ex.gif_url ? (
                     <img src={ex.gif_url} alt={ex.name} className="w-full h-full object-contain mix-blend-multiply transition-transform duration-700 group-hover:scale-110" />
                   ) : (
@@ -174,7 +174,7 @@ export default function CourseDetails() {
                   <p className="text-xs text-text-tertiary line-clamp-2 md:line-clamp-3 flex-1 leading-relaxed">
                     {ex.instructions ? (Array.isArray(ex.instructions) ? ex.instructions.join(' ') : ex.instructions) : 'Không có hướng dẫn chi tiết cho bài tập này.'}
                   </p>
-                  <button className="mt-4 w-full py-2.5 bg-bg-tertiary border border-border-primary text-text-primary text-xs font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-accent group-hover:text-black group-hover:border-accent transition-all">
+                  <button className="mt-4 w-full py-2.5 bg-bg-tertiary border border-border-primary text-text-primary text-xs font-bold rounded-xl flex items-center justify-center gap-2 group-hover:bg-accent group-hover:text-text-inverse group-hover:border-accent transition-all">
                     <Play className="w-3.5 h-3.5" /> Cách tập
                   </button>
                 </div>

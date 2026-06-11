@@ -23,7 +23,7 @@ export default function SurveyResultScreen({ summary, onStart }: SurveyResultScr
       <div className="mx-auto flex min-h-[calc(100vh-24px)] w-full max-w-6xl flex-col justify-center gap-4 sm:min-h-[calc(100vh-40px)] sm:gap-5">
         <div className="grid gap-4 md:grid-cols-[1.04fr_0.96fr] md:items-stretch lg:gap-5">
           <section className="rounded-[28px] border border-border-primary bg-bg-secondary p-5 shadow-[0_24px_80px_rgba(0,0,0,0.18)] md:p-7 lg:p-8">
-            <div className="rounded-[24px] border border-white/6 bg-[linear-gradient(155deg,rgba(255,255,255,0.05),rgba(255,255,255,0.015))] p-4 sm:p-5">
+            <div className="themed-subtle-panel rounded-[24px] border p-4 sm:p-5">
               <div className="flex items-center gap-3">
                 <img src="/logo.svg" alt="Trợ lý cá nhân" className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
                 <div className="min-w-0">
@@ -89,7 +89,7 @@ export default function SurveyResultScreen({ summary, onStart }: SurveyResultScr
             <button
               type="button"
               onClick={onStart}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-sm font-black text-black transition-colors hover:bg-accent-hover md:mt-8"
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover md:mt-8"
             >
               Bắt đầu ngày đầu tiên
               <ArrowRight className="h-4 w-4" />

@@ -16,6 +16,57 @@ const formatMealCalories = (meal: AIChatMealSummary): number => {
   return Math.round(Number(meal.calories || 0) * quantity);
 };
 
+const hasAny = (value: string, terms: string[]) => terms.some((term) => value.includes(term));
+
+const isGreetingMessage = (message: string): boolean => {
+  const normalized = normalizeVietnameseText(message);
+  if (!normalized) return false;
+  const wordCount = normalized.split(' ').filter(Boolean).length;
+  return wordCount <= 4 && /^(hi|hello|hey|alo|chao|xin chao|chao coach|hi coach)(\b|$)/.test(normalized);
+};
+
+const isShortFollowUpMessage = (message: string): boolean => {
+  const normalized = normalizeVietnameseText(message);
+  return [
+    'con gi nua',
+    'con nua khong',
+    'co gi nua',
+    'gom nhung gi',
+    'bai nao',
+    'bai nao nua',
+    'mon nao',
+    'mon nao nua',
+    'ke tiep di',
+    'noi tiep di',
+    'chi tiet hon',
+    'cu the hon',
+  ].includes(normalized);
+};
+
+const getPreviousTopic = (history?: AIChatContext['chatHistory']): 'workout' | 'meal' | null => {
+  const rows = Array.isArray(history) ? history : [];
+  for (const item of [...rows].reverse()) {
+    const normalized = normalizeVietnameseText(item.content);
+    if (!normalized) continue;
+    if (hasAny(normalized, ['bai tap', 'workout', 'lich tap', 'buoi tap', 'tap gi', 'set x'])) {
+      return 'workout';
+    }
+    if (hasAny(normalized, ['thuc don', 'mon an', 'bua', 'an gi', 'protein', 'meal'])) {
+      return 'meal';
+    }
+  }
+  return null;
+};
+
+const buildGreetingReply = (context?: AIChatContext): string => {
+  const dayLabel = context?.targetDayLabel || 'Hôm nay';
+  const workoutCount = Number(context?.todayWorkoutCount || 0);
+  const mealCount = Number(context?.todayMealCount || 0);
+  const workoutText = workoutCount > 0 ? `${workoutCount} bài tập` : 'chưa có bài tập';
+  const mealText = mealCount > 0 ? `${mealCount} món ăn` : 'chưa có thực đơn';
+  return `Chào bạn. Mình đang theo ${dayLabel}: ${workoutText} và ${mealText}. Bạn muốn xem danh sách bài tập, chỉnh buổi tập nhẹ hơn, hay hỏi về bữa ăn hôm nay?`;
+};
+
 const buildPlanOverviewReply = (message: string, context?: AIChatContext): string => {
   const normalized = normalizeVietnameseText(message);
   const dayLabel = context?.targetDayLabel || 'Hom nay';
@@ -168,6 +219,14 @@ const buildOutOfScopeReply = (): string =>
   'Minh tap trung vao workout, meal plan, phuc hoi, va thoi quen suc khoe. Neu ban can, hay hoi minh ve buoi tap hom nay, thuc don, giam met, phuc hoi, hoac cach giu dong luc.';
 
 const getFallbackReply = (message: string, intent: AIIntent, context?: AIChatContext): string => {
+  if (isGreetingMessage(message)) return buildGreetingReply(context);
+
+  const previousTopic = getPreviousTopic(context?.chatHistory);
+  if (isShortFollowUpMessage(message)) {
+    if (previousTopic === 'workout') return buildPlanOverviewReply('bai tap hom nay', context);
+    if (previousTopic === 'meal') return buildPlanOverviewReply('thuc don hom nay', context);
+  }
+
   if (intent === 'injury_care') return buildInjuryCareReply();
   if (intent === 'recovery') return buildRecoveryReply(context);
   if (intent === 'motivation') return buildMotivationReply(context);

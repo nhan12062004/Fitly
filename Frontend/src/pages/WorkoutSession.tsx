@@ -69,7 +69,7 @@ const ExercisePreview = ({ src, alt }: { src?: string; alt: string }) => {
 
   if (!normalized || failed) {
     return (
-      <div className="h-full w-full rounded-[28px] bg-[radial-gradient(circle_at_top,_rgb(255_255_255_/_0.05),_transparent_55%),linear-gradient(180deg,_#171717,_#101010)]" />
+      <div className="themed-image-surface h-full w-full rounded-[28px]" />
     );
   }
 
@@ -714,7 +714,7 @@ export default function WorkoutSession() {
           <button
             type="button"
             onClick={() => navigate('/exercises')}
-            className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-black"
+            className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-text-inverse"
           >
             Quay lại bài tập
           </button>
@@ -766,7 +766,7 @@ export default function WorkoutSession() {
                 >
                   <span
                     className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${
-                      isActive ? 'bg-accent text-black' : 'bg-bg-tertiary text-text-tertiary'
+                      isActive ? 'bg-accent text-text-inverse' : 'bg-bg-tertiary text-text-tertiary'
                     }`}
                   >
                     {index + 1}
@@ -835,7 +835,7 @@ export default function WorkoutSession() {
                 <ol className="space-y-4 text-sm text-text-secondary leading-relaxed">
                   {activeExerciseSteps.map((step, index) => (
                     <li key={`${step}-${index}`} className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-black text-black">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-black text-text-inverse">
                         {index + 1}
                       </span>
                       <span>{step}</span>
@@ -961,7 +961,7 @@ export default function WorkoutSession() {
                     setSecondsLeft(startingSeconds);
                     setIsRunning(false);
                   }}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-black hover:bg-accent-hover"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse hover:bg-accent-hover"
                 >
                   Hoàn thành hiệp
                 </button>
@@ -1015,7 +1015,7 @@ export default function WorkoutSession() {
                       key={index}
                       className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-black ${
                         isCompletedSet || isCurrentSet
-                          ? 'bg-accent text-black'
+                          ? 'bg-accent text-text-inverse'
                           : 'border border-border-primary bg-bg-secondary text-text-tertiary'
                       }`}
                     >
@@ -1070,7 +1070,7 @@ export default function WorkoutSession() {
       </div>
 
       {isFeedbackModalOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 px-4">
+        <div className="themed-modal-backdrop fixed inset-0 z-[150] flex items-center justify-center px-4">
           <div className="w-full max-w-xl rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
             <h2 className="text-xl font-black text-text-primary">Buổi tập hôm nay thế nào?</h2>
 
@@ -1197,7 +1197,7 @@ export default function WorkoutSession() {
                 type="button"
                 onClick={submitWorkoutFeedback}
                 disabled={isSavingFeedback}
-                className="h-11 rounded-xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover disabled:opacity-60"
+                className="h-11 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
               >
                 {isSavingFeedback ? 'Đang lưu...' : 'Gửi feedback'}
               </button>
@@ -1207,7 +1207,7 @@ export default function WorkoutSession() {
       )}
 
       {isEditModalOpen && activeExercise && (
-        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/60 px-4">
+        <div className="themed-modal-backdrop fixed inset-0 z-[140] flex items-center justify-center px-4">
           <div className="w-full max-w-md rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -1280,7 +1280,7 @@ export default function WorkoutSession() {
                 type="button"
                 onClick={saveExerciseConfig}
                 disabled={isSavingEdit}
-                className="h-11 rounded-xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-11 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSavingEdit ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>

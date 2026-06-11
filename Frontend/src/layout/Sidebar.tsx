@@ -232,7 +232,7 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
               <p className="sidebar-premium-copy mt-2 text-xs leading-relaxed text-amber-100/65">
                 Mở khóa Trợ lý cá nhân không giới hạn và các tính năng nâng cao.
               </p>
-              <span className="sidebar-premium-cta mt-3 inline-flex rounded-md border border-amber-200/35 bg-amber-400/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-amber-50 transition-colors hover:border-amber-200 hover:bg-amber-400 hover:text-black">
+              <span className="sidebar-premium-cta mt-3 inline-flex rounded-md border border-amber-200/35 bg-amber-400/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-amber-50 transition-colors hover:border-amber-200 hover:bg-amber-400 hover:text-text-inverse">
                 Đăng ký ngay
               </span>
             </div>

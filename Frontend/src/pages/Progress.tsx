@@ -1139,18 +1139,18 @@ export default function Progress() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="overflow-hidden rounded-[30px] border border-border-primary bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.16),transparent_35%),radial-gradient(circle_at_85%_25%,rgba(56,189,248,0.14),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(9,9,11,0.98))] px-5 py-6 shadow-[0_24px_70px_rgba(0,0,0,0.18)] md:px-7 md:py-7">
+      <section className="progress-hero overflow-hidden rounded-[30px] border border-border-primary px-5 py-6 md:px-7 md:py-7">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-warning">Tiến độ của bạn</p>
-            <h1 className="mt-3 text-3xl font-black leading-tight text-white md:text-5xl">{viewModel.heroTitle}</h1>
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-white/72 md:text-base">
+            <h1 className="mt-3 text-3xl font-black leading-tight text-text-primary md:text-5xl">{viewModel.heroTitle}</h1>
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-text-secondary md:text-base">
               {viewModel.heroBody}
             </p>
           </div>
 
           <div className="flex flex-col items-stretch gap-2">
-            <div className="inline-flex rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur-md">
+            <div className="progress-range-tabs inline-flex rounded-2xl border p-1 backdrop-blur-md">
               {TIME_RANGES.map((range) => (
                 <button
                   key={range.value}
@@ -1158,8 +1158,8 @@ export default function Progress() {
                   onClick={() => setRangeDays(range.value)}
                   className={`rounded-2xl px-4 py-2 text-sm font-black transition-colors ${
                     rangeDays === range.value
-                      ? 'bg-accent text-black'
-                      : 'text-white/72 hover:text-white'
+                      ? 'bg-accent text-text-inverse'
+                      : 'text-text-secondary hover:text-text-primary'
                   }`}
                 >
                   {range.label}
@@ -1182,7 +1182,7 @@ export default function Progress() {
               <button
                 type="button"
                 onClick={() => navigate('/overview')}
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                className="inline-flex h-12 items-center justify-center rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
               >
                 Bắt đầu kế hoạch hôm nay
               </button>
@@ -1266,7 +1266,7 @@ export default function Progress() {
                 </div>
               </div>
 
-              <div className="mt-5 rounded-[24px] border border-border-primary bg-[linear-gradient(145deg,rgba(18,18,18,0.95),rgba(10,10,10,0.98))] p-5">
+              <div className="progress-coach-panel mt-5 rounded-[24px] border border-border-primary p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="max-w-2xl">
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">AI Coach</p>
@@ -1281,7 +1281,7 @@ export default function Progress() {
                 <button
                   type="button"
                   onClick={() => navigate(viewModel.coach.actionHref)}
-                  className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                  className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
                 >
                   {viewModel.coach.actionLabel}
                   <ArrowRight className="h-4 w-4" />
@@ -1303,7 +1303,7 @@ export default function Progress() {
               <div className="mt-5 grid gap-3">
                 {viewModel.actions.items.map((item, index) => (
                   <div key={item} className="flex items-start gap-3 rounded-[22px] border border-border-primary bg-bg-tertiary/45 px-4 py-4">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-black text-black">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-black text-text-inverse">
                       {index + 1}
                     </span>
                     <p className="text-sm font-semibold leading-6 text-text-primary">{item}</p>
@@ -1315,7 +1315,7 @@ export default function Progress() {
                 <button
                   type="button"
                   onClick={() => navigate(viewModel.actions.primaryHref)}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
                 >
                   {viewModel.actions.primaryLabel}
                   <Sparkles className="h-4 w-4" />
@@ -1430,16 +1430,16 @@ export default function Progress() {
               <div className="mt-5 h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={viewModel.nutrition.chart} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                     <XAxis
                       dataKey="label"
-                      tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                      tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
                       tickLine={false}
                       axisLine={false}
                       minTickGap={14}
                     />
                     <YAxis
-                      tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                      tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
                       tickLine={false}
                       axisLine={false}
                       width={52}
@@ -1449,7 +1449,7 @@ export default function Progress() {
                       {viewModel.nutrition.chart.map((entry) => (
                         <Cell
                           key={entry.dateKey}
-                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'rgb(34 197 94)' : 'rgb(249 115 22)'}
+                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'var(--accent-primary)' : 'var(--warning-primary)'}
                         />
                       ))}
                     </Bar>
@@ -1495,16 +1495,16 @@ export default function Progress() {
                     <div className="mt-5 h-[240px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={viewModel.weight.chart} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-                          <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                          <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                           <XAxis
                             dataKey="label"
-                            tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                            tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
                             tickLine={false}
                             axisLine={false}
                             minTickGap={18}
                           />
                           <YAxis
-                            tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                            tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
                             tickLine={false}
                             axisLine={false}
                             width={52}
@@ -1514,9 +1514,9 @@ export default function Progress() {
                           <Line
                             type="monotone"
                             dataKey="weight"
-                            stroke="rgb(250 204 21)"
+                            stroke="var(--warning-primary)"
                             strokeWidth={3}
-                            dot={{ fill: 'rgb(250 204 21)', r: 3 }}
+                            dot={{ fill: 'var(--warning-primary)', r: 3 }}
                             activeDot={{ r: 5 }}
                             connectNulls={false}
                           />
@@ -1664,7 +1664,7 @@ export default function Progress() {
               <button
                 type="button"
                 onClick={() => navigate(viewModel.coach.actionHref)}
-                className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
               >
                 {viewModel.coach.actionLabel}
                 <ArrowRight className="h-4 w-4" />
@@ -1693,16 +1693,16 @@ export default function Progress() {
                 <div className="mt-6 h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={viewModel.weight.chart} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-                      <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                       <XAxis
                         dataKey="label"
-                        tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                        tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
                         tickLine={false}
                         axisLine={false}
                         minTickGap={18}
                       />
                       <YAxis
-                        tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                        tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
                         tickLine={false}
                         axisLine={false}
                         width={52}
@@ -1712,9 +1712,9 @@ export default function Progress() {
                       <Line
                         type="monotone"
                         dataKey="weight"
-                        stroke="rgb(250 204 21)"
+                        stroke="var(--warning-primary)"
                         strokeWidth={3}
-                        dot={{ fill: 'rgb(250 204 21)', r: 3 }}
+                        dot={{ fill: 'var(--warning-primary)', r: 3 }}
                         activeDot={{ r: 5 }}
                         connectNulls={false}
                       />
@@ -1886,16 +1886,16 @@ export default function Progress() {
               <div className="mt-6 h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={viewModel.nutrition.chart} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                     <XAxis
                       dataKey="label"
-                      tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                      tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
                       tickLine={false}
                       axisLine={false}
                       minTickGap={14}
                     />
                     <YAxis
-                      tick={{ fill: 'rgb(148 163 184)', fontSize: 12 }}
+                      tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
                       tickLine={false}
                       axisLine={false}
                       width={52}
@@ -1905,7 +1905,7 @@ export default function Progress() {
                       {viewModel.nutrition.chart.map((entry) => (
                         <Cell
                           key={entry.dateKey}
-                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'rgb(34 197 94)' : 'rgb(249 115 22)'}
+                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'var(--accent-primary)' : 'var(--warning-primary)'}
                         />
                       ))}
                     </Bar>
@@ -1964,7 +1964,7 @@ export default function Progress() {
                 <div className="mt-5 grid gap-3">
                   {viewModel.actions.items.map((item, index) => (
                     <div key={item} className="flex items-start gap-3 rounded-[22px] border border-border-primary bg-bg-tertiary/45 px-4 py-4">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-black text-black">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-black text-text-inverse">
                         {index + 1}
                       </span>
                       <p className="text-sm font-semibold leading-6 text-text-primary">{item}</p>
@@ -1977,7 +1977,7 @@ export default function Progress() {
                 <button
                   type="button"
                   onClick={() => navigate(viewModel.actions.primaryHref)}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
                 >
                   {viewModel.actions.primaryLabel}
                   <Sparkles className="h-4 w-4" />

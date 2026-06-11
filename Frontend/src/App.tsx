@@ -20,7 +20,7 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <div className="flex min-h-screen w-full bg-bg-primary font-sans text-text-primary selection:bg-accent selection:text-black">
+        <div className="flex min-h-screen w-full bg-bg-primary font-sans text-text-primary selection:bg-accent selection:text-text-inverse">
           <Suspense fallback={<LoadingScreen />}>
             <Routes>
               <Route path="/" element={<LandingPage />} />

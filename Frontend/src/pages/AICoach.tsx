@@ -4,9 +4,13 @@ import {
   Bot,
   Dumbbell,
   Loader2,
+  Menu,
+  Mic,
+  Paperclip,
   Send,
   Sparkles,
   Utensils,
+  X,
 } from 'lucide-react';
 import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
@@ -15,6 +19,33 @@ import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const RECENT_CHAT_LIMIT = 80;
+const COACH_MENU_COMMANDS = [
+  {
+    command: '/menu',
+    description: 'Mở bảng điều khiển Fitly',
+    message: 'Mở bảng điều khiển Fitly và tóm tắt các lựa chọn AI Coach hiện có.',
+  },
+  {
+    command: '/today',
+    description: 'Xem tiến độ hôm nay',
+    message: 'Xem tiến độ hôm nay của tôi và nói việc cần ưu tiên tiếp theo.',
+  },
+  {
+    command: '/workout',
+    description: 'Xem bài tập gần đây và hôm nay',
+    message: 'Xem workout hôm nay, bài tập gần đây và gợi ý điều chỉnh nếu cần.',
+  },
+  {
+    command: '/meals',
+    description: 'Xem thực đơn hôm nay',
+    message: 'Xem meal plan hôm nay, calories và protein còn thiếu.',
+  },
+  {
+    command: '/health',
+    description: 'Xem báo cáo sức khỏe nhỏ',
+    message: 'Xem nhanh các tín hiệu sức khỏe hôm nay như nước, giấc ngủ, năng lượng và phục hồi.',
+  },
+];
 const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
 type WeeklyPlan = {
@@ -98,6 +129,7 @@ type ChatMessage = {
 type AICoachPageCache = {
   plan: WeeklyPlan | null;
   items: PlanExercise[];
+  todaySessionItems: PlanExercise[];
   foodItems: FoodPlanItem[];
   lifestyle: LifestyleSummary | null;
   chatMessages: ChatMessage[];
@@ -410,6 +442,90 @@ const buildMealDigest = (day: DayPlan) => {
   return `Meal plan hôm nay có ${day.meals.length} món, ${calories} kcal và ${protein}g protein.\n${lines.join('\n')}`;
 };
 
+const isGreetingQuestion = (value: string) => {
+  const normalized = normalizeVietnameseClient(value);
+  if (!normalized) return false;
+  const wordCount = normalized.split(' ').filter(Boolean).length;
+  return wordCount <= 4 && /^(hi|hello|hey|alo|chao|xin chao|chao coach|hi coach)(\b|$)/.test(normalized);
+};
+
+const isShortFollowUpQuestion = (value: string) => {
+  const normalized = normalizeVietnameseClient(value);
+  if (!normalized) return false;
+  return [
+    'con gi nua',
+    'con nua khong',
+    'co gi nua',
+    'gom nhung gi',
+    'ke tiep di',
+    'noi tiep di',
+    'chi tiet hon',
+    'cu the hon',
+    'bai nao nua',
+    'mon nao nua',
+  ].includes(normalized);
+};
+
+const isWorkoutListQuestion = (value: string) => {
+  const normalized = normalizeVietnameseClient(value);
+  return includesAny(normalized, [
+    'co nhung bai tap gi',
+    'co nhung bai nao',
+    'nhung bai tap gi',
+    'cac bai tap gi',
+    'gom nhung bai',
+    'danh sach bai',
+    'bai nao',
+    'tap gi',
+    'workout hom nay',
+    'lich tap hom nay',
+  ]);
+};
+
+const isMealListQuestion = (value: string) => {
+  const normalized = normalizeVietnameseClient(value);
+  return includesAny(normalized, [
+    'co nhung mon gi',
+    'mon nao',
+    'an gi',
+    'thuc don hom nay',
+    'meal plan hom nay',
+    'bua nao',
+  ]);
+};
+
+const buildNaturalGreetingReply = (day: DayPlan) => {
+  const workoutSummary = day.exercises.length > 0 ? `${day.exercises.length} bài tập` : 'chưa có bài tập';
+  const mealSummary = day.meals.length > 0 ? `${day.meals.length} món ăn` : 'chưa có thực đơn';
+  return `Chào bạn. Mình đang theo ${day.label}: ${workoutSummary} và ${mealSummary}. Bạn muốn xem danh sách bài tập, chỉnh buổi tập nhẹ hơn, hay hỏi về bữa ăn hôm nay?`;
+};
+
+const buildWorkoutListReply = (day: DayPlan) => {
+  if (day.exercises.length === 0) {
+    return `${day.label} hiện chưa có bài tập nào trong lịch. Bạn có thể nói mục tiêu hôm nay, ví dụ tập ngực nhẹ hoặc tập toàn thân 30 phút, mình sẽ gợi ý buổi phù hợp.`;
+  }
+
+  const totalSets = day.exercises.reduce((sum, exercise) => sum + Number(exercise.sets || 0), 0);
+  const lines = day.exercises.slice(0, 6).map((exercise, index) => {
+    const name = exercise.exercises?.name || 'Bài tập';
+    const sets = Number(exercise.sets || 3);
+    const reps = exercise.reps || '8-12';
+    const rest = Number(exercise.rest_seconds || 60);
+    const muscle = exercise.exercises?.target_muscle || exercise.exercises?.body_part || '';
+    return `${index + 1}. ${name}: ${sets} hiệp x ${reps}${rest > 0 ? `, nghỉ ${rest}s` : ''}${muscle ? ` - ${muscle}` : ''}`;
+  });
+  const hiddenCount = day.exercises.length - lines.length;
+  if (hiddenCount > 0) {
+    lines.push(`+${hiddenCount} bài nữa trong buổi này.`);
+  }
+
+  return [
+    `${day.label} có ${day.exercises.length} bài tập${totalSets > 0 ? ` và ${totalSets} sets` : ''}.`,
+    lines.join('\n'),
+    'Nếu muốn, mình có thể sắp lại thứ tự, rút gọn buổi tập, hoặc đổi bài theo thiết bị bạn có.',
+  ].join('\n\n');
+};
+
 const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' | 'workout' | null) => {
   const normalizedQuestion = question.toLowerCase();
   const normalizedIntent = normalizeVietnameseClient(question);
@@ -425,6 +541,24 @@ const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' 
 
   if (isHighProteinMealQuestion(question)) {
     return buildHighProteinMealReply();
+  }
+
+  if (isGreetingQuestion(question)) {
+    return buildNaturalGreetingReply(day);
+  }
+
+  if (
+    day.exercises.length > 0 &&
+    (isWorkoutListQuestion(question) || (previousTopic === 'workout' && isShortFollowUpQuestion(question)))
+  ) {
+    return buildWorkoutListReply(day);
+  }
+
+  if (
+    day.meals.length > 0 &&
+    (isMealListQuestion(question) || (previousTopic === 'meal' && isShortFollowUpQuestion(question)))
+  ) {
+    return buildMealDigest(day);
   }
 
   if (normalizedIntent.includes('chan')) {
@@ -461,7 +595,7 @@ const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' 
   }
 
   if (day.exercises.length > 0 && inferredTopic === 'workout') {
-    return `Cho ${day.label}, mình ưu tiên ${getDayHeadline(day).toLowerCase()}. Bắt đầu bằng ${firstExercise?.exercises?.name || 'bài chính'}, giữ ${firstExercise?.sets || 3} hiệp x ${firstExercise?.reps || '8-12'} reps rồi theo dõi cảm giác để tăng hoặc giảm tải.`;
+    return buildWorkoutListReply(day);
   }
 
   if (firstMeal?.foods?.name) {
@@ -885,17 +1019,26 @@ export default function AICoach() {
   const [, setIsRefreshingChat] = useState(false);
   const [plan, setPlan] = useState<WeeklyPlan | null>(() => initialCoachCache?.plan || null);
   const [items, setItems] = useState<PlanExercise[]>(() => initialCoachCache?.items || []);
+  const [todaySessionItems, setTodaySessionItems] = useState<PlanExercise[]>(() => initialCoachCache?.todaySessionItems || []);
   const [foodItems, setFoodItems] = useState<FoodPlanItem[]>(() => initialCoachCache?.foodItems || []);
   const [lifestyle, setLifestyle] = useState<LifestyleSummary | null>(() => initialCoachCache?.lifestyle || null);
   const [error, setError] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [chatInput, setChatInput] = useState('');
+  const [isComposerMenuOpen, setIsComposerMenuOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; size: number; type: string } | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => initialCoachCache?.chatMessages || []);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatContentRef = useRef<HTMLDivElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const composerRootRef = useRef<HTMLDivElement | null>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const voiceRecognitionRef = useRef<any>(null);
+  const voiceStopRequestedRef = useRef(false);
   const submitLockRef = useRef(false);
   const lastSubmitRef = useRef<{ message: string; at: number } | null>(null);
   const hasHydratedPlanRef = useRef(!!initialCoachCache);
@@ -918,6 +1061,7 @@ export default function AICoach() {
       if (!user?.id) {
         setPlan(null);
         setItems([]);
+        setTodaySessionItems([]);
         setFoodItems([]);
         setLifestyle(null);
         setLoading(false);
@@ -928,6 +1072,7 @@ export default function AICoach() {
       if (cached) {
         setPlan(cached.plan);
         setItems(cached.items);
+        setTodaySessionItems(cached.todaySessionItems || []);
         setFoodItems(cached.foodItems);
         setLifestyle(cached.lifestyle);
       }
@@ -992,6 +1137,41 @@ export default function AICoach() {
           if (planItems.error) throw planItems.error;
           setItems((planItems.data || []) as PlanExercise[]);
         }
+
+        const todaySessions = await supabase
+          .from('daily_exercise_sessions')
+          .select(`
+            id,
+            exercise_id,
+            order_index,
+            sets,
+            reps,
+            weight_kg,
+            rest_seconds,
+            exercises:exercise_id (name, body_part, target_muscle, image_url, gif_url)
+          `)
+          .eq('user_id', user.id)
+          .eq('log_date', todayDateKey)
+          .order('order_index', { ascending: true });
+
+        if (todaySessions.error) throw todaySessions.error;
+        const sessionDate = new Date(`${todayDateKey}T00:00:00`);
+        const sessionDay = sessionDate.getDay();
+        const sessionDayIndex = sessionDay === 0 ? 6 : sessionDay - 1;
+        setTodaySessionItems(
+          (todaySessions.data || []).map((session: any) => ({
+            id: `daily-${String(session.id || '')}`,
+            day_of_week: sessionDayIndex,
+            exercise_id: session.exercise_id ? String(session.exercise_id) : null,
+            sets: session.sets ?? null,
+            reps: session.reps ?? null,
+            weight_kg: session.weight_kg ?? null,
+            rest_seconds: session.rest_seconds ?? null,
+            order_index: Number(session.order_index || 0),
+            is_rest_day: false,
+            exercises: session.exercises || null,
+          })),
+        );
 
         const foodPlans = await supabase
           .from('weekly_food_plans')
@@ -1075,22 +1255,25 @@ export default function AICoach() {
     openPremiumModal();
   };
 
-  const days = useMemo<DayPlan[]>(
-    () =>
-      DAY_LABELS.map((label, dayIndex) => ({
-        label,
-        dayIndex,
-        exercises: items.filter((item) => item.day_of_week === dayIndex && !item.is_rest_day),
-        meals: foodItems.filter((item) => item.day_of_week === dayIndex && !item.is_rest_day),
-      })),
-    [items, foodItems],
-  );
-
   const todayDayIndex = useMemo(() => {
     const today = new Date(`${todayDateKey}T00:00:00`);
     const day = today.getDay();
     return day === 0 ? 6 : day - 1;
   }, [todayDateKey]);
+
+  const days = useMemo<DayPlan[]>(
+    () =>
+      DAY_LABELS.map((label, dayIndex) => {
+        const planExercises = items.filter((item) => item.day_of_week === dayIndex && !item.is_rest_day);
+        return {
+          label,
+          dayIndex,
+          exercises: dayIndex === todayDayIndex && todaySessionItems.length > 0 ? todaySessionItems : planExercises,
+          meals: foodItems.filter((item) => item.day_of_week === dayIndex && !item.is_rest_day),
+        };
+      }),
+    [items, todaySessionItems, foodItems, todayDayIndex],
+  );
 
   const selectedDay = days[todayDayIndex] || days[0];
   useEffect(() => {
@@ -1238,15 +1421,29 @@ export default function AICoach() {
   }, [chatMessages]);
 
   useEffect(() => {
+    if (!isComposerMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && composerRootRef.current?.contains(target)) return;
+      setIsComposerMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isComposerMenuOpen]);
+
+  useEffect(() => {
     if (!cacheKey) return;
     aiCoachPageCache.set(cacheKey, {
       plan,
       items,
+      todaySessionItems,
       foodItems,
       lifestyle,
       chatMessages
     });
-  }, [cacheKey, plan, items, foodItems, lifestyle, chatMessages]);
+  }, [cacheKey, plan, items, todaySessionItems, foodItems, lifestyle, chatMessages]);
 
   const handleAdjustmentAction = async (messageId: string, adjustmentId: string, action: 'apply' | 'reject') => {
     if (!user?.id) return;
@@ -1278,8 +1475,77 @@ export default function AICoach() {
     }
   };
 
+  const formatAttachmentSize = (size: number) => {
+    if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  };
+
+  const applyQuickPrompt = (prompt: string) => {
+    setChatInput(prompt);
+    setIsComposerMenuOpen(false);
+    window.requestAnimationFrame(() => chatInputRef.current?.focus());
+  };
+
+  const handleAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setSelectedAttachment({ name: file.name, size: file.size, type: file.type || 'file' });
+    setIsComposerMenuOpen(false);
+    event.target.value = '';
+  };
+
+  const startVoiceInput = () => {
+    if (isListening || isSendingChat) return;
+    const SpeechRecognitionCtor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      setError('Trinh duyet hien tai chua ho tro ghi am thanh van ban.');
+      return;
+    }
+
+    const recognition = new SpeechRecognitionCtor();
+    voiceStopRequestedRef.current = false;
+    recognition.lang = 'vi-VN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event: any) => {
+      const transcript = String(event.results?.[0]?.[0]?.transcript || '').trim();
+      if (transcript) {
+        setChatInput((current) => `${current}${current ? ' ' : ''}${transcript}`);
+      }
+    };
+    recognition.onerror = () => {
+      if (!voiceStopRequestedRef.current) {
+        setError('Không thể nhận diện giọng nói lúc này.');
+      }
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      voiceRecognitionRef.current = null;
+      window.requestAnimationFrame(() => chatInputRef.current?.focus());
+    };
+    voiceRecognitionRef.current = recognition;
+    setIsListening(true);
+    recognition.start();
+  };
+
+  const stopVoiceInput = () => {
+    if (!voiceRecognitionRef.current) return;
+    voiceStopRequestedRef.current = true;
+    try {
+      voiceRecognitionRef.current.stop();
+    } catch {
+      voiceRecognitionRef.current = null;
+      setIsListening(false);
+    }
+  };
+
   const submitChat = async (messageText?: string) => {
-    const message = String(messageText ?? chatInput).trim();
+    const rawMessage = String(messageText ?? chatInput).trim();
+    const attachmentContext = selectedAttachment
+      ? `\n\n[Attached file: ${selectedAttachment.name} (${formatAttachmentSize(selectedAttachment.size)}, ${selectedAttachment.type})]`
+      : '';
+    const message = `${rawMessage}${attachmentContext}`.trim();
     if (!message || !selectedDay || !user?.id) return;
     if (submitLockRef.current) return;
 
@@ -1295,6 +1561,8 @@ export default function AICoach() {
     submitLockRef.current = true;
     lastSubmitRef.current = { message, at: now };
     setChatInput('');
+    setSelectedAttachment(null);
+    setIsComposerMenuOpen(false);
     setIsSendingChat(true);
 
     const userMessage: ChatMessage = {
@@ -1309,6 +1577,13 @@ export default function AICoach() {
       .reverse()
       .map((item) => inferChatTopic(item.content))
       .find((topic): topic is 'meal' | 'workout' => topic === 'meal' || topic === 'workout') || null;
+    const clientHistory = chatMessagesRef.current
+      .filter((item) => (item.role === 'user' || item.role === 'assistant') && item.content.trim())
+      .slice(-10)
+      .map((item) => ({
+        role: item.role,
+        content: item.content.slice(0, 1200),
+      }));
 
     shouldJumpToLatestRef.current = true;
     setChatMessages((current) => [...current, userMessage]);
@@ -1327,6 +1602,7 @@ export default function AICoach() {
           message,
           selectedDayIndex: selectedDay.dayIndex,
           weekStartDate: weekStartKey,
+          clientHistory,
         }),
       });
 
@@ -1374,7 +1650,7 @@ export default function AICoach() {
   const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey) return;
     event.preventDefault();
-    if (!chatInput.trim() || isSendingChat) return;
+    if ((!chatInput.trim() && !selectedAttachment) || isSendingChat) return;
     void submitChat();
   };
 
@@ -1404,7 +1680,7 @@ export default function AICoach() {
                 type="button"
                 onClick={handleGenerateAction}
                 disabled={isGenerating}
-                className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-accent px-6 text-sm font-black text-black hover:bg-accent-hover disabled:opacity-60"
+                className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-accent px-6 text-sm font-black text-text-inverse hover:bg-accent-hover disabled:opacity-60"
               >
                 {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {isGenerating ? 'Đang tạo kế hoạch...' : 'Tạo kế hoạch từ dữ liệu của tôi'}
@@ -1414,15 +1690,15 @@ export default function AICoach() {
         ) : (
           <section>
             <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
-              <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-text-primary">
-                    <Bot className="h-4 w-4" />
-                    <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-bg-secondary bg-ai" />
+              <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-text-primary">
+                    <Bot className="h-3.5 w-3.5" />
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-bg-secondary bg-ai" />
                   </div>
                   <div>
-                    <p className="text-2xl font-black leading-none text-text-primary">AI Coach</p>
-                    <p className="mt-1 text-xs font-semibold text-text-secondary">
+                    <p className="text-xl font-black leading-none text-text-primary">AI Coach</p>
+                    <p className="mt-0.5 text-[11px] font-semibold text-text-secondary">
                       Chat, workout và meal plan trong ngày
                     </p>
                   </div>
@@ -1432,6 +1708,8 @@ export default function AICoach() {
 
               <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto bg-bg-tertiary px-5 py-5">
                 <div ref={chatContentRef} className="space-y-4">
+                  <TodayDigestBubble day={selectedDay} />
+
                   {chatMessages.map((message) => (
                     <div
                       key={message.id}
@@ -1446,7 +1724,7 @@ export default function AICoach() {
                         <div
                           className={`whitespace-pre-line break-words rounded-[18px] border px-4 py-3 text-sm font-normal leading-6 shadow-none ${
                             message.role === 'user'
-                              ? 'border-accent bg-accent text-black'
+                              ? 'border-accent bg-accent text-text-inverse'
                               : getAssistantBubbleClasses(message)
                           }`}
                         >
@@ -1466,7 +1744,7 @@ export default function AICoach() {
                               type="button"
                               onClick={() => handleAdjustmentAction(message.id, message.adjustmentId as string, 'apply')}
                               disabled={message.actionStatus !== 'idle'}
-                              className="rounded-full bg-accent px-3 py-1.5 text-xs font-black text-black disabled:opacity-60"
+                              className="rounded-full bg-accent px-3 py-1.5 text-xs font-black text-text-inverse disabled:opacity-60"
                             >
                               {message.actionStatus === 'applied' ? 'Đã áp dụng' : 'Áp dụng thay đổi'}
                             </button>
@@ -1484,28 +1762,120 @@ export default function AICoach() {
                     </div>
                   ))}
 
-                  {chatMessages.length === 0 ? <TodayDigestBubble day={selectedDay} /> : null}
                   <div ref={chatBottomRef} className="h-px w-full" />
                 </div>
               </div>
 
-              <div className="shrink-0 border-t border-border-primary bg-bg-tertiary px-5 pb-4 pt-4">
-                <div className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-secondary px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
+              <div ref={composerRootRef} className="relative shrink-0 border-t border-border-primary bg-bg-tertiary px-3 pb-2 pt-2 sm:px-5">
+                {isComposerMenuOpen ? (
+                  <div className="absolute inset-x-0 bottom-full z-20 max-h-56 overflow-y-auto border-t border-border-primary bg-bg-secondary shadow-[0_-18px_42px_rgba(0,0,0,0.10)]">
+                    <div className="py-1">
+                      {COACH_MENU_COMMANDS.map((item) => (
+                        <button
+                          key={item.command}
+                          type="button"
+                          onClick={() => {
+                            setIsComposerMenuOpen(false);
+                            void submitChat(item.message);
+                          }}
+                          className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-bg-tertiary"
+                        >
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-primary ring-1 ring-border-primary">
+                            <img src="/logo.svg" alt="" className="h-5 w-5 object-contain" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="font-mono text-sm font-black text-text-primary">{item.command}</span>
+                            <span className="ml-2 text-sm font-semibold text-text-tertiary group-hover:text-text-secondary">
+                              {item.description}
+                            </span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedAttachment ? (
+                  <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl border border-border-primary bg-bg-secondary px-3 py-2 text-xs font-semibold text-text-secondary">
+                    <span className="min-w-0 truncate">
+                      {selectedAttachment.name} - {formatAttachmentSize(selectedAttachment.size)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedAttachment(null)}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+                      aria-label="Bo tep dinh kem"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : null}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleAttachmentChange}
+                />
+                <div className="ai-chat-composer flex min-h-11 items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)] sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsComposerMenuOpen((value) => !value);
+                    }}
+                    className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full bg-info px-2.5 text-[11px] font-black text-white transition-colors hover:bg-info/90 sm:px-3"
+                    aria-label="Mở menu AI Coach"
+                  >
+                    <Menu className="h-3.5 w-3.5 sm:hidden" />
+                    <span className="hidden sm:inline">Menu</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+                    aria-label="Đính kèm tệp"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                  </button>
                   <textarea
+                    ref={chatInputRef}
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
                     onKeyDown={handleComposerKeyDown}
                     rows={1}
                     placeholder="Nhắn tin cho AI Coach hôm nay..."
-                    className="max-h-28 min-h-[28px] flex-1 resize-none bg-transparent py-1 text-sm font-semibold text-text-primary outline-none placeholder:text-text-tertiary"
+                    className="max-h-24 min-h-[24px] flex-1 resize-none bg-transparent py-0.5 text-sm font-semibold text-text-primary outline-none placeholder:text-text-tertiary"
                   />
                   <button
                     type="button"
-                    onClick={() => submitChat()}
-                    disabled={!chatInput.trim() || isSendingChat}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-ai text-white transition-colors hover:bg-ai-hover disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => {
+                      if (chatInput.trim() || selectedAttachment) void submitChat();
+                    }}
+                    onPointerDown={(event) => {
+                      if (chatInput.trim() || selectedAttachment || isSendingChat) return;
+                      event.preventDefault();
+                      startVoiceInput();
+                    }}
+                    onPointerUp={() => stopVoiceInput()}
+                    onPointerCancel={() => stopVoiceInput()}
+                    onPointerLeave={() => stopVoiceInput()}
+                    disabled={isSendingChat}
+                    className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      chatInput.trim() || selectedAttachment || isSendingChat
+                        ? 'bg-ai text-white hover:bg-ai-hover disabled:cursor-not-allowed disabled:opacity-60'
+                        : isListening
+                          ? 'bg-danger/10 text-danger'
+                          : 'text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary'
+                    }`}
+                    aria-label={chatInput.trim() ? 'Gửi tin nhắn' : 'Ghi âm'}
                   >
-                    {isSendingChat ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {isSendingChat ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : chatInput.trim() || selectedAttachment ? (
+                      <Send className="h-3.5 w-3.5" />
+                    ) : (
+                      <Mic className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>

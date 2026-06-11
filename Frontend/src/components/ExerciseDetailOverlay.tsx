@@ -332,7 +332,7 @@ export default function ExerciseDetailOverlay({
         <div className="space-y-4">
           <div className="rounded-2xl border border-border-primary bg-bg-secondary/85 p-3 md:p-4 lg:p-5">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,0.94fr)_minmax(360px,1.06fr)] lg:items-stretch lg:gap-6">
-              <div className="relative overflow-hidden rounded-2xl border border-border-primary/70 bg-[#f8f6f1] p-3 sm:p-4">
+              <div className="themed-image-surface relative overflow-hidden rounded-2xl border border-border-primary/70 p-3 sm:p-4">
                 <button
                   type="button"
                   onClick={() => setIsGifModalOpen(true)}
@@ -388,7 +388,7 @@ export default function ExerciseDetailOverlay({
                   <button
                     type="button"
                     onClick={() => onStartNow?.(activeExercise)}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-black hover:bg-accent-hover"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse hover:bg-accent-hover"
                   >
                     <Play className="h-4 w-4" />
                     Bắt đầu ngay
@@ -416,7 +416,7 @@ export default function ExerciseDetailOverlay({
                     key={`${step}-${index}`}
                     className="flex gap-2.5 border-b border-border-primary/60 pb-2.5 text-sm leading-relaxed text-text-secondary last:border-b-0 last:pb-0"
                   >
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-black text-black">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-black text-text-inverse">
                       {index + 1}
                     </span>
                     <span>{step}</span>
@@ -455,17 +455,17 @@ export default function ExerciseDetailOverlay({
 
       {isGifModalOpen && (
         <div
-          className="fixed inset-0 z-[220] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+          className="themed-modal-backdrop fixed inset-0 z-[220] flex items-center justify-center p-4 backdrop-blur-sm"
           onClick={() => setIsGifModalOpen(false)}
         >
           <div
-            className="relative inline-block max-w-[calc(100vw-2rem)] overflow-visible rounded-2xl border border-border-primary bg-[#0b0b0b] p-2"
+            className="relative inline-block max-w-[calc(100vw-2rem)] overflow-visible rounded-2xl border border-border-primary bg-bg-secondary p-2"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setIsGifModalOpen(false)}
-              className="absolute right-0 top-0 z-10 inline-flex h-8 w-8 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white hover:bg-black/85"
+              className="absolute right-0 top-0 z-10 inline-flex h-8 w-8 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-border-primary bg-bg-secondary/90 text-text-primary hover:bg-bg-tertiary"
             >
               <X className="h-4 w-4" />
             </button>

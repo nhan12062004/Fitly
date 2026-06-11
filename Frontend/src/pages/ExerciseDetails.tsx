@@ -320,7 +320,7 @@ export default function ExerciseDetails() {
           <button
             type="button"
             onClick={() => navigate('/exercises')}
-            className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-black"
+            className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-text-inverse"
           >
             Quay lại bài tập
           </button>

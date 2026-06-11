@@ -1067,7 +1067,7 @@ export default function Exercises() {
             <>
               <article className="min-w-0 p-4 md:p-4 xl:pr-8">
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-[164px_minmax(0,540px)] lg:items-start lg:gap-5">
-                  <div className="overflow-hidden rounded-[22px] border border-border-primary bg-[#f7f4ef] h-[176px] lg:h-[176px]">
+                  <div className="themed-image-surface overflow-hidden rounded-[22px] border border-border-primary h-[176px] lg:h-[176px]">
                     <ExerciseThumb
                       src={selectedSessionExercise.gif_url}
                       alt={selectedSessionExercise.name}
@@ -1107,7 +1107,7 @@ export default function Exercises() {
                         }
                       })
                     }
-                    className={`h-10 px-4 rounded-xl font-bold text-sm transition-colors inline-flex items-center gap-2 ${selectedSessionExercise.is_completed ? 'bg-accent text-black' : 'bg-accent text-black hover:bg-accent-hover'}`}
+                    className={`h-10 px-4 rounded-xl font-bold text-sm transition-colors inline-flex items-center gap-2 ${selectedSessionExercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-accent text-text-inverse hover:bg-accent-hover'}`}
                   >
                     <Play className="w-4 h-4" />
                     {selectedSessionExercise.is_completed ? 'Mở lại buổi tập' : 'Bắt đầu buổi tập'}
@@ -1165,7 +1165,7 @@ export default function Exercises() {
                   key={opt.id}
                   type="button"
                   onClick={() => setAppliedMuscleFilter(opt.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-colors ${appliedMuscleFilter === opt.id ? 'bg-accent text-black' : 'bg-bg-tertiary border border-border-primary text-text-secondary hover:border-accent/40 hover:text-text-primary'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-colors ${appliedMuscleFilter === opt.id ? 'bg-accent text-text-inverse' : 'bg-bg-tertiary border border-border-primary text-text-secondary hover:border-accent/40 hover:text-text-primary'}`}
                 >
                   {opt.label}
                 </button>
@@ -1221,7 +1221,7 @@ export default function Exercises() {
                         key={opt.id}
                         type="button"
                         onClick={() => setDraftEquipmentFilter(opt.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-colors ${draftEquipmentFilter === opt.id ? 'bg-accent text-black' : 'bg-bg-tertiary border border-border-primary text-text-secondary hover:border-accent/40 hover:text-text-primary'}`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-colors ${draftEquipmentFilter === opt.id ? 'bg-accent text-text-inverse' : 'bg-bg-tertiary border border-border-primary text-text-secondary hover:border-accent/40 hover:text-text-primary'}`}
                       >
                         {opt.label}
                       </button>
@@ -1238,7 +1238,7 @@ export default function Exercises() {
                     setAppliedEquipmentFilter(draftEquipmentFilter);
                     setIsFilterModalOpen(false);
                   }}
-                  className="h-10 px-6 rounded-xl bg-accent text-black text-sm font-black tracking-wide transition-colors hover:bg-accent-hover"
+                  className="h-10 px-6 rounded-xl bg-accent text-text-inverse text-sm font-black tracking-wide transition-colors hover:bg-accent-hover"
                 >
                   Lưu bộ lọc
                 </button>
@@ -1283,7 +1283,7 @@ export default function Exercises() {
                       saveExerciseFromPopup(ex);
                     }}
                     disabled={isSavingExercise}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-black hover:bg-accent-hover disabled:opacity-60"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-60"
                     aria-label="Thêm bài tập"
                   >
                     <Plus className="h-4 w-4" />

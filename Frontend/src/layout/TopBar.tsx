@@ -472,7 +472,7 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
               </span>
             )}
           </div>
-          <div className="topbar-avatar w-9 h-9 rounded-full bg-accent flex items-center justify-center text-black font-bold text-sm transition-transform">
+          <div className="topbar-avatar w-9 h-9 rounded-full bg-accent flex items-center justify-center text-text-inverse font-bold text-sm transition-transform">
             {userInitial}
           </div>
         </div>

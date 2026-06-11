@@ -649,7 +649,7 @@ export default function Overview() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="overflow-hidden rounded-xl border border-border-primary bg-[linear-gradient(180deg,rgba(20,20,20,0.96),rgba(12,12,12,0.98))] px-5 py-5 shadow-[0_18px_48px_rgba(0,0,0,0.18)] md:px-6 md:py-5">
+      <section className="overview-hero overflow-hidden rounded-xl border border-border-primary px-5 py-5 md:px-6 md:py-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
           <p className="text-sm font-black text-text-primary md:text-base">
@@ -694,10 +694,10 @@ export default function Overview() {
                 </span>
               </div>
 
-              <div className="flex flex-1 flex-col rounded-xl border border-border-primary bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.015))] p-4">
+              <div className="themed-subtle-panel flex flex-1 flex-col rounded-xl border p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">Danh sách bài</p>
-                  <span className="rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[11px] font-black text-text-secondary">
+                  <span className="rounded-full border border-border-primary bg-bg-tertiary/55 px-2.5 py-1 text-[11px] font-black text-text-secondary">
                     {todayExercises.length} bài
                   </span>
                 </div>
@@ -750,7 +750,7 @@ export default function Overview() {
                       }
                     })
                   }
-                  className="inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
                 >
                   Bắt đầu buổi tập
                 </button>
@@ -772,7 +772,7 @@ export default function Overview() {
               <button
                 type="button"
                 onClick={() => navigate('/smart-planner')}
-                className="mx-auto mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-black transition-colors hover:bg-accent-hover"
+                className="mx-auto mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
               >
                 Tạo kế hoạch với Trợ lý cá nhân
               </button>

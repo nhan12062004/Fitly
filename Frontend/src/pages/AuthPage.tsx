@@ -128,7 +128,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
         <div className="landing-grid absolute inset-0 opacity-70" />
         <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
           <div className="landing-product-card landing-surface w-full max-w-md rounded-lg border border-border-primary p-6 text-center sm:p-8">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-lg bg-accent text-black">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-lg bg-accent text-text-inverse">
               <Mail className="h-8 w-8" strokeWidth={2.5} />
             </div>
             <h1 className="mt-6 text-2xl font-black text-text-primary">Kiểm tra email của bạn</h1>
@@ -140,7 +140,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
               <button
                 type="button"
                 onClick={() => navigate('/login', { replace: true })}
-                className="landing-action inline-flex h-12 items-center justify-center rounded-lg bg-accent px-6 text-sm font-black text-black transition-all hover:bg-accent-hover"
+                className="landing-action inline-flex h-12 items-center justify-center rounded-lg bg-accent px-6 text-sm font-black text-text-inverse transition-all hover:bg-accent-hover"
               >
                 Đi tới đăng nhập
               </button>
@@ -227,7 +227,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                     {isLogin ? 'Vào lại dashboard của bạn.' : 'Tạo tài khoản để bắt đầu survey cá nhân.'}
                   </p>
                 </div>
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-black">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-text-inverse">
                   {isLogin ? <ShieldCheck className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
                 </div>
               </div>
@@ -320,7 +320,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="landing-action flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent font-black text-black transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
+                  className="landing-action flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent font-black text-text-inverse transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {loading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />

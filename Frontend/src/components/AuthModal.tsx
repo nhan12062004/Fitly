@@ -115,12 +115,12 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
   if (isEmailSent) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={handleClose} />
+        <div className="themed-modal-backdrop absolute inset-0 backdrop-blur-md" onClick={handleClose} />
         <div className="relative w-full max-w-md bg-bg-secondary border border-border-primary rounded-[2.5rem] p-10 text-center shadow-2xl animate-in zoom-in slide-in-from-bottom-4 duration-500">
           <div className="relative mb-8 flex justify-center">
             <div className="absolute inset-0 bg-black/30 blur-3xl rounded-full scale-125" />
             <div className="relative w-24 h-24 bg-accent rounded-full flex items-center justify-center shadow-[0_18px_36px_rgb(0_0_0_/_0.24)]">
-              <Mail className="w-12 h-12 text-black" strokeWidth={2.5} />
+              <Mail className="w-12 h-12 text-text-inverse" strokeWidth={2.5} />
             </div>
           </div>
 
@@ -133,7 +133,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
 
           <button
             onClick={resetFields}
-            className="w-full bg-accent text-black font-bold py-4 rounded-2xl hover:bg-accent-hover transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-[0_18px_36px_rgb(0_0_0_/_0.22)]"
+            className="w-full bg-accent text-text-inverse font-bold py-4 rounded-2xl hover:bg-accent-hover transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-[0_18px_36px_rgb(0_0_0_/_0.22)]"
           >
             Quay lại Đăng nhập
           </button>
@@ -146,7 +146,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="themed-modal-backdrop absolute inset-0 backdrop-blur-sm"
         onClick={handleClose}
       />
 
@@ -256,7 +256,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
 
             <button
               disabled={loading}
-              className="w-full bg-accent text-black font-bold py-3 rounded-xl hover:bg-accent-hover transition-colors flex items-center justify-center gap-2 group"
+              className="w-full bg-accent text-text-inverse font-bold py-3 rounded-xl hover:bg-accent-hover transition-colors flex items-center justify-center gap-2 group"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

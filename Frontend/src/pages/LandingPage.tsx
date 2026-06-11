@@ -85,7 +85,7 @@ function PrimaryButton({ children, onClick }: { children: React.ReactNode; onCli
     <button
       type="button"
       onClick={onClick}
-      className="landing-action inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-accent px-6 text-sm font-black text-black transition-all hover:bg-accent-hover"
+      className="landing-action inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-accent px-6 text-sm font-black text-text-inverse transition-all hover:bg-accent-hover"
     >
       {children}
       <ArrowRight className="h-4 w-4" />
@@ -143,7 +143,7 @@ export default function LandingPage() {
             <button
               type="button"
               onClick={() => navigate('/signup')}
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-3 text-xs font-black text-black transition-colors hover:bg-accent-hover sm:px-5 sm:text-sm"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-accent px-3 text-xs font-black text-text-inverse transition-colors hover:bg-accent-hover sm:px-5 sm:text-sm"
             >
               <span className="hidden sm:inline">Bắt đầu miễn phí</span>
               <span className="sm:hidden">Miễn phí</span>
@@ -264,7 +264,7 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ol>
-                <button type="button" onClick={() => navigate('/signup')} className="mt-6 h-11 rounded-lg bg-accent px-5 text-sm font-black text-black">
+                <button type="button" onClick={() => navigate('/signup')} className="mt-6 h-11 rounded-lg bg-accent px-5 text-sm font-black text-text-inverse">
                   Bắt đầu tập
                 </button>
               </div>
@@ -353,7 +353,7 @@ export default function LandingPage() {
                   ['Mỗi ngày chỉ cần mở app', 'Bạn biết hôm nay tập gì, ăn gì, và AI sẽ điều chỉnh nếu cần.'],
                 ].map(([title, desc], index) => (
                   <div key={title} className="flex gap-4">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-accent text-sm font-black text-black">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-accent text-sm font-black text-text-inverse">
                       {index + 1}
                     </span>
                     <div>

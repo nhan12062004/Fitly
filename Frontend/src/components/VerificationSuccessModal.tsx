@@ -17,7 +17,7 @@ export default function VerificationSuccessModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-500"
+        className="themed-modal-backdrop absolute inset-0 backdrop-blur-md animate-in fade-in duration-500"
         onClick={onClose}
       />
 
@@ -36,7 +36,7 @@ export default function VerificationSuccessModal({
           <div className="grid gap-4">
             <button
               onClick={onLoginClick}
-              className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 font-bold text-black shadow-[0_18px_36px_rgb(0_0_0_/_0.22)] transition-all hover:scale-[1.02] hover:bg-accent-hover active:scale-[0.98]"
+              className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-4 font-bold text-text-inverse shadow-[0_18px_36px_rgb(0_0_0_/_0.22)] transition-all hover:scale-[1.02] hover:bg-accent-hover active:scale-[0.98]"
             >
               {'Đăng nhập'}
               <ArrowRight className="h-5 w-5 -translate-x-4 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" />

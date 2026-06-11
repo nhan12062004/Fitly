@@ -647,7 +647,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
   return (
     <div className={modalMode ? 'fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-5' : 'min-h-screen w-full bg-bg-primary'}>
       {/* Backdrop */}
-      {modalMode ? <div className="absolute inset-0 bg-black/70 backdrop-blur-md" /> : null}
+      {modalMode ? <div className="themed-modal-backdrop absolute inset-0 backdrop-blur-md" /> : null}
 
       {/* Modal Content */}
       <div className={`relative grid w-full grid-cols-1 overflow-hidden border border-border-primary bg-bg-secondary ${
@@ -666,8 +666,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           </button>
         )}
 
-        <aside className={`border-b border-border-primary bg-bg-secondary p-4 sm:p-5 lg:p-6 ${modalMode ? 'lg:border-b-0 lg:border-r' : 'xl:border-b-0 xl:border-r xl:bg-[linear-gradient(180deg,rgba(18,18,18,0.98),rgba(10,10,10,0.96))]'}`}>
-          <div className="rounded-[24px] border border-white/6 bg-[linear-gradient(160deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.18)] sm:p-5">
+        <aside className={`border-b border-border-primary bg-bg-secondary p-4 sm:p-5 lg:p-6 ${modalMode ? 'lg:border-b-0 lg:border-r' : 'xl:border-b-0 xl:border-r'}`}>
+          <div className="themed-subtle-panel rounded-[24px] border p-4 shadow-[0_18px_42px_rgba(0,0,0,0.18)] sm:p-5">
             <div className="flex items-center gap-3">
               <img src="/logo.svg" alt="Trợ lý cá nhân" className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
               <div className="min-w-0">
@@ -741,7 +741,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                   }`}
                 >
                   <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-black ${
-                    active || done ? 'bg-accent text-black' : 'bg-bg-secondary text-text-tertiary'
+                    active || done ? 'bg-accent text-text-inverse' : 'bg-bg-secondary text-text-tertiary'
                   }`}>
                     {n}
                   </span>
@@ -919,7 +919,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 type="button"
                 onClick={goPrev}
                 disabled={loading}
-                className="w-full sm:w-auto py-2.5 px-5 rounded-xl border border-border-primary text-text-primary font-bold text-sm hover:bg-white/5 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full sm:w-auto py-2.5 px-5 rounded-xl border border-border-primary text-text-primary font-bold text-sm hover:bg-bg-tertiary/70 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Quay lại
@@ -931,10 +931,10 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 type="button"
                 onClick={goNext}
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-8 py-2.5 text-sm font-black text-black transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-8 py-2.5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
               >
                 Tiếp theo
-                <ChevronRight className="w-4 h-4 text-black" />
+                <ChevronRight className="w-4 h-4 text-text-inverse" />
               </button>
             ) : (
               <button
@@ -942,7 +942,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 type="submit"
                 form="survey-form"
                 disabled={loading}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-8 py-2.5 text-sm font-black text-black transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-8 py-2.5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
               >
                 {loading ? (
                   <>
@@ -952,7 +952,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 ) : (
                   <>
                     {isOpen ? "CẬP NHẬT HỒ SƠ" : "TẠO KẾ HOẠCH ĐẦU TIÊN"}
-                    <Zap className="w-4 h-4 text-black" />
+                    <Zap className="w-4 h-4 text-text-inverse" />
                   </>
                 )}
               </button>
