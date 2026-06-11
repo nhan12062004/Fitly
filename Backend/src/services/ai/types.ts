@@ -108,6 +108,9 @@ export type AIChatContext = {
   bodyMetrics?: Record<string, unknown> | null;
   lifestyle?: Record<string, unknown> | null;
   health?: Record<string, unknown> | null;
+  todayStatus?: string;
+  actionLog?: string;
+  extraContext?: string;
   chatHistory?: Array<{
     role: 'user' | 'assistant' | 'system';
     content: string;

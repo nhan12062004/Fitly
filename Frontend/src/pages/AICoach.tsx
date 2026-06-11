@@ -21,29 +21,49 @@ const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const RECENT_CHAT_LIMIT = 80;
 const COACH_MENU_COMMANDS = [
   {
-    command: '/menu',
+    command: 'menu',
+    label: '/menu',
     description: 'Mở bảng điều khiển Fitly',
-    message: 'Mở bảng điều khiển Fitly và tóm tắt các lựa chọn AI Coach hiện có.',
   },
   {
-    command: '/today',
+    command: 'today',
+    label: '/today',
     description: 'Xem tiến độ hôm nay',
-    message: 'Xem tiến độ hôm nay của tôi và nói việc cần ưu tiên tiếp theo.',
   },
   {
-    command: '/workout',
+    command: 'workout',
+    label: '/workout',
     description: 'Xem bài tập gần đây và hôm nay',
-    message: 'Xem workout hôm nay, bài tập gần đây và gợi ý điều chỉnh nếu cần.',
   },
   {
-    command: '/meals',
+    command: 'meals',
+    label: '/meals',
     description: 'Xem thực đơn hôm nay',
-    message: 'Xem meal plan hôm nay, calories và protein còn thiếu.',
   },
   {
-    command: '/health',
+    command: 'health',
+    label: '/health',
     description: 'Xem báo cáo sức khỏe nhỏ',
-    message: 'Xem nhanh các tín hiệu sức khỏe hôm nay như nước, giấc ngủ, năng lượng và phục hồi.',
+  },
+  {
+    command: 'water',
+    label: '/water',
+    description: 'Ghi nhanh lượng nước',
+  },
+  {
+    command: 'sleep',
+    label: '/sleep',
+    description: 'Ghi nhanh giấc ngủ',
+  },
+  {
+    command: 'help',
+    label: '/help',
+    description: 'Xem hướng dẫn sử dụng',
+  },
+  {
+    command: 'clear',
+    label: '/clear',
+    description: 'Xoá ngữ cảnh trò chuyện',
   },
 ];
 const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
@@ -124,6 +144,7 @@ type ChatMessage = {
   adjustmentId?: string | null;
   actionStatus?: 'idle' | 'applied' | 'rejected';
   optimistic?: boolean;
+  quickActions?: CoachQuickAction[];
 };
 
 type AICoachPageCache = {
@@ -185,6 +206,21 @@ type AIChatApiResponse = {
   actionPayload: unknown;
   confidence: number;
   adjustmentId?: string | null;
+};
+
+type CoachQuickAction = {
+  label: string;
+  command: string;
+  amountMl?: number;
+  sleepHours?: number;
+};
+
+type CoachCommandApiResponse = {
+  command: string;
+  reply: string;
+  responseMode?: ChatMessage['responseMode'];
+  quickActions?: CoachQuickAction[];
+  clearHistory?: boolean;
 };
 
 const getDatePartsInTimeZone = (date: Date, timeZone: string) => {
@@ -1540,6 +1576,90 @@ export default function AICoach() {
     }
   };
 
+  const submitCoachCommand = async (
+    command: string,
+    options?: { amountMl?: number; sleepHours?: number },
+  ) => {
+    if (!user?.id || isSendingChat) return;
+    const normalizedCommand = String(command || '').replace(/^\//, '').trim().toLowerCase();
+    if (!normalizedCommand) return;
+
+    const visibleCommand = options?.amountMl
+      ? `/water +${Math.round(Number(options.amountMl))}ml`
+      : options?.sleepHours
+        ? `/sleep ${Number(options.sleepHours)}h`
+        : `/${normalizedCommand}`;
+
+    const userMessage: ChatMessage = {
+      id: `user-command-${Date.now()}`,
+      role: 'user',
+      content: visibleCommand,
+      responseMode: 'coach_advice',
+      optimistic: true,
+    };
+
+    setChatInput('');
+    setSelectedAttachment(null);
+    setIsComposerMenuOpen(false);
+    setIsSendingChat(true);
+    shouldJumpToLatestRef.current = true;
+    setChatMessages((current) => [...current, userMessage]);
+
+    try {
+      const sessionRes = await supabase.auth.getSession();
+      const accessToken = sessionRes.data.session?.access_token;
+      if (!accessToken) throw new Error('Missing access token');
+
+      const response = await fetch(`${API_BASE_URL}/api/ai/coach-command`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          command: normalizedCommand,
+          amountMl: options?.amountMl,
+          sleepHours: options?.sleepHours,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => ({}))) as Partial<CoachCommandApiResponse>;
+      if (!response.ok) {
+        throw new Error(payload?.reply || 'Không thể chạy lệnh AI Coach.');
+      }
+
+      const assistantMessage: ChatMessage = {
+        id: `assistant-command-${Date.now() + 1}`,
+        role: 'assistant',
+        content: String(payload.reply || '').trim() || 'Mình đã xử lý lệnh này.',
+        intent: `coach_command:${payload.command || normalizedCommand}`,
+        responseMode: payload.responseMode || 'coach_advice',
+        quickActions: payload.quickActions || [],
+        optimistic: true,
+      };
+
+      shouldJumpToLatestRef.current = true;
+      if (payload.clearHistory) {
+        setChatMessages([assistantMessage]);
+      } else {
+        setChatMessages((current) => [...current, assistantMessage]);
+      }
+      setReloadKey((value) => value + 1);
+    } catch {
+      const fallbackMessage: ChatMessage = {
+        id: `assistant-command-${Date.now() + 1}`,
+        role: 'assistant',
+        content: 'Mình chưa chạy được lệnh này. Bạn thử lại sau một chút.',
+        responseMode: 'coach_advice',
+        optimistic: true,
+      };
+      shouldJumpToLatestRef.current = true;
+      setChatMessages((current) => [...current, fallbackMessage]);
+    } finally {
+      setIsSendingChat(false);
+    }
+  };
+
   const submitChat = async (messageText?: string) => {
     const rawMessage = String(messageText ?? chatInput).trim();
     const attachmentContext = selectedAttachment
@@ -1758,6 +1878,26 @@ export default function AICoach() {
                             </button>
                           </div>
                         ) : null}
+                        {message.role === 'assistant' && message.quickActions?.length ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {message.quickActions.map((action, index) => (
+                              <button
+                                key={`${action.command}-${action.label}-${index}`}
+                                type="button"
+                                onClick={() => {
+                                  void submitCoachCommand(action.command, {
+                                    amountMl: action.amountMl,
+                                    sleepHours: action.sleepHours,
+                                  });
+                                }}
+                                disabled={isSendingChat}
+                                className="rounded-full border border-border-primary bg-bg-secondary px-3 py-1.5 text-xs font-black text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary disabled:opacity-60"
+                              >
+                                {action.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -1776,7 +1916,7 @@ export default function AICoach() {
                           type="button"
                           onClick={() => {
                             setIsComposerMenuOpen(false);
-                            void submitChat(item.message);
+                            void submitCoachCommand(item.command);
                           }}
                           className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-bg-tertiary"
                         >
@@ -1784,7 +1924,7 @@ export default function AICoach() {
                             <img src="/logo.svg" alt="" className="h-5 w-5 object-contain" />
                           </span>
                           <span className="min-w-0">
-                            <span className="font-mono text-sm font-black text-text-primary">{item.command}</span>
+                            <span className="font-mono text-sm font-black text-text-primary">{item.label}</span>
                             <span className="ml-2 text-sm font-semibold text-text-tertiary group-hover:text-text-secondary">
                               {item.description}
                             </span>

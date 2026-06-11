@@ -18,6 +18,12 @@ import { AIChatResponse, AIIntent } from './services/ai/types';
 import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservability';
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
+import {
+  buildCoachDataContext,
+  buildTodayStatus,
+  executeCoachCommand,
+  processNaturalTracking,
+} from './services/coachCommandService';
 
 dotenv.config();
 
@@ -1598,6 +1604,15 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     const referencedDayIndex = extractDayIndexFromText(normalizedMessage);
     const dayIndex = referencedDayIndex ?? requestDayIndex ?? todayDayIndex;
     const requestedWeekStartDate = String(weekStartDate || '').trim() || null;
+    let trackingActionLog = '';
+    let todayStatusContext = '';
+    let coachDataContext = '';
+
+    try {
+      trackingActionLog = (await processNaturalTracking(authUserId, normalizedMessage)).actionLog;
+    } catch (trackingError: any) {
+      console.warn('[ai-chat] natural tracking skipped:', trackingError?.message || trackingError);
+    }
 
     incrementMetric('totalChatRequests');
     const chatDayBounds = getVietnamDayBoundsUtc();
@@ -1694,6 +1709,14 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     const targetWorkoutRows =
       dayIndex === todayDayIndex && dailyWorkoutRows.length > 0 ? dailyWorkoutRows : planWorkoutRows;
     const targetMealRows = mealRows.filter((row: any) => Number(row.day_of_week) === dayIndex && row.food_id);
+    try {
+      [todayStatusContext, coachDataContext] = await Promise.all([
+        buildTodayStatus(authUserId),
+        buildCoachDataContext(authUserId)
+      ]);
+    } catch (contextError: any) {
+      console.warn('[ai-chat] extended coach context skipped:', contextError?.message || contextError);
+    }
     const dbChatHistory = ((recentChatRes.data || []) as any[])
       .reverse()
       .map((item: any) => ({
@@ -1771,6 +1794,9 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         bodyMetrics: bodyMetricsRes.data || null,
         lifestyle: weekPlanRes.data || null,
         health: healthRes.data || null,
+        todayStatus: todayStatusContext,
+        actionLog: trackingActionLog,
+        extraContext: coachDataContext,
         chatHistory: mergedChatHistory,
         exercises: targetWorkoutRows.map((row: any) => ({
           exercise_id: row.exercise_id,
@@ -1917,6 +1943,61 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       traceId,
       latencyMs: Date.now() - startedAt
     });
+  }
+});
+
+app.post('/api/ai/coach-command', aiLimiter, async (req, res) => {
+  try {
+    const authUserId = await getAuthUserId(req);
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const command = String(req.body?.command || '').replace(/^\//, '').trim().toLowerCase();
+    if (!command) {
+      return res.status(400).json({ error: 'command is required' });
+    }
+
+    const result = await executeCoachCommand({
+      userId: authUserId,
+      command,
+      amountMl: req.body?.amountMl,
+      sleepHours: req.body?.sleepHours,
+    });
+
+    const userCommandText = req.body?.amountMl
+      ? `/water +${Math.round(Number(req.body.amountMl))}ml`
+      : req.body?.sleepHours
+        ? `/sleep ${Number(req.body.sleepHours)}h`
+        : `/${command}`;
+
+    if (!result.clearHistory) {
+      const userInsert = await supabase.from('ai_chat_messages').insert({
+        user_id: authUserId,
+        role: 'user',
+        content: userCommandText.slice(0, 3000),
+        intent: 'view_day_plan'
+      });
+      if (userInsert.error) {
+        console.warn('Failed to save user coach command:', userInsert.error.message);
+      }
+    }
+
+    const assistantInsert = await supabase.from('ai_chat_messages').insert({
+      user_id: authUserId,
+      role: 'assistant',
+      content: String(result.reply || '').slice(0, 5000),
+      intent: 'view_day_plan',
+      confidence: 1
+    });
+    if (assistantInsert.error) {
+      console.warn('Failed to save assistant coach command:', assistantInsert.error.message);
+    }
+
+    return res.json(result);
+  } catch (error: any) {
+    console.error('[ai-coach-command] failed:', error?.message || error);
+    return res.status(500).json({ error: error?.message || 'Failed to process coach command' });
   }
 });
 
