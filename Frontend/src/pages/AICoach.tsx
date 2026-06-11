@@ -1899,13 +1899,10 @@ export default function AICoach() {
                           <p className="mb-1 text-[11px] font-black uppercase tracking-[0.12em] text-ai">
                             AI Coach
                           </p>
-                          <div className="flex items-center gap-2">
-                            <span>Đang soạn tin nhắn</span>
-                            <span className="flex items-center gap-1" aria-hidden="true">
-                              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai [animation-delay:-0.2s]" />
-                              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai [animation-delay:-0.1s]" />
-                              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai" />
-                            </span>
+                          <div className="flex h-5 items-center gap-1" aria-label="AI Coach đang soạn">
+                            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai [animation-delay:-0.2s]" />
+                            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai [animation-delay:-0.1s]" />
+                            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai" />
                           </div>
                         </div>
                       </div>
