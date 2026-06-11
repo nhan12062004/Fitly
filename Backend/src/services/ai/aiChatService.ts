@@ -67,6 +67,103 @@ const buildGreetingReply = (context?: AIChatContext): string => {
   return `Chào bạn. Mình đang theo ${dayLabel}: ${workoutText} và ${mealText}. Bạn muốn xem danh sách bài tập, chỉnh buổi tập nhẹ hơn, hay hỏi về bữa ăn hôm nay?`;
 };
 
+const isDailyCalorieQuestion = (message: string): boolean => {
+  const normalized = normalizeVietnameseText(message);
+  const mentionsCalories = hasAny(normalized, ['kcal', 'calo', 'calories', 'calorie', 'cal']);
+  const asksAmount = hasAny(normalized, ['bao nhieu', 'nen an', 'can an', 'mot ngay', 'hang ngay', 'moi ngay', 'target', 'muc']);
+  return mentionsCalories && asksAmount;
+};
+
+const readNumber = (...values: unknown[]): number => {
+  for (const value of values) {
+    const numberValue = Number(value);
+    if (Number.isFinite(numberValue) && numberValue > 0) return numberValue;
+  }
+  return 0;
+};
+
+const getAgeYears = (profile?: Record<string, unknown> | null) => {
+  const birthday = String(
+    profile?.birthday ||
+      profile?.birth_date ||
+      profile?.date_of_birth ||
+      '',
+  );
+  if (!birthday) return 30;
+  const birthDate = new Date(birthday);
+  if (Number.isNaN(birthDate.getTime())) return 30;
+  const now = new Date();
+  const age = now.getFullYear() - birthDate.getFullYear();
+  return Math.max(15, Math.min(90, age));
+};
+
+const getActivityFactor = (lifestyle?: Record<string, unknown> | null) => {
+  const weeklyWorkouts = Number(lifestyle?.weekly_workouts || 0);
+  const activityText = normalizeVietnameseText(String(lifestyle?.activity_level || lifestyle?.weekly_workouts || ''));
+
+  if (hasAny(activityText, ['it van dong', 'sedentary', 'khong tap'])) return 1.2;
+  if (hasAny(activityText, ['nhe', 'light'])) return 1.35;
+  if (hasAny(activityText, ['vua', 'moderate', '3 4', '3-4'])) return 1.45;
+  if (hasAny(activityText, ['nang', 'active', '5 6', '5-6'])) return 1.6;
+  if (hasAny(activityText, ['rat nang', 'very active', 'hang ngay'])) return 1.75;
+
+  if (weeklyWorkouts >= 6) return 1.65;
+  if (weeklyWorkouts >= 5) return 1.55;
+  if (weeklyWorkouts >= 3) return 1.45;
+  if (weeklyWorkouts >= 1) return 1.3;
+  return 1.25;
+};
+
+const roundToNearest50 = (value: number) => Math.round(value / 50) * 50;
+
+const buildDailyCalorieTargetReply = (context?: AIChatContext): string => {
+  const body = context?.bodyMetrics || {};
+  const profile = context?.profile || {};
+  const lifestyle = context?.lifestyle || {};
+  const weight = readNumber((body as any).weight, (profile as any).weight);
+  const height = readNumber((body as any).height, (profile as any).height);
+
+  if (!weight || !height) {
+    return [
+      'Để tính kcal sát hơn, mình cần tối thiểu cân nặng, chiều cao và mức vận động.',
+      'Cách tạm tính nhanh: lấy cân nặng x 28-32 kcal để ra mức duy trì, nếu muốn giảm cân thì trừ khoảng 300-500 kcal/ngày. Ví dụ 80kg thường bắt đầu quanh 1.900-2.300 kcal/ngày khi giảm cân.',
+    ].join('\n\n');
+  }
+
+  const age = getAgeYears(profile);
+  const genderText = normalizeVietnameseText(String((profile as any).gender || (body as any).gender || 'male'));
+  const genderOffset = genderText.includes('nu') || genderText.includes('female') ? -161 : 5;
+  const bmr = 10 * weight + 6.25 * height - 5 * age + genderOffset;
+  const maintenance = roundToNearest50(bmr * getActivityFactor(lifestyle));
+  const targetWeight = readNumber((body as any).target_weight, (profile as any).target_weight);
+  const goalText = normalizeVietnameseText(String((lifestyle as any).fitness_goal || ''));
+  const wantsLoss = goalText.includes('giam') || goalText.includes('loss') || (!!targetWeight && targetWeight < weight);
+  const wantsGain = goalText.includes('tang co') || goalText.includes('muscle') || goalText.includes('bulk') || (!!targetWeight && targetWeight > weight);
+
+  const minCalories = wantsGain
+    ? maintenance + 150
+    : wantsLoss
+      ? Math.max(Math.round(bmr), maintenance - 500)
+      : maintenance - 150;
+  const maxCalories = wantsGain
+    ? maintenance + 300
+    : wantsLoss
+      ? Math.max(Math.round(bmr + 150), maintenance - 300)
+      : maintenance + 150;
+
+  const proteinMin = Math.round(weight * 1.6);
+  const proteinMax = Math.round(weight * 2);
+  const fatMin = Math.round(weight * 0.6);
+  const fatMax = Math.round(weight * 0.9);
+  const goalLabel = wantsGain ? 'tăng cơ' : wantsLoss ? 'giảm cân' : 'giữ cân';
+
+  return [
+    `Với dữ liệu hiện tại của bạn (${Math.round(weight)}kg, ${Math.round(height)}cm), mức duy trì ước tính khoảng ${maintenance - 100}-${maintenance + 100} kcal/ngày.`,
+    `Nếu mục tiêu là ${goalLabel}, mình sẽ bắt đầu ở khoảng ${roundToNearest50(minCalories)}-${roundToNearest50(maxCalories)} kcal/ngày, rồi theo dõi 10-14 ngày để chỉnh tiếp.`,
+    `Macro dễ bám: protein ${proteinMin}-${proteinMax}g/ngày, fat ${fatMin}-${fatMax}g/ngày, phần kcal còn lại để cho carb. Nếu cân không đi đúng hướng sau 2 tuần, tăng/giảm 150-200 kcal là đủ.`,
+  ].join('\n\n');
+};
+
 const buildPlanOverviewReply = (message: string, context?: AIChatContext): string => {
   const normalized = normalizeVietnameseText(message);
   const dayLabel = context?.targetDayLabel || 'Hom nay';
@@ -220,6 +317,7 @@ const buildOutOfScopeReply = (): string =>
 
 const getFallbackReply = (message: string, intent: AIIntent, context?: AIChatContext): string => {
   if (isGreetingMessage(message)) return buildGreetingReply(context);
+  if (isDailyCalorieQuestion(message)) return buildDailyCalorieTargetReply(context);
 
   const previousTopic = getPreviousTopic(context?.chatHistory);
   if (isShortFollowUpMessage(message)) {
@@ -252,6 +350,18 @@ export const aiChatService = async (
   context?: AIChatContext,
 ): Promise<AIChatResponse> => {
   const responseMode = getResponseModeForIntent(detectedIntent);
+
+  if (isDailyCalorieQuestion(message)) {
+    return {
+      reply: buildDailyCalorieTargetReply(context),
+      intent: detectedIntent === 'general_health' ? 'meal_plan' : detectedIntent,
+      responseMode: 'coach_advice',
+      confidence: 0.9,
+      actionRequired: false,
+      actionType: null,
+      actionPayload: null,
+    };
+  }
 
   if (detectedIntent === 'injury_care' || detectedIntent === 'out_of_scope') {
     return {

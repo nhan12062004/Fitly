@@ -436,24 +436,17 @@ const getMealTypeLabel = (value: string) => {
 const sumMealMetric = (meals: FoodPlanItem[], field: 'calories' | 'protein' | 'carbs' | 'fat') =>
   meals.reduce((sum, meal) => sum + Number(meal[field] || 0) * Number(meal.quantity || 1), 0);
 
-const getDayHeadline = (day: DayPlan) => {
-  if (day.exercises.length > 0) {
-    return day.exercises[0]?.exercises?.body_part || day.exercises[0]?.exercises?.target_muscle || 'Buổi tập hôm nay';
-  }
-  return 'Chưa có lịch hôm nay';
-};
-
 const buildCoachOpening = (day: DayPlan) => {
   if (day.exercises.length > 0 && day.meals.length > 0) {
-    return `Mình đã mở sẵn workout và meal plan của ${day.label}. Bạn có thể nhắn để đổi món, giảm độ nặng, hoặc tối ưu lại theo mục tiêu hôm nay.`;
+    return `${day.label} mình thấy bạn đã có lịch tập và thực đơn rồi. Cứ nhắn mình nếu muốn rút gọn buổi tập, đổi món, hoặc ưu tiên việc nào trước.`;
   }
   if (day.meals.length > 0) {
-    return `${day.label} đang có meal plan sẵn. Nếu cần, mình sẽ gợi ý thêm vận động nhẹ hoặc đổi món cho sát mục tiêu hơn.`;
+    return `${day.label} bạn đã có thực đơn. Nếu cần, mình có thể giúp đổi món hoặc cân lại protein cho dễ theo hơn.`;
   }
   if (day.exercises.length > 0) {
-    return `${day.label} đang có workout sẵn. Nếu cần, mình sẽ làm buổi tập gọn hơn, nhẹ hơn, hoặc đổi bài cho phù hợp thể trạng hôm nay.`;
+    return `${day.label} bạn có ${day.exercises.length} bài tập. Mình để sẵn ở đây để xem nhanh; cần nhẹ hơn hoặc đổi bài thì nhắn mình.`;
   }
-  return `${day.label} hiện chưa có đủ dữ liệu. Bạn có thể tạo lại kế hoạch hoặc nói rõ tình trạng hôm nay để mình gợi ý cách bổ sung workout và meal plan.`;
+  return `${day.label} mình chưa thấy đủ dữ liệu hôm nay. Bạn cứ nói mục tiêu hoặc tình trạng hiện tại, mình sẽ gợi ý nhanh.`;
 };
 
 const buildMealDigest = (day: DayPlan) => {
@@ -987,20 +980,17 @@ function TodayDigestBubble({ day }: { day: DayPlan }) {
 
   return (
     <SummaryBubble icon={<Bot className="h-4 w-4" />} title="Hôm nay">
-      <div className="space-y-4">
-        <p>{buildCoachOpening(day)}</p>
+      <div className="space-y-3">
+        <p className="font-semibold">{buildCoachOpening(day)}</p>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-ai">
-            <Dumbbell className="h-4 w-4" />
-            <span>Workout hôm nay</span>
-          </div>
+        <div className="space-y-2">
           {day.exercises.length === 0 ? (
-            <p>Workout hôm nay chưa có bài tập nào.</p>
+            <p className="text-sm font-semibold text-text-secondary">Hôm nay chưa có bài tập nào.</p>
           ) : (
             <>
-              <p className="font-semibold">
-                Workout hôm nay có {day.exercises.length} bài tập và {totalSets} sets.
+              <p className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                <Dumbbell className="h-4 w-4 text-ai" />
+                {day.exercises.length} bài tập{totalSets > 0 ? `, ${totalSets} sets` : ''}
               </p>
               <div className="space-y-2">
                 {day.exercises.slice(0, 4).map((item, index) => {
@@ -1033,13 +1023,10 @@ function TodayDigestBubble({ day }: { day: DayPlan }) {
           )}
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-ai">
-            <Utensils className="h-4 w-4" />
-            <span>Meal plan hôm nay</span>
-          </div>
-          <p className="whitespace-pre-line">{mealDigest}</p>
-        </div>
+        <p className="flex items-start gap-2 whitespace-pre-line text-sm font-semibold text-text-secondary">
+          <Utensils className="mt-1 h-4 w-4 shrink-0 text-ai" />
+          <span>{mealDigest}</span>
+        </p>
       </div>
     </SummaryBubble>
   );
@@ -1901,6 +1888,29 @@ export default function AICoach() {
                       </div>
                     </div>
                   ))}
+
+                  {isSendingChat ? (
+                    <div className="flex items-start gap-3 justify-start">
+                      <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ai/90 text-white shadow-[0_8px_18px_rgb(var(--ai-rgb)_/_0.18)]">
+                        <Bot className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="max-w-[76%]">
+                        <div className="rounded-[18px] border border-border-primary bg-bg-secondary/75 px-4 py-3 text-sm font-normal leading-6 text-text-secondary shadow-none">
+                          <p className="mb-1 text-[11px] font-black uppercase tracking-[0.12em] text-ai">
+                            AI Coach
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span>Đang soạn tin nhắn</span>
+                            <span className="flex items-center gap-1" aria-hidden="true">
+                              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai [animation-delay:-0.2s]" />
+                              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai [animation-delay:-0.1s]" />
+                              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai" />
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div ref={chatBottomRef} className="h-px w-full" />
                 </div>

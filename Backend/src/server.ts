@@ -1666,7 +1666,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .gte('log_date', getWeekStartKey(today)),
       supabase
         .from('profiles')
-        .select('id, full_name, membership_tier, created_at')
+        .select('id, full_name, gender, birthday, membership_tier, created_at')
         .eq('id', authUserId)
         .maybeSingle(),
       supabase
