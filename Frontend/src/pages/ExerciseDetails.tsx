@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import ExerciseDetailOverlay, { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchWithAuth } from '../lib/Api';
+import { createDailyExerciseSession } from '../lib/DailyExercises';
 import { supabase } from '../lib/Supabase';
 import { SkeletonBlock } from '../components/PageSkeleton';
 
@@ -201,6 +202,19 @@ export default function ExerciseDetails() {
       const defaultReps = '12';
       const defaultWeightKg = getManualSuggestedWeightKg(exercise.equipment);
       const defaultRestSeconds = 45;
+      await createDailyExerciseSession({
+        userId: user.id,
+        logDate: today,
+        exerciseId: exercise.id,
+        sets: defaultSets,
+        reps: defaultReps,
+        weightKg: defaultWeightKg,
+        restSeconds: defaultRestSeconds,
+        orderIndex: nextOrder
+      });
+      setSaveMessage('ÄÃ£ thÃªm vÃ o buá»•i táº­p hÃ´m nay.');
+      setSaveStatus('success');
+      return;
       const response = await fetchWithAuth('/api/workout/daily-exercises', {
         method: 'POST',
         headers: {
@@ -364,6 +378,32 @@ export default function ExerciseDetails() {
                 .limit(1)
                 .maybeSingle();
               const nextOrder = Number(latestRow.data?.order_index ?? -1) + 1;
+              sessionRow = await createDailyExerciseSession({
+                userId: user.id,
+                logDate: today,
+                exerciseId: exercise.id,
+                sets: 3,
+                reps: '12',
+                weightKg: defaultWeightKg,
+                restSeconds: 45,
+                orderIndex: nextOrder
+              });
+              if (sessionRow) {
+                navigate('/exercises/session', {
+                  state: {
+                    session: [
+                      {
+                        ...sessionRow,
+                        name: sessionRow.exercises?.name || exercise.name,
+                        gif_url: normalizeMediaUrl(sessionRow.exercises?.image_url || exercise.gif_url)
+                      }
+                    ],
+                    selectedSessionId: sessionRow.id,
+                    logDate: today
+                  }
+                });
+                return;
+              }
               const response = await fetchWithAuth('/api/workout/daily-exercises', {
                 method: 'POST',
                 headers: {

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../lib/Api';
+import { createDailyExerciseSession } from '../lib/DailyExercises';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
@@ -684,12 +685,54 @@ export default function Exercises() {
 
 
   const saveExerciseFromPopup = async (exerciseToSave: ExerciseLibraryItem) => {
-    if (!user) return;
+    const currentUser = user!;
+    if (!currentUser) return;
     setIsSavingExercise(true);
     try {
       const cleanSets = 3;
       const cleanReps = '12';
       const cleanKg = getManualSuggestedWeightKg(exerciseToSave.equipment);
+      const createdSession = await createDailyExerciseSession({
+        userId: currentUser.id,
+        logDate: vnToday,
+        exerciseId: exerciseToSave.id,
+        sets: cleanSets,
+        reps: cleanReps,
+        weightKg: cleanKg,
+        restSeconds: 60
+      }) as SessionExercise | undefined;
+      const estimatedKcal = getResolvedExerciseKcal(createdSession);
+
+      if (createdSession) {
+        setSession(prev => [...prev, {
+          ...createdSession,
+          name: (createdSession.exercises as any)?.name || 'Exercise',
+          gif_url: normalizeGifUrl((createdSession.exercises as any)?.image_url || '')
+        }]);
+      }
+
+      try {
+        const progress = await supabase
+          .from('daily_progress_logs')
+          .select('calories_burned')
+          .eq('user_id', currentUser.id)
+          .eq('log_date', vnToday)
+          .maybeSingle();
+        if (progress.error) throw progress.error;
+        const nextBurned = (progress.data?.calories_burned || 0) + estimatedKcal;
+        const upsertProgress = await supabase
+          .from('daily_progress_logs')
+          .upsert(
+            { user_id: currentUser.id, log_date: vnToday, calories_burned: nextBurned },
+            { onConflict: 'user_id,log_date' }
+          );
+        if (upsertProgress.error) throw upsertProgress.error;
+      } catch (progressError) {
+        console.error('Khong dong bo duoc daily_progress_logs sau khi them bai tap:', progressError);
+      }
+
+      alert('Da them vao buoi tap hom nay');
+      return;
       const response = await fetchWithAuth('/api/workout/daily-exercises', {
         method: 'POST',
         headers: {
@@ -758,7 +801,7 @@ export default function Exercises() {
       const progress = await supabase
         .from('daily_progress_logs')
         .select('calories_burned')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUser.id)
         .eq('log_date', vnToday)
         .maybeSingle();
       if (progress.error) throw progress.error;
@@ -766,16 +809,17 @@ export default function Exercises() {
       const upsertProgress = await supabase
         .from('daily_progress_logs')
         .upsert(
-          { user_id: user.id, log_date: vnToday, calories_burned: nextBurned },
+          { user_id: currentUser.id, log_date: vnToday, calories_burned: nextBurned },
           { onConflict: 'user_id,log_date' }
         );
       if (upsertProgress.error) throw upsertProgress.error;
 
       if (data) {
+        const savedExercise = data as SessionExercise;
         setSession(prev => [...prev, {
-          ...data,
-          name: (data.exercises as any)?.name || 'Exercise',
-          gif_url: normalizeGifUrl((data.exercises as any)?.image_url || '')
+          ...savedExercise,
+          name: (savedExercise.exercises as any)?.name || 'Exercise',
+          gif_url: normalizeGifUrl((savedExercise.exercises as any)?.image_url || '')
         }]);
       }
       alert('Da them vao buoi tap hom nay');
