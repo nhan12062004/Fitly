@@ -385,7 +385,10 @@ export default function Exercises() {
   const [session, setSession] = useState<SessionExercise[]>(() => cacheForToday?.session || []);
   const [isLoading, setIsLoading] = useState(() => !cacheForToday);
   const [, setIsRefreshing] = useState(false);
-  const [isSavingExercise, setIsSavingExercise] = useState(false);
+  const [savingExerciseId, setSavingExerciseId] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'success' | 'error' | ''>('');
+  const [toastVisible, setToastVisible] = useState(false);
   const [library, setLibrary] = useState<ExerciseLibraryItem[]>(() => cacheForToday?.library || []);
   const [vnToday, setVnToday] = useState(() => getVietnamDateKey());
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -689,9 +692,36 @@ export default function Exercises() {
 
   const saveExerciseFromPopup = async (exerciseToSave: ExerciseLibraryItem) => {
     const currentUser = user!;
-    if (!currentUser) return;
-    setIsSavingExercise(true);
+    if (!currentUser) {
+      setSaveMessage('Bạn cần đăng nhập để thêm bài tập.');
+      setSaveStatus('error');
+      return;
+    }
+
+    if (session.some((item) => item.exercise_id === exerciseToSave.id)) {
+      setSaveMessage('Bài tập này đã có trong buổi tập đã chọn.');
+      setSaveStatus('error');
+      return;
+    }
+
+    setSavingExerciseId(exerciseToSave.id);
+    setSaveMessage('');
     try {
+      const existedRes = await supabase
+        .from('daily_exercise_sessions')
+        .select('id')
+        .eq('user_id', currentUser.id)
+        .eq('log_date', selectedDateKey)
+        .eq('exercise_id', exerciseToSave.id)
+        .limit(1);
+      if (existedRes.error) throw existedRes.error;
+
+      if ((existedRes.data || []).length > 0) {
+        setSaveMessage('Bài tập này đã có trong buổi tập đã chọn.');
+        setSaveStatus('error');
+        return;
+      }
+
       const cleanSets = 3;
       const cleanReps = '12';
       const cleanKg = getManualSuggestedWeightKg(exerciseToSave.equipment);
@@ -705,20 +735,41 @@ export default function Exercises() {
         restSeconds: 60
       }) as SessionExercise | undefined;
       if (createdSession) {
-        setSession(prev => [...prev, {
-          ...createdSession,
-          name: (createdSession.exercises as any)?.name || 'Exercise',
-          gif_url: normalizeGifUrl((createdSession.exercises as any)?.image_url || '')
-        }]);
+        setSession(prev => {
+          if (prev.some((item) => item.exercise_id === exerciseToSave.id)) return prev;
+          return [...prev, {
+            ...createdSession,
+            name: (createdSession.exercises as any)?.name || 'Exercise',
+            gif_url: normalizeGifUrl((createdSession.exercises as any)?.image_url || '')
+          }];
+        });
       }
 
-      alert(isTodaySelected ? 'Đã thêm vào buổi tập hôm nay' : 'Đã thêm vào buổi tập đã chọn');
+      setSaveMessage(isTodaySelected ? 'Đã thêm vào buổi tập hôm nay.' : 'Đã thêm vào buổi tập đã chọn.');
+      setSaveStatus('success');
     } catch (e: any) {
-      alert("Lỗi: " + (e?.message || 'Lưu bài tập thất bại'));
+      setSaveMessage(e?.message || 'Thêm bài tập thất bại. Vui lòng thử lại.');
+      setSaveStatus('error');
     } finally {
-      setIsSavingExercise(false);
+      setSavingExerciseId(null);
     }
   };
+
+  useEffect(() => {
+    if (!saveMessage) return;
+    setToastVisible(true);
+    const hide = window.setTimeout(() => {
+      setToastVisible(false);
+    }, 2200);
+    const clear = window.setTimeout(() => {
+      setSaveMessage('');
+      setSaveStatus('');
+    }, 2600);
+    return () => {
+      window.clearTimeout(hide);
+      window.clearTimeout(clear);
+    };
+  }, [saveMessage]);
 
   useEffect(() => {
     if (session.length === 0) {
@@ -841,6 +892,20 @@ export default function Exercises() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
+      {saveMessage && (
+        <div
+          className={`fixed left-1/2 top-5 z-[200] -translate-x-1/2 rounded-lg border px-4 py-2.5 text-sm shadow-xl transition-all duration-300 ${
+            toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
+          } ${
+            saveStatus === 'success'
+              ? 'border-accent/50 bg-accent/15 text-accent-muted'
+              : 'border-red-400/50 bg-red-500/15 text-red-200'
+          }`}
+        >
+          {saveMessage}
+        </div>
+      )}
+
       <div className="today-workout-shell bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex flex-wrap items-center gap-3">
@@ -1086,7 +1151,11 @@ export default function Exercises() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          {visibleLibrary.map((ex) => (
+          {visibleLibrary.map((ex) => {
+            const isSavingThisExercise = savingExerciseId === ex.id;
+            const isAlreadyInSession = session.some((item) => item.exercise_id === ex.id);
+
+            return (
             <div
               key={ex.id}
               onClick={() => openExerciseDetailsPage(ex)}
@@ -1119,16 +1188,22 @@ export default function Exercises() {
                       event.stopPropagation();
                       saveExerciseFromPopup(ex);
                     }}
-                    disabled={isSavingExercise}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-60"
-                    aria-label="Thêm bài tập"
+                    disabled={isSavingThisExercise || isAlreadyInSession}
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      isAlreadyInSession
+                        ? 'cursor-not-allowed border border-accent/35 bg-accent/15 text-accent'
+                        : 'bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-60'
+                    }`}
+                    aria-label={isAlreadyInSession ? 'Bài tập đã có trong buổi tập' : 'Thêm bài tập'}
+                    title={isAlreadyInSession ? 'Bài tập đã có trong buổi tập' : 'Thêm bài tập'}
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {hasMoreLibraryItems && (
