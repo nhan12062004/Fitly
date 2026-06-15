@@ -933,6 +933,14 @@ body {
     box-shadow: 0 24px 70px rgb(var(--shadow-rgb) / 0.16);
   }
 
+  .progress-simple-card {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 94%, transparent), color-mix(in srgb, var(--bg-tertiary) 52%, transparent));
+    box-shadow:
+      0 14px 34px rgb(var(--shadow-rgb) / 0.10),
+      inset 0 1px 0 rgba(255,255,255,0.035);
+  }
+
   .progress-range-tabs {
     border-color: var(--border-primary);
     background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
@@ -1007,23 +1015,30 @@ body {
   .diet-card,
   .diet-picker-panel,
   .diet-picker-item {
-    background: var(--bg-secondary);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 94%, transparent), color-mix(in srgb, var(--bg-tertiary) 72%, transparent));
     border-color: var(--border-primary);
     color: var(--text-primary);
-    box-shadow: 0 10px 24px rgba(15,23,42,0.08);
+    box-shadow:
+      0 18px 44px rgb(var(--shadow-rgb) / 0.12),
+      inset 0 1px 0 rgba(255,255,255,0.04);
   }
 
   .diet-control {
-    background: var(--bg-secondary);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 78%, transparent), color-mix(in srgb, var(--bg-secondary) 92%, transparent));
     border-color: var(--border-primary);
     color: var(--text-primary);
-    box-shadow: 0 10px 24px rgba(15,23,42,0.06);
+    box-shadow:
+      0 10px 24px rgb(var(--shadow-rgb) / 0.08),
+      inset 0 1px 0 rgba(255,255,255,0.04);
   }
 
   .diet-control:hover,
   .diet-picker-item:hover {
     border-color: rgb(var(--accent-rgb) / 0.30);
-    background: var(--bg-tertiary);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-quaternary) 76%, transparent), color-mix(in srgb, var(--bg-tertiary) 88%, transparent));
     color: var(--text-primary);
   }
 
@@ -1070,53 +1085,136 @@ body {
   }
 
   .diet-today-shell {
-    background: #141414;
-    border-color: rgba(255,255,255,0.14);
-    box-shadow: none;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 96%, transparent), color-mix(in srgb, var(--bg-tertiary) 58%, transparent));
+    border-color: var(--border-primary);
+    box-shadow:
+      0 22px 60px rgb(var(--shadow-rgb) / 0.14),
+      inset 0 1px 0 rgba(255,255,255,0.04);
   }
 
   .diet-today-shell .bg-bg-tertiary\/40 {
-    background: #171717;
-    border-color: rgba(255,255,255,0.12);
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+    border-color: var(--border-primary);
   }
 
   .diet-today-shell .diet-tab-indicator {
-    background: #242424;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    background: color-mix(in srgb, var(--bg-quaternary) 78%, var(--bg-secondary) 22%);
+    box-shadow:
+      inset 0 0 0 1px var(--border-primary),
+      0 8px 18px rgb(var(--shadow-rgb) / 0.10);
   }
 
   .diet-today-shell .diet-tab-selected {
-    color: #f8fafc;
+    color: var(--text-primary);
   }
 
-  .diet-today-shell .diet-today-calories,
-  .diet-today-shell .diet-today-protein,
-  .diet-today-shell .diet-today-water {
-    box-shadow: none;
+  .diet-today-shell .diet-macro-card {
+    border-color: rgb(var(--diet-macro-rgb) / 0.30);
+    background:
+      linear-gradient(180deg, rgb(var(--diet-macro-rgb) / 0.115), rgb(var(--diet-macro-rgb) / 0.055)),
+      color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.035),
+      0 10px 24px rgb(var(--shadow-rgb) / 0.08);
+  }
+
+  .diet-macro-card-label {
+    color: rgb(var(--diet-macro-rgb));
+  }
+
+  .diet-macro-card-fill {
+    background: rgb(var(--diet-macro-rgb));
   }
 
   .diet-today-shell .diet-today-calories {
-    background: rgba(34, 197, 94, 0.10);
-    border-color: rgba(34, 197, 94, 0.28);
+    --diet-macro-rgb: 249 115 22;
   }
 
   .diet-today-shell .diet-today-protein {
-    background: rgba(56, 189, 248, 0.10);
-    border-color: rgba(56, 189, 248, 0.28);
+    --diet-macro-rgb: 192 132 252;
   }
 
   .diet-today-shell .diet-today-water {
-    background: rgba(245, 158, 11, 0.11);
-    border-color: rgba(245, 158, 11, 0.30);
+    --diet-macro-rgb: 96 165 250;
+  }
+
+  .diet-today-shell .diet-today-carbs {
+    --diet-macro-rgb: 234 179 8;
+  }
+
+  .diet-today-shell .diet-today-fat {
+    --diet-macro-rgb: 251 113 133;
   }
 
   .diet-today-shell .diet-today-calories .bg-bg-tertiary,
-  .diet-today-shell .diet-today-water .bg-bg-tertiary {
-    background: rgba(255,255,255,0.08);
+  .diet-today-shell .diet-today-water .bg-bg-tertiary,
+  .diet-today-shell .diet-today-carbs .bg-bg-tertiary,
+  .diet-today-shell .diet-today-fat .bg-bg-tertiary {
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
   }
 
   .diet-today-shell .diet-today-protein .bg-bg-tertiary {
-    background: rgba(255,255,255,0.08);
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+  }
+
+  .diet-meals-shell {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 94%, transparent), color-mix(in srgb, var(--bg-tertiary) 60%, transparent));
+  }
+
+  .diet-meal-summary-card {
+    border-color: var(--border-primary);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 62%, transparent), color-mix(in srgb, var(--bg-secondary) 90%, transparent));
+    box-shadow:
+      0 14px 34px rgb(var(--shadow-rgb) / 0.10),
+      inset 0 1px 0 rgba(255,255,255,0.035);
+  }
+
+  .diet-meal-summary-card:hover {
+    border-color: var(--border-secondary);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 82%, transparent), color-mix(in srgb, var(--bg-secondary) 94%, transparent));
+  }
+
+  .diet-meal-summary-card-active {
+    border-color: rgb(var(--accent-rgb) / 0.28);
+    background:
+      linear-gradient(180deg, rgb(var(--accent-rgb) / 0.10), color-mix(in srgb, var(--bg-secondary) 92%, transparent));
+  }
+
+  .diet-meal-chip {
+    color: var(--meal-accent, var(--accent-primary));
+    border-color: var(--meal-border, rgb(var(--accent-rgb) / 0.22));
+    background:
+      linear-gradient(180deg, var(--meal-accent-soft, rgb(var(--accent-rgb) / 0.10)), color-mix(in srgb, var(--bg-secondary) 72%, transparent));
+  }
+
+  .diet-meal-chip span {
+    background: var(--meal-accent, var(--accent-primary));
+  }
+
+  .diet-food-pill {
+    border-color: var(--border-primary);
+    background: color-mix(in srgb, var(--bg-secondary) 76%, transparent);
+    color: var(--text-secondary);
+  }
+
+  .diet-empty-state {
+    border-color: var(--border-primary);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-tertiary) 46%, transparent), color-mix(in srgb, var(--bg-secondary) 90%, transparent));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.035),
+      0 14px 34px rgb(var(--shadow-rgb) / 0.08);
+  }
+
+  .diet-mobile-sticky-actions {
+    border-color: var(--border-primary);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 82%, transparent), color-mix(in srgb, var(--bg-primary) 96%, transparent));
+    box-shadow: 0 -18px 44px rgb(var(--shadow-rgb) / 0.18);
   }
 
   .diet-water-icon {

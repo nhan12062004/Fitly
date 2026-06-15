@@ -995,7 +995,7 @@ function getProgressPercent(value: number, target: number): number {
 
 function ProgressBar({ percent, tone = 'accent' }: { percent: number; tone?: ProgressTone }) {
   return (
-    <div className="mt-4 h-2 overflow-hidden rounded-full bg-bg-primary/70">
+    <div className="mt-4 h-2 overflow-hidden rounded-full bg-bg-tertiary">
       <div
         className={`h-full rounded-full ${toneStyles[tone].bar}`}
         style={{ width: `${clamp(percent, 0, 100)}%` }}
@@ -1022,13 +1022,13 @@ function MetricTile({
   footer?: ReactNode;
 }) {
   return (
-    <article className="rounded-[22px] border border-border-primary bg-bg-secondary/82 p-4 shadow-[0_14px_34px_rgba(0,0,0,0.10)]">
+    <article className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">{label}</p>
           <p className="mt-3 text-2xl font-black leading-tight text-text-primary">{value}</p>
         </div>
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${toneStyles[tone].icon}`}>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${toneStyles[tone].icon}`}>
           {icon}
         </span>
       </div>
@@ -1041,7 +1041,7 @@ function MetricTile({
 
 function EmptyMetricState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="flex min-h-[220px] items-center justify-center rounded-[22px] border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
+    <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
       <div className="max-w-md">
         <p className="text-sm font-black text-text-primary">{title}</p>
         <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary">{body}</p>
@@ -1077,8 +1077,9 @@ export default function Progress() {
       if (isMounted && cached) {
         setViewModel(cached.viewModel);
       }
-      setLoading(!cached);
-      setIsRefreshing(!!cached);
+      const hasVisibleProgress = !!viewModel;
+      setLoading(!cached && !hasVisibleProgress);
+      setIsRefreshing(!!cached || hasVisibleProgress);
 
       try {
         const endDateKey = getVietnamDateKey();
@@ -1227,7 +1228,7 @@ export default function Progress() {
       } catch (error) {
         console.error(error);
         if (isMounted) {
-          if (!cached) {
+          if (!cached && !viewModel) {
             setViewModel(null);
           }
         }
@@ -1273,50 +1274,37 @@ export default function Progress() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="progress-hero overflow-hidden rounded-[30px] border border-border-primary px-5 py-6 md:px-7 md:py-7">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-          <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-warning/20 bg-warning/10 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-warning">
-                Tiến độ của bạn
-              </span>
-              <span className="rounded-full border border-border-primary bg-bg-tertiary/55 px-3 py-1 text-xs font-bold text-text-secondary">
-                {viewModel.filterLabel} gần nhất
-              </span>
-            </div>
-            <h1 className="mt-4 text-3xl font-black leading-tight text-text-primary md:text-5xl">{viewModel.heroTitle}</h1>
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-7 text-text-secondary md:text-base">
-              {viewModel.heroBody}
-            </p>
-
+      <section className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-xl font-black text-text-primary md:text-2xl">Tiến độ</h1>
+            <p className="mt-1 text-sm font-semibold text-text-secondary">{viewModel.filterLabel} gần nhất</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-[auto_1fr] xl:w-[27rem] xl:grid-cols-1">
-            <div className="progress-range-tabs inline-flex h-fit rounded-2xl border p-1 backdrop-blur-md sm:self-center xl:self-auto">
-              {TIME_RANGES.map((range) => (
-                <button
-                  key={range.value}
-                  type="button"
-                  onClick={() => setRangeDays(range.value)}
-                  className={`rounded-2xl px-4 py-2 text-sm font-black transition-colors ${
-                    rangeDays === range.value
-                      ? 'bg-accent text-text-inverse'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  {range.label}
-                </button>
-              ))}
-            </div>
+          <div className="progress-range-tabs inline-flex h-fit rounded-xl border p-1">
+            {TIME_RANGES.map((range) => (
+              <button
+                key={range.value}
+                type="button"
+                onClick={() => setRangeDays(range.value)}
+                className={`rounded-lg px-3 py-2 text-sm font-black transition-colors ${
+                  rangeDays === range.value
+                    ? 'bg-accent text-text-inverse'
+                    : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
+                }`}
+              >
+                {range.label}
+              </button>
+            ))}
           </div>
         </div>
       </section>
 
       {isEmpty ? (
-        <section className="rounded-[28px] border border-border-primary bg-bg-secondary/80 p-6 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-7">
+        <section className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-5 md:p-6">
           <div className="max-w-2xl">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Chưa đủ dữ liệu</p>
-            <h2 className="mt-3 text-2xl font-black text-text-primary md:text-3xl">Progress page sẽ mạnh hơn sau vài ngày check-in</h2>
+            <h2 className="mt-3 text-xl font-black text-text-primary md:text-2xl">Trang tiến độ sẽ rõ hơn sau vài ngày check-in</h2>
             <p className="mt-3 text-sm font-semibold leading-7 text-text-secondary md:text-base">
               Hãy hoàn thành ít nhất 3 ngày tập luyện, ăn uống hoặc cập nhật nước ngủ để AI Coach nhìn ra xu hướng thật. Khi đó bạn sẽ thấy tổng kết tuần, protein trung bình, thay đổi cân nặng và gợi ý điều chỉnh rõ hơn.
             </p>
@@ -1324,27 +1312,17 @@ export default function Progress() {
               <button
                 type="button"
                 onClick={() => navigate('/overview')}
-                className="inline-flex h-12 items-center justify-center rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
               >
                 Bắt đầu kế hoạch hôm nay
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/smart-planner')}
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-ai/40 hover:text-ai"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:text-accent"
               >
                 Tạo kế hoạch với AI
               </button>
-            </div>
-
-            <div className="mt-7 rounded-[24px] border border-border-primary bg-bg-tertiary/45 p-5">
-              <p className="text-sm font-black text-text-primary">Sau vài ngày, bạn sẽ thấy:</p>
-              <ul className="mt-3 grid gap-2 text-sm font-semibold text-text-secondary">
-                <li>- số buổi tập đã hoàn thành</li>
-                <li>- calories và protein trung bình</li>
-                <li>- xu hướng cân nặng</li>
-                <li>- AI Coach nhận xét và gợi ý tuần tiếp theo</li>
-              </ul>
             </div>
           </div>
         </section>
@@ -1354,7 +1332,7 @@ export default function Progress() {
             <MetricTile
               label="Điểm duy trì"
               value={viewModel.score.value !== null ? `${viewModel.score.value}/100` : '--'}
-              helper="Tổng hợp từ tập luyện, ăn uống và phục hồi."
+              helper="Tổng hợp từ tập luyện, ăn uống và phục hồi"
               icon={<Target className="h-5 w-5" />}
               tone="accent"
               percent={scorePercent}
@@ -1366,7 +1344,7 @@ export default function Progress() {
                 : `${viewModel.workout.completedDays} buổi`}
               helper={`${formatWholeNumber(viewModel.workout.totalMinutes)} phút trong giai đoạn này.`}
               icon={<Dumbbell className="h-5 w-5" />}
-              tone="info"
+              tone="accent"
               percent={workoutPercent}
               footer={hasWorkoutTarget ? <SummaryDelta delta={viewModel.summary.workouts.delta} /> : null}
             />
@@ -1377,7 +1355,7 @@ export default function Progress() {
                 : `${viewModel.nutrition.loggedDays} ngày log`}
               helper={`${formatWholeNumber(viewModel.nutrition.averageCalories)} kcal, ${formatWholeNumber(viewModel.nutrition.averageProtein)}g protein trung bình.`}
               icon={<Utensils className="h-5 w-5" />}
-              tone="warning"
+              tone="info"
               percent={nutritionPercent}
             />
             <MetricTile
@@ -1390,53 +1368,60 @@ export default function Progress() {
           </section>
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <article className="rounded-[24px] border border-border-primary bg-bg-secondary/82 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl md:p-5">
+            <article className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Biểu đồ tập luyện</p>
-                  <h2 className="mt-2 text-xl font-black text-text-primary">Hoàn thành so với lịch</h2>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Tập luyện</p>
+                  <h2 className="mt-2 text-xl font-black text-text-primary">{viewModel.workout.completedDays} buổi đã xong</h2>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-                  <TrendingUp className="h-5 w-5" />
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <Dumbbell className="h-5 w-5" />
                 </span>
               </div>
-              <div className="mt-4 h-[250px] sm:h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={viewModel.workout.chart} margin={{ top: 8, right: 10, bottom: 0, left: -12 }}>
-                    <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
-                    <XAxis
-                      dataKey="label"
-                      tick={{ fill: 'var(--chart-tick)', fontSize: 11 }}
-                      tickLine={false}
-                      axisLine={false}
-                      minTickGap={12}
-                    />
-                    <YAxis
-                      allowDecimals={false}
-                      tick={{ fill: 'var(--chart-tick)', fontSize: 11 }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={34}
-                    />
-                    <Tooltip content={<WorkoutTooltip />} />
-                    <Bar dataKey="completed" stackId="workout" fill="var(--accent-primary)" radius={[8, 8, 0, 0]} />
-                    <Bar dataKey="planned" stackId="workout" fill="rgba(245,158,11,0.45)" radius={[8, 8, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+                {viewModel.workout.strip.map((day) => (
+                  <div
+                    key={day.dateKey}
+                    className={`rounded-xl border px-3 py-3 text-center ${
+                      day.completed
+                        ? 'border-accent/25 bg-accent/10'
+                        : day.planned
+                          ? 'border-warning/20 bg-warning/10'
+                          : 'border-border-primary bg-bg-tertiary/35'
+                    }`}
+                  >
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">{day.label}</p>
+                    <p className="mt-2 text-lg font-black text-text-primary">{day.dayNumber}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {viewModel.workout.muscleGroups.length > 0 ? (
+                  viewModel.workout.muscleGroups.slice(0, 5).map((group) => (
+                    <span
+                      key={group.label}
+                      className="rounded-full border border-border-primary bg-bg-tertiary/45 px-3 py-1.5 text-xs font-black text-text-secondary"
+                    >
+                      {group.label} {group.count}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-sm font-semibold text-text-secondary">Chưa có đủ dữ liệu nhóm cơ.</p>
+                )}
               </div>
             </article>
 
-            <article className="rounded-[24px] border border-border-primary bg-bg-secondary/82 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl md:p-5">
+            <article className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Biểu đồ dinh dưỡng</p>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Dinh dưỡng</p>
                   <h2 className="mt-2 text-xl font-black text-text-primary">Calories theo ngày</h2>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-warning/10 text-warning">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info/10 text-info">
                   <Flame className="h-5 w-5" />
                 </span>
               </div>
-              <div className="mt-4 h-[250px] sm:h-[300px]">
+              <div className="mt-4 h-[230px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={viewModel.nutrition.chart} margin={{ top: 8, right: 10, bottom: 0, left: -8 }}>
                     <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
@@ -1458,7 +1443,7 @@ export default function Progress() {
                       {viewModel.nutrition.chart.map((entry) => (
                         <Cell
                           key={entry.dateKey}
-                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'var(--accent-primary)' : 'var(--warning-primary)'}
+                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'var(--accent-primary)' : 'var(--info-primary)'}
                         />
                       ))}
                     </Bar>
@@ -1469,23 +1454,23 @@ export default function Progress() {
           </section>
 
           <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <article className="rounded-[24px] border border-border-primary bg-bg-secondary/82 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl md:p-5">
+            <article className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Biểu đồ cân nặng</p>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Cân nặng</p>
                   <h2 className="mt-2 text-xl font-black text-text-primary">
                     {viewModel.weight.baseline !== null && viewModel.weight.latest !== null
                       ? `${formatMetric(viewModel.weight.baseline, 1)} → ${formatMetric(viewModel.weight.latest, 1)} kg`
                       : 'Chưa đủ dữ liệu'}
                   </h2>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-info/10 text-info">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ai/10 text-ai">
                   <Scale className="h-5 w-5" />
                 </span>
               </div>
 
               {hasWeightTrend ? (
-                <div className="mt-4 h-[250px] sm:h-[300px]">
+                <div className="mt-4 h-[230px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={viewModel.weight.chart} margin={{ top: 8, right: 10, bottom: 0, left: -8 }}>
                       <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
@@ -1507,9 +1492,9 @@ export default function Progress() {
                       <Line
                         type="monotone"
                         dataKey="weight"
-                        stroke="var(--info-primary)"
+                        stroke="var(--ai-primary)"
                         strokeWidth={3}
-                        dot={{ fill: 'var(--info-primary)', r: 3 }}
+                        dot={{ fill: 'var(--ai-primary)', r: 3 }}
                         activeDot={{ r: 5 }}
                         connectNulls={false}
                       />
@@ -1526,23 +1511,20 @@ export default function Progress() {
               )}
             </article>
 
-            <article className="progress-coach-panel rounded-[24px] border border-border-primary p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] backdrop-blur-xl md:p-5">
+            <article className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">AI Coach</p>
                   <h2 className="mt-2 text-xl font-black text-text-primary">{viewModel.coach.title}</h2>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-ai/12 text-ai">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ai/10 text-ai">
                   <Brain className="h-5 w-5" />
                 </span>
               </div>
               <p className="mt-4 text-sm font-semibold leading-7 text-text-secondary">{viewModel.coach.body}</p>
               <div className="mt-4 grid gap-2">
-                {viewModel.actions.items.slice(0, 2).map((item, index) => (
-                  <div key={item} className="flex items-start gap-3 rounded-2xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-black text-text-inverse">
-                      {index + 1}
-                    </span>
+                {viewModel.actions.items.slice(0, 2).map((item) => (
+                  <div key={item} className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
                     <p className="text-sm font-semibold leading-6 text-text-primary">{item}</p>
                   </div>
                 ))}
@@ -1550,7 +1532,7 @@ export default function Progress() {
               <button
                 type="button"
                 onClick={() => navigate(viewModel.coach.actionHref)}
-                className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover sm:w-auto"
+                className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover sm:w-auto"
               >
                 {viewModel.coach.actionLabel}
                 <ArrowRight className="h-4 w-4" />
