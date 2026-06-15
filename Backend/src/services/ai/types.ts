@@ -80,6 +80,13 @@ export type AIChatExerciseSummary = {
   reps?: string | null;
   rest_seconds?: number | null;
   weight_kg?: number | null;
+  planned_sets?: number | null;
+  planned_reps?: string | null;
+  planned_weight_kg?: number | null;
+  completed_sets?: number | null;
+  estimated_kcal?: number | null;
+  actual_kcal_estimated?: number | null;
+  target_rpe?: number | null;
   body_part?: string | null;
   target_muscle?: string | null;
 };

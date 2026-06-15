@@ -108,6 +108,15 @@ let exercisesPageCache: ExercisesPageCache | null = null;
 const LIBRARY_VISIBLE_BATCH_SIZE = 12;
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
+const DAYS = [
+  { id: 0, label: 'T2', full: 'Thứ 2' },
+  { id: 1, label: 'T3', full: 'Thứ 3' },
+  { id: 2, label: 'T4', full: 'Thứ 4' },
+  { id: 3, label: 'T5', full: 'Thứ 5' },
+  { id: 4, label: 'T6', full: 'Thứ 6' },
+  { id: 5, label: 'T7', full: 'Thứ 7' },
+  { id: 6, label: 'CN', full: 'Chủ nhật' }
+];
 
 const getDatePartsInTimeZone = (date: Date, timeZone: string) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -153,6 +162,17 @@ const getWeekStartKey = (baseDate: Date): string => {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+};
+
+const toDateKey = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const getWeekStartDate = (baseDate: Date): Date => new Date(`${getWeekStartKey(baseDate)}T00:00:00`);
+
+const addDays = (date: Date, days: number): Date => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
 };
 
 const normalizeGifUrl = (value: unknown): string => {
@@ -385,8 +405,33 @@ export default function Exercises() {
   const [draftEquipmentFilter, setDraftEquipmentFilter] = useState('all');
   const [visibleLibraryCount, setVisibleLibraryCount] = useState(LIBRARY_VISIBLE_BATCH_SIZE);
   const filterPopoverRef = useRef<HTMLDivElement | null>(null);
+  const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
+  const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  const [selectedDayId, setSelectedDayId] = useState(() => getVietnamDayIndex());
+  const [dayIndicatorStyle, setDayIndicatorStyle] = useState<{ x: number; y: number; width: number; height: number; visible: boolean }>({
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    visible: false
+  });
 
-  const currentDayIdx = getVietnamDayIndex();
+  const selectedWeekStart = useMemo(() => getWeekStartDate(new Date(`${vnToday}T00:00:00`)), [vnToday]);
+  const selectedDate = useMemo(() => addDays(selectedWeekStart, selectedDayId), [selectedWeekStart, selectedDayId]);
+  const selectedDateKey = useMemo(() => toDateKey(selectedDate), [selectedDate]);
+  const isTodaySelected = selectedDateKey === vnToday;
+  const selectedDayTitle = isTodaySelected
+    ? 'Bài tập hôm nay'
+    : `Bài tập ${DAYS[selectedDayId]?.full.toLowerCase() || ''}`;
+  const selectedDayDateLabel = useMemo(
+    () =>
+      selectedDate.toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      }),
+    [selectedDate]
+  );
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -397,13 +442,42 @@ export default function Exercises() {
   }, []);
 
   useEffect(() => {
+    setSelectedDayId(getVietnamDayIndex());
+  }, [vnToday]);
+
+  useEffect(() => {
     if (user) {
-      loadSession(!!cacheForToday);
+      loadSession(!!cacheForToday && selectedDateKey === vnToday);
     } else {
       setSession([]);
       loadLibrary();
     }
-  }, [user, vnToday]);
+  }, [user, selectedDateKey, vnToday]);
+
+  useEffect(() => {
+    const updateDayIndicator = () => {
+      const container = dayTabContainerRef.current;
+      const activeTab = dayTabRefs.current[selectedDayId];
+      if (!container || !activeTab) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const activeRect = activeTab.getBoundingClientRect();
+      setDayIndicatorStyle({
+        x: activeRect.left - containerRect.left,
+        y: activeRect.top - containerRect.top,
+        width: activeRect.width,
+        height: activeRect.height,
+        visible: true
+      });
+    };
+
+    const frame = window.requestAnimationFrame(updateDayIndicator);
+    window.addEventListener('resize', updateDayIndicator);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updateDayIndicator);
+    };
+  }, [selectedDayId, selectedWeekStart]);
 
   const loadSession = async (silent = false) => {
     if (silent) {
@@ -412,7 +486,7 @@ export default function Exercises() {
       setIsLoading(true);
     }
     try {
-      // 1. Check if session already exists for today
+      // 1. Check if session already exists for the selected day
       const { data: existingSession } = await supabase
         .from('daily_exercise_sessions')
         .select(`
@@ -420,7 +494,7 @@ export default function Exercises() {
           exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
         `)
         .eq('user_id', user?.id)
-        .eq('log_date', vnToday)
+        .eq('log_date', selectedDateKey)
         .order('order_index');
 
       if (existingSession && existingSession.length > 0) {
@@ -430,8 +504,9 @@ export default function Exercises() {
           gif_url: normalizeGifUrl((s.exercises as any)?.image_url || '')
         })));
       } else {
-        // 2. No session today. Try to clone from weekly plan
-        await clonePlanToToday();
+        // 2. No session on this day. Try to clone from weekly plan
+        setSession([]);
+        await clonePlanToSelectedDate(selectedDateKey, selectedDayId);
       }
       await loadLibrary(silent);
 
@@ -486,167 +561,65 @@ export default function Exercises() {
     return data?.id || null;
   };
 
-  const clonePlanToToday = async () => {
-    const weekStartKey = getWeekStartKey(new Date(`${vnToday}T00:00:00`));
-    let plan: any = null;
-    const byWeek = await supabase
-      .from('weekly_plans')
-      .select('id')
-      .eq('user_id', user?.id)
-      .eq('week_start_date', weekStartKey)
-      .maybeSingle();
-
-    if (byWeek.error && isWeekStartColumnError(byWeek.error)) {
-      const fallback = await supabase
-        .from('weekly_plans')
-        .select('id')
-        .eq('user_id', user?.id)
-        .order('id', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      plan = fallback.data;
-    } else {
-      plan = byWeek.data;
-    }
-
-    if (plan) {
-      const { data: planExercises } = await supabase
-        .from('weekly_plan_exercises')
-        .select('*')
-        .eq('weekly_plan_id', plan.id)
-        .eq('day_of_week', currentDayIdx);
-
-      if (planExercises && planExercises.length > 0 && !planExercises[0].is_rest_day) {
-        const sessionItems = planExercises.map((p, idx) => ({
-          user_id: user?.id,
-          log_date: vnToday,
-          weekly_plan_exercise_id: p.id || null,
-          exercise_id: p.exercise_id,
-          sets: p.sets,
-          reps: p.reps,
-          weight_kg: p.weight_kg,
-          rest_seconds: p.rest_seconds,
-          order_index: idx,
-          is_completed: false,
-          planned_sets: p.planned_sets ?? p.sets,
-          planned_reps: p.planned_reps ?? p.reps,
-          planned_weight_kg: p.planned_weight_kg ?? p.weight_kg,
-          planned_rest_seconds: p.planned_rest_seconds ?? p.rest_seconds,
-          actual_sets: p.planned_sets ?? p.sets,
-          actual_reps: p.planned_reps ?? p.reps,
-          actual_weight_kg: p.planned_weight_kg ?? p.weight_kg,
-          actual_rest_seconds: p.planned_rest_seconds ?? p.rest_seconds,
-          target_rpe: p.target_rpe ?? 7,
-          estimated_kcal: p.estimated_kcal ?? 0,
-          actual_kcal_estimated: 0,
-          completed_sets: 0,
-          load_adjustment_note: p.load_instruction || null
-        }));
-
-        const { data: inserted, error } = await supabase
-          .from('daily_exercise_sessions')
-          .insert(sessionItems)
-          .select(`
-            *,
-            exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
-          `);
-
-        if (inserted) {
-          setSession(inserted.map(s => ({
-            ...s,
-            name: (s.exercises as any)?.name || 'Exercise',
-            gif_url: normalizeGifUrl((s.exercises as any)?.image_url || '')
-          })));
-
-          // Priority 3: Sync to new daily_workout_sessions table for parallel migration
-          try {
-            const totalSets = planExercises.reduce((sum, item) => sum + (item.sets || 3), 0);
-            const estimatedDuration = Math.round(totalSets * 1.5);
-            const { data: newSession, error: sessionError } = await supabase
-              .from('daily_workout_sessions')
-              .insert({
-                user_id: user?.id,
-                weekly_plan_id: plan.id,
-                log_date: vnToday,
-                title: inserted[0]?.exercises ? `Buổi tập ${vnToday}` : 'Buổi tập',
-                duration_minutes: estimatedDuration,
-                calories_burned: 0,
-                status: 'planned'
-              })
-              .select('id')
-              .single();
-
-            if (!sessionError && newSession?.id) {
-              const newExerciseRows = inserted.map((item) => ({
-                session_id: newSession.id,
-                daily_exercise_session_id: item.id,
-                weekly_plan_exercise_id: item.weekly_plan_exercise_id || null,
-                exercise_id: item.exercise_id,
-                sets: item.sets,
-                reps: item.reps,
-                weight_kg: item.weight_kg,
-                rest_seconds: item.rest_seconds,
-                order_index: item.order_index,
-                is_completed: false,
-                planned_sets: item.planned_sets ?? item.sets,
-                planned_reps: item.planned_reps ?? item.reps,
-                planned_weight_kg: item.planned_weight_kg ?? item.weight_kg,
-                planned_rest_seconds: item.planned_rest_seconds ?? item.rest_seconds,
-                actual_sets: item.actual_sets ?? item.sets,
-                actual_reps: item.actual_reps ?? item.reps,
-                actual_weight_kg: item.actual_weight_kg ?? item.weight_kg,
-                actual_rest_seconds: item.actual_rest_seconds ?? item.rest_seconds,
-                target_rpe: item.target_rpe ?? 7,
-                estimated_kcal: item.estimated_kcal ?? 0,
-                actual_kcal_estimated: item.actual_kcal_estimated ?? 0,
-                completed_sets: item.completed_sets ?? 0
-              }));
-              await supabase.from('daily_workout_session_exercises').insert(newExerciseRows);
-            }
-          } catch (e) {
-            console.error('Lỗi khi đồng bộ sang bảng workout sessions mới:', e);
-          }
-        }
+  const clonePlanToSelectedDate = async (logDate: string, dayIndex: number) => {
+    try {
+      const response = await fetchWithAuth('/api/workout/daily-exercises/from-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          logDate,
+          dayIndex,
+          weekStartDate: getWeekStartKey(new Date(`${logDate}T00:00:00`))
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(payload?.error || 'Khong the tao buoi tap tu ke hoach tuan'));
       }
+
+      const createdExercises = Array.isArray(payload?.exercises) ? payload.exercises : [];
+      if (createdExercises.length > 0) {
+        setSession(createdExercises.map((s: any) => ({
+          ...s,
+          name: (s.exercises as any)?.name || 'Exercise',
+          gif_url: normalizeGifUrl((s.exercises as any)?.image_url || (s.exercises as any)?.gif_url || '')
+        })));
+      }
+    } catch (error) {
+      console.error('Error cloning weekly plan to daily workout:', error);
     }
   };
 
   const toggleComplete = async (id: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
-    const sessionItem = session.find(s => s.id === id);
     setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: newStatus } : s));
 
-    const { error } = await supabase
-      .from('daily_exercise_sessions')
-      .update({ is_completed: newStatus })
-      .eq('id', id);
-    if (error) {
-      setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: currentStatus } : s));
-      alert("Lỗi: " + (error.message || 'Cập nhật trạng thái thất bại'));
-    }
-    if (error) return;
-
-    if (!sessionItem?.exercise_id) return;
-
     try {
-      const workoutSessionId = await getLatestDailyWorkoutSessionId(vnToday);
-      if (!workoutSessionId) return;
-
-      const syncResult = await supabase
-        .from('daily_workout_session_exercises')
-        .update({ is_completed: newStatus })
-        .eq('session_id', workoutSessionId)
-        .eq('exercise_id', sessionItem.exercise_id)
-        .eq('order_index', sessionItem.order_index);
-      if (syncResult.error) throw syncResult.error;
-    } catch (syncError: any) {
-      await supabase
-        .from('daily_exercise_sessions')
-        .update({ is_completed: currentStatus })
-        .eq('id', id);
+      const response = await fetchWithAuth(`/api/workout/daily-exercises/${id}/completion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ isCompleted: newStatus })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(payload?.error || 'Cap nhat trang thai that bai'));
+      }
+      const savedExercise = payload?.exercise as SessionExercise | undefined;
+      if (savedExercise) {
+        setSession(prev => prev.map(s => s.id === id ? {
+          ...s,
+          ...savedExercise,
+          name: (savedExercise.exercises as any)?.name || s.name,
+          gif_url: normalizeGifUrl((savedExercise.exercises as any)?.image_url || (savedExercise.exercises as any)?.gif_url || s.gif_url)
+        } : s));
+      }
+    } catch (error: any) {
       setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: currentStatus } : s));
-      alert("Loi: " + (syncError?.message || 'Cap nhat trang thai that bai'));
-      alert("Lá»—i: " + (syncError?.message || 'Cáº­p nháº­t tráº¡ng thÃ¡i tháº¥t báº¡i'));
+      alert("Loi: " + (error?.message || 'Cap nhat trang thai that bai'));
     }
   };
 
@@ -665,7 +638,7 @@ export default function Exercises() {
 
     if (removedItem?.exercise_id) {
       try {
-        const workoutSessionId = await getLatestDailyWorkoutSessionId(vnToday);
+        const workoutSessionId = await getLatestDailyWorkoutSessionId(selectedDateKey);
         if (workoutSessionId) {
           const deleteWorkoutRow = await supabase
             .from('daily_workout_session_exercises')
@@ -694,7 +667,7 @@ export default function Exercises() {
       const cleanKg = getManualSuggestedWeightKg(exerciseToSave.equipment);
       const createdSession = await createDailyExerciseSession({
         userId: currentUser.id,
-        logDate: vnToday,
+        logDate: selectedDateKey,
         exerciseId: exerciseToSave.id,
         sets: cleanSets,
         reps: cleanReps,
@@ -716,14 +689,14 @@ export default function Exercises() {
           .from('daily_progress_logs')
           .select('calories_burned')
           .eq('user_id', currentUser.id)
-          .eq('log_date', vnToday)
+          .eq('log_date', selectedDateKey)
           .maybeSingle();
         if (progress.error) throw progress.error;
         const nextBurned = (progress.data?.calories_burned || 0) + estimatedKcal;
         const upsertProgress = await supabase
           .from('daily_progress_logs')
           .upsert(
-            { user_id: currentUser.id, log_date: vnToday, calories_burned: nextBurned },
+            { user_id: currentUser.id, log_date: selectedDateKey, calories_burned: nextBurned },
             { onConflict: 'user_id,log_date' }
           );
         if (upsertProgress.error) throw upsertProgress.error;
@@ -731,7 +704,7 @@ export default function Exercises() {
         console.error('Khong dong bo duoc daily_progress_logs sau khi them bai tap:', progressError);
       }
 
-      alert('Da them vao buoi tap hom nay');
+      alert(isTodaySelected ? 'Da them vao buoi tap hom nay' : 'Da them vao buoi tap da chon');
       return;
       const response = await fetchWithAuth('/api/workout/daily-exercises', {
         method: 'POST',
@@ -739,7 +712,7 @@ export default function Exercises() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          logDate: vnToday,
+          logDate: selectedDateKey,
           exerciseId: exerciseToSave.id,
           sets: cleanSets,
           reps: cleanReps,
@@ -755,61 +728,19 @@ export default function Exercises() {
       const data = payload?.exercise as SessionExercise | undefined;
       const cleanKcal = getResolvedExerciseKcal(data);
 
-      /*
-      // Sync to new daily_workout_session_exercises if a session already exists
-      try {
-        const { data: existingSession } = await supabase
-          .from('daily_workout_sessions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('log_date', vnToday)
-          .limit(1)
-          .maybeSingle();
-
-        if (existingSession?.id) {
-          await supabase.from('daily_workout_session_exercises').insert({
-            session_id: existingSession.id,
-            daily_exercise_session_id: data?.id || null,
-            weekly_plan_exercise_id: data?.weekly_plan_exercise_id || null,
-            exercise_id: exerciseToSave.id,
-            sets: cleanSets,
-            reps: cleanReps,
-            weight_kg: cleanKg,
-            rest_seconds: 60,
-            order_index: session.length,
-            is_completed: false,
-            planned_sets: cleanSets,
-            planned_reps: cleanReps,
-            planned_weight_kg: cleanKg,
-            planned_rest_seconds: 60,
-            actual_sets: cleanSets,
-            actual_reps: cleanReps,
-            actual_weight_kg: cleanKg,
-            actual_rest_seconds: 60,
-            target_rpe: 7,
-            estimated_kcal: cleanKcal,
-            actual_kcal_estimated: 0,
-            completed_sets: 0
-          });
-        }
-      } catch (e) {
-        console.error('Lỗi khi đồng bộ sang daily_workout_session_exercises:', e);
-      }
-
-      */
       // Keep kcal from popup in daily progress summary
       const progress = await supabase
         .from('daily_progress_logs')
         .select('calories_burned')
         .eq('user_id', currentUser.id)
-        .eq('log_date', vnToday)
+        .eq('log_date', selectedDateKey)
         .maybeSingle();
       if (progress.error) throw progress.error;
       const nextBurned = (progress.data?.calories_burned || 0) + cleanKcal;
       const upsertProgress = await supabase
         .from('daily_progress_logs')
         .upsert(
-          { user_id: currentUser.id, log_date: vnToday, calories_burned: nextBurned },
+          { user_id: currentUser.id, log_date: selectedDateKey, calories_burned: nextBurned },
           { onConflict: 'user_id,log_date' }
         );
       if (upsertProgress.error) throw upsertProgress.error;
@@ -1016,13 +947,13 @@ export default function Exercises() {
   ];
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || selectedDateKey !== vnToday) return;
     exercisesPageCache = {
       vnToday,
       session,
       library
     };
-  }, [user, vnToday, session, library]);
+  }, [user, selectedDateKey, vnToday, session, library]);
 
   useEffect(() => {
     setVisibleLibraryCount(LIBRARY_VISIBLE_BATCH_SIZE);
@@ -1047,18 +978,53 @@ export default function Exercises() {
       <div className="bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl md:text-2xl font-black text-text-primary">Bài tập hôm nay</h1>
+            <h1 className="text-xl md:text-2xl font-black text-text-primary">{selectedDayTitle}</h1>
             <div className="flex items-center gap-1.5 text-xs md:text-sm text-text-tertiary">
               <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
-              <p>
-                {new Intl.DateTimeFormat('vi-VN', {
-                  timeZone: VIETNAM_TIMEZONE,
-                  weekday: 'long',
-                  day: 'numeric',
-                  month: 'long'
-                }).format(new Date())}
-              </p>
+              <p>{selectedDayDateLabel}</p>
             </div>
+          </div>
+        </div>
+
+        <div className="mb-4 overflow-x-auto rounded-xl border border-border-primary bg-bg-tertiary/40 p-1 custom-scrollbar">
+          <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 md:min-w-0">
+            <span
+              className={`pointer-events-none absolute rounded-lg bg-bg-secondary transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
+              style={{
+                width: `${dayIndicatorStyle.width}px`,
+                height: `${dayIndicatorStyle.height}px`,
+                transform: `translate(${dayIndicatorStyle.x}px, ${dayIndicatorStyle.y}px)`
+              }}
+            />
+            {DAYS.map((day) => {
+              const dayDate = addDays(selectedWeekStart, day.id);
+              const isSelected = selectedDayId === day.id;
+              const isToday = toDateKey(dayDate) === vnToday;
+
+              return (
+                <button
+                  key={day.id}
+                  ref={(node) => {
+                    dayTabRefs.current[day.id] = node;
+                  }}
+                  type="button"
+                  onClick={() => setSelectedDayId(day.id)}
+                  className={`relative z-10 inline-flex min-h-[52px] flex-col items-center justify-center rounded-lg px-3 text-center transition ${
+                    isSelected
+                      ? 'text-text-primary'
+                      : 'text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary'
+                  }`}
+                  title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
+                >
+                  <span className="text-[11px] font-black uppercase tracking-[0.08em]">
+                    {isToday ? 'Hôm nay' : day.label}
+                  </span>
+                  <span className="mt-0.5 text-[10px] font-bold text-text-tertiary">
+                    {dayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -1103,7 +1069,7 @@ export default function Exercises() {
                         state: {
                           session,
                           selectedSessionId: selectedSessionExercise.id,
-                          logDate: vnToday
+                          logDate: selectedDateKey
                         }
                       })
                     }
@@ -1149,7 +1115,9 @@ export default function Exercises() {
           ) : (
             <div className="h-[220px] flex flex-col items-center justify-center text-center">
               <AlertCircle className="w-10 h-10 text-text-tertiary mb-3" />
-              <p className="text-sm text-text-secondary">Chưa có bài tập nào hôm nay.</p>
+              <p className="text-sm text-text-secondary">
+                {isTodaySelected ? 'Chưa có bài tập nào hôm nay.' : 'Chưa có bài tập cho ngày này.'}
+              </p>
             </div>
           )}
         </div>

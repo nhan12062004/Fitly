@@ -81,6 +81,12 @@ const getDateKeyFromWeekStartAndDayIndex = (weekStartKey: string, dayIndex: numb
   return getVietnamDateKey(addDays(baseDate, safeDayIndex));
 };
 
+const getDayIndexFromDateKey = (dateKey: string): number => {
+  const date = new Date(`${dateKey}T00:00:00`);
+  const day = date.getDay();
+  return day === 0 ? 6 : day - 1;
+};
+
 const pickLatestByUpdatedAt = <T extends { updated_at?: string | null; created_at?: string | null }>(rows?: T[] | null): T | null => {
   if (!rows || rows.length === 0) return null;
   return [...rows].sort((a, b) => {
@@ -926,7 +932,15 @@ JSON schema (fixed):
         weight_kg: 0,
         rest_seconds: 0,
         order_index: 0,
-        is_rest_day: true
+        is_rest_day: true,
+        planned_sets: 0,
+        planned_reps: '0',
+        planned_weight_kg: 0,
+        planned_rest_seconds: 0,
+        target_rpe: 0,
+        estimated_kcal: 0,
+        ai_note: null,
+        load_instruction: null
       });
       continue;
     }
@@ -934,17 +948,16 @@ JSON schema (fixed):
     day.exercises.forEach((item: any, index: number) => {
       const exerciseId = String(item.exercise_id || '');
       if (!exerciseIds.has(exerciseId)) return;
-      workoutRows.push({
-        weekly_plan_id: weeklyPlanId,
-        day_of_week: dayIndex,
-        exercise_id: exerciseId,
-        sets: Math.max(1, Math.min(6, Number(item.sets) || 3)),
-        reps: String(item.reps || '10-12').slice(0, 20),
-        weight_kg: Math.max(0, Number(item.weight_kg) || 0),
-        rest_seconds: Math.max(30, Math.min(180, Number(item.rest_seconds) || 60)),
-        order_index: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : index,
-        is_rest_day: false
-      });
+      workoutRows.push(
+        buildWeeklyWorkoutPlanRow({
+          weeklyPlanId,
+          dayIndex,
+          item: { ...item, exercise_id: exerciseId },
+          orderIndex: index,
+          exercise: exerciseById.get(exerciseId),
+          bodyWeightKg: Number(bodyMetrics.weight || 70)
+        })
+      );
     });
   }
   if (workoutRows.length > 0) {
@@ -1295,6 +1308,207 @@ app.get('/api/profiles', async (req, res) => {
   }
 });
 
+app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
+  try {
+    const authUserId = await getAuthUserId(req);
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const logDate = String(req.body?.logDate || '').trim();
+    if (!DATE_KEY_REGEX.test(logDate)) {
+      return res.status(400).json({ error: 'logDate must be YYYY-MM-DD' });
+    }
+
+    const requestedWeekStart = String(req.body?.weekStartDate || '').trim();
+    const weekStartKey = DATE_KEY_REGEX.test(requestedWeekStart)
+      ? requestedWeekStart
+      : getWeekStartKey(new Date(`${logDate}T00:00:00`));
+    const requestedDayIndex = Number(req.body?.dayIndex);
+    const dayIndex = isValidDayIndex(requestedDayIndex)
+      ? requestedDayIndex
+      : getDayIndexFromDateKey(logDate);
+
+    const existingDailyRes = await supabase
+      .from('daily_exercise_sessions')
+      .select(DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT)
+      .eq('user_id', authUserId)
+      .eq('log_date', logDate)
+      .order('order_index', { ascending: true });
+    if (existingDailyRes.error) throw existingDailyRes.error;
+    if ((existingDailyRes.data || []).length > 0) {
+      return res.json({
+        exercises: existingDailyRes.data || [],
+        workoutSessionId: null,
+        source: 'existing'
+      });
+    }
+
+    const planRes = await supabase
+      .from('weekly_plans')
+      .select('id, created_at, updated_at')
+      .eq('user_id', authUserId)
+      .eq('week_start_date', weekStartKey)
+      .limit(20);
+    if (planRes.error) throw planRes.error;
+
+    const plan = pickLatestByUpdatedAt(planRes.data as any[]);
+    if (!plan?.id) {
+      return res.json({
+        exercises: [],
+        workoutSessionId: null,
+        weeklyPlanId: null,
+        source: 'no_plan'
+      });
+    }
+
+    const planExercisesRes = await supabase
+      .from('weekly_plan_exercises')
+      .select(`
+        *,
+        exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions, calories_per_minute)
+      `)
+      .eq('weekly_plan_id', plan.id)
+      .eq('day_of_week', dayIndex)
+      .order('order_index', { ascending: true });
+    if (planExercisesRes.error) throw planExercisesRes.error;
+
+    const planExercises = (planExercisesRes.data || []).filter((item: any) => item.exercise_id && !item.is_rest_day);
+    if (planExercises.length === 0) {
+      return res.json({
+        exercises: [],
+        workoutSessionId: null,
+        weeklyPlanId: plan.id,
+        source: 'rest_day'
+      });
+    }
+
+    const dailyWorkoutSessionRes = await supabase
+      .from('daily_workout_sessions')
+      .select('id, status')
+      .eq('user_id', authUserId)
+      .eq('log_date', logDate)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (dailyWorkoutSessionRes.error) throw dailyWorkoutSessionRes.error;
+    if (dailyWorkoutSessionRes.data?.status === 'completed') {
+      return res.status(409).json({ error: 'Workout session for this day is already completed.' });
+    }
+
+    const bodyWeightKg = await getLatestBodyWeightKg(authUserId);
+    const rows = planExercises.map((item: any, index: number) => {
+      const plannedSets = Math.max(1, Math.min(6, Number(item.planned_sets ?? item.sets) || 3));
+      const plannedReps = truncateText(item.planned_reps ?? item.reps ?? '10-12', 20) || '10-12';
+      const rawWeightKg = item.planned_weight_kg ?? item.weight_kg;
+      const plannedWeightKg =
+        rawWeightKg === null || rawWeightKg === undefined || String(rawWeightKg).trim() === ''
+          ? null
+          : Math.max(0, Number(rawWeightKg) || 0);
+      const plannedRestSeconds = Math.max(30, Math.min(300, Number(item.planned_rest_seconds ?? item.rest_seconds) || 60));
+      const plannedKcal = Math.max(0, Number(item.estimated_kcal) || 0);
+      const estimatedKcal = plannedKcal > 0
+        ? plannedKcal
+        : estimatePlannedExerciseKcal({
+            exercise: item.exercises,
+            bodyWeightKg,
+            sets: plannedSets,
+            repsText: plannedReps,
+            weightKg: plannedWeightKg ?? 0,
+            restSeconds: plannedRestSeconds
+          });
+
+      return buildDailyExerciseSessionRow({
+        userId: authUserId,
+        logDate,
+        exerciseId: String(item.exercise_id),
+        orderIndex: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : index,
+        weeklyPlanExerciseId: item.id || null,
+        plannedSets,
+        plannedReps,
+        plannedWeightKg,
+        plannedRestSeconds,
+        targetRpe: item.target_rpe ?? 7,
+        estimatedKcal,
+        loadAdjustmentNote: String(item.load_instruction || item.ai_note || '').slice(0, 160) || null
+      });
+    });
+
+    const insertDailyRes = await supabase
+      .from('daily_exercise_sessions')
+      .insert(rows)
+      .select(DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT);
+    if (insertDailyRes.error) throw insertDailyRes.error;
+    const dailyRows = insertDailyRes.data || [];
+
+    const estimatedDuration = Math.max(
+      10,
+      Math.round(dailyRows.reduce((sum: number, item: any) => sum + Math.max(1, Number(item.sets) || 1), 0) * 2)
+    );
+    let workoutSessionId = String(dailyWorkoutSessionRes.data?.id || '').trim();
+    if (!workoutSessionId) {
+      const createSessionRes = await supabase
+        .from('daily_workout_sessions')
+        .insert({
+          user_id: authUserId,
+          weekly_plan_id: plan.id,
+          log_date: logDate,
+          title: `Buoi tap ${logDate}`,
+          duration_minutes: estimatedDuration,
+          calories_burned: 0,
+          status: 'planned'
+        })
+        .select('id')
+        .single();
+      if (createSessionRes.error) throw createSessionRes.error;
+      workoutSessionId = String(createSessionRes.data.id || '');
+    } else {
+      const updateSessionRes = await supabase
+        .from('daily_workout_sessions')
+        .update({
+          weekly_plan_id: plan.id,
+          title: `Buoi tap ${logDate}`,
+          duration_minutes: estimatedDuration,
+          status: 'planned'
+        })
+        .eq('id', workoutSessionId);
+      if (updateSessionRes.error) throw updateSessionRes.error;
+    }
+
+    if (workoutSessionId && dailyRows.length > 0) {
+      const deleteSnapshotRes = await supabase
+        .from('daily_workout_session_exercises')
+        .delete()
+        .eq('session_id', workoutSessionId);
+      if (deleteSnapshotRes.error) throw deleteSnapshotRes.error;
+
+      const snapshotRows = dailyRows.map((dailyExerciseSession: any) =>
+        buildWorkoutSessionExerciseRow({
+          sessionId: workoutSessionId,
+          dailyExerciseSession
+        })
+      );
+      const insertSnapshotRes = await supabase
+        .from('daily_workout_session_exercises')
+        .insert(snapshotRows);
+      if (insertSnapshotRes.error) throw insertSnapshotRes.error;
+    }
+
+    return res.json({
+      exercises: dailyRows,
+      workoutSessionId,
+      weeklyPlanId: plan.id,
+      source: 'weekly_plan'
+    });
+  } catch (error: any) {
+    if (error instanceof ApiRequestError) {
+      return res.status(error.status).json(error.body);
+    }
+    console.error('[workout/create-daily-exercises-from-plan] failed:', error?.message || error);
+    return res.status(500).json({ error: error?.message || 'Failed to create daily exercises from plan' });
+  }
+});
+
 app.post('/api/workout/daily-exercises', async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
@@ -1466,6 +1680,90 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, r
   }
 });
 
+app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (req, res) => {
+  try {
+    const authUserId = await getAuthUserId(req);
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const exerciseSessionId = String(req.params.exerciseSessionId || '').trim();
+    if (!exerciseSessionId) {
+      return res.status(400).json({ error: 'exerciseSessionId is required' });
+    }
+
+    const isCompleted = req.body?.isCompleted === true;
+    const existingSession = await loadDailyExerciseSessionWithExerciseMeta(exerciseSessionId, authUserId);
+    const totalSets = Math.max(1, Number(existingSession.actual_sets ?? existingSession.sets) || 1);
+    const estimatedKcal = Math.max(0, Number(existingSession.estimated_kcal) || 0);
+    const nextCompletedSets = isCompleted ? totalSets : 0;
+    const nextActualKcal = isCompleted ? estimatedKcal : 0;
+
+    const updateRes = await supabase
+      .from('daily_exercise_sessions')
+      .update({
+        is_completed: isCompleted,
+        completed_sets: nextCompletedSets,
+        actual_kcal_estimated: nextActualKcal
+      })
+      .eq('id', exerciseSessionId)
+      .eq('user_id', authUserId)
+      .select('id')
+      .single();
+    if (updateRes.error) throw updateRes.error;
+
+    const updatedSession = await loadDailyExerciseSessionWithExerciseMeta(exerciseSessionId, authUserId);
+    const workoutSessionExercise = await upsertWorkoutSessionExerciseFromDailySession({
+      userId: authUserId,
+      logDate: String(updatedSession.log_date || ''),
+      dailyExerciseSession: updatedSession
+    });
+
+    if (isCompleted) {
+      const actualReps = parseAverageReps(String((updatedSession.actual_reps ?? updatedSession.reps) || '10'));
+      const actualWeightKg =
+        updatedSession.actual_weight_kg === null || updatedSession.actual_weight_kg === undefined
+          ? updatedSession.weight_kg ?? null
+          : Math.max(0, Number(updatedSession.actual_weight_kg) || 0);
+      const plannedWeightKg =
+        updatedSession.planned_weight_kg === null || updatedSession.planned_weight_kg === undefined
+          ? updatedSession.weight_kg ?? null
+          : Math.max(0, Number(updatedSession.planned_weight_kg) || 0);
+      const setEstimatedKcal = Math.max(1, Math.round(estimatedKcal / Math.max(1, totalSets)));
+      const setRows = Array.from({ length: totalSets }).map((_, index) => ({
+        daily_exercise_session_id: updatedSession.id,
+        workout_session_exercise_id: workoutSessionExercise?.id || null,
+        set_number: index + 1,
+        planned_reps: String((updatedSession.planned_reps ?? updatedSession.reps) || ''),
+        target_weight_kg: plannedWeightKg,
+        actual_reps: actualReps,
+        actual_weight_kg: actualWeightKg,
+        rest_seconds: Math.max(0, Number(updatedSession.actual_rest_seconds ?? updatedSession.rest_seconds) || 0),
+        estimated_kcal: setEstimatedKcal,
+        is_completed: true
+      }));
+      const upsertLogsRes = await supabase
+        .from('daily_exercise_set_logs')
+        .upsert(setRows, { onConflict: 'daily_exercise_session_id,set_number' });
+      if (upsertLogsRes.error) throw upsertLogsRes.error;
+    } else {
+      const deleteLogsRes = await supabase
+        .from('daily_exercise_set_logs')
+        .delete()
+        .eq('daily_exercise_session_id', updatedSession.id);
+      if (deleteLogsRes.error) throw deleteLogsRes.error;
+    }
+
+    return res.json({ exercise: updatedSession });
+  } catch (error: any) {
+    if (error instanceof ApiRequestError) {
+      return res.status(error.status).json(error.body);
+    }
+    console.error('[workout/update-daily-exercise-completion] failed:', error?.message || error);
+    return res.status(500).json({ error: error?.message || 'Failed to update exercise completion' });
+  }
+});
+
 app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
@@ -1619,7 +1917,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     const weeklyPlanQuery = requestedWeekStartDate
       ? supabase
           .from('weekly_plans')
-          .select('id, weekly_plan_exercises(day_of_week, exercise_id, sets, reps, rest_seconds, weight_kg, exercises:exercise_id(name, body_part, target_muscle))')
+          .select('id, weekly_plan_exercises(day_of_week, exercise_id, sets, reps, rest_seconds, weight_kg, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, target_rpe, estimated_kcal, load_instruction, exercises:exercise_id(name, body_part, target_muscle))')
           .eq('user_id', authUserId)
           .eq('week_start_date', requestedWeekStartDate)
           .order('updated_at', { ascending: false })
@@ -1627,7 +1925,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           .maybeSingle()
       : supabase
           .from('weekly_plans')
-          .select('id, weekly_plan_exercises(day_of_week, exercise_id, sets, reps, rest_seconds, weight_kg, exercises:exercise_id(name, body_part, target_muscle))')
+          .select('id, weekly_plan_exercises(day_of_week, exercise_id, sets, reps, rest_seconds, weight_kg, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, target_rpe, estimated_kcal, load_instruction, exercises:exercise_id(name, body_part, target_muscle))')
           .eq('user_id', authUserId)
           .eq('plan_status', 'active')
           .order('updated_at', { ascending: false })
@@ -1691,7 +1989,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .limit(8),
       supabase
         .from('daily_exercise_sessions')
-        .select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, exercises:exercise_id(name, body_part, target_muscle)')
+        .select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, actual_sets, actual_reps, actual_weight_kg, actual_rest_seconds, target_rpe, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, body_part, target_muscle)')
         .eq('user_id', authUserId)
         .eq('log_date', getVietnamDateKey())
         .order('order_index', { ascending: true })
@@ -1709,6 +2007,23 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     const targetWorkoutRows =
       dayIndex === todayDayIndex && dailyWorkoutRows.length > 0 ? dailyWorkoutRows : planWorkoutRows;
     const targetMealRows = mealRows.filter((row: any) => Number(row.day_of_week) === dayIndex && row.food_id);
+    const targetWorkoutContext = targetWorkoutRows.map((row: any) => ({
+      exercise_id: row.exercise_id,
+      name: row.exercises?.name || null,
+      sets: row.actual_sets ?? row.planned_sets ?? row.sets,
+      reps: row.actual_reps ?? row.planned_reps ?? row.reps,
+      rest_seconds: row.actual_rest_seconds ?? row.planned_rest_seconds ?? row.rest_seconds,
+      weight_kg: row.actual_weight_kg ?? row.planned_weight_kg ?? row.weight_kg,
+      planned_sets: row.planned_sets ?? row.sets,
+      planned_reps: row.planned_reps ?? row.reps,
+      planned_weight_kg: row.planned_weight_kg ?? row.weight_kg,
+      completed_sets: row.completed_sets ?? 0,
+      estimated_kcal: row.estimated_kcal ?? 0,
+      actual_kcal_estimated: row.actual_kcal_estimated ?? 0,
+      target_rpe: row.target_rpe ?? null,
+      body_part: row.exercises?.body_part || null,
+      target_muscle: row.exercises?.target_muscle || null
+    }));
     try {
       [todayStatusContext, coachDataContext] = await Promise.all([
         buildTodayStatus(authUserId),
@@ -1746,7 +2061,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     if (intent === 'adjust_workout') {
       aiResponse = await workoutAdjusterService({
         dayOfWeek: dayIndex,
-        todayExercises: targetWorkoutRows
+        todayExercises: targetWorkoutContext
       });
     } else if (intent === 'adjust_meal') {
       const currentMeal = targetMealRows[0] || null;
@@ -1798,16 +2113,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         actionLog: trackingActionLog,
         extraContext: coachDataContext,
         chatHistory: mergedChatHistory,
-        exercises: targetWorkoutRows.map((row: any) => ({
-          exercise_id: row.exercise_id,
-          name: row.exercises?.name || null,
-          sets: row.sets,
-          reps: row.reps,
-          rest_seconds: row.rest_seconds,
-          weight_kg: row.weight_kg,
-          body_part: row.exercises?.body_part || null,
-          target_muscle: row.exercises?.target_muscle || null
-        })),
+        exercises: targetWorkoutContext,
         meals: targetMealRows.map((row: any) => ({
           id: row.id,
           meal_type: row.meal_type,
@@ -1890,14 +2196,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         : {
             weekly_plan_id: (todayWorkoutRes.data as any)?.id || null,
             day_of_week: dayIndex,
-            exercises: targetWorkoutRows.map((row: any) => ({
-              exercise_id: row.exercise_id,
-              name: row.exercises?.name || null,
-              sets: row.sets,
-              reps: row.reps,
-              rest_seconds: row.rest_seconds,
-              weight_kg: row.weight_kg,
-            })),
+            exercises: targetWorkoutContext,
           };
       const adjustmentInsert = await supabase.from('ai_plan_adjustments').insert({
         user_id: authUserId,
