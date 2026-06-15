@@ -36,17 +36,7 @@ const normalizeForMatch = (value: unknown): string =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd');
 
-const isBodyweightExercise = (equipment?: string | null): boolean => {
-  const normalized = normalizeForMatch(equipment);
-  return (
-    normalized.includes('khong dung cu') ||
-    normalized.includes('bodyweight') ||
-    normalized.includes('body weight')
-  );
-};
-
-const getManualSuggestedWeightKg = (equipment?: string | null): number | null =>
-  isBodyweightExercise(equipment) ? 0 : null;
+const getManualSuggestedWeightKg = (_equipment?: string | null): number | null => null;
 
 function ExerciseDetailsSkeleton() {
   return (

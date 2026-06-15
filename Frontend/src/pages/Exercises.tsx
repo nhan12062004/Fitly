@@ -55,19 +55,9 @@ interface ExerciseLibraryItem extends ExerciseDetailItem {
   equipment?: string;
 }
 
-const isBodyweightExercise = (equipment?: string | null): boolean => {
-  const normalized = normalizeForMatch(String(equipment || ''));
-  return (
-    normalized.includes('khong dung cu') ||
-    normalized.includes('bodyweight') ||
-    normalized.includes('body weight')
-  );
-};
+const getManualSuggestedWeightKg = (_equipment?: string | null): number | null => null;
 
-const getManualSuggestedWeightKg = (equipment?: string | null): number | null =>
-  isBodyweightExercise(equipment) ? 0 : null;
-
-const formatWeightKg = (value: unknown, emptyLabel = 'Chưa đặt'): string => {
+const formatWeightKg = (value: unknown, emptyLabel = 'Chưa có tạ đề xuất'): string => {
   if (value === null || value === undefined || value === '') return emptyLabel;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return emptyLabel;
@@ -564,6 +554,36 @@ export default function Exercises() {
     return data?.id || null;
   };
 
+  const syncDailyCaloriesBurned = async (logDate: string) => {
+    if (!user?.id || !logDate) return;
+
+    const sessionsRes = await supabase
+      .from('daily_exercise_sessions')
+      .select('actual_kcal_estimated, estimated_kcal, is_completed')
+      .eq('user_id', user.id)
+      .eq('log_date', logDate);
+    if (sessionsRes.error) throw sessionsRes.error;
+
+    const caloriesBurned = Math.max(
+      0,
+      Math.round(
+        (sessionsRes.data || []).reduce((sum, item: any) => {
+          const actualKcal = Math.max(0, Number(item.actual_kcal_estimated) || 0);
+          if (actualKcal > 0) return sum + actualKcal;
+          return sum + (item.is_completed ? Math.max(0, Number(item.estimated_kcal) || 0) : 0);
+        }, 0)
+      )
+    );
+
+    const progressRes = await supabase
+      .from('daily_progress_logs')
+      .upsert(
+        { user_id: user.id, log_date: logDate, calories_burned: caloriesBurned },
+        { onConflict: 'user_id,log_date' }
+      );
+    if (progressRes.error) throw progressRes.error;
+  };
+
   const clonePlanToSelectedDate = async (logDate: string, dayIndex: number) => {
     try {
       const response = await fetchWithAuth('/api/workout/daily-exercises/from-plan', {
@@ -637,6 +657,13 @@ export default function Exercises() {
         setSession(prev => [...prev, removedItem].sort((a, b) => a.order_index - b.order_index));
       }
       alert("Lỗi: " + (deleteSessionError.message || 'Xóa bài tập thất bại'));
+      return;
+    }
+
+    try {
+      await syncDailyCaloriesBurned(selectedDateKey);
+    } catch (syncError) {
+      console.error('Error syncing calories after deleting exercise:', syncError);
     }
 
     if (removedItem?.exercise_id) {
@@ -677,8 +704,6 @@ export default function Exercises() {
         weightKg: cleanKg,
         restSeconds: 60
       }) as SessionExercise | undefined;
-      const estimatedKcal = getResolvedExerciseKcal(createdSession);
-
       if (createdSession) {
         setSession(prev => [...prev, {
           ...createdSession,
@@ -687,169 +712,7 @@ export default function Exercises() {
         }]);
       }
 
-      try {
-        const progress = await supabase
-          .from('daily_progress_logs')
-          .select('calories_burned')
-          .eq('user_id', currentUser.id)
-          .eq('log_date', selectedDateKey)
-          .maybeSingle();
-        if (progress.error) throw progress.error;
-        const nextBurned = (progress.data?.calories_burned || 0) + estimatedKcal;
-        const upsertProgress = await supabase
-          .from('daily_progress_logs')
-          .upsert(
-            { user_id: currentUser.id, log_date: selectedDateKey, calories_burned: nextBurned },
-            { onConflict: 'user_id,log_date' }
-          );
-        if (upsertProgress.error) throw upsertProgress.error;
-      } catch (progressError) {
-        console.error('Khong dong bo duoc daily_progress_logs sau khi them bai tap:', progressError);
-      }
-
       alert(isTodaySelected ? 'Đã thêm vào buổi tập hôm nay' : 'Đã thêm vào buổi tập đã chọn');
-      return;
-      const response = await fetchWithAuth('/api/workout/daily-exercises', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          logDate: selectedDateKey,
-          exerciseId: exerciseToSave.id,
-          sets: cleanSets,
-          reps: cleanReps,
-          weightKg: cleanKg,
-          restSeconds: 60,
-          orderIndex: session.length
-        })
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(String(payload?.error || 'Thêm bài tập thất bại'));
-      }
-      const data = payload?.exercise as SessionExercise | undefined;
-      const cleanKcal = getResolvedExerciseKcal(data);
-
-      // Keep kcal from popup in daily progress summary
-      const progress = await supabase
-        .from('daily_progress_logs')
-        .select('calories_burned')
-        .eq('user_id', currentUser.id)
-        .eq('log_date', selectedDateKey)
-        .maybeSingle();
-      if (progress.error) throw progress.error;
-      const nextBurned = (progress.data?.calories_burned || 0) + cleanKcal;
-      const upsertProgress = await supabase
-        .from('daily_progress_logs')
-        .upsert(
-          { user_id: currentUser.id, log_date: selectedDateKey, calories_burned: nextBurned },
-          { onConflict: 'user_id,log_date' }
-        );
-      if (upsertProgress.error) throw upsertProgress.error;
-
-      if (data) {
-        const savedExercise = data as SessionExercise;
-        setSession(prev => [...prev, {
-          ...savedExercise,
-          name: (savedExercise.exercises as any)?.name || 'Exercise',
-          gif_url: normalizeGifUrl((savedExercise.exercises as any)?.image_url || '')
-        }]);
-      }
-      alert('Đã thêm vào buổi tập hôm nay');
-      /*
-      alert("Đã thêm vào buổi tập hôm nay");
-      return;
-
-      /*
-      // Sync to the weekly plan for the current VN week/day.
-      const weekStartKey = getWeekStartKey(new Date(`${vnToday}T00:00:00`));
-      let weeklyPlanId: string | null = null;
-      const byWeek = await supabase
-        .from('weekly_plans')
-        .select('id, created_at, updated_at')
-        .eq('user_id', user.id)
-        .eq('week_start_date', weekStartKey)
-        .limit(20);
-
-      if (byWeek.error && isWeekStartColumnError(byWeek.error)) {
-        const fallbackPlan = await supabase
-          .from('weekly_plans')
-          .select('id, created_at, updated_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (fallbackPlan.error) throw fallbackPlan.error;
-        weeklyPlanId = fallbackPlan.data?.id || null;
-      } else if (byWeek.error) {
-        throw byWeek.error;
-      } else {
-        weeklyPlanId = pickLatestPlan(byWeek.data)?.id || null;
-      }
-
-      if (!weeklyPlanId) {
-        const create = await supabase
-          .from('weekly_plans')
-          .insert({
-            user_id: user.id,
-            name: 'Workout Creator',
-            week_start_date: weekStartKey
-          })
-          .select('id')
-          .single();
-        if (create.error && isWeekStartColumnError(create.error)) {
-          const createFallback = await supabase
-            .from('weekly_plans')
-            .insert({
-              user_id: user.id,
-              name: 'Workout Creator'
-            })
-            .select('id')
-            .single();
-          if (createFallback.error) throw createFallback.error;
-          weeklyPlanId = createFallback.data.id;
-        } else if (create.error) {
-          throw create.error;
-        } else {
-          weeklyPlanId = create.data.id;
-        }
-      }
-
-      const orderRes = await supabase
-        .from('weekly_plan_exercises')
-        .select('order_index')
-        .eq('weekly_plan_id', weeklyPlanId)
-        .eq('day_of_week', currentDayIdx)
-        .order('order_index', { ascending: false })
-        .limit(1);
-      if (orderRes.error) throw orderRes.error;
-      const nextOrder = (orderRes.data?.[0]?.order_index ?? -1) + 1;
-
-      const addToCreator = await supabase
-        .from('weekly_plan_exercises')
-        .insert({
-          weekly_plan_id: weeklyPlanId,
-          day_of_week: currentDayIdx,
-          exercise_id: exerciseToSave.id,
-          sets: cleanSets,
-          reps: cleanReps,
-          weight_kg: cleanKg,
-          rest_seconds: 60,
-          order_index: nextOrder,
-          is_rest_day: false
-        });
-      if (addToCreator.error) throw addToCreator.error;
-
-      if (data) {
-        setSession(prev => [...prev, {
-          ...data,
-          name: (data.exercises as any)?.name || 'Exercise',
-          gif_url: normalizeGifUrl((data.exercises as any)?.image_url || '')
-        }]);
-      }
-      alert("Đã thêm vào buổi tập hôm nay");
-      */
     } catch (e: any) {
       alert("Lỗi: " + (e?.message || 'Lưu bài tập thất bại'));
     } finally {
@@ -892,8 +755,8 @@ export default function Exercises() {
     if (!selectedSessionExercise) {
       return { setsText: '0 hiệp', repsText: '0 lần', weightText: 'Chưa đặt', kcalText: '~0 kcal' };
     }
-    const sets = Math.max(1, Number(selectedSessionExercise.sets) || 1);
-    const reps = Math.max(1, parseRepAverage(String(selectedSessionExercise.reps || '10')));
+    const sets = Math.max(1, Number(selectedSessionExercise.actual_sets ?? selectedSessionExercise.sets) || 1);
+    const reps = Math.max(1, parseRepAverage(String((selectedSessionExercise.actual_reps ?? selectedSessionExercise.reps) || '10')));
     const weightKg = selectedSessionExercise.actual_weight_kg ?? selectedSessionExercise.weight_kg;
     const kcal = getResolvedExerciseKcal(selectedSessionExercise);
     return {

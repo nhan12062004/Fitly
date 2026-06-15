@@ -99,6 +99,13 @@ const pickLatestByUpdatedAt = <T extends { updated_at?: string | null; created_a
 const clampList = <T,>(rows: T[] | null | undefined, maxItems: number): T[] => (rows || []).slice(0, maxItems);
 
 const truncateText = (value: unknown, maxLength: number) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+const normalizeKeywordText = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
+const includesAnyKeyword = (value: string, keywords: string[]) => keywords.some((keyword) => value.includes(keyword));
 const getBearerToken = (authorizationHeader: unknown): string | null => {
   const raw = String(authorizationHeader || '');
   if (!raw.toLowerCase().startsWith('bearer ')) return null;
@@ -482,10 +489,10 @@ const buildWorkoutSessionExerciseRow = ({
   daily_exercise_session_id: dailyExerciseSession.id || null,
   weekly_plan_exercise_id: dailyExerciseSession.weekly_plan_exercise_id || null,
   exercise_id: dailyExerciseSession.exercise_id,
-  sets: dailyExerciseSession.sets,
-  reps: dailyExerciseSession.reps,
-  weight_kg: dailyExerciseSession.weight_kg,
-  rest_seconds: dailyExerciseSession.rest_seconds,
+  sets: dailyExerciseSession.actual_sets ?? dailyExerciseSession.sets,
+  reps: dailyExerciseSession.actual_reps ?? dailyExerciseSession.reps,
+  weight_kg: dailyExerciseSession.actual_weight_kg ?? dailyExerciseSession.weight_kg,
+  rest_seconds: dailyExerciseSession.actual_rest_seconds ?? dailyExerciseSession.rest_seconds,
   order_index: dailyExerciseSession.order_index,
   is_completed: !!dailyExerciseSession.is_completed,
   planned_sets: dailyExerciseSession.planned_sets ?? dailyExerciseSession.sets,
@@ -522,7 +529,7 @@ const getLatestBodyWeightKg = async (userId: string): Promise<number> => {
 const getExerciseMetaForKcal = async (exerciseId: string) => {
   const exerciseRes = await supabase
     .from('exercises')
-    .select('id, calories_per_minute')
+    .select('id, name, body_part, target_muscle, equipment, difficulty, movement_pattern, calories_per_minute')
     .eq('id', exerciseId)
     .maybeSingle();
   if (exerciseRes.error) throw exerciseRes.error;
@@ -530,6 +537,51 @@ const getExerciseMetaForKcal = async (exerciseId: string) => {
     throw new ApiRequestError(404, { error: 'Exercise not found' });
   }
   return exerciseRes.data;
+};
+
+const suggestManualStartingWeightKg = ({
+  exercise,
+  bodyWeightKg
+}: {
+  exercise?: any;
+  bodyWeightKg: number;
+}): number => {
+  const descriptor = normalizeKeywordText(
+    `${exercise?.name || ''} ${exercise?.body_part || ''} ${exercise?.target_muscle || ''} ${exercise?.equipment || ''} ${exercise?.movement_pattern || ''}`
+  );
+  const equipment = normalizeKeywordText(exercise?.equipment);
+
+  if (
+    includesAnyKeyword(descriptor, ['cardio', 'aerobic', 'running', 'jump', 'nhay', 'chay']) ||
+    includesAnyKeyword(equipment, ['khong dung cu', 'bodyweight', 'body weight', 'resistance band', 'band', 'day khang luc'])
+  ) {
+    return 0;
+  }
+
+  const safeBodyWeightKg = Math.max(40, Number(bodyWeightKg) || 70);
+  const isLowerBody = includesAnyKeyword(descriptor, ['leg', 'legs', 'chan', 'dui', 'glute', 'mong', 'hamstring', 'quadriceps', 'calf']);
+  const isLargeUpper = includesAnyKeyword(descriptor, ['chest', 'nguc', 'back', 'lung', 'lat', 'row', 'press']);
+  const isSmallUpper = includesAnyKeyword(descriptor, ['shoulder', 'vai', 'arm', 'tay', 'bicep', 'tricep', 'forearm']);
+  const isCore = includesAnyKeyword(descriptor, ['abs', 'core', 'bung', 'oblique']);
+  const isBarbellOrMachine = includesAnyKeyword(equipment, ['barbell', 'ta don lon', 'machine', 'may', 'smith']);
+  const isDumbbellOrKettlebell = includesAnyKeyword(equipment, ['dumbbell', 'ta don', 'kettlebell']);
+  const isCable = includesAnyKeyword(equipment, ['cable', 'cap']);
+  const difficulty = normalizeKeywordText(exercise?.difficulty);
+
+  let bodyWeightRatio = 0.08;
+  if (isLowerBody) bodyWeightRatio = isBarbellOrMachine ? 0.35 : isDumbbellOrKettlebell ? 0.18 : isCable ? 0.14 : 0.16;
+  else if (isLargeUpper) bodyWeightRatio = isBarbellOrMachine ? 0.22 : isDumbbellOrKettlebell ? 0.12 : isCable ? 0.10 : 0.12;
+  else if (isSmallUpper) bodyWeightRatio = isBarbellOrMachine ? 0.12 : isDumbbellOrKettlebell ? 0.07 : isCable ? 0.06 : 0.07;
+  else if (isCore) bodyWeightRatio = 0.05;
+
+  const difficultyFactor = includesAnyKeyword(difficulty, ['advanced', 'kho', 'hard'])
+    ? 1.15
+    : includesAnyKeyword(difficulty, ['beginner', 'de', 'easy'])
+      ? 0.75
+      : 1;
+  const rawWeight = safeBodyWeightKg * bodyWeightRatio * difficultyFactor;
+  const roundedWeight = Math.round(rawWeight / 2.5) * 2.5;
+  return Math.max(2.5, Math.min(80, roundedWeight));
 };
 
 const loadDailyExerciseSessionWithExerciseMeta = async (exerciseSessionId: string, userId: string) => {
@@ -599,6 +651,54 @@ const upsertWorkoutSessionExerciseFromDailySession = async ({
     .single();
   if (insertRes.error) throw insertRes.error;
   return insertRes.data;
+};
+
+const syncWorkoutCaloriesBurnedForDate = async (userId: string, logDate: string) => {
+  if (!userId || !DATE_KEY_REGEX.test(logDate)) return;
+
+  const sessionsRes = await supabase
+    .from('daily_exercise_sessions')
+    .select('actual_kcal_estimated, estimated_kcal, is_completed')
+    .eq('user_id', userId)
+    .eq('log_date', logDate);
+  if (sessionsRes.error) throw sessionsRes.error;
+
+  const caloriesBurned = Math.max(
+    0,
+    Math.round(
+      (sessionsRes.data || []).reduce((sum: number, item: any) => {
+        const actualKcal = Math.max(0, Number(item.actual_kcal_estimated) || 0);
+        if (actualKcal > 0) return sum + actualKcal;
+        return sum + (item.is_completed ? Math.max(0, Number(item.estimated_kcal) || 0) : 0);
+      }, 0)
+    )
+  );
+
+  const progressRes = await supabase
+    .from('daily_progress_logs')
+    .upsert(
+      { user_id: userId, log_date: logDate, calories_burned: caloriesBurned },
+      { onConflict: 'user_id,log_date' }
+    );
+  if (progressRes.error) throw progressRes.error;
+
+  const workoutSessionRes = await supabase
+    .from('daily_workout_sessions')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('log_date', logDate)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (workoutSessionRes.error) throw workoutSessionRes.error;
+
+  if (workoutSessionRes.data?.id) {
+    const updateWorkoutSessionRes = await supabase
+      .from('daily_workout_sessions')
+      .update({ calories_burned: caloriesBurned })
+      .eq('id', workoutSessionRes.data.id);
+    if (updateWorkoutSessionRes.error) throw updateWorkoutSessionRes.error;
+  }
 };
 
 class ApiRequestError extends Error {
@@ -1528,10 +1628,6 @@ app.post('/api/workout/daily-exercises', async (req, res) => {
     const defaultSets = Math.max(1, Math.min(6, Number(req.body?.sets) || 3));
     const defaultReps = truncateText(req.body?.reps || '12', 20) || '12';
     const rawWeightKg = req.body?.weightKg;
-    const defaultWeightKg =
-      rawWeightKg === null || rawWeightKg === undefined || String(rawWeightKg).trim() === ''
-        ? null
-        : Math.max(0, Number(rawWeightKg) || 0);
     const defaultRestSeconds = Math.max(0, Math.min(300, Number(req.body?.restSeconds) || 60));
     const targetRpe = Math.max(5, Math.min(10, Number(req.body?.targetRpe) || 7));
 
@@ -1553,6 +1649,10 @@ app.post('/api/workout/daily-exercises', async (req, res) => {
       getLatestBodyWeightKg(authUserId),
       getExerciseMetaForKcal(exerciseId)
     ]);
+    const hasManualWeight = !(rawWeightKg === null || rawWeightKg === undefined || String(rawWeightKg).trim() === '');
+    const defaultWeightKg = hasManualWeight
+      ? Math.max(0, Number(rawWeightKg) || 0)
+      : suggestManualStartingWeightKg({ exercise: exerciseMeta, bodyWeightKg });
     const estimatedKcal = estimatePlannedExerciseKcal({
       exercise: exerciseMeta,
       bodyWeightKg,
@@ -1577,7 +1677,7 @@ app.post('/api/workout/daily-exercises', async (req, res) => {
           plannedRestSeconds: defaultRestSeconds,
           targetRpe,
           estimatedKcal,
-          loadAdjustmentNote: null
+          loadAdjustmentNote: hasManualWeight ? null : 'Tạ khởi điểm được hệ thống đề xuất tự động. Hãy giảm nếu mất form hoặc tăng nếu còn quá nhẹ.'
         })
       )
       .select('id')
@@ -1669,6 +1769,7 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, r
       logDate: String(updatedSession.log_date || ''),
       dailyExerciseSession: updatedSession
     });
+    await syncWorkoutCaloriesBurnedForDate(authUserId, String(updatedSession.log_date || ''));
 
     return res.json({ exercise: updatedSession });
   } catch (error: any) {
@@ -1718,6 +1819,7 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (re
       logDate: String(updatedSession.log_date || ''),
       dailyExerciseSession: updatedSession
     });
+    await syncWorkoutCaloriesBurnedForDate(authUserId, String(updatedSession.log_date || ''));
 
     if (isCompleted) {
       const actualReps = parseAverageReps(String((updatedSession.actual_reps ?? updatedSession.reps) || '10'));
@@ -1805,6 +1907,7 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (
       logDate: String(updatedSession.log_date || ''),
       dailyExerciseSession: updatedSession
     });
+    await syncWorkoutCaloriesBurnedForDate(authUserId, String(updatedSession.log_date || ''));
 
     const actualReps = parseAverageReps(String((updatedSession.actual_reps ?? updatedSession.reps) || '10'));
     const actualWeightKg =

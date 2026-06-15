@@ -101,11 +101,35 @@ const parseRepAverage = (value: string): number => {
   return Math.round((numbers[0] + numbers[numbers.length - 1]) / 2);
 };
 
-const formatWeightKg = (value: unknown, emptyLabel = 'Chưa đặt'): string => {
+const formatWeightKg = (value: unknown, emptyLabel = 'Chưa có tạ đề xuất'): string => {
   if (value === null || value === undefined || value === '') return emptyLabel;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return emptyLabel;
   return `${parsed} kg`;
+};
+
+const getExerciseSets = (exercise: SessionExercise | null | undefined): number =>
+  Math.max(1, Number(exercise?.actual_sets ?? exercise?.sets) || 1);
+
+const getExerciseReps = (exercise: SessionExercise | null | undefined): string =>
+  String((exercise?.actual_reps ?? exercise?.reps) || '12');
+
+const getExerciseWeightKg = (exercise: SessionExercise | null | undefined): number | null =>
+  exercise?.actual_weight_kg ?? exercise?.weight_kg ?? null;
+
+const getExerciseRestSeconds = (exercise: SessionExercise | null | undefined): number =>
+  Math.max(0, Number(exercise?.actual_rest_seconds ?? exercise?.rest_seconds) || 0);
+
+const getExerciseCompletedSets = (exercise: SessionExercise | null | undefined): number => {
+  const totalSets = getExerciseSets(exercise);
+  const completedSets = Math.max(0, Number(exercise?.completed_sets) || 0);
+  return Math.min(totalSets, exercise?.is_completed ? Math.max(completedSets, totalSets) : completedSets);
+};
+
+const getExerciseKcal = (exercise: SessionExercise | null | undefined): number => {
+  const actualKcal = Math.max(0, Math.round(Number(exercise?.actual_kcal_estimated) || 0));
+  if (actualKcal > 0) return actualKcal;
+  return exercise?.is_completed ? Math.max(0, Math.round(Number(exercise?.estimated_kcal) || 0)) : 0;
 };
 
 const getWeekStartKey = (baseDate: Date): string => {
@@ -322,18 +346,23 @@ export default function WorkoutSession() {
     weightKg: '',
     restSeconds: ''
   });
-  const [selectedRestSeconds, setSelectedRestSeconds] = useState<number>(initialExercise?.rest_seconds || 45);
-  const [completedSetsByExercise, setCompletedSetsByExercise] = useState<Record<string, number>>({});
+  const [selectedRestSeconds, setSelectedRestSeconds] = useState<number>(getExerciseRestSeconds(initialExercise) || 45);
+  const [completedSetsByExercise, setCompletedSetsByExercise] = useState<Record<string, number>>(() =>
+    Object.fromEntries(orderedSession.map((item) => [item.id, getExerciseCompletedSets(item)]))
+  );
   const [completedIds, setCompletedIds] = useState<string[]>(
     orderedSession.filter((item) => item.is_completed).map((item) => item.id)
   );
 
   const activeExercise = orderedSession[activeIndex] || null;
-  const startingSeconds = Math.max(30, activeExercise?.rest_seconds || 30);
+  const activeExerciseSets = getExerciseSets(activeExercise);
+  const activeExerciseReps = getExerciseReps(activeExercise);
+  const activeExerciseRestSeconds = getExerciseRestSeconds(activeExercise);
+  const startingSeconds = Math.max(30, activeExerciseRestSeconds || 30);
   const [secondsLeft, setSecondsLeft] = useState(startingSeconds);
   const restOptions = [30, 45, 60, 90, 120];
-  const completedSetCount = activeExercise ? (completedSetsByExercise[activeExercise.id] || 0) : 0;
-  const currentSetNumber = activeExercise ? Math.min(activeExercise.sets, completedSetCount + 1) : 1;
+  const completedSetCount = activeExercise ? Math.min(activeExerciseSets, completedSetsByExercise[activeExercise.id] || 0) : 0;
+  const currentSetNumber = activeExercise ? Math.min(activeExerciseSets, completedSetCount + 1) : 1;
   const timerProgress = startingSeconds > 0 ? secondsLeft / startingSeconds : 0;
   const timerAngle = Math.max(0, Math.min(360, timerProgress * 360));
 
@@ -342,10 +371,11 @@ export default function WorkoutSession() {
   }, [initialIndex]);
 
   useEffect(() => {
-    setSecondsLeft(Math.max(30, activeExercise?.rest_seconds || 30));
-    setSelectedRestSeconds(activeExercise?.rest_seconds || 45);
+    const nextRestSeconds = getExerciseRestSeconds(activeExercise);
+    setSecondsLeft(Math.max(30, nextRestSeconds || 30));
+    setSelectedRestSeconds(nextRestSeconds || 45);
     setIsRunning(false);
-  }, [activeExercise?.id, activeExercise?.rest_seconds]);
+  }, [activeExercise?.id, activeExercise?.actual_rest_seconds, activeExercise?.rest_seconds]);
 
   useEffect(() => {
     if (!isRunning || secondsLeft <= 0) return;
@@ -385,12 +415,13 @@ export default function WorkoutSession() {
   }, [user?.id, state.logDate]);
 
   const totalSetsInSession = useMemo(
-    () => orderedSession.reduce((sum, item) => sum + item.sets, 0),
+    () => orderedSession.reduce((sum, item) => sum + getExerciseSets(item), 0),
     [orderedSession]
   );
   
   const completedSetsInSession = orderedSession.reduce((sum, item) => {
-    if (completedIds.includes(item.id)) return sum + item.sets;
+    const totalSets = getExerciseSets(item);
+    if (completedIds.includes(item.id)) return sum + totalSets;
     return sum + (completedSetsByExercise[item.id] || 0);
   }, 0);
 
@@ -399,10 +430,10 @@ export default function WorkoutSession() {
   const activeExerciseSteps = activeExercise ? getExerciseSteps(activeExercise) : [];
 
   const updateEditForm = (exercise: SessionExercise | null) => {
-    const setsValue = Math.max(1, Number(exercise?.actual_sets ?? exercise?.sets) || 1);
-    const repsValue = String((exercise?.actual_reps ?? exercise?.reps) || '12');
-    const resolvedWeightKg = exercise?.actual_weight_kg ?? exercise?.weight_kg;
-    const restValue = Math.max(0, Number(exercise?.actual_rest_seconds ?? exercise?.rest_seconds) || 45);
+    const setsValue = getExerciseSets(exercise);
+    const repsValue = getExerciseReps(exercise);
+    const resolvedWeightKg = getExerciseWeightKg(exercise);
+    const restValue = getExerciseRestSeconds(exercise) || 45;
     setEditForm({
       sets: String(setsValue),
       reps: repsValue,
@@ -456,6 +487,36 @@ export default function WorkoutSession() {
 
     if (byWeek.error) throw byWeek.error;
     return pickLatestPlan(byWeek.data)?.id || null;
+  };
+
+  const syncDailyCaloriesBurned = async () => {
+    if (!user?.id || !state.logDate) return;
+
+    const sessionsRes = await supabase
+      .from('daily_exercise_sessions')
+      .select('actual_kcal_estimated, estimated_kcal, is_completed')
+      .eq('user_id', user.id)
+      .eq('log_date', state.logDate);
+    if (sessionsRes.error) throw sessionsRes.error;
+
+    const caloriesBurned = Math.max(
+      0,
+      Math.round(
+        (sessionsRes.data || []).reduce((sum, item: any) => {
+          const actualKcal = Math.max(0, Number(item.actual_kcal_estimated) || 0);
+          if (actualKcal > 0) return sum + actualKcal;
+          return sum + (item.is_completed ? Math.max(0, Number(item.estimated_kcal) || 0) : 0);
+        }, 0)
+      )
+    );
+
+    const progressRes = await supabase
+      .from('daily_progress_logs')
+      .upsert(
+        { user_id: user.id, log_date: state.logDate, calories_burned: caloriesBurned },
+        { onConflict: 'user_id,log_date' }
+      );
+    if (progressRes.error) throw progressRes.error;
   };
 
   const saveExerciseConfig = async () => {
@@ -593,6 +654,12 @@ export default function WorkoutSession() {
       return;
     }
 
+    try {
+      await syncDailyCaloriesBurned();
+    } catch (syncError) {
+      console.error('Error syncing calories after removing exercise:', syncError);
+    }
+
     const removedExercise = previousItems.find((item) => item.id === exerciseId);
     if (removedExercise && workoutSessionId) {
       const syncDeleteRes = await supabase
@@ -626,10 +693,10 @@ export default function WorkoutSession() {
       if (!resolvedWorkoutSessionId && user?.id && state.logDate) {
         const weeklyPlanId = await resolveWeeklyPlanId();
         const completedCount = completedIds.length;
-        const totalSets = orderedSession.reduce((sum, item) => sum + item.sets, 0);
+        const totalSets = orderedSession.reduce((sum, item) => sum + getExerciseSets(item), 0);
         const estimatedDuration = Math.round(totalSets * 1.5);
         const estimatedCalories = orderedSession.reduce(
-          (sum, item) => sum + Math.max(0, Number(item.actual_kcal_estimated ?? item.estimated_kcal) || 0),
+          (sum, item) => sum + getExerciseKcal(item),
           0
         );
         const { data: newSession, error: sessionError } = await supabase
@@ -657,24 +724,24 @@ export default function WorkoutSession() {
             daily_exercise_session_id: item.id,
             weekly_plan_exercise_id: item.weekly_plan_exercise_id || null,
             exercise_id: item.exercise_id,
-            sets: item.sets,
-            reps: item.reps,
-            weight_kg: item.weight_kg,
-            rest_seconds: item.rest_seconds,
+            sets: getExerciseSets(item),
+            reps: getExerciseReps(item),
+            weight_kg: getExerciseWeightKg(item),
+            rest_seconds: getExerciseRestSeconds(item),
             order_index: item.order_index,
             is_completed: completedIds.includes(item.id),
             planned_sets: item.planned_sets ?? item.sets,
             planned_reps: item.planned_reps ?? item.reps,
             planned_weight_kg: item.planned_weight_kg ?? item.weight_kg,
             planned_rest_seconds: item.planned_rest_seconds ?? item.rest_seconds,
-            actual_sets: item.actual_sets ?? item.sets,
-            actual_reps: item.actual_reps ?? item.reps,
-            actual_weight_kg: item.actual_weight_kg ?? item.weight_kg,
-            actual_rest_seconds: item.actual_rest_seconds ?? item.rest_seconds,
+            actual_sets: getExerciseSets(item),
+            actual_reps: getExerciseReps(item),
+            actual_weight_kg: getExerciseWeightKg(item),
+            actual_rest_seconds: getExerciseRestSeconds(item),
             target_rpe: item.target_rpe ?? 7,
             estimated_kcal: item.estimated_kcal ?? 0,
-            actual_kcal_estimated: item.actual_kcal_estimated ?? 0,
-            completed_sets: completedSetsByExercise[item.id] || (completedIds.includes(item.id) ? item.sets : 0)
+            actual_kcal_estimated: Math.max(0, Number(item.actual_kcal_estimated) || 0),
+            completed_sets: completedSetsByExercise[item.id] || (completedIds.includes(item.id) ? getExerciseSets(item) : 0)
           }));
           await supabase.from('daily_workout_session_exercises').insert(exerciseRows);
         }
@@ -773,7 +840,7 @@ export default function WorkoutSession() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className={`truncate text-sm font-bold ${isActive ? 'text-text-primary' : 'text-text-secondary'}`}>{item.name}</p>
-                    <p className="mt-1 text-xs text-text-tertiary">{item.reps} rep • {item.sets} hiệp</p>
+                    <p className="mt-1 text-xs text-text-tertiary">{getExerciseReps(item)} rep • {getExerciseSets(item)} hiệp</p>
                   </div>
                   <span className="flex shrink-0 items-start">
                     <span
@@ -811,10 +878,10 @@ export default function WorkoutSession() {
             <h1 className="mt-2 text-3xl font-black leading-tight text-text-primary md:text-4xl">{activeExercise.name}</h1>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-text-secondary">
               <span>{activeExercise.exercises?.target_muscle || 'Cardio'}</span>
-              <span>{activeExercise.reps} nhịp mỗi hiệp</span>
-              <span>{activeExercise.sets} hiệp</span>
-              <span>{formatWeightKg(activeExercise.actual_weight_kg ?? activeExercise.weight_kg)}</span>
-              <span>Nghỉ {activeExercise.rest_seconds}s</span>
+              <span>{activeExerciseReps} nhịp mỗi hiệp</span>
+              <span>{activeExerciseSets} hiệp</span>
+              <span>{formatWeightKg(getExerciseWeightKg(activeExercise))}</span>
+              <span>Nghỉ {activeExerciseRestSeconds}s</span>
             </div>
             <button
               type="button"
@@ -867,7 +934,7 @@ export default function WorkoutSession() {
                 <div className="relative mt-1">
                   <p className="text-4xl font-black leading-none text-text-primary">{formatClock(secondsLeft)}</p>
                   <p className="mt-1.5 text-xs font-bold tracking-[0.08em] text-text-tertiary">
-                    Hiệp {currentSetNumber} / {activeExercise.sets}
+                    Hiệp {currentSetNumber} / {activeExerciseSets}
                   </p>
                 </div>
               </div>
@@ -876,7 +943,7 @@ export default function WorkoutSession() {
                 <button
                   type="button"
                   onClick={async () => {
-                    let nextCompletedSets = Math.min(activeExercise.sets, completedSetCount + 1);
+                    let nextCompletedSets = Math.min(activeExerciseSets, completedSetCount + 1);
                     let nextActualKcal = Math.max(0, Number(activeExercise.actual_kcal_estimated) || 0);
                     setCompletedSetsByExercise((prev) => ({
                       ...prev,
@@ -905,7 +972,7 @@ export default function WorkoutSession() {
                       }
                       const savedExercise = payload?.exercise as SessionExercise | undefined;
                       nextCompletedSets = Math.max(
-                        completedSetCount,
+                        nextCompletedSets,
                         Number(savedExercise?.completed_sets ?? nextCompletedSets)
                       );
                       nextActualKcal = Math.max(
@@ -930,7 +997,7 @@ export default function WorkoutSession() {
                     } catch (error) {
                       console.error('Khong the dong bo du lieu set tap:', error);
                     }
-                    if (nextCompletedSets >= activeExercise.sets) {
+                    if (nextCompletedSets >= activeExerciseSets) {
                       setSessionItems((prev) =>
                         prev.map((item) =>
                           item.id === activeExercise.id
@@ -995,7 +1062,7 @@ export default function WorkoutSession() {
                   <div className="min-w-0">
                     <p className="text-sm font-black leading-5 text-text-primary">{nextExercise.name}</p>
                     <p className="mt-1 text-sm font-semibold leading-6 text-text-secondary">
-                      {nextExercise.sets} hiệp x {nextExercise.reps} lần
+                      {getExerciseSets(nextExercise)} hiệp x {getExerciseReps(nextExercise)} lần
                     </p>
                   </div>
                 </div>
@@ -1007,9 +1074,9 @@ export default function WorkoutSession() {
             <section className="space-y-3 px-3">
               <p className="text-xs font-black tracking-[0.08em] text-text-tertiary">Hiệp</p>
               <div className="flex flex-wrap gap-2">
-                {Array.from({ length: activeExercise.sets }).map((_, index) => {
+                {Array.from({ length: activeExerciseSets }).map((_, index) => {
                   const isCompletedSet = index < completedSetCount;
-                  const isCurrentSet = index === completedSetCount && completedSetCount < activeExercise.sets;
+                  const isCurrentSet = index === completedSetCount && completedSetCount < activeExerciseSets;
                   return (
                     <span
                       key={index}
