@@ -407,6 +407,7 @@ export default function Exercises() {
   const filterPopoverRef = useRef<HTMLDivElement | null>(null);
   const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
   const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  const hasLoadedSessionRef = useRef(Boolean(cacheForToday));
   const [selectedDayId, setSelectedDayId] = useState(() => getVietnamDayIndex());
   const [dayIndicatorStyle, setDayIndicatorStyle] = useState<{ x: number; y: number; width: number; height: number; visible: boolean }>({
     x: 0,
@@ -447,7 +448,8 @@ export default function Exercises() {
 
   useEffect(() => {
     if (user) {
-      loadSession(!!cacheForToday && selectedDateKey === vnToday);
+      const shouldLoadSilently = hasLoadedSessionRef.current || (!!cacheForToday && selectedDateKey === vnToday);
+      loadSession(shouldLoadSilently);
     } else {
       setSession([]);
       loadLibrary();
@@ -513,6 +515,7 @@ export default function Exercises() {
     } catch (e) {
       console.error('Error loading session:', e);
     } finally {
+      hasLoadedSessionRef.current = true;
       if (silent) {
         setIsRefreshing(false);
       } else {
@@ -704,7 +707,7 @@ export default function Exercises() {
         console.error('Khong dong bo duoc daily_progress_logs sau khi them bai tap:', progressError);
       }
 
-      alert(isTodaySelected ? 'Da them vao buoi tap hom nay' : 'Da them vao buoi tap da chon');
+      alert(isTodaySelected ? 'Đã thêm vào buổi tập hôm nay' : 'Đã thêm vào buổi tập đã chọn');
       return;
       const response = await fetchWithAuth('/api/workout/daily-exercises', {
         method: 'POST',
@@ -753,9 +756,9 @@ export default function Exercises() {
           gif_url: normalizeGifUrl((savedExercise.exercises as any)?.image_url || '')
         }]);
       }
-      alert('Da them vao buoi tap hom nay');
+      alert('Đã thêm vào buổi tập hôm nay');
       /*
-      alert("ÄÃ£ thÃªm vÃ o buá»•i táº­p hÃ´m nay");
+      alert("Đã thêm vào buổi tập hôm nay");
       return;
 
       /*
@@ -975,9 +978,9 @@ export default function Exercises() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <div className="bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
+      <div className="today-workout-shell bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-xl md:text-2xl font-black text-text-primary">{selectedDayTitle}</h1>
             <div className="flex items-center gap-1.5 text-xs md:text-sm text-text-tertiary">
               <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
@@ -987,9 +990,9 @@ export default function Exercises() {
         </div>
 
         <div className="mb-4 overflow-x-auto rounded-xl border border-border-primary bg-bg-tertiary/40 p-1 custom-scrollbar">
-          <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 md:min-w-0">
+          <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 overflow-x-auto md:min-w-0">
             <span
-              className={`pointer-events-none absolute rounded-lg bg-bg-secondary transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
+              className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
               style={{
                 width: `${dayIndicatorStyle.width}px`,
                 height: `${dayIndicatorStyle.height}px`,
@@ -1000,6 +1003,7 @@ export default function Exercises() {
               const dayDate = addDays(selectedWeekStart, day.id);
               const isSelected = selectedDayId === day.id;
               const isToday = toDateKey(dayDate) === vnToday;
+              const label = isToday ? 'Hôm nay' : day.label;
 
               return (
                 <button
@@ -1009,19 +1013,12 @@ export default function Exercises() {
                   }}
                   type="button"
                   onClick={() => setSelectedDayId(day.id)}
-                  className={`relative z-10 inline-flex min-h-[52px] flex-col items-center justify-center rounded-lg px-3 text-center transition ${
-                    isSelected
-                      ? 'text-text-primary'
-                      : 'text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary'
+                  className={`inline-flex min-h-[40px] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition ${
+                    isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
                   }`}
                   title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
                 >
-                  <span className="text-[11px] font-black uppercase tracking-[0.08em]">
-                    {isToday ? 'Hôm nay' : day.label}
-                  </span>
-                  <span className="mt-0.5 text-[10px] font-bold text-text-tertiary">
-                    {dayDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
-                  </span>
+                  {label}
                 </button>
               );
             })}
@@ -1032,17 +1029,24 @@ export default function Exercises() {
           {selectedSessionExercise ? (
             <>
               <article className="min-w-0 p-4 md:p-4 xl:pr-8">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[164px_minmax(0,540px)] lg:items-start lg:gap-5">
-                  <div className="themed-image-surface overflow-hidden rounded-[22px] border border-border-primary h-[176px] lg:h-[176px]">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[176px_minmax(0,540px)] lg:items-stretch lg:gap-5">
+                  <div className="themed-image-surface overflow-hidden rounded-xl border border-border-primary h-[184px] lg:h-full">
                     <ExerciseThumb
                       src={selectedSessionExercise.gif_url}
                       alt={selectedSessionExercise.name}
-                      className="w-full h-full object-contain p-1.5"
+                      className="w-full h-full object-contain p-2"
                     />
                   </div>
-                  <div className="today-workout-feature flex flex-col justify-center gap-3.5 min-w-0 max-w-[540px]">
+                  <div className="today-workout-feature flex flex-col justify-center gap-3.5 min-w-0 max-w-[560px]">
                     <div className="min-w-0">
-                      <h2 className="text-xl md:text-[1.5rem] font-black text-text-primary leading-tight md:leading-[1.08] line-clamp-2">{selectedSessionExercise.name}</h2>
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        {selectedSessionExercise.is_completed ? (
+                          <span className="rounded-full border border-border-primary bg-bg-tertiary/55 px-3 py-1 text-xs font-black text-text-secondary">
+                            Đã hoàn thành
+                          </span>
+                        ) : null}
+                      </div>
+                      <h2 className="text-2xl font-black text-text-primary leading-tight md:text-[1.75rem] md:leading-[1.08] line-clamp-2">{selectedSessionExercise.name}</h2>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {selectedSessionExercise.exercises?.target_muscle ? (
                           <span className="rounded-full border border-info/20 bg-info/10 px-3 py-1 text-xs font-bold text-info">
@@ -1073,7 +1077,7 @@ export default function Exercises() {
                         }
                       })
                     }
-                    className={`h-10 px-4 rounded-xl font-bold text-sm transition-colors inline-flex items-center gap-2 ${selectedSessionExercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-accent text-text-inverse hover:bg-accent-hover'}`}
+                    className={`h-10 px-4 rounded-xl font-black text-sm transition-colors inline-flex items-center gap-2 ${selectedSessionExercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-accent text-text-inverse hover:bg-accent-hover'}`}
                   >
                     <Play className="w-4 h-4" />
                     {selectedSessionExercise.is_completed ? 'Mở lại buổi tập' : 'Bắt đầu buổi tập'}
@@ -1083,7 +1087,7 @@ export default function Exercises() {
                     onClick={() => {
                       if (selectedSessionDetailExercise) openExerciseDetailsPage(selectedSessionDetailExercise);
                     }}
-                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
                   >
                     <Eye className="w-4 h-4" />
                     Xem chi tiết
@@ -1093,7 +1097,9 @@ export default function Exercises() {
                 </div>
               </article>
               <aside className="today-workout-list relative min-w-0 p-4 md:p-4 xl:-ml-2 xl:self-stretch xl:pl-5 xl:pt-4 xl:before:absolute xl:before:bottom-4 xl:before:left-0 xl:before:top-4 xl:before:w-px xl:before:bg-border-primary/70 xl:before:content-['']">
-                <h3 className="mb-1 text-lg font-bold text-text-primary">Danh sách bài tập</h3>
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <h3 className="text-lg font-black text-text-primary">Danh sách bài tập</h3>
+                </div>
                 <div className="today-workout-list-scroll mt-3.5 space-y-2.5 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
                   {session.slice(0, 4).map((ex, idx) => (
                     <button

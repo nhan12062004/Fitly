@@ -1069,6 +1069,56 @@ body {
     background: var(--bg-secondary);
   }
 
+  .diet-today-shell {
+    background: #141414;
+    border-color: rgba(255,255,255,0.14);
+    box-shadow: none;
+  }
+
+  .diet-today-shell .bg-bg-tertiary\/40 {
+    background: #171717;
+    border-color: rgba(255,255,255,0.12);
+  }
+
+  .diet-today-shell .diet-tab-indicator {
+    background: #242424;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  }
+
+  .diet-today-shell .diet-tab-selected {
+    color: #f8fafc;
+  }
+
+  .diet-today-shell .diet-today-calories,
+  .diet-today-shell .diet-today-protein,
+  .diet-today-shell .diet-today-water {
+    box-shadow: none;
+  }
+
+  .diet-today-shell .diet-today-calories {
+    background: rgba(34, 197, 94, 0.10);
+    border-color: rgba(34, 197, 94, 0.28);
+  }
+
+  .diet-today-shell .diet-today-protein {
+    background: rgba(56, 189, 248, 0.10);
+    border-color: rgba(56, 189, 248, 0.28);
+  }
+
+  .diet-today-shell .diet-today-water {
+    background: rgba(245, 158, 11, 0.11);
+    border-color: rgba(245, 158, 11, 0.30);
+  }
+
+  .diet-today-shell .diet-today-calories .bg-bg-tertiary,
+  .diet-today-shell .diet-today-water .bg-bg-tertiary {
+    background: rgba(255,255,255,0.08);
+  }
+
+  .diet-today-shell .diet-today-protein .bg-bg-tertiary {
+    background: rgba(255,255,255,0.08);
+  }
+
   .diet-water-icon {
     background: var(--bg-tertiary);
     border-color: var(--border-primary);
@@ -1477,6 +1527,72 @@ html, body, * {
 
 .today-workout-feature {
   min-width: 0;
+}
+
+.today-workout-shell {
+  background: #141414;
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: none;
+}
+
+.today-workout-shell > div:first-child {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding-bottom: 0.8rem;
+}
+
+.today-workout-shell .bg-bg-tertiary\/40 {
+  background: #171717;
+  border-color: rgba(255,255,255,0.12);
+}
+
+.today-workout-shell .bg-bg-secondary {
+  background: #202020;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+.today-workout-shell .diet-tab-indicator {
+  background: #242424;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+.today-workout-shell .diet-tab-selected {
+  color: #f8fafc;
+}
+
+.today-workout-shell .themed-image-surface {
+  background: #1b1b1b;
+  border-color: rgba(255,255,255,0.14);
+}
+
+.today-workout-shell .today-workout-meta-item {
+  border-color: rgba(255,255,255,0.14);
+  background: #1e1e1e;
+  color: var(--text-secondary);
+}
+
+.today-workout-shell .today-workout-list-item {
+  border-color: rgba(255,255,255,0.12);
+  background: #181818;
+}
+
+.today-workout-shell .today-workout-list-item:hover {
+  border-color: rgba(255,255,255,0.20);
+  background: #202020;
+}
+
+.today-workout-shell .today-workout-list-item-active {
+  border-color: rgba(34, 197, 94, 0.55);
+  background: rgba(34, 197, 94, 0.14);
+}
+
+.today-workout-shell .today-workout-list-index {
+  background: #222;
+  color: var(--text-secondary);
+}
+
+.today-workout-shell .today-workout-list-item-active .today-workout-list-index {
+  background: #22c55e;
+  color: #03130a;
 }
 
 .today-workout-meta {

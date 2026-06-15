@@ -212,7 +212,7 @@ export default function ExerciseDetails() {
         restSeconds: defaultRestSeconds,
         orderIndex: nextOrder
       });
-      setSaveMessage('ÄÃ£ thÃªm vÃ o buá»•i táº­p hÃ´m nay.');
+      setSaveMessage('Đã thêm vào buổi tập hôm nay.');
       setSaveStatus('success');
       return;
       const response = await fetchWithAuth('/api/workout/daily-exercises', {

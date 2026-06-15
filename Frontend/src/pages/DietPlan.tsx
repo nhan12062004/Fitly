@@ -970,12 +970,17 @@ export default function DietPlan() {
   return (
     <div className="dashboard-page-shell diet-page-shell flex flex-col gap-4 overflow-x-hidden overflow-y-auto text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="w-full space-y-4 overflow-hidden">
-        <section className="diet-card rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+        <section className="diet-card diet-today-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <h1 className="text-2xl font-black tracking-tight text-text-primary md:text-3xl">
-                {isTodaySelected ? 'Thực đơn hôm nay' : `Thực đơn ${DAYS[selectedDayId]?.full.toLowerCase()}`}
-              </h1>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-text-primary md:text-3xl">
+                  {isTodaySelected ? 'Thực đơn hôm nay' : `Thực đơn ${DAYS[selectedDayId]?.full.toLowerCase()}`}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-text-tertiary">
+                  <span>{selectedDayDateLabel}</span>
+                </div>
+              </div>
 
               <button
                 type="button"
@@ -1025,22 +1030,42 @@ export default function DietPlan() {
             </div>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <div className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-text-secondary">Calories</p>
+              <div className="diet-today-calories rounded-xl border border-accent/20 bg-accent/10 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-accent">Calories</p>
+                  <span className="text-xs font-black text-accent">{calorieProgress}%</span>
+                </div>
                 <p className="mt-2 text-lg font-black text-text-primary">
                   {dayNutrition.calories.toLocaleString()} / {targetCalories.toLocaleString()}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Còn {remainingCalories.toLocaleString()} kcal</p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                  <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${calorieProgress}%` }} />
+                </div>
               </div>
-              <div className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-text-secondary">Protein</p>
+              <div className="diet-today-protein rounded-xl border border-info/20 bg-info/10 px-4 py-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-info">Protein</p>
                 <p className="mt-2 text-lg font-black text-text-primary">{Math.round(dayNutrition.protein)} / {macroTargets.protein}g</p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingProtein)}g</p>
+                <div className="mt-3 flex gap-1">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <span
+                      key={index}
+                      className={`h-1.5 flex-1 rounded-full ${index < Math.ceil((dayNutrition.protein / Math.max(1, macroTargets.protein)) * 4) ? 'bg-info' : 'bg-bg-tertiary'}`}
+                    />
+                  ))}
+                </div>
               </div>
-              <div className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
-                <p className="text-[11px] font-black uppercase tracking-[0.12em] text-text-secondary">Nước</p>
+              <div className="diet-today-water rounded-xl border border-warning/20 bg-warning/10 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-warning">Nước</p>
+                  <span className="text-xs font-black text-warning">{waterProgress}%</span>
+                </div>
                 <p className="mt-2 text-lg font-black text-text-primary">{waterIntake.toFixed(1)} / {waterGoal.toFixed(1)}L</p>
-                <p className="mt-1 text-xs font-semibold text-text-tertiary">{waterProgress}% mục tiêu</p>
+                <p className="mt-1 text-xs font-semibold text-text-tertiary">Mục tiêu trong ngày</p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                  <div className="h-full rounded-full bg-warning transition-all" style={{ width: `${waterProgress}%` }} />
+                </div>
               </div>
             </div>
 
@@ -1067,12 +1092,6 @@ export default function DietPlan() {
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-xl font-black text-text-primary md:text-2xl">Các bữa trong ngày</h2>
-              <p className="mt-1 text-sm font-semibold text-text-secondary">
-                {mealsWithFoodCount}/{MEAL_TYPES.length} bữa đã có món. Mỗi card chỉ giữ trạng thái và hành động chính để dễ đọc hơn trên mobile.
-              </p>
-            </div>
-            <div className="rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-2 text-sm font-bold text-text-secondary">
-              {planName}
             </div>
           </div>
 
