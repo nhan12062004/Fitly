@@ -1,14 +1,15 @@
-import { ArrowRight, Dumbbell, Flame, MapPin, Target, Utensils, Zap } from 'lucide-react';
+import { ArrowRight, ClipboardList, Dumbbell, Flame, MapPin, Target, Utensils, Zap } from 'lucide-react';
 import type { SurveyPlanSummary } from './SurveyForm';
 
 interface SurveyResultScreenProps {
   summary: SurveyPlanSummary;
   onStart: () => void;
+  onRefineProfile?: () => void;
 }
 
 const formatCalories = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
 
-export default function SurveyResultScreen({ summary, onStart }: SurveyResultScreenProps) {
+export default function SurveyResultScreen({ summary, onStart, onRefineProfile }: SurveyResultScreenProps) {
   const planItems = [
     { label: 'Mục tiêu', value: summary.goal, icon: Target },
     { label: 'Trình độ', value: summary.experience, icon: Zap },
@@ -86,14 +87,26 @@ export default function SurveyResultScreen({ summary, onStart }: SurveyResultScr
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onStart}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover md:mt-8"
-            >
-              Bắt đầu ngày đầu tiên
-              <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="mt-6 grid gap-3 md:mt-8">
+              <button
+                type="button"
+                onClick={onStart}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
+              >
+                Bắt đầu ngày đầu tiên
+                <ArrowRight className="h-4 w-4" />
+              </button>
+              {onRefineProfile ? (
+                <button
+                  type="button"
+                  onClick={onRefineProfile}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-ai/25 bg-ai/10 px-6 py-3.5 text-sm font-black text-ai transition-colors hover:bg-ai/15"
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Bổ sung hồ sơ AI trước
+                </button>
+              ) : null}
+            </div>
           </section>
         </div>
       </div>

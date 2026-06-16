@@ -13,6 +13,7 @@ import Exercises from './pages/Exercises';
 import LandingPage from './pages/LandingPage';
 import Notifications from './pages/Notifications';
 import Overview from './pages/Overview';
+import Profile from './pages/Profile';
 import Progress from './pages/Progress';
 import WorkoutSession from './pages/WorkoutSession';
 
@@ -37,6 +38,7 @@ export default function App() {
                 <Route path="exercises/session" element={<WorkoutSession />} />
                 <Route path="exercises/details" element={<ExerciseDetails />} />
                 <Route path="diet-plan" element={<DietPlan />} />
+                <Route path="profile" element={<Profile />} />
                 <Route path="progress" element={<Progress />} />
                 <Route path="workout-builder" element={<Navigate to="/exercises" replace />} />
                 <Route path="admin-panel" element={<AdminPanel />} />

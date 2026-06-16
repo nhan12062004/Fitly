@@ -685,7 +685,12 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
 
         <span className="hidden md:block h-8 w-px bg-border-primary"></span>
 
-        <div className="topbar-user flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onProfileClick}
+          className="topbar-user flex items-center gap-3 rounded-full px-1.5 py-1 transition-colors hover:bg-bg-tertiary/65"
+          aria-label="Mở thông tin cá nhân"
+        >
           <div className="topbar-user-meta hidden md:flex flex-col items-end">
             <span className="text-sm font-semibold text-text-primary leading-tight">{userName}</span>
             {isPremium ? (
@@ -701,7 +706,7 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
           <div className="topbar-avatar w-9 h-9 rounded-full bg-accent flex items-center justify-center text-text-inverse font-bold text-sm transition-transform">
             {userInitial}
           </div>
-        </div>
+        </button>
       </div>
     </header>
   );

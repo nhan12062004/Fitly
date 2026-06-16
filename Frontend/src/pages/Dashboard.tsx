@@ -4,7 +4,8 @@ import Sidebar from '../layout/Sidebar';
 import TopBar from '../layout/TopBar';
 import SurveyForm, { type SurveyPlanSummary } from '../components/SurveyForm';
 import SurveyResultScreen from '../components/SurveyResultScreen';
-import ProfileModal from '../components/ProfileModal';
+import ProfileCompletionNudge from '../components/ProfileCompletionNudge';
+import ProfileSupplementModal from '../components/ProfileSupplementModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingScreen from '../components/LoadingScreen';
@@ -12,7 +13,7 @@ import LoadingScreen from '../components/LoadingScreen';
 export default function Dashboard() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isProfileSupplementOpen, setIsProfileSupplementOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const { isLoggedIn, hasProfile, isCheckingProfile, refreshProfile } = useAuth();
 
@@ -40,6 +41,20 @@ export default function Dashboard() {
     navigate('/overview', { replace: true });
   };
 
+  const openProfileEditor = () => {
+    navigate('/profile');
+  };
+
+  const openProfileSupplement = () => {
+    setIsProfileSupplementOpen(true);
+  };
+
+  const refineProfileAfterSurvey = () => {
+    setSurveyPlanSummary(null);
+    navigate('/overview', { replace: true });
+    openProfileSupplement();
+  };
+
   // 1. Loading state - Chỉ hiện LoadingScreen toàn màn hình nếu đây là lần đầu kiểm tra và chưa có profile
   // Nếu đã có profile (đang refresh) hoặc đã hiện SurveyForm thì giữ nguyên UI để tránh flickering
   if (isCheckingProfile && !hasProfile && !hasShownSurvey) {
@@ -47,7 +62,13 @@ export default function Dashboard() {
   }
 
   if (isLoggedIn && surveyPlanSummary) {
-    return <SurveyResultScreen summary={surveyPlanSummary} onStart={startFirstDay} />;
+    return (
+      <SurveyResultScreen
+        summary={surveyPlanSummary}
+        onStart={startFirstDay}
+        onRefineProfile={refineProfileAfterSurvey}
+      />
+    );
   }
 
   // 2. Nếu đã đăng nhập nhưng chưa có Profile -> Bắt buộc làm Survey
@@ -66,10 +87,9 @@ export default function Dashboard() {
 
   return (
     <div className="flex w-full h-screen overflow-hidden bg-bg-primary">
-      {/* Profile Editor Modal */}
-      <ProfileModal 
-        isOpen={isProfileOpen} 
-        onClose={() => setIsProfileOpen(false)} 
+      <ProfileSupplementModal
+        isOpen={isProfileSupplementOpen}
+        onClose={() => setIsProfileSupplementOpen(false)}
       />
 
       {/* Password Change Modal */}
@@ -90,17 +110,18 @@ export default function Dashboard() {
       <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar 
           onClose={() => setIsMobileMenuOpen(false)} 
-          onProfileClick={() => setIsProfileOpen(true)} 
+          onProfileClick={openProfileEditor} 
           onPasswordClick={() => setIsPasswordModalOpen(true)}
         />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 w-full h-screen overflow-y-auto custom-scrollbar">
-        <TopBar onMenuClick={() => setIsMobileMenuOpen(true)} onProfileClick={() => setIsProfileOpen(true)} />
-        <main className="flex min-h-0 flex-1 flex-col gap-6 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 lg:px-7 xl:flex-row min-w-0 relative">
+        <TopBar onMenuClick={() => setIsMobileMenuOpen(true)} onProfileClick={openProfileEditor} />
+        <main className="flex min-h-0 flex-1 flex-col gap-6 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 lg:px-7 min-w-0 relative">
           <div className="mx-auto w-full">
+            <ProfileCompletionNudge onOpenProfile={openProfileSupplement} />
             <Suspense fallback={null}>
-              <Outlet context={{ onProfileClick: () => setIsProfileOpen(true) }} />
+              <Outlet context={{ onProfileClick: openProfileEditor }} />
             </Suspense>
           </div>
         </main>

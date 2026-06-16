@@ -488,14 +488,6 @@ export default function AdminPanel() {
             />
           </div>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => void loadData()}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/40"
-            >
-              <Search className="h-4 w-4" />
-              Tìm
-            </button>
             {activeTab === 'exercises' && (
               <button type="button" onClick={openNewExerciseForm} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover">
                 <Plus className="h-4 w-4" />
@@ -513,11 +505,7 @@ export default function AdminPanel() {
       )}
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="h-32 animate-pulse rounded-xl border border-border-primary bg-bg-secondary/70" />
-          ))}
-        </div>
+        <AdminTabSkeleton activeTab={activeTab} />
       ) : (
         <>
           {activeTab === 'overview' && <OverviewTab overview={overview} />}
@@ -567,6 +555,148 @@ export default function AdminPanel() {
         />
       )}
     </div>
+  );
+}
+
+function SkeletonLine({ className = '' }: { className?: string }) {
+  return <span className={`block rounded-full bg-bg-tertiary ${className}`} />;
+}
+
+function AdminOverviewSkeleton() {
+  return (
+    <div className="grid animate-pulse gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <article key={index} className="rounded-xl border border-border-primary bg-bg-secondary/80 p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <SkeletonLine className="h-3 w-24" />
+              <SkeletonLine className="mt-4 h-7 w-20" />
+            </div>
+            <span className="h-11 w-11 rounded-xl bg-bg-tertiary" />
+          </div>
+        </article>
+      ))}
+      <article className="rounded-xl border border-border-primary bg-bg-secondary/80 p-5 md:col-span-2 xl:col-span-3">
+        <div className="flex items-center gap-3">
+          <span className="h-11 w-11 rounded-xl bg-bg-tertiary" />
+          <div className="min-w-0 flex-1">
+            <SkeletonLine className="h-4 w-44" />
+            <SkeletonLine className="mt-2 h-3 w-full max-w-md" />
+          </div>
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function AdminTableSkeleton({
+  minWidth,
+  columns,
+  rows = ADMIN_TABLE_PAGE_SIZE,
+  hasActions = false,
+}: {
+  minWidth: string;
+  columns: Array<{ label: string; width: string; secondary?: boolean }>;
+  rows?: number;
+  hasActions?: boolean;
+}) {
+  return (
+    <div className="animate-pulse overflow-hidden rounded-xl border border-border-primary bg-bg-secondary/80">
+      <div className="overflow-x-auto">
+        <table className={`w-full ${minWidth} text-left text-sm`}>
+          <thead className="border-b border-border-primary bg-bg-tertiary/55 text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">
+            <tr>
+              {columns.map((column) => (
+                <th key={column.label} className={`px-4 py-3 ${column.label === 'Thao tác' ? 'text-right' : ''}`}>{column.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-primary/70">
+            {Array.from({ length: rows }).map((_, rowIndex) => (
+              <tr key={rowIndex}>
+                {columns.map((column, columnIndex) => (
+                  <td key={column.label} className="px-4 py-3">
+                    {hasActions && columnIndex === columns.length - 1 ? (
+                      <div className="flex justify-end gap-2">
+                        <span className="h-9 w-9 rounded-lg bg-bg-tertiary" />
+                        <span className="h-9 w-9 rounded-lg bg-bg-tertiary" />
+                      </div>
+                    ) : column.secondary ? (
+                      <div>
+                        <SkeletonLine className={`h-4 ${column.width}`} />
+                        <SkeletonLine className="mt-2 h-3 w-36" />
+                      </div>
+                    ) : (
+                      <SkeletonLine className={`h-4 ${column.width}`} />
+                    )}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {hasActions && (
+        <div className="flex flex-col gap-3 border-t border-border-primary px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <SkeletonLine className="h-4 w-32" />
+          <div className="flex items-center gap-2">
+            <span className="h-9 w-16 rounded-lg bg-bg-tertiary" />
+            <span className="h-4 w-24 rounded-full bg-bg-tertiary" />
+            <span className="h-9 w-12 rounded-lg bg-bg-tertiary" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminTabSkeleton({ activeTab }: { activeTab: AdminTab }) {
+  if (activeTab === 'overview') return <AdminOverviewSkeleton />;
+
+  if (activeTab === 'users') {
+    return (
+      <AdminTableSkeleton
+        minWidth="min-w-[760px]"
+        columns={[
+          { label: 'Người dùng', width: 'w-44', secondary: true },
+          { label: 'Gói', width: 'w-16' },
+          { label: 'Role', width: 'w-14' },
+          { label: 'Telegram', width: 'w-24' },
+          { label: 'Ngày tạo', width: 'w-20' },
+        ]}
+      />
+    );
+  }
+
+  if (activeTab === 'exercises') {
+    return (
+      <AdminTableSkeleton
+        minWidth="min-w-[860px]"
+        hasActions
+        columns={[
+          { label: 'Bài tập', width: 'w-52', secondary: true },
+          { label: 'Nhóm cơ', width: 'w-28' },
+          { label: 'Thiết bị', width: 'w-24' },
+          { label: 'Độ khó', width: 'w-20' },
+          { label: 'Thao tác', width: 'w-20' },
+        ]}
+      />
+    );
+  }
+
+  return (
+    <AdminTableSkeleton
+      minWidth="min-w-[900px]"
+      hasActions
+      columns={[
+        { label: 'Món ăn', width: 'w-48', secondary: true },
+        { label: 'Kcal', width: 'w-12' },
+        { label: 'Protein', width: 'w-14' },
+        { label: 'Carbs', width: 'w-14' },
+        { label: 'Fat', width: 'w-12' },
+        { label: 'Thao tác', width: 'w-20' },
+      ]}
+    />
   );
 }
 

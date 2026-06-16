@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import {
   AlertCircle,
   Bot,
@@ -7,8 +7,10 @@ import {
   Menu,
   Mic,
   Paperclip,
+  RefreshCw,
+  Save,
   Send,
-  Sparkles,
+  Settings2,
   Utensils,
   X,
 } from 'lucide-react';
@@ -16,6 +18,18 @@ import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
+import {
+  DEFAULT_WORKOUT_FREQUENCY,
+  WORKOUT_FREQUENCY_OPTIONS,
+  normalizeWorkoutFrequency,
+  weeklyWorkoutsToFrequency,
+  workoutFrequencyToWeeklyWorkouts,
+} from '../lib/WorkoutFrequency';
+import {
+  DEFAULT_WORKOUT_DURATION,
+  WORKOUT_DURATION_TAGS,
+  normalizeWorkoutDurationTag,
+} from '../lib/WorkoutDuration';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const RECENT_CHAT_LIMIT = 80;
@@ -123,7 +137,44 @@ type FoodPlanItem = {
 
 type LifestyleSummary = {
   weekly_workouts?: number | null;
+  activity_level?: string | null;
+  workout_duration?: number | null;
+  workout_location?: string | null;
+  equipment_available?: string | null;
+  experience_level?: string | null;
+  fitness_goal?: string | null;
+  diet_preference?: string | null;
+  meals_per_day?: number | null;
 };
+
+type PlanSettings = {
+  activity_level: string;
+  workout_duration: string;
+  workout_location: string;
+  equipment_available: string;
+  experience_level: string;
+  fitness_goal: string;
+  diet_preference: string;
+  meals_per_day: string;
+};
+
+const DEFAULT_PLAN_SETTINGS: PlanSettings = {
+  activity_level: DEFAULT_WORKOUT_FREQUENCY,
+  workout_duration: DEFAULT_WORKOUT_DURATION,
+  workout_location: 'Phòng Gym',
+  equipment_available: 'Đầy đủ tạ & máy móc',
+  experience_level: 'Người mới',
+  fitness_goal: 'Giảm cân',
+  diet_preference: 'Bình thường',
+  meals_per_day: '3',
+};
+
+const PLAN_GOAL_OPTIONS = ['Giảm cân', 'Tăng cơ', 'Giữ dáng'];
+const PLAN_EXPERIENCE_OPTIONS = ['Người mới', 'Đã tập dưới 6 tháng', 'Trung cấp', 'Nâng cao'];
+const PLAN_LOCATION_OPTIONS = ['Phòng Gym', 'Tập tại nhà (Home Workout)'];
+const PLAN_EQUIPMENT_OPTIONS = ['Đầy đủ tạ & máy móc', 'Tạ đơn & Thảm', 'Dây kháng lực', 'Không dụng cụ'];
+const PLAN_DIET_OPTIONS = ['Bình thường', 'Ăn chay', 'Ăn nhiều đạm (High Protein)', 'Keto / Low Carb', 'Eat Clean'];
+const PLAN_MEAL_OPTIONS = ['2', '3', '4', '5'];
 
 type DayPlan = {
   label: string;
@@ -1045,6 +1096,9 @@ export default function AICoach() {
   const [todaySessionItems, setTodaySessionItems] = useState<PlanExercise[]>(() => initialCoachCache?.todaySessionItems || []);
   const [foodItems, setFoodItems] = useState<FoodPlanItem[]>(() => initialCoachCache?.foodItems || []);
   const [lifestyle, setLifestyle] = useState<LifestyleSummary | null>(() => initialCoachCache?.lifestyle || null);
+  const [planSettings, setPlanSettings] = useState<PlanSettings>(() => ({ ...DEFAULT_PLAN_SETTINGS }));
+  const [isPlanSettingsOpen, setIsPlanSettingsOpen] = useState(false);
+  const [isSavingPlanSettings, setIsSavingPlanSettings] = useState(false);
   const [error, setError] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -1110,7 +1164,9 @@ export default function AICoach() {
       try {
         const lifestyleResult = await supabase
           .from('lifestyle_settings')
-          .select('weekly_workouts')
+          .select(
+            'weekly_workouts, activity_level, workout_duration, workout_location, equipment_available, experience_level, fitness_goal, diet_preference, meals_per_day',
+          )
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -1234,6 +1290,24 @@ export default function AICoach() {
     void loadPlan();
   }, [user?.id, refreshTick, weekStartKey, reloadKey, cacheKey]);
 
+  useEffect(() => {
+    const nextFrequency = normalizeWorkoutFrequency(
+      lifestyle?.activity_level || weeklyWorkoutsToFrequency(lifestyle?.weekly_workouts),
+    );
+
+    setPlanSettings((current) => ({
+      ...current,
+      activity_level: nextFrequency,
+      workout_duration: normalizeWorkoutDurationTag(lifestyle?.workout_duration || current.workout_duration),
+      workout_location: lifestyle?.workout_location || current.workout_location,
+      equipment_available: lifestyle?.equipment_available || current.equipment_available,
+      experience_level: lifestyle?.experience_level || current.experience_level,
+      fitness_goal: lifestyle?.fitness_goal || current.fitness_goal,
+      diet_preference: lifestyle?.diet_preference || current.diet_preference,
+      meals_per_day: lifestyle?.meals_per_day ? String(lifestyle.meals_per_day) : current.meals_per_day,
+    }));
+  }, [lifestyle]);
+
   const generateCoachPlan = async () => {
     if (!user?.id) return;
     setIsGenerating(true);
@@ -1269,13 +1343,55 @@ export default function AICoach() {
     }
   };
 
-  const handleGenerateAction = () => {
-    if (!isLoggedIn) return;
-    if (canGenerateCoachPlan) {
-      void generateCoachPlan();
-      return;
+  const handlePlanSettingsChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const name = event.target.name as keyof PlanSettings;
+    const value = event.target.value;
+    setPlanSettings((current) => ({ ...current, [name]: value }));
+  };
+
+  const savePlanSettings = async (mode: 'save' | 'regenerate') => {
+    if (!user?.id) return;
+    setIsSavingPlanSettings(true);
+    setError('');
+
+    const normalizedFrequency = normalizeWorkoutFrequency(planSettings.activity_level);
+    const normalizedDuration = normalizeWorkoutDurationTag(planSettings.workout_duration);
+    const mealsPerDay = Math.max(2, Math.min(5, Number(planSettings.meals_per_day) || 3));
+    const payload: LifestyleSummary & { user_id: string; updated_at: string } = {
+      user_id: user.id,
+      activity_level: normalizedFrequency,
+      weekly_workouts: workoutFrequencyToWeeklyWorkouts(normalizedFrequency),
+      workout_duration: Number(normalizedDuration),
+      workout_location: planSettings.workout_location,
+      equipment_available: planSettings.equipment_available,
+      experience_level: planSettings.experience_level,
+      fitness_goal: planSettings.fitness_goal,
+      diet_preference: planSettings.diet_preference,
+      meals_per_day: mealsPerDay,
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      const { error: saveError } = await supabase.from('lifestyle_settings').upsert(payload);
+      if (saveError) throw saveError;
+
+      setLifestyle(payload);
+      await refreshProfile();
+      setReloadKey((value) => value + 1);
+
+      if (mode === 'regenerate') {
+        if (canGenerateCoachPlan) {
+          await generateCoachPlan();
+        } else {
+          openPremiumModal();
+        }
+      }
+      setIsPlanSettingsOpen(false);
+    } catch (err: any) {
+      setError(err?.message || 'Không thể lưu cài đặt kế hoạch.');
+    } finally {
+      setIsSavingPlanSettings(false);
     }
-    openPremiumModal();
   };
 
   const todayDayIndex = useMemo(() => {
@@ -1384,7 +1500,7 @@ export default function AICoach() {
   }, [user?.id, reloadKey, todayDateKey, cacheKey]);
 
   useLayoutEffect(() => {
-    if (loading || !isLoggedIn || !plan) return;
+    if (loading || !isLoggedIn) return;
 
     const container = chatScrollRef.current;
     const content = chatContentRef.current;
@@ -1773,44 +1889,32 @@ export default function AICoach() {
           </div>
         ) : null}
 
-        {!isLoggedIn || !plan ? (
-          <section className="rounded-xl border border-border-primary bg-bg-secondary px-6 py-12 text-center shadow-[0_18px_50px_rgba(0,0,0,0.12)]">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[24px] bg-ai/12 text-ai">
-              <Sparkles className="h-8 w-8" />
-            </div>
-            <h2 className="mt-6 text-3xl font-black text-text-primary">Chưa có kế hoạch từ AI Coach</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-text-secondary">
-              Hoàn tất hồ sơ sức khỏe và thói quen tập luyện để AI Coach tạo lịch tập, thực đơn và gợi ý điều chỉnh theo dữ liệu thật của bạn.
-            </p>
-            {isLoggedIn ? (
-              <button
-                type="button"
-                onClick={handleGenerateAction}
-                disabled={isGenerating}
-                className="mt-7 inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-accent px-6 text-sm font-black text-text-inverse hover:bg-accent-hover disabled:opacity-60"
-              >
-                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {isGenerating ? 'Đang tạo kế hoạch...' : 'Tạo kế hoạch từ dữ liệu của tôi'}
-              </button>
-            ) : null}
-          </section>
-        ) : (
-          <section>
+        <section>
             <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
               <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-2">
-                <div className="flex items-center gap-2.5">
-                  <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-text-primary">
-                    <Bot className="h-3.5 w-3.5" />
-                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-bg-secondary bg-ai" />
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-text-primary">
+                      <Bot className="h-3.5 w-3.5" />
+                      <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-bg-secondary bg-ai" />
+                    </div>
+                    <div>
+                      <p className="text-xl font-black leading-none text-text-primary">AI Coach</p>
+                      <p className="mt-0.5 text-[11px] font-semibold text-text-secondary">
+                        {plan ? 'Chat, workout và meal plan trong ngày' : 'Chat trước, tạo kế hoạch khi bạn sẵn sàng'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xl font-black leading-none text-text-primary">AI Coach</p>
-                    <p className="mt-0.5 text-[11px] font-semibold text-text-secondary">
-                      Chat, workout và meal plan trong ngày
-                    </p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPlanSettingsOpen(true)}
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-3 text-xs font-black text-text-primary transition-colors hover:border-ai/40 hover:text-ai"
+                    aria-label="Cài đặt kế hoạch"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    Cài đặt kế hoạch
+                  </button>
                 </div>
-
               </div>
 
               <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto bg-bg-tertiary px-5 py-5">
@@ -2028,7 +2132,195 @@ export default function AICoach() {
               </div>
             </article>
           </section>
-        )}
+        {isPlanSettingsOpen ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5">
+            <div
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => setIsPlanSettingsOpen(false)}
+            />
+            <form
+              className="relative flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_28px_90px_rgba(0,0,0,0.42)]"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void savePlanSettings('save');
+              }}
+            >
+              <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border-primary bg-bg-tertiary/70 px-4 py-4 sm:px-5">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4 text-ai" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-ai">AI Coach</p>
+                  </div>
+                  <h2 className="mt-1 text-xl font-black text-text-primary">Cài đặt kế hoạch</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPlanSettingsOpen(false)}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-secondary text-text-tertiary transition-colors hover:text-text-primary"
+                  aria-label="Đóng cài đặt kế hoạch"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </header>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Số buổi/tuần</span>
+                    <select
+                      name="activity_level"
+                      value={normalizeWorkoutFrequency(planSettings.activity_level)}
+                      onChange={handlePlanSettingsChange}
+                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
+                    >
+                      {WORKOUT_FREQUENCY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Thời lượng/buổi</span>
+                    <select
+                      name="workout_duration"
+                      value={normalizeWorkoutDurationTag(planSettings.workout_duration)}
+                      onChange={handlePlanSettingsChange}
+                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
+                    >
+                      {WORKOUT_DURATION_TAGS.map((minutes) => (
+                        <option key={minutes} value={String(minutes)}>
+                          {minutes} phút
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Mục tiêu</span>
+                    <select
+                      name="fitness_goal"
+                      value={planSettings.fitness_goal}
+                      onChange={handlePlanSettingsChange}
+                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
+                    >
+                      {PLAN_GOAL_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Trình độ</span>
+                    <select
+                      name="experience_level"
+                      value={planSettings.experience_level}
+                      onChange={handlePlanSettingsChange}
+                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
+                    >
+                      {PLAN_EXPERIENCE_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Nơi tập</span>
+                    <select
+                      name="workout_location"
+                      value={planSettings.workout_location}
+                      onChange={handlePlanSettingsChange}
+                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
+                    >
+                      {PLAN_LOCATION_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Dụng cụ</span>
+                    <select
+                      name="equipment_available"
+                      value={planSettings.equipment_available}
+                      onChange={handlePlanSettingsChange}
+                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
+                    >
+                      {PLAN_EQUIPMENT_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Chế độ ăn</span>
+                    <select
+                      name="diet_preference"
+                      value={planSettings.diet_preference}
+                      onChange={handlePlanSettingsChange}
+                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
+                    >
+                      {PLAN_DIET_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Số bữa/ngày</span>
+                    <select
+                      name="meals_per_day"
+                      value={planSettings.meals_per_day}
+                      onChange={handlePlanSettingsChange}
+                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
+                    >
+                      {PLAN_MEAL_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option} bữa
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+
+              <footer className="flex shrink-0 flex-col gap-2 border-t border-border-primary bg-bg-tertiary/70 px-4 py-3 sm:flex-row sm:justify-end sm:px-5">
+                <button
+                  type="button"
+                  onClick={() => setIsPlanSettingsOpen(false)}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-border-primary bg-bg-secondary px-4 text-xs font-black text-text-secondary transition-colors hover:text-text-primary"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPlanSettings}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-secondary px-4 text-xs font-black text-text-primary transition-colors hover:border-ai/40 hover:text-ai disabled:opacity-60"
+                >
+                  {isSavingPlanSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Lưu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void savePlanSettings('regenerate')}
+                  disabled={isSavingPlanSettings || isGenerating}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-ai px-4 text-xs font-black text-white transition-colors hover:bg-ai-hover disabled:opacity-60"
+                >
+                  {isSavingPlanSettings || isGenerating ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Lưu & tạo lại
+                </button>
+              </footer>
+            </form>
+          </div>
+        ) : null}
       </div>
     </div>
   );
