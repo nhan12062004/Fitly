@@ -4,6 +4,7 @@ import LoadingScreen from './components/LoadingScreen';
 import { AuthProvider } from './contexts/AuthContext';
 import AuthPage from './pages/AuthPage';
 import AICoach from './pages/AICoach';
+import AdminPanel from './pages/AdminPanel';
 import CourseDetails from './pages/CourseDetails';
 import Dashboard from './pages/Dashboard';
 import DietPlan from './pages/DietPlan';
@@ -36,7 +37,7 @@ export default function App() {
                 <Route path="diet-plan" element={<DietPlan />} />
                 <Route path="progress" element={<Progress />} />
                 <Route path="workout-builder" element={<Navigate to="/exercises" replace />} />
-                <Route path="admin-panel" element={<PlaceholderPage title="Quản trị viên" />} />
+                <Route path="admin-panel" element={<AdminPanel />} />
               </Route>
             </Routes>
           </Suspense>

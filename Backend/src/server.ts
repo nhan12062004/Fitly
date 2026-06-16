@@ -127,6 +127,21 @@ const isAdminUser = async (userId: string): Promise<boolean> => {
   if (profileRes.error) return false;
   return String(profileRes.data?.role || '') === 'admin';
 };
+const requireAdminUserId = async (req: express.Request, res: express.Response): Promise<string | null> => {
+  const authUserId = await getAuthUserId(req);
+  if (!authUserId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return null;
+  }
+
+  const isAdmin = await isAdminUser(authUserId);
+  if (!isAdmin) {
+    res.status(403).json({ error: 'Forbidden' });
+    return null;
+  }
+
+  return authUserId;
+};
 const hasValidCronSecret = (req: express.Request): boolean => {
   const secret = String(req.headers['x-cron-secret'] || '').trim();
   return Boolean(process.env.CRON_SECRET && secret && secret === process.env.CRON_SECRET);
@@ -1367,7 +1382,7 @@ app.use(cors({
 
     callback(new Error(`Origin ${origin} is not allowed by CORS`));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true
 }));
 
@@ -1405,6 +1420,409 @@ app.get('/api/profiles', async (req, res) => {
     res.json({ message: 'Ket noi thanh cong!', data });
   } catch {
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+const parseStringArrayInput = (value: unknown): string[] | undefined => {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  const text = String(value || '').trim();
+  if (!text) return [];
+  return text.split(/[,;\n]+/).map((item) => item.trim()).filter(Boolean);
+};
+
+const parseInstructionsInput = (value: unknown): unknown => {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+  if (typeof value === 'object' && value !== null) return value;
+  const text = String(value || '').trim();
+  if (!text) return [];
+  return text.split(/\n+/).map((item) => item.trim()).filter(Boolean);
+};
+
+const parseOptionalNumberInput = (value: unknown): number | null | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const createCatalogId = (name: unknown, prefix: string): string => {
+  const slug = String(name || prefix)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || prefix;
+  return `${slug}-${Date.now().toString(36)}`;
+};
+
+const sanitizeExercisePayload = (raw: any, isCreate: boolean) => {
+  const payload: Record<string, unknown> = {};
+  if (isCreate) {
+    payload.id = String(raw?.id || createCatalogId(raw?.name, 'exercise')).trim();
+  }
+
+  const textFields = [
+    'name',
+    'body_part',
+    'equipment',
+    'target_muscle',
+    'gif_url',
+    'image_url',
+    'difficulty',
+    'movement_pattern'
+  ];
+  textFields.forEach((field) => {
+    if (raw?.[field] !== undefined) payload[field] = String(raw[field] || '').trim() || null;
+  });
+
+  const instructions = parseInstructionsInput(raw?.instructions);
+  if (instructions !== undefined) payload.instructions = instructions;
+
+  const secondaryMuscles = parseStringArrayInput(raw?.secondary_muscles);
+  if (secondaryMuscles !== undefined) payload.secondary_muscles = secondaryMuscles;
+
+  const goalType = parseStringArrayInput(raw?.goal_type);
+  if (goalType !== undefined) payload.goal_type = goalType;
+
+  const contraindications = parseStringArrayInput(raw?.contraindications);
+  if (contraindications !== undefined) payload.contraindications = contraindications;
+
+  const estimatedDuration = parseOptionalNumberInput(raw?.estimated_duration_seconds);
+  if (estimatedDuration !== undefined) payload.estimated_duration_seconds = estimatedDuration;
+
+  const caloriesPerMinute = parseOptionalNumberInput(raw?.calories_per_minute);
+  if (caloriesPerMinute !== undefined) payload.calories_per_minute = caloriesPerMinute;
+
+  if (!String(payload.name || '').trim()) {
+    throw new Error('Exercise name is required');
+  }
+  if (isCreate && !String(payload.id || '').trim()) {
+    throw new Error('Exercise id is required');
+  }
+
+  return payload;
+};
+
+const sanitizeFoodPayload = (raw: any) => {
+  const payload: Record<string, unknown> = {};
+  const textFields = [
+    'name',
+    'category',
+    'serving_unit',
+    'image_url',
+    'price_level',
+    'region'
+  ];
+  textFields.forEach((field) => {
+    if (raw?.[field] !== undefined) payload[field] = String(raw[field] || '').trim() || null;
+  });
+
+  ['calories', 'protein', 'carbs', 'fat', 'cooking_time_minutes'].forEach((field) => {
+    const value = parseOptionalNumberInput(raw?.[field]);
+    if (value !== undefined) payload[field] = value;
+  });
+
+  const mealType = parseStringArrayInput(raw?.meal_type);
+  if (mealType !== undefined) payload.meal_type = mealType;
+
+  const goalType = parseStringArrayInput(raw?.goal_type);
+  if (goalType !== undefined) payload.goal_type = goalType;
+
+  const allergens = parseStringArrayInput(raw?.allergens);
+  if (allergens !== undefined) payload.allergens = allergens;
+
+  if (raw?.is_easy_to_prepare !== undefined) {
+    payload.is_easy_to_prepare = Boolean(raw.is_easy_to_prepare);
+  }
+
+  if (!String(payload.name || '').trim()) {
+    throw new Error('Food name is required');
+  }
+
+  return payload;
+};
+
+const countCatalogUsage = async (table: string, column: string, value: string): Promise<number> => {
+  const { count, error } = await supabase
+    .from(table)
+    .select('id', { count: 'exact', head: true })
+    .eq(column, value);
+  if (error) throw error;
+  return count || 0;
+};
+
+app.get('/api/admin/overview', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const today = getVietnamDateKey();
+    const sevenDaysAgo = addDays(new Date(), -7).toISOString();
+
+    const [
+      usersRes,
+      premiumRes,
+      newUsersRes,
+      telegramLinkedRes,
+      exercisesRes,
+      foodsRes,
+      aiProposedRes,
+      aiAppliedRes,
+      aiRejectedRes,
+      workoutDoneRes,
+      mealsDoneRes
+    ] = await Promise.all([
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('membership_tier', 'premium'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).not('telegram_chat_id', 'is', null),
+      supabase.from('exercises').select('id', { count: 'exact', head: true }),
+      supabase.from('foods').select('id', { count: 'exact', head: true }),
+      supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'proposed'),
+      supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'applied'),
+      supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
+      supabase.from('daily_exercise_sessions').select('id', { count: 'exact', head: true }).eq('log_date', today).eq('is_completed', true),
+      supabase.from('daily_meal_logs').select('id', { count: 'exact', head: true }).eq('log_date', today).eq('is_completed', true)
+    ]);
+
+    const firstError = [
+      usersRes,
+      premiumRes,
+      newUsersRes,
+      telegramLinkedRes,
+      exercisesRes,
+      foodsRes,
+      aiProposedRes,
+      aiAppliedRes,
+      aiRejectedRes,
+      workoutDoneRes,
+      mealsDoneRes
+    ].find((item) => item.error)?.error;
+    if (firstError) throw firstError;
+
+    res.json({
+      success: true,
+      data: {
+        users: usersRes.count || 0,
+        premiumUsers: premiumRes.count || 0,
+        newUsers7d: newUsersRes.count || 0,
+        telegramLinkedUsers: telegramLinkedRes.count || 0,
+        exercises: exercisesRes.count || 0,
+        foods: foodsRes.count || 0,
+        aiAdjustments: {
+          proposed: aiProposedRes.count || 0,
+          applied: aiAppliedRes.count || 0,
+          rejected: aiRejectedRes.count || 0
+        },
+        todayCompletedWorkouts: workoutDoneRes.count || 0,
+        todayCompletedMeals: mealsDoneRes.count || 0
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Internal Server Error' });
+  }
+});
+
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const query = String(req.query.q || '').trim();
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit) || 80));
+    let request = supabase
+      .from('profiles')
+      .select('id, full_name, email, phone, gender, birthday, job, role, membership_tier, telegram_chat_id, created_at, updated_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (query) {
+      request = request.or(`full_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`);
+    }
+
+    const { data, error } = await request;
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Internal Server Error' });
+  }
+});
+
+app.get('/api/admin/exercises', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const query = String(req.query.q || '').trim();
+    const limit = Math.max(1, Math.min(300, Number(req.query.limit) || 120));
+    let request = supabase
+      .from('exercises')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (query) {
+      request = request.or(`name.ilike.%${query}%,body_part.ilike.%${query}%,target_muscle.ilike.%${query}%,equipment.ilike.%${query}%`);
+    }
+
+    const { data, error } = await request;
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Internal Server Error' });
+  }
+});
+
+app.post('/api/admin/exercises', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const payload = sanitizeExercisePayload(req.body, true);
+    const { data, error } = await supabase.from('exercises').insert(payload).select('*').single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Failed to create exercise' });
+  }
+});
+
+app.put('/api/admin/exercises/:id', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const exerciseId = String(req.params.id || '').trim();
+    const payload = sanitizeExercisePayload(req.body, false);
+    payload.updated_at = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('exercises')
+      .update(payload)
+      .eq('id', exerciseId)
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Exercise not found' });
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Failed to update exercise' });
+  }
+});
+
+app.delete('/api/admin/exercises/:id', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const exerciseId = String(req.params.id || '').trim();
+    const [weeklyUsage, dailyUsage] = await Promise.all([
+      countCatalogUsage('weekly_plan_exercises', 'exercise_id', exerciseId),
+      countCatalogUsage('daily_exercise_sessions', 'exercise_id', exerciseId)
+    ]);
+    if (weeklyUsage + dailyUsage > 0) {
+      return res.status(409).json({
+        error: 'Exercise is used in workout plans or logs and cannot be deleted safely.',
+        usage: { weeklyUsage, dailyUsage }
+      });
+    }
+
+    const { error } = await supabase.from('exercises').delete().eq('id', exerciseId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Failed to delete exercise' });
+  }
+});
+
+app.get('/api/admin/foods', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const query = String(req.query.q || '').trim();
+    const limit = Math.max(1, Math.min(300, Number(req.query.limit) || 120));
+    let request = supabase
+      .from('foods')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (query) {
+      request = request.or(`name.ilike.%${query}%,category.ilike.%${query}%,region.ilike.%${query}%`);
+    }
+
+    const { data, error } = await request;
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Internal Server Error' });
+  }
+});
+
+app.post('/api/admin/foods', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const payload = sanitizeFoodPayload(req.body);
+    const { data, error } = await supabase.from('foods').insert(payload).select('*').single();
+    if (error) throw error;
+    res.status(201).json({ success: true, data });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Failed to create food' });
+  }
+});
+
+app.put('/api/admin/foods/:id', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const foodId = String(req.params.id || '').trim();
+    const payload = sanitizeFoodPayload(req.body);
+    const { data, error } = await supabase
+      .from('foods')
+      .update(payload)
+      .eq('id', foodId)
+      .select('*')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Food not found' });
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Failed to update food' });
+  }
+});
+
+app.delete('/api/admin/foods/:id', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+
+    const foodId = String(req.params.id || '').trim();
+    const [weeklyUsage, dailyUsage] = await Promise.all([
+      countCatalogUsage('weekly_food_items', 'food_id', foodId),
+      countCatalogUsage('daily_meal_logs', 'food_id', foodId)
+    ]);
+    if (weeklyUsage + dailyUsage > 0) {
+      return res.status(409).json({
+        error: 'Food is used in meal plans or logs and cannot be deleted safely.',
+        usage: { weeklyUsage, dailyUsage }
+      });
+    }
+
+    const { error } = await supabase.from('foods').delete().eq('id', foodId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ error: error?.message || 'Failed to delete food' });
   }
 });
 
