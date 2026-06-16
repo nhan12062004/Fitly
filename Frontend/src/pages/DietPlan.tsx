@@ -53,6 +53,7 @@ type DietPlanPageCache = {
   targetCalories: number;
   waterIntake: number;
   waterGoal: number;
+  waterLogDate: string;
 };
 
 const DAYS = [
@@ -381,7 +382,9 @@ export default function DietPlan() {
   const { user } = useAuth();
   const initialWeekStart = getWeekStart(getVietnamTodayDate());
   const initialWeekKey = toDateKey(initialWeekStart);
+  const initialTodayKey = getVietnamDateKey();
   const initialDietCache = user?.id ? dietPlanPageCache.get(`${user.id}:${initialWeekKey}`) || null : null;
+  const initialWaterIntake = initialDietCache?.waterLogDate === initialTodayKey ? initialDietCache.waterIntake : 0;
   const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
   const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const [foods, setFoods] = useState<Food[]>(() => initialDietCache?.foods || dietPlanFoodCache || []);
@@ -395,7 +398,7 @@ export default function DietPlan() {
   const [, setIsSaving] = useState(false);
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(initialWeekStart);
   const [targetCalories, setTargetCalories] = useState(() => initialDietCache?.targetCalories || DEFAULT_CALORIE_TARGET);
-  const [waterIntake, setWaterIntake] = useState(() => initialDietCache?.waterIntake ?? 1.8);
+  const [waterIntake, setWaterIntake] = useState(() => initialWaterIntake);
   const [waterGoal, setWaterGoal] = useState(() => initialDietCache?.waterGoal || DEFAULT_WATER_TARGET);
   const [foodPickerOpen, setFoodPickerOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -598,7 +601,7 @@ export default function DietPlan() {
 
         if (lifestyleRes.data?.target_calories) setTargetCalories(Number(lifestyleRes.data.target_calories));
         if (lifestyleRes.data?.daily_water_goal) setWaterGoal(Number(lifestyleRes.data.daily_water_goal));
-        if (progressRes.data?.water_intake_ml !== undefined) setWaterIntake(Number(progressRes.data.water_intake_ml || 0) / 1000);
+        setWaterIntake(Number(progressRes.data?.water_intake_ml || 0) / 1000);
       } catch (error) {
         console.error(error);
       }
@@ -620,7 +623,7 @@ export default function DietPlan() {
         setPlanId(cached.planId);
         setPlanName(cached.planName);
         setTargetCalories(cached.targetCalories);
-        setWaterIntake(cached.waterIntake);
+        setWaterIntake(cached.waterLogDate === getVietnamDateKey() ? cached.waterIntake : 0);
         setWaterGoal(cached.waterGoal);
       }
       setIsLoading(!cached);
@@ -715,7 +718,8 @@ export default function DietPlan() {
       planName,
       targetCalories,
       waterIntake,
-      waterGoal
+      waterGoal,
+      waterLogDate: getVietnamDateKey()
     });
   }, [cacheKey, foods, selectedDayId, weeklyPlan, restDays, planId, planName, targetCalories, waterIntake, waterGoal]);
 
