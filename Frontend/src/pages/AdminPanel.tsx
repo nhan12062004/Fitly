@@ -164,8 +164,9 @@ const tabs: Array<{ id: AdminTab; label: string; icon: ElementType }> = [
   { id: 'overview', label: 'Tổng quan', icon: BarChart3 },
   { id: 'users', label: 'Người dùng', icon: Users },
   { id: 'exercises', label: 'Bài tập', icon: Dumbbell },
-  { id: 'foods', label: 'Thức ăn', icon: Utensils }
+  { id: 'foods', label: 'Thực đơn', icon: Utensils }
 ];
+const ADMIN_TABLE_PAGE_SIZE = 8;
 
 const formatDate = (value: string | null | undefined) => {
   if (!value) return '-';
@@ -241,6 +242,8 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
   const [foods, setFoods] = useState<FoodRow[]>([]);
+  const [exercisePage, setExercisePage] = useState(1);
+  const [foodPage, setFoodPage] = useState(1);
   const [editingExercise, setEditingExercise] = useState<ExerciseRow | null>(null);
   const [isExerciseFormOpen, setIsExerciseFormOpen] = useState(false);
   const [exerciseForm, setExerciseForm] = useState<ExerciseForm>(emptyExerciseForm);
@@ -292,9 +295,11 @@ export default function AdminPanel() {
       }
       if (activeTab === 'exercises') {
         setExercises(await requestJson<ExerciseRow[]>(`/api/admin/exercises${querySuffix}`));
+        setExercisePage(1);
       }
       if (activeTab === 'foods') {
         setFoods(await requestJson<FoodRow[]>(`/api/admin/foods${querySuffix}`));
+        setFoodPage(1);
       }
     } catch (err: any) {
       setError(err?.message || 'Không thể tải dữ liệu quản trị');
@@ -417,7 +422,7 @@ export default function AdminPanel() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-black text-text-primary">Quản trị viên</h1>
-          <p className="mt-1 text-sm font-semibold text-text-secondary">Người dùng, bài tập, thức ăn và vận hành hệ thống.</p>
+          <p className="mt-1 text-sm font-semibold text-text-secondary">Người dùng, bài tập, thực đơn và vận hành hệ thống.</p>
         </div>
         <button
           type="button"
@@ -441,6 +446,8 @@ export default function AdminPanel() {
               onClick={() => {
                 setActiveTab(tab.id);
                 setSearch('');
+                setExercisePage(1);
+                setFoodPage(1);
                 setError('');
               }}
               className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-black transition-colors ${
@@ -468,7 +475,11 @@ export default function AdminPanel() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
             <input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setExercisePage(1);
+                setFoodPage(1);
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void loadData();
               }}
@@ -511,8 +522,26 @@ export default function AdminPanel() {
         <>
           {activeTab === 'overview' && <OverviewTab overview={overview} />}
           {activeTab === 'users' && <UsersTab users={users} />}
-          {activeTab === 'exercises' && <ExercisesTab rows={exercises} onEdit={openEditExerciseForm} onDelete={deleteExercise} saving={saving} />}
-          {activeTab === 'foods' && <FoodsTab rows={foods} onEdit={openEditFoodForm} onDelete={deleteFood} saving={saving} />}
+          {activeTab === 'exercises' && (
+            <ExercisesTab
+              rows={exercises}
+              page={exercisePage}
+              onPageChange={setExercisePage}
+              onEdit={openEditExerciseForm}
+              onDelete={deleteExercise}
+              saving={saving}
+            />
+          )}
+          {activeTab === 'foods' && (
+            <FoodsTab
+              rows={foods}
+              page={foodPage}
+              onPageChange={setFoodPage}
+              onEdit={openEditFoodForm}
+              onDelete={deleteFood}
+              saving={saving}
+            />
+          )}
         </>
       )}
 
@@ -548,7 +577,7 @@ function OverviewTab({ overview }: { overview: OverviewStats | null }) {
     { label: 'User mới 7 ngày', value: overview?.newUsers7d || 0, icon: Activity, tone: 'text-accent' },
     { label: 'Telegram', value: overview?.telegramLinkedUsers || 0, icon: Send, tone: 'text-info' },
     { label: 'Bài tập', value: overview?.exercises || 0, icon: Dumbbell, tone: 'text-accent' },
-    { label: 'Thức ăn', value: overview?.foods || 0, icon: Utensils, tone: 'text-warning' }
+    { label: 'Thực đơn', value: overview?.foods || 0, icon: Utensils, tone: 'text-warning' }
   ];
 
   return (
@@ -627,15 +656,23 @@ function UsersTab({ users }: { users: AdminUser[] }) {
 
 function ExercisesTab({
   rows,
+  page,
+  onPageChange,
   onEdit,
   onDelete,
   saving
 }: {
   rows: ExerciseRow[];
+  page: number;
+  onPageChange: (page: number) => void;
   onEdit: (row: ExerciseRow) => void;
   onDelete: (row: ExerciseRow) => void;
   saving: boolean;
 }) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const visibleRows = rows.slice((safePage - 1) * ADMIN_TABLE_PAGE_SIZE, safePage * ADMIN_TABLE_PAGE_SIZE);
+
   return (
     <div className="overflow-hidden rounded-xl border border-border-primary bg-bg-secondary/80">
       <div className="overflow-x-auto">
@@ -650,7 +687,7 @@ function ExercisesTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-border-primary/70">
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <tr key={row.id} className="hover:bg-bg-tertiary/35">
                 <td className="px-4 py-3">
                   <p className="font-black text-text-primary">{row.name}</p>
@@ -674,21 +711,36 @@ function ExercisesTab({
           </tbody>
         </table>
       </div>
+      <PaginationFooter
+        page={safePage}
+        totalPages={totalPages}
+        totalItems={rows.length}
+        pageSize={ADMIN_TABLE_PAGE_SIZE}
+        onPageChange={onPageChange}
+      />
     </div>
   );
 }
 
 function FoodsTab({
   rows,
+  page,
+  onPageChange,
   onEdit,
   onDelete,
   saving
 }: {
   rows: FoodRow[];
+  page: number;
+  onPageChange: (page: number) => void;
   onEdit: (row: FoodRow) => void;
   onDelete: (row: FoodRow) => void;
   saving: boolean;
 }) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / ADMIN_TABLE_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const visibleRows = rows.slice((safePage - 1) * ADMIN_TABLE_PAGE_SIZE, safePage * ADMIN_TABLE_PAGE_SIZE);
+
   return (
     <div className="overflow-hidden rounded-xl border border-border-primary bg-bg-secondary/80">
       <div className="overflow-x-auto">
@@ -704,7 +756,7 @@ function FoodsTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-border-primary/70">
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <tr key={row.id} className="hover:bg-bg-tertiary/35">
                 <td className="px-4 py-3">
                   <p className="font-black text-text-primary">{row.name}</p>
@@ -728,6 +780,59 @@ function FoodsTab({
             ))}
           </tbody>
         </table>
+      </div>
+      <PaginationFooter
+        page={safePage}
+        totalPages={totalPages}
+        totalItems={rows.length}
+        pageSize={ADMIN_TABLE_PAGE_SIZE}
+        onPageChange={onPageChange}
+      />
+    </div>
+  );
+}
+
+function PaginationFooter({
+  page,
+  totalPages,
+  totalItems,
+  pageSize,
+  onPageChange
+}: {
+  page: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+}) {
+  const startItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min(totalItems, page * pageSize);
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-border-primary px-4 py-3 text-sm text-text-secondary md:flex-row md:items-center md:justify-between">
+      <span className="font-semibold">
+        Hiển thị {startItem}-{endItem} / {totalItems}
+      </span>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={page <= 1}
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-border-primary bg-bg-tertiary px-3 text-sm font-black text-text-primary transition-colors hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          Trước
+        </button>
+        <span className="min-w-24 text-center text-sm font-black text-text-primary">
+          Trang {page}/{totalPages}
+        </span>
+        <button
+          type="button"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-border-primary bg-bg-tertiary px-3 text-sm font-black text-text-primary transition-colors hover:border-accent/40 disabled:cursor-not-allowed disabled:opacity-45"
+        >
+          Sau
+        </button>
       </div>
     </div>
   );

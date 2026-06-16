@@ -396,3 +396,20 @@ CREATE TABLE public.workout_session_feedback (
   created_at timestamp with time zone DEFAULT now(),
   workout_session_id uuid
 );
+-- 25. Table: user_notifications
+CREATE TABLE public.user_notifications (
+  id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id uuid NOT NULL,
+  tone text NOT NULL,
+  title text NOT NULL,
+  message text NOT NULL,
+  href text NOT NULL DEFAULT '/overview'::text,
+  source_type text NOT NULL DEFAULT 'system'::text,
+  source_id text,
+  dedupe_key text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  read_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  expires_at timestamp with time zone
+);

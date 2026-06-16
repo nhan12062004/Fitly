@@ -11,6 +11,7 @@ import DietPlan from './pages/DietPlan';
 import ExerciseDetails from './pages/ExerciseDetails';
 import Exercises from './pages/Exercises';
 import LandingPage from './pages/LandingPage';
+import Notifications from './pages/Notifications';
 import Overview from './pages/Overview';
 import Progress from './pages/Progress';
 import WorkoutSession from './pages/WorkoutSession';
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="/signup" element={<AuthPage initialMode="signup" />} />
               <Route element={<Dashboard />}>
                 <Route path="overview" element={<Overview />} />
+                <Route path="notifications" element={<Notifications />} />
                 <Route path="course/:id" element={<CourseDetails />} />
                 <Route path="smart-planner" element={<AICoach />} />
                 <Route path="exercises" element={<Exercises />} />

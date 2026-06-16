@@ -1,8 +1,17 @@
-import { Search, Moon, Sun, Bell, Menu, Dumbbell, Utensils, Home, Timer, Blocks, Brain, ChevronRight, X, Loader2, Flame, Sparkles, TrendingUp, Shield } from 'lucide-react';
+import { Search, Moon, Sun, Bell, Menu, Dumbbell, Utensils, Home, Timer, Blocks, Brain, ChevronRight, X, Loader2, Flame, Sparkles, TrendingUp, Shield, CheckCircle2, CalendarCheck, Droplet, MessageSquare, CheckCheck } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/Supabase';
+import {
+  ensureActionableNotifications,
+  fetchUserNotifications,
+  markAllUserNotificationsRead,
+  markNotificationRead,
+  recordWaterFromNotification,
+  type NotificationTone,
+  type UserNotification,
+} from '../lib/Notifications';
 
 function normalizeViet(str: string): string {
   return str
@@ -13,49 +22,6 @@ function normalizeViet(str: string): string {
     .toLowerCase();
 }
 
-const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
-
-const getDatePartsInTimeZone = (date: Date, timeZone: string) => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(date);
-  const year = parts.find((p) => p.type === 'year')?.value || '1970';
-  const month = parts.find((p) => p.type === 'month')?.value || '01';
-  const day = parts.find((p) => p.type === 'day')?.value || '01';
-  return { year, month, day };
-};
-
-const getVietnamDateKey = (date = new Date()): string => {
-  const { year, month, day } = getDatePartsInTimeZone(date, VIETNAM_TIMEZONE);
-  return `${year}-${month}-${day}`;
-};
-
-const addDaysToDateKey = (dateKey: string, days: number): string => {
-  const d = new Date(`${dateKey}T00:00:00`);
-  d.setDate(d.getDate() + days);
-  return getVietnamDateKey(d);
-};
-
-const calculateWorkoutStreak = (completedDateKeys: string[], todayKey: string): number => {
-  const completedSet = new Set(completedDateKeys);
-  let streak = 0;
-  let cursor = todayKey;
-
-  if (!completedSet.has(cursor)) {
-    cursor = addDaysToDateKey(cursor, -1);
-  }
-
-  while (completedSet.has(cursor)) {
-    streak += 1;
-    cursor = addDaysToDateKey(cursor, -1);
-  }
-
-  return streak;
-};
-
 interface SearchResult {
   id: string;
   title: string;
@@ -64,7 +30,7 @@ interface SearchResult {
   href: string;
 }
 
-type PageIcon = 'home' | 'brain' | 'dumbbell' | 'utensils' | 'timer' | 'blocks' | 'sparkles' | 'trendingUp' | 'shield';
+type PageIcon = 'home' | 'brain' | 'dumbbell' | 'utensils' | 'timer' | 'blocks' | 'sparkles' | 'trendingUp' | 'shield' | 'bell';
 
 const BASE_QUICK_ACCESS_PAGES: (SearchResult & { pageIcon: PageIcon; badge?: string; badgeColor?: string })[] = [
   { id: 'overview', title: 'Tổng quan', subtitle: 'Trang chủ & thống kê', type: 'page', href: '/overview', pageIcon: 'home' },
@@ -72,6 +38,7 @@ const BASE_QUICK_ACCESS_PAGES: (SearchResult & { pageIcon: PageIcon; badge?: str
   { id: 'exercises', title: 'Bài tập', subtitle: 'Lịch tập và thư viện', type: 'page', href: '/exercises', pageIcon: 'dumbbell' },
   { id: 'diet-plan', title: 'Thực đơn', subtitle: 'Bữa ăn và calories', type: 'page', href: '/diet-plan', pageIcon: 'utensils' },
   { id: 'progress', title: 'Tiến độ', subtitle: 'Theo dõi thay đổi', type: 'page', href: '/progress', pageIcon: 'trendingUp' },
+  { id: 'notifications', title: 'Thông báo', subtitle: 'Lịch tập, dinh dưỡng và AI Coach', type: 'page', href: '/notifications', pageIcon: 'bell' },
 ];
 
 const PAGE_ICON_MAP: Record<PageIcon, { Icon: React.ElementType; bg: string; color: string }> = {
@@ -84,6 +51,34 @@ const PAGE_ICON_MAP: Record<PageIcon, { Icon: React.ElementType; bg: string; col
   sparkles:  { Icon: Sparkles, bg: 'bg-ai/10', color: 'text-ai' },
   trendingUp: { Icon: TrendingUp, bg: 'bg-warning/10', color: 'text-warning' },
   shield:    { Icon: Shield,   bg: 'bg-danger/10', color: 'text-danger' },
+  bell:      { Icon: Bell,     bg: 'bg-accent/10', color: 'text-accent' },
+};
+
+const NOTIFICATION_TONE_MAP: Record<NotificationTone, { Icon: React.ElementType; bg: string; color: string }> = {
+  workout: { Icon: CalendarCheck, bg: 'bg-accent/10', color: 'text-accent' },
+  nutrition: { Icon: Droplet, bg: 'bg-info/10', color: 'text-info' },
+  coach: { Icon: MessageSquare, bg: 'bg-ai/10', color: 'text-ai' },
+  progress: { Icon: Flame, bg: 'bg-warning/10', color: 'text-warning' },
+  system: { Icon: CheckCircle2, bg: 'bg-bg-tertiary', color: 'text-text-secondary' },
+};
+
+const formatNotificationTime = (isoDate: string): string => {
+  const then = new Date(isoDate).getTime();
+  const diffMs = Date.now() - then;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (!Number.isFinite(then)) return 'Vừa xong';
+  if (diffMs < minute) return 'Vừa xong';
+  if (diffMs < hour) return `${Math.floor(diffMs / minute)} phút trước`;
+  if (diffMs < day) return `${Math.floor(diffMs / hour)} giờ trước`;
+  if (diffMs < day * 2) return 'Hôm qua';
+  return `${Math.floor(diffMs / day)} ngày trước`;
+};
+
+const isWaterNotification = (item: UserNotification): boolean => {
+  return item.tone === 'nutrition' && item.dedupe_key.startsWith('water:');
 };
 
 function ResultIcon({ type, pageIcon }: { type: string; pageIcon?: PageIcon }) {
@@ -104,8 +99,10 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('theme') === 'light';
   });
-  const { user, profile, isAdmin, membershipTier, isPremium, openPremiumModal } = useAuth();
+  const { user, profile, isAdmin, membershipTier, isPremium, openPremiumModal, refreshTick } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isNotificationsPage = location.pathname === '/notifications';
   const quickAccessPages = isAdmin
     ? [
         ...BASE_QUICK_ACCESS_PAGES,
@@ -127,10 +124,16 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [recordingWaterId, setRecordingWaterId] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchRegionRef = useRef<HTMLDivElement>(null);
+  const notificationRegionRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const unreadCount = notifications.filter((item) => !item.read_at).length;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -158,6 +161,64 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (e: MouseEvent) => {
+      if (notificationRegionRef.current && !notificationRegionRef.current.contains(e.target as Node)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsNotificationsOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const loadNotifications = useCallback(async (syncActionable = false) => {
+    if (!user?.id) {
+      setNotifications([]);
+      return;
+    }
+
+    setIsLoadingNotifications(true);
+    try {
+      if (syncActionable) {
+        await ensureActionableNotifications(user.id);
+      }
+      const items = await fetchUserNotifications(user.id);
+      setNotifications(items);
+    } catch (error) {
+      console.error('Notification load error:', error);
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    void loadNotifications(true);
+  }, [loadNotifications, refreshTick]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`topbar_notifications_${user.id}_${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_notifications', filter: `user_id=eq.${user.id}` }, () => {
+        void loadNotifications(false);
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadNotifications, user?.id]);
 
   const doSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -249,7 +310,57 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
 
   const openSearchPanel = () => {
     setIsOpen(true);
+    setIsNotificationsOpen(false);
     window.setTimeout(() => inputRef.current?.focus(), 20);
+  };
+
+  const toggleNotifications = () => {
+    setIsNotificationsOpen((value) => !value);
+    setIsOpen(false);
+    if (!isNotificationsOpen) void loadNotifications(true);
+  };
+
+  const markAllNotificationsRead = async () => {
+    if (!user?.id || unreadCount === 0) return;
+    const readAt = new Date().toISOString();
+    setNotifications((items) => items.map((item) => ({ ...item, read_at: item.read_at || readAt })));
+    try {
+      await markAllUserNotificationsRead(user.id);
+      await loadNotifications(false);
+    } catch (error) {
+      console.error('Notification mark all read error:', error);
+      await loadNotifications(false);
+    }
+  };
+
+  const openNotification = async (item: UserNotification) => {
+    if (user?.id && !item.read_at) {
+      const readAt = new Date().toISOString();
+      setNotifications((items) => items.map((notification) => (
+        notification.id === item.id ? { ...notification, read_at: readAt } : notification
+      )));
+      try {
+        await markNotificationRead(user.id, item.id);
+      } catch (error) {
+        console.error('Notification mark read error:', error);
+      }
+    }
+    setIsNotificationsOpen(false);
+    navigate(item.href);
+  };
+
+  const recordWater = async (item: UserNotification) => {
+    if (!user?.id || recordingWaterId) return;
+    setRecordingWaterId(item.id);
+    try {
+      await recordWaterFromNotification(user.id);
+      await loadNotifications(true);
+    } catch (error) {
+      console.error('Notification water record error:', error);
+      await loadNotifications(false);
+    } finally {
+      setRecordingWaterId(null);
+    }
   };
 
   const searchDropdown = (
@@ -361,6 +472,105 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
     </div>
   );
 
+  const notificationDropdown = (
+    <div className="topbar-notification-dropdown topbar-search-dropdown overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-2xl shadow-black/40 backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-3 border-b border-border-primary px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-primary">Thông báo</p>
+          <p className="text-xs text-text-tertiary">
+            {unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : 'Bạn đã xem hết thông báo mới'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={markAllNotificationsRead}
+          disabled={unreadCount === 0}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:text-accent disabled:cursor-default disabled:opacity-45"
+          aria-label="Đánh dấu tất cả đã đọc"
+          title="Đánh dấu tất cả đã đọc"
+        >
+          <CheckCheck className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="max-h-[22rem] overflow-y-auto py-2 custom-scrollbar">
+        {isLoadingNotifications && notifications.length === 0 ? (
+          <div className="py-8 text-center">
+            <Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin text-text-tertiary" />
+            <p className="text-sm text-text-tertiary">Đang tải thông báo...</p>
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="py-8 text-center">
+            <Bell className="mx-auto mb-2 h-7 w-7 text-text-tertiary" />
+            <p className="text-sm font-semibold text-text-primary">Chưa có thông báo</p>
+            <p className="mt-1 text-xs text-text-tertiary">Khi có lịch tập, nước uống hoặc cập nhật AI, chúng sẽ xuất hiện ở đây.</p>
+          </div>
+        ) : notifications.map((item) => {
+          const { Icon, bg, color } = NOTIFICATION_TONE_MAP[item.tone];
+          const isRead = Boolean(item.read_at);
+
+          return (
+            <div
+              key={item.id}
+              className={`group flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-tertiary ${isRead ? 'opacity-75' : 'bg-bg-tertiary/45'}`}
+            >
+              <button
+                type="button"
+                onClick={() => openNotification(item)}
+                className="flex min-w-0 flex-1 items-start gap-3 text-left"
+              >
+                <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${bg}`}>
+                  <Icon className={`h-4 w-4 ${color}`} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="line-clamp-1 text-sm font-semibold text-text-primary group-hover:text-accent">{item.title}</span>
+                    {!isRead && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" />}
+                  </span>
+                  <span className="mt-1 line-clamp-2 text-xs leading-5 text-text-secondary">{item.message}</span>
+                  <span className="mt-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">{formatNotificationTime(item.updated_at || item.created_at)}</span>
+                </span>
+              </button>
+
+              {isWaterNotification(item) && (
+                <button
+                  type="button"
+                  onClick={() => recordWater(item)}
+                  disabled={recordingWaterId === item.id}
+                  className="mt-0.5 inline-flex h-8 shrink-0 items-center justify-center rounded-full bg-info/10 px-3 text-[11px] font-semibold text-info transition-colors hover:bg-info/15 disabled:cursor-default disabled:opacity-60"
+                >
+                  {recordingWaterId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Đã uống'}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="border-t border-border-primary px-4 py-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (isNotificationsPage) {
+              void loadNotifications(true);
+            } else {
+              setIsNotificationsOpen(false);
+              navigate('/notifications');
+            }
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-full border border-border-primary bg-bg-secondary px-3 py-2 text-xs font-semibold text-text-secondary transition-colors hover:border-accent/30 hover:text-accent"
+        >
+          {isNotificationsPage ? 'Cập nhật thông báo' : 'Xem tất cả thông báo'}
+          {isNotificationsPage && isLoadingNotifications ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <header className="topbar-shell h-[72px] md:h-20 px-4 md:px-8 flex items-center justify-between border-b border-border-primary bg-bg-secondary sticky top-0 z-30 shrink-0">
       <div className="flex items-center gap-4 flex-1">
@@ -452,10 +662,26 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
         </button>
 
 
-        <button className="topbar-action topbar-action-icon-only relative hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent">
-          <Bell className="w-5 h-5 transition-colors" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-accent rounded-full"></span>
-        </button>
+        <div ref={notificationRegionRef} className="relative">
+          <button
+            type="button"
+            onClick={toggleNotifications}
+            className={`topbar-action topbar-action-icon-only relative flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent ${isNotificationsOpen ? '[&_svg]:text-accent' : ''}`}
+            aria-label={`Thông báo${unreadCount > 0 ? `, ${unreadCount} chưa đọc` : ''}`}
+            aria-expanded={isNotificationsOpen}
+          >
+            <Bell className="w-5 h-5 transition-colors" />
+            {unreadCount > 0 && (
+              <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-accent shadow-[0_0_0_2px_var(--bg-secondary)]" />
+            )}
+          </button>
+
+          {isNotificationsOpen && (
+            <div className="fixed left-4 right-4 top-[76px] z-50 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[28rem] sm:translate-x-10 md:translate-x-14">
+              {notificationDropdown}
+            </div>
+          )}
+        </div>
 
         <span className="hidden md:block h-8 w-px bg-border-primary"></span>
 
