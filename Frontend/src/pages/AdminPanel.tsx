@@ -257,9 +257,24 @@ export default function AdminPanel() {
 
   const requestJson = async <T,>(path: string, init?: RequestInit): Promise<T> => {
     const response = await fetchWithAuth(path, init);
-    const payload = await response.json().catch(() => ({}));
+    const responseText = await response.text();
+    let payload: any = {};
+    try {
+      payload = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      payload = {};
+    }
+
     if (!response.ok) {
-      throw new Error(payload?.error || 'Không thể tải dữ liệu quản trị');
+      const serverMessage = payload?.error || payload?.message || responseText?.trim();
+      const fallbackByStatus: Record<number, string> = {
+        401: 'Phiên đăng nhập đã hết hạn hoặc thiếu token.',
+        403: 'Tài khoản hiện tại chưa có quyền quản trị.',
+        404: 'Backend hiện tại chưa có API quản trị. Hãy kiểm tra deploy Render.',
+        500: 'Backend gặp lỗi khi tải dữ liệu quản trị.',
+        503: 'Backend Render đang không sẵn sàng hoặc service đang lỗi.'
+      };
+      throw new Error(serverMessage || fallbackByStatus[response.status] || `Không thể tải dữ liệu quản trị (HTTP ${response.status})`);
     }
     return payload.data ?? payload;
   };
