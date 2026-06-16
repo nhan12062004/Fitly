@@ -399,24 +399,21 @@ export default function AdminPanel() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="overview-hero overflow-hidden rounded-xl border border-border-primary px-5 py-5 md:px-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-danger">Admin</p>
-            <h1 className="mt-2 text-2xl font-black text-text-primary">Quản trị viên</h1>
-            <p className="mt-1 text-sm font-semibold text-text-secondary">Kiểm soát người dùng, bài tập, thức ăn và dữ liệu vận hành.</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void loadData()}
-            disabled={loading}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/40 disabled:opacity-60"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            Làm mới
-          </button>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-black text-text-primary">Quản trị viên</h1>
+          <p className="mt-1 text-sm font-semibold text-text-secondary">Người dùng, bài tập, thức ăn và vận hành hệ thống.</p>
         </div>
-      </section>
+        <button
+          type="button"
+          onClick={() => void loadData()}
+          disabled={loading}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-secondary px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/40 disabled:opacity-60"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+          Làm mới
+        </button>
+      </div>
 
       <div className="flex flex-wrap gap-2 rounded-xl border border-border-primary bg-bg-secondary/80 p-2">
         {tabs.map((tab) => {
