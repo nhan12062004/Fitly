@@ -958,31 +958,47 @@ function SummaryDelta({ delta }: { delta: number | null }) {
   );
 }
 
-type ProgressTone = 'accent' | 'info' | 'warning' | 'ai';
+type ProgressTone = 'accent' | 'info' | 'warning' | 'ai' | 'score' | 'workout' | 'nutrition' | 'water' | 'weight' | 'coach';
 
-const toneStyles: Record<ProgressTone, { icon: string; bar: string; soft: string; text: string }> = {
+const toneStyles: Record<ProgressTone, { toneClass: string; text: string }> = {
   accent: {
-    icon: 'bg-accent/10 text-accent',
-    bar: 'bg-accent',
-    soft: 'bg-accent/10 border-accent/20',
+    toneClass: 'progress-tone-score',
     text: 'text-accent',
   },
   info: {
-    icon: 'bg-info/10 text-info',
-    bar: 'bg-info',
-    soft: 'bg-info/10 border-info/20',
+    toneClass: 'progress-tone-nutrition',
     text: 'text-info',
   },
   warning: {
-    icon: 'bg-warning/10 text-warning',
-    bar: 'bg-warning',
-    soft: 'bg-warning/10 border-warning/20',
+    toneClass: 'progress-tone-recovery',
     text: 'text-warning',
   },
   ai: {
-    icon: 'bg-ai/12 text-ai',
-    bar: 'bg-ai',
-    soft: 'bg-ai/10 border-ai/20',
+    toneClass: 'progress-tone-weight',
+    text: 'text-ai',
+  },
+  score: {
+    toneClass: 'progress-tone-score',
+    text: 'text-accent',
+  },
+  workout: {
+    toneClass: 'progress-tone-workout',
+    text: 'text-accent',
+  },
+  nutrition: {
+    toneClass: 'progress-tone-nutrition',
+    text: 'text-info',
+  },
+  water: {
+    toneClass: 'progress-tone-water',
+    text: 'text-info',
+  },
+  weight: {
+    toneClass: 'progress-tone-weight',
+    text: 'text-ai',
+  },
+  coach: {
+    toneClass: 'progress-tone-coach',
     text: 'text-ai',
   },
 };
@@ -995,12 +1011,32 @@ function getProgressPercent(value: number, target: number): number {
 
 function ProgressBar({ percent, tone = 'accent' }: { percent: number; tone?: ProgressTone }) {
   return (
-    <div className="mt-4 h-2 overflow-hidden rounded-full bg-bg-tertiary">
+    <div className={`progress-bar-track mt-4 h-2 overflow-hidden rounded-full ${toneStyles[tone].toneClass}`}>
       <div
-        className={`h-full rounded-full ${toneStyles[tone].bar}`}
+        className="progress-bar-fill h-full rounded-full"
         style={{ width: `${clamp(percent, 0, 100)}%` }}
       />
     </div>
+  );
+}
+
+function ProgressIcon({
+  icon,
+  tone = 'accent',
+  size = 'md',
+}: {
+  icon: ReactNode;
+  tone?: ProgressTone;
+  size?: 'sm' | 'md';
+}) {
+  return (
+    <span className={`progress-svg-mark progress-svg-mark--${size} ${toneStyles[tone].toneClass}`} aria-hidden="true">
+      <svg className="progress-svg-orbit" viewBox="0 0 48 48" focusable="false">
+        <circle className="progress-svg-ring" cx="24" cy="24" r="17" />
+        <path className="progress-svg-spark" d="M24 5.5c5.4 0 10.3 2.3 13.7 6M42.5 24c0 4.7-1.8 9-4.8 12.2M10.3 36.2A18.4 18.4 0 0 1 5.5 24" />
+      </svg>
+      <span className="progress-svg-glyph">{icon}</span>
+    </span>
   );
 }
 
@@ -1028,9 +1064,7 @@ function MetricTile({
           <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">{label}</p>
           <p className="mt-3 text-2xl font-black leading-tight text-text-primary">{value}</p>
         </div>
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${toneStyles[tone].icon}`}>
-          {icon}
-        </span>
+        <ProgressIcon icon={icon} tone={tone} size="sm" />
       </div>
       <p className="mt-2 text-xs font-semibold leading-5 text-text-secondary">{helper}</p>
       {typeof percent === 'number' && <ProgressBar percent={percent} tone={tone} />}
@@ -1334,7 +1368,7 @@ export default function Progress() {
               value={viewModel.score.value !== null ? `${viewModel.score.value}/100` : '--'}
               helper="Tổng hợp từ tập luyện, ăn uống và phục hồi"
               icon={<Target className="h-5 w-5" />}
-              tone="accent"
+              tone="score"
               percent={scorePercent}
             />
             <MetricTile
@@ -1344,7 +1378,7 @@ export default function Progress() {
                 : `${viewModel.workout.completedDays} buổi`}
               helper={`${formatWholeNumber(viewModel.workout.totalMinutes)} phút trong giai đoạn này.`}
               icon={<Dumbbell className="h-5 w-5" />}
-              tone="accent"
+              tone="workout"
               percent={workoutPercent}
               footer={hasWorkoutTarget ? <SummaryDelta delta={viewModel.summary.workouts.delta} /> : null}
             />
@@ -1355,7 +1389,7 @@ export default function Progress() {
                 : `${viewModel.nutrition.loggedDays} ngày log`}
               helper={`${formatWholeNumber(viewModel.nutrition.averageCalories)} kcal, ${formatWholeNumber(viewModel.nutrition.averageProtein)}g protein trung bình.`}
               icon={<Utensils className="h-5 w-5" />}
-              tone="info"
+              tone="nutrition"
               percent={nutritionPercent}
             />
             <MetricTile
@@ -1363,7 +1397,7 @@ export default function Progress() {
               value={weightSummaryValue}
               helper={hasWeightSamples ? viewModel.weight.status : 'Chưa có dữ liệu cân.'}
               icon={<Scale className="h-5 w-5" />}
-              tone="ai"
+              tone="weight"
             />
           </section>
 
@@ -1374,9 +1408,7 @@ export default function Progress() {
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Tập luyện</p>
                   <h2 className="mt-2 text-xl font-black text-text-primary">{viewModel.workout.completedDays} buổi đã xong</h2>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                  <Dumbbell className="h-5 w-5" />
-                </span>
+                <ProgressIcon icon={<Dumbbell className="h-5 w-5" />} tone="workout" size="sm" />
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
                 {viewModel.workout.strip.map((day) => (
@@ -1417,9 +1449,7 @@ export default function Progress() {
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">Dinh dưỡng</p>
                   <h2 className="mt-2 text-xl font-black text-text-primary">Calories theo ngày</h2>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-info/10 text-info">
-                  <Flame className="h-5 w-5" />
-                </span>
+                <ProgressIcon icon={<Flame className="h-5 w-5" />} tone="nutrition" size="sm" />
               </div>
               <div className="mt-4 h-[230px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1443,7 +1473,7 @@ export default function Progress() {
                       {viewModel.nutrition.chart.map((entry) => (
                         <Cell
                           key={entry.dateKey}
-                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'var(--accent-primary)' : 'var(--info-primary)'}
+                          fill={entry.calories === 0 ? 'rgba(148,163,184,0.22)' : entry.inTarget ? 'var(--progress-nutrition)' : 'var(--progress-recovery)'}
                         />
                       ))}
                     </Bar>
@@ -1464,9 +1494,7 @@ export default function Progress() {
                       : 'Chưa đủ dữ liệu'}
                   </h2>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ai/10 text-ai">
-                  <Scale className="h-5 w-5" />
-                </span>
+                <ProgressIcon icon={<Scale className="h-5 w-5" />} tone="weight" size="sm" />
               </div>
 
               {hasWeightTrend ? (
@@ -1492,9 +1520,9 @@ export default function Progress() {
                       <Line
                         type="monotone"
                         dataKey="weight"
-                        stroke="var(--ai-primary)"
+                        stroke="var(--progress-weight)"
                         strokeWidth={3}
-                        dot={{ fill: 'var(--ai-primary)', r: 3 }}
+                        dot={{ fill: 'var(--progress-weight)', stroke: 'var(--bg-secondary)', strokeWidth: 2, r: 4 }}
                         activeDot={{ r: 5 }}
                         connectNulls={false}
                       />
@@ -1517,9 +1545,7 @@ export default function Progress() {
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">AI Coach</p>
                   <h2 className="mt-2 text-xl font-black text-text-primary">{viewModel.coach.title}</h2>
                 </div>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ai/10 text-ai">
-                  <Brain className="h-5 w-5" />
-                </span>
+                <ProgressIcon icon={<Brain className="h-5 w-5" />} tone="coach" size="sm" />
               </div>
               <p className="mt-4 text-sm font-semibold leading-7 text-text-secondary">{viewModel.coach.body}</p>
               <div className="mt-4 grid gap-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { CheckCircle2, ChevronRight, Droplet, Dumbbell, Sparkles, Utensils } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
@@ -79,6 +79,24 @@ const initialDailyNutrition = {
 };
 
 const ESTIMATED_MINUTES_PER_EXERCISE = 8;
+
+type TodayIconTone = 'score' | 'workout' | 'nutrition' | 'water' | 'weight' | 'coach';
+
+function TodayIcon({
+  icon,
+  tone,
+  size = 'md'
+}: {
+  icon: ReactNode;
+  tone: TodayIconTone;
+  size?: 'sm' | 'md';
+}) {
+  return (
+    <span className={`progress-svg-mark progress-svg-mark--${size} progress-tone-${tone}`} aria-hidden="true">
+      <span className="progress-svg-glyph">{icon}</span>
+    </span>
+  );
+}
 
 const formatWholeNumber = (value: number) => Math.round(Number(value) || 0).toLocaleString('vi-VN');
 
@@ -689,9 +707,7 @@ export default function Overview() {
                   </h2>
                   <p className="mt-2 text-sm font-semibold text-text-secondary">{workoutMetaLine}</p>
                 </div>
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-accent/20 bg-accent/10 text-accent">
-                  <Dumbbell className="h-5 w-5" />
-                </span>
+                <TodayIcon icon={<Dumbbell className="h-5 w-5" />} tone="workout" size="sm" />
               </div>
 
               <div className="themed-subtle-panel flex flex-1 flex-col rounded-xl border p-4">
@@ -765,7 +781,9 @@ export default function Overview() {
             </>
           ) : (
             <div className="mt-6 flex flex-1 flex-col justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
-              <Sparkles className="mx-auto h-9 w-9 text-ai" />
+              <span className="mx-auto inline-flex">
+                <TodayIcon icon={<Sparkles className="h-5 w-5" />} tone="coach" size="sm" />
+              </span>
               <p className="mx-auto mt-4 w-full max-w-[18rem] min-w-0 break-words text-sm font-semibold leading-6 text-text-secondary sm:max-w-[26rem]">
                 Trợ lý cá nhân có thể tạo lịch tập và thực đơn dựa trên mục tiêu của bạn.
               </p>
@@ -787,9 +805,7 @@ export default function Overview() {
               <p className="mt-4 text-base font-black text-text-primary">Đã ăn: {formatWholeNumber(actualMealTotalKcal)} / {formatWholeNumber(mealTarget)} kcal</p>
               <p className="mt-2 text-base font-black text-text-primary">Protein: {mealProtein} / {mealProteinTarget}g</p>
             </div>
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-info/10 text-info">
-              <Utensils className="h-5 w-5" />
-            </span>
+            <TodayIcon icon={<Utensils className="h-5 w-5" />} tone="nutrition" size="sm" />
           </div>
 
           <div className="space-y-3">
@@ -824,9 +840,7 @@ export default function Overview() {
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">3. Tiến độ hôm nay</p>
             </div>
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-ai/10 text-ai">
-              <CheckCircle2 className="h-5 w-5" />
-            </span>
+            <TodayIcon icon={<CheckCircle2 className="h-5 w-5" />} tone="score" size="sm" />
           </div>
 
           <div className="space-y-5">
@@ -848,7 +862,7 @@ export default function Overview() {
 
           <div className="mt-auto rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-4">
             <div className="flex items-center gap-3">
-              <Droplet className="h-5 w-5 text-info" />
+              <TodayIcon icon={<Droplet className="h-5 w-5" />} tone="water" size="sm" />
               <p className="text-sm font-semibold leading-6 text-text-secondary">
                 Cập nhật nước, giấc ngủ và hoàn thành tập luyện để Trợ lý cá nhân đánh giá tiến độ chính xác hơn.
               </p>

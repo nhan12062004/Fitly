@@ -56,6 +56,13 @@ type DietPlanPageCache = {
   waterLogDate: string;
 };
 
+type SavePlanOptions = {
+  weeklyPlanOverride?: Record<number, PlanFood[]>;
+  restDaysOverride?: Record<number, boolean>;
+  showSuccess?: boolean;
+  successMessage?: string;
+};
+
 const DAYS = [
   { id: 0, label: 'TH 2', full: 'Thứ 2' },
   { id: 1, label: 'TH 3', full: 'Thứ 3' },
@@ -395,7 +402,7 @@ export default function DietPlan() {
   const [planName, setPlanName] = useState(() => initialDietCache?.planName || DEFAULT_PLAN_NAME);
   const [isLoading, setIsLoading] = useState(() => !initialDietCache);
   const [, setIsRefreshing] = useState(false);
-  const [, setIsSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(initialWeekStart);
   const [targetCalories, setTargetCalories] = useState(() => initialDietCache?.targetCalories || DEFAULT_CALORIE_TARGET);
   const [waterIntake, setWaterIntake] = useState(() => initialWaterIntake);
@@ -754,39 +761,46 @@ export default function DietPlan() {
     setFoodPickerOpen(true);
   };
 
-  const autoCreateMenu = () => {
+  const autoCreateMenu = async () => {
     if (foods.length === 0) {
       setFoodPickerOpen(true);
       return;
     }
 
-    setWeeklyPlan((prev) => {
-      const current = prev[selectedDayId] || [];
-      const nextItems = [...current];
+    const existingItems = weeklyPlan[selectedDayId] || [];
+    const nextItems = hasMenuForSelectedDay ? [] : [...existingItems];
 
-      MEAL_TYPES.forEach((meal, index) => {
-        if (nextItems.some((item) => item.meal_type === meal.id)) return;
-        const food = foods[index % foods.length];
-        nextItems.push({
-          tempId: crypto.randomUUID(),
-          weekly_food_item_id: null,
-          food_id: food.id,
-          name: food.name,
-          image_url: food.image_url,
-          category: food.category,
-          meal_type: meal.id,
-          quantity: 1,
-          calories: food.calories,
-          protein: food.protein,
-          carbs: food.carbs,
-          fat: food.fat,
-          is_rest_day: false
-        });
+    MEAL_TYPES.forEach((meal, index) => {
+      if (nextItems.some((item) => item.meal_type === meal.id)) return;
+      const food = foods[index % foods.length];
+      nextItems.push({
+        tempId: crypto.randomUUID(),
+        weekly_food_item_id: null,
+        food_id: food.id,
+        name: food.name,
+        image_url: food.image_url,
+        category: food.category,
+        meal_type: meal.id,
+        quantity: 1,
+        calories: food.calories,
+        protein: food.protein,
+        carbs: food.carbs,
+        fat: food.fat,
+        is_rest_day: false
       });
-
-      return { ...prev, [selectedDayId]: nextItems };
     });
-    setRestDays((prev) => ({ ...prev, [selectedDayId]: false }));
+
+    const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextItems };
+    const nextRestDays = { ...restDays, [selectedDayId]: false };
+
+    setWeeklyPlan(nextWeeklyPlan);
+    setRestDays(nextRestDays);
+
+    await savePlan({
+      weeklyPlanOverride: nextWeeklyPlan,
+      restDaysOverride: nextRestDays,
+      showSuccess: false
+    });
   };
 
   const saveWaterIntake = async (nextLiters: number) => {
@@ -805,11 +819,15 @@ export default function DietPlan() {
     }
   };
 
-  const savePlan = async () => {
+  const savePlan = async (options: SavePlanOptions = {}) => {
     if (!user) {
       alert('Vui lòng đăng nhập để lưu thực đơn.');
       return;
     }
+
+    const planToSave = options.weeklyPlanOverride || weeklyPlan;
+    const restDaysToSave = options.restDaysOverride || restDays;
+    const showSuccess = options.showSuccess ?? true;
 
     setIsSaving(true);
     try {
@@ -849,12 +867,12 @@ export default function DietPlan() {
 
       const rows: any[] = [];
       DAYS.forEach(({ id: dayIndex }) => {
-        if (restDays[dayIndex]) {
+        if (restDaysToSave[dayIndex]) {
           rows.push({ food_plan_id: nextPlanId, day_of_week: dayIndex, meal_type: 'breakfast', is_rest_day: true, order_index: 0 });
           return;
         }
 
-        (weeklyPlan[dayIndex] || []).forEach((item, index) => {
+        (planToSave[dayIndex] || []).forEach((item, index) => {
           rows.push({
             food_plan_id: nextPlanId,
             day_of_week: dayIndex,
@@ -870,12 +888,31 @@ export default function DietPlan() {
         });
       });
 
+      let insertedItems: Array<{ id: string; day_of_week: number; order_index: number }> = [];
       if (rows.length > 0) {
-        const { error } = await supabase.from('weekly_food_items').insert(rows);
+        const { data, error } = await supabase
+          .from('weekly_food_items')
+          .insert(rows)
+          .select('id, day_of_week, order_index');
         if (error) throw error;
+        insertedItems = data || [];
       }
 
-      alert('Đã lưu thực đơn.');
+      const insertedIdByDayAndOrder = new Map(
+        insertedItems.map((item) => [`${Number(item.day_of_week)}:${Number(item.order_index)}`, String(item.id)])
+      );
+      const planWithSavedIds = DAYS.reduce<Record<number, PlanFood[]>>((acc, { id: dayIndex }) => {
+        acc[dayIndex] = (planToSave[dayIndex] || []).map((item, index) => ({
+          ...item,
+          weekly_food_item_id: insertedIdByDayAndOrder.get(`${dayIndex}:${index}`) || item.weekly_food_item_id || null
+        }));
+        return acc;
+      }, {});
+
+      setWeeklyPlan(planWithSavedIds);
+      setRestDays(restDaysToSave);
+
+      if (showSuccess) alert(options.successMessage || 'Đã lưu thực đơn.');
     } catch (error: any) {
       alert(`Không thể lưu thực đơn: ${error.message}`);
     } finally {
@@ -977,10 +1014,11 @@ export default function DietPlan() {
               <button
                 type="button"
                 onClick={autoCreateMenu}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover"
+                disabled={isSaving}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Bot className="h-4 w-4" />
-                {aiMenuButtonLabel}
+                {isSaving ? 'Đang lưu...' : aiMenuButtonLabel}
               </button>
             </div>
 
@@ -1125,10 +1163,11 @@ export default function DietPlan() {
                   <button
                     type="button"
                     onClick={autoCreateMenu}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover"
+                    disabled={isSaving}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Bot className="h-4 w-4" />
-                    Tạo thực đơn AI
+                    {isSaving ? 'Đang lưu...' : 'Tạo thực đơn AI'}
                   </button>
                   <button
                     type="button"
@@ -1224,10 +1263,11 @@ export default function DietPlan() {
           <button
             type="button"
             onClick={autoCreateMenu}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-black text-text-inverse transition hover:bg-accent-hover"
+            disabled={isSaving}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-black text-text-inverse transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Bot className="h-4 w-4" />
-            {aiMenuButtonLabel}
+            {isSaving ? 'Đang lưu...' : aiMenuButtonLabel}
           </button>
           <button
             type="button"

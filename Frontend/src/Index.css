@@ -47,6 +47,13 @@
   --shadow-rgb: 0 0 0;
   --chart-grid: rgba(255, 255, 255, 0.08);
   --chart-tick: #a1a1aa;
+  --progress-score: #f59e0b;
+  --progress-workout: #22c55e;
+  --progress-nutrition: #38bdf8;
+  --progress-water: #60a5fa;
+  --progress-recovery: #fb7185;
+  --progress-weight: #a78bfa;
+  --progress-coach: #c084fc;
 
   --text-main: #f8fafc;
   --text-secondary: #a1a1aa;
@@ -124,6 +131,13 @@
   --shadow-rgb: 15 23 42;
   --chart-grid: rgba(15, 23, 42, 0.10);
   --chart-tick: #64748b;
+  --progress-score: #d97706;
+  --progress-workout: #16a34a;
+  --progress-nutrition: #0284c7;
+  --progress-water: #2563eb;
+  --progress-recovery: #e11d48;
+  --progress-weight: #7c3aed;
+  --progress-coach: #9333ea;
 
   --text-main: #0f172a;
   --text-secondary: #475569;
@@ -939,6 +953,117 @@ body {
     box-shadow:
       0 14px 34px rgb(var(--shadow-rgb) / 0.10),
       inset 0 1px 0 rgba(255,255,255,0.035);
+  }
+
+  .progress-tone-score {
+    --progress-tone: var(--progress-score);
+    --progress-tone-soft: color-mix(in srgb, var(--progress-score) 16%, transparent);
+    --progress-tone-mid: color-mix(in srgb, var(--progress-score) 38%, transparent);
+  }
+
+  .progress-tone-workout {
+    --progress-tone: var(--progress-workout);
+    --progress-tone-soft: color-mix(in srgb, var(--progress-workout) 16%, transparent);
+    --progress-tone-mid: color-mix(in srgb, var(--progress-workout) 38%, transparent);
+  }
+
+  .progress-tone-nutrition {
+    --progress-tone: var(--progress-nutrition);
+    --progress-tone-soft: color-mix(in srgb, var(--progress-nutrition) 16%, transparent);
+    --progress-tone-mid: color-mix(in srgb, var(--progress-nutrition) 38%, transparent);
+  }
+
+  .progress-tone-water {
+    --progress-tone: var(--progress-water);
+    --progress-tone-soft: color-mix(in srgb, var(--progress-water) 16%, transparent);
+    --progress-tone-mid: color-mix(in srgb, var(--progress-water) 38%, transparent);
+  }
+
+  .progress-tone-recovery {
+    --progress-tone: var(--progress-recovery);
+    --progress-tone-soft: color-mix(in srgb, var(--progress-recovery) 16%, transparent);
+    --progress-tone-mid: color-mix(in srgb, var(--progress-recovery) 38%, transparent);
+  }
+
+  .progress-tone-weight {
+    --progress-tone: var(--progress-weight);
+    --progress-tone-soft: color-mix(in srgb, var(--progress-weight) 16%, transparent);
+    --progress-tone-mid: color-mix(in srgb, var(--progress-weight) 38%, transparent);
+  }
+
+  .progress-tone-coach {
+    --progress-tone: var(--progress-coach);
+    --progress-tone-soft: color-mix(in srgb, var(--progress-coach) 16%, transparent);
+    --progress-tone-mid: color-mix(in srgb, var(--progress-coach) 38%, transparent);
+  }
+
+  .progress-svg-mark {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid var(--progress-tone-mid);
+    border-radius: 1rem;
+    color: var(--progress-tone);
+    background: var(--progress-tone-soft);
+    box-shadow: none;
+  }
+
+  .progress-svg-mark--sm {
+    height: 2.5rem;
+    width: 2.5rem;
+    border-radius: 0.75rem;
+  }
+
+  .progress-svg-mark--md {
+    height: 3rem;
+    width: 3rem;
+    border-radius: 1rem;
+  }
+
+  .progress-svg-orbit {
+    display: none;
+  }
+
+  .progress-svg-ring {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.2;
+    opacity: 0.22;
+  }
+
+  .progress-svg-spark {
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-width: 2.4;
+    opacity: 0.72;
+  }
+
+  .progress-svg-glyph {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--progress-tone);
+  }
+
+  .progress-svg-glyph svg {
+    stroke-width: 2.35;
+    filter: none;
+  }
+
+  .progress-bar-track {
+    background: color-mix(in srgb, var(--bg-tertiary) 76%, transparent);
+  }
+
+  .progress-bar-fill {
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--progress-tone) 78%, white 22%), var(--progress-tone));
+    box-shadow: 0 0 18px color-mix(in srgb, var(--progress-tone) 36%, transparent);
   }
 
   .progress-range-tabs {
