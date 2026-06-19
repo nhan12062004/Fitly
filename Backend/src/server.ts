@@ -108,6 +108,11 @@ const normalizeKeywordText = (value: unknown) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd');
 const includesAnyKeyword = (value: string, keywords: string[]) => keywords.some((keyword) => value.includes(keyword));
+const normalizeKeywordTokens = (value: unknown) =>
+  normalizeKeywordText(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
 const getBearerToken = (authorizationHeader: unknown): string | null => {
   const raw = String(authorizationHeader || '');
   if (!raw.toLowerCase().startsWith('bearer ')) return null;
@@ -190,6 +195,11 @@ const foodMatchesMealType = (food: any, mealType: string): boolean => {
   return mealTypes.includes(mealType) || mealTypes.includes('all') || mealTypes.includes('any');
 };
 
+const getLimitedFoodFamilyKey = (food: any): string => {
+  const name = normalizeKeywordTokens(food?.name);
+  return name.startsWith('banh ') ? 'banh' : '';
+};
+
 const classifyFoodComponent = (food: any): MealComponentGroup => {
   const text = normalizeKeywordText(`${food?.category || ''} ${food?.name || ''}`);
   const protein = Number(food?.protein || 0);
@@ -197,7 +207,7 @@ const classifyFoodComponent = (food: any): MealComponentGroup => {
   const fat = Number(food?.fat || 0);
   const calories = Number(food?.calories || 0);
 
-  if (includesAnyKeyword(text, ['rau', 'cu', 'salad', 'vegetable', 'greens', 'broccoli', 'spinach', 'cai', 'dua leo', 'ca chua'])) {
+  if (includesAnyKeyword(text, ['rau', 'salad', 'vegetable', 'greens', 'broccoli', 'spinach', 'cai', 'dua leo', 'ca chua'])) {
     return 'vegetable';
   }
   if (includesAnyKeyword(text, ['trai cay', 'fruit', 'chuoi', 'tao', 'cam', 'dau tay', 'berries'])) {
@@ -275,7 +285,8 @@ const pickFoodForComponent = (
   foods: any[],
   mealType: string,
   group: MealComponentGroup,
-  usedFoodIds: Set<string>
+  usedFoodIds: Set<string>,
+  usedLimitedFamilyKeys: Set<string> = new Set()
 ) => {
   const candidates = foods.filter((food) => {
     const id = String(food?.id || '');
@@ -283,15 +294,22 @@ const pickFoodForComponent = (
     return classifyFoodComponent(food) === group;
   });
   const scoped = candidates.filter((food) => foodMatchesMealType(food, mealType));
-  const pool = scoped.length ? scoped : candidates;
+  const mealPool = scoped.length ? scoped : candidates;
+  const familyScoped = mealPool.filter((food) => {
+    const familyKey = getLimitedFoodFamilyKey(food);
+    return !familyKey || !usedLimitedFamilyKeys.has(familyKey);
+  });
+  const pool = familyScoped.length ? familyScoped : mealPool;
   return [...pool].sort((a, b) => {
     const aEasy = a?.is_easy_to_prepare ? -8 : 0;
     const bEasy = b?.is_easy_to_prepare ? -8 : 0;
     const aMeal = foodMatchesMealType(a, mealType) ? -12 : 0;
     const bMeal = foodMatchesMealType(b, mealType) ? -12 : 0;
+    const aFamily = getLimitedFoodFamilyKey(a) ? 18 : 0;
+    const bFamily = getLimitedFoodFamilyKey(b) ? 18 : 0;
     const aCalories = Math.abs(Number(a?.calories || 0) - (group === 'vegetable' ? 45 : group === 'protein' ? 160 : 180));
     const bCalories = Math.abs(Number(b?.calories || 0) - (group === 'vegetable' ? 45 : group === 'protein' ? 160 : 180));
-    return aEasy + aMeal + aCalories - (bEasy + bMeal + bCalories);
+    return aEasy + aMeal + aFamily + aCalories - (bEasy + bMeal + bFamily + bCalories);
   })[0] || null;
 };
 
@@ -315,21 +333,73 @@ const expandAiMealItems = (meals: any[], foodById: Map<string, any>) =>
     });
   });
 
+const rebalanceRepeatedFoodFamilies = (
+  meals: any[],
+  foodById: Map<string, any>,
+  foods: any[],
+  usedFoodIds: Set<string>
+) => {
+  const usedLimitedFamilyKeys = new Set<string>();
+
+  return meals.map((item) => {
+    const foodId = String(item?.food_id || '');
+    const food = foodById.get(foodId);
+    const familyKey = getLimitedFoodFamilyKey(food);
+    if (!familyKey) return item;
+    if (!usedLimitedFamilyKeys.has(familyKey)) {
+      usedLimitedFamilyKeys.add(familyKey);
+      return item;
+    }
+
+    const group = classifyFoodComponent(food);
+    const searchUsedFoodIds = new Set(usedFoodIds);
+    searchUsedFoodIds.delete(foodId);
+    const replacement = pickFoodForComponent(
+      foods,
+      String(item.meal_type || 'lunch'),
+      group,
+      searchUsedFoodIds,
+      usedLimitedFamilyKeys
+    );
+    if (!replacement?.id) return item;
+
+    const replacementId = String(replacement.id);
+    usedFoodIds.delete(foodId);
+    usedFoodIds.add(replacementId);
+    const replacementFamilyKey = getLimitedFoodFamilyKey(replacement);
+    if (replacementFamilyKey) usedLimitedFamilyKeys.add(replacementFamilyKey);
+
+    return {
+      ...item,
+      food_id: replacementId,
+      quantity: getDefaultMealQuantity(replacement, classifyFoodComponent(replacement), String(item.meal_type || 'lunch'))
+    };
+  });
+};
+
 const enrichMealComponents = (rawMeals: any[], mealsPerDay: number, foodById: Map<string, any>, foods: any[]) => {
   const slots = Array.from(new Set(getMealSlotsForCount(mealsPerDay)));
-  const result = (Array.isArray(rawMeals) ? rawMeals : [])
+  let result = (Array.isArray(rawMeals) ? rawMeals : [])
     .filter((item) => foodById.has(String(item?.food_id || '')))
     .map((item) => ({
       ...item,
       meal_type: String(item.meal_type || 'lunch').toLowerCase()
     }));
   const usedFoodIds = new Set(result.map((item) => String(item.food_id || '')).filter(Boolean));
+  result = rebalanceRepeatedFoodFamilies(result, foodById, foods, usedFoodIds);
+  const usedLimitedFamilyKeys = new Set(
+    result
+      .map((item) => getLimitedFoodFamilyKey(foodById.get(String(item.food_id || ''))))
+      .filter(Boolean)
+  );
 
   const addComponent = (mealType: string, group: MealComponentGroup) => {
-    const candidate = pickFoodForComponent(foods, mealType, group, usedFoodIds);
+    const candidate = pickFoodForComponent(foods, mealType, group, usedFoodIds, usedLimitedFamilyKeys);
     if (!candidate?.id) return;
     const foodId = String(candidate.id);
     usedFoodIds.add(foodId);
+    const familyKey = getLimitedFoodFamilyKey(candidate);
+    if (familyKey) usedLimitedFamilyKeys.add(familyKey);
     result.push({
       meal_type: mealType,
       food_id: foodId,
@@ -1236,6 +1306,7 @@ Rules:
 - Each day must include exactly ${mealsPerDay} meals.
 - Allowed meal slots for each day: ${mealSlots.join(', ')}.
 - Do not add extra meals beyond those slots.
+- Do not put more than one food whose name starts with "Banh"/"Bánh" in the same day. Use varied staples, protein and real vegetables instead.
 - A meal object is one complete eating occasion, not one single food.
 - Lunch and dinner must have at least 3 food_ids: 1 group=carb/starch, 1 group=protein, and 1 group=vegetable. Example: rice + chicken/fish/tofu + vegetables.
 - Breakfast should have at least 2 food_ids when possible: carb + protein/dairy.
@@ -3839,6 +3910,7 @@ Rules:
 - Each day must include exactly ${mealsPerDay} meals.
 - Allowed meal slots for each day: ${mealSlots.join(', ')}.
 - Do not add extra meals beyond those slots.
+- Do not put more than one food whose name starts with "Banh"/"Bánh" in the same day. Use varied staples, protein and real vegetables instead.
 - A meal object is one complete eating occasion, not one single food.
 - Lunch and dinner must have at least 3 food_ids: 1 group=carb/starch, 1 group=protein, and 1 group=vegetable. Example: rice + chicken/fish/tofu + vegetables.
 - Breakfast should have at least 2 food_ids when possible: carb + protein/dairy.

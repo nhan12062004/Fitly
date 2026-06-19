@@ -23,6 +23,7 @@ interface Food {
   fat: number;
   serving_unit: string;
   image_url: string;
+  meal_type?: string[];
 }
 
 interface PlanFood {
@@ -148,7 +149,37 @@ const normalizeFoodText = (value: unknown) =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd');
 
-const hasAnyFoodKeyword = (value: string, keywords: string[]) => keywords.some((keyword) => value.includes(keyword));
+const normalizeFoodTokens = (value: unknown) =>
+  normalizeFoodText(value)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+const hasAnyFoodKeyword = (value: string, keywords: string[]) => {
+  const paddedValue = ` ${normalizeFoodTokens(value)} `;
+  return keywords.some((keyword) => {
+    const normalizedKeyword = normalizeFoodTokens(keyword);
+    return !!normalizedKeyword && paddedValue.includes(` ${normalizedKeyword} `);
+  });
+};
+
+const getFoodMealTypes = (food: Pick<Food, 'meal_type'>): MealTypeId[] => {
+  const raw = food.meal_type;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => String(item || '').toLowerCase())
+    .filter((item): item is MealTypeId => ['breakfast', 'lunch', 'dinner', 'snack'].includes(item));
+};
+
+const foodMatchesMealType = (food: Pick<Food, 'meal_type'>, mealType: MealTypeId) => {
+  const mealTypes = getFoodMealTypes(food);
+  return mealTypes.length === 0 || mealTypes.includes(mealType);
+};
+
+const getLimitedFoodFamilyKey = (food: Pick<Food, 'name'>) => {
+  const name = normalizeFoodTokens(food.name);
+  return name.startsWith('banh ') ? 'banh' : '';
+};
 
 const classifyFoodGroup = (food: Pick<Food, 'name' | 'category' | 'protein' | 'carbs' | 'fat' | 'calories'>): FoodGroup => {
   const text = normalizeFoodText(`${food.category || ''} ${food.name || ''}`);
@@ -281,10 +312,48 @@ const createPlanFood = (food: Food, mealType: MealTypeId, quantity = getDefaultF
   is_rest_day: false
 });
 
-const pickFoodByGroup = (foods: Food[], group: FoodGroup, usedFoodIds: Set<string>) =>
-  foods.find((food) => !usedFoodIds.has(food.id) && classifyFoodGroup(food) === group) || null;
+const getFoodGroupTargetCalories = (group: FoodGroup, mealType: MealTypeId) => {
+  if (group === 'vegetable') return 45;
+  if (group === 'protein') return mealType === 'breakfast' ? 140 : 180;
+  if (group === 'fruit') return 90;
+  if (group === 'fat') return 100;
+  return mealType === 'breakfast' ? 180 : 210;
+};
 
-const buildBalancedMealItems = (foods: Food[], mealType: MealTypeId, usedFoodIds: Set<string>) => {
+const pickFoodByGroup = (
+  foods: Food[],
+  group: FoodGroup,
+  mealType: MealTypeId,
+  usedFoodIds: Set<string>,
+  usedLimitedFamilyKeys: Set<string>
+) => {
+  const candidates = foods.filter((food) => !usedFoodIds.has(food.id) && classifyFoodGroup(food) === group);
+  const mealScoped = candidates.filter((food) => foodMatchesMealType(food, mealType));
+  const mealPool = mealScoped.length ? mealScoped : candidates;
+  const familyScoped = mealPool.filter((food) => {
+    const familyKey = getLimitedFoodFamilyKey(food);
+    return !familyKey || !usedLimitedFamilyKeys.has(familyKey);
+  });
+  const pool = familyScoped.length ? familyScoped : mealPool;
+  const targetCalories = getFoodGroupTargetCalories(group, mealType);
+
+  return [...pool].sort((a, b) => {
+    const aMealPenalty = foodMatchesMealType(a, mealType) ? 0 : 160;
+    const bMealPenalty = foodMatchesMealType(b, mealType) ? 0 : 160;
+    const aFamilyPenalty = getLimitedFoodFamilyKey(a) ? 25 : 0;
+    const bFamilyPenalty = getLimitedFoodFamilyKey(b) ? 25 : 0;
+    const aCaloriesGap = Math.abs(Number(a.calories || 0) - targetCalories);
+    const bCaloriesGap = Math.abs(Number(b.calories || 0) - targetCalories);
+    return (aMealPenalty + aFamilyPenalty + aCaloriesGap) - (bMealPenalty + bFamilyPenalty + bCaloriesGap);
+  })[0] || null;
+};
+
+const buildBalancedMealItems = (
+  foods: Food[],
+  mealType: MealTypeId,
+  usedFoodIds: Set<string>,
+  usedLimitedFamilyKeys: Set<string>
+) => {
   const groups: FoodGroup[] =
     mealType === 'lunch' || mealType === 'dinner'
       ? ['carb', 'protein', 'vegetable']
@@ -294,16 +363,29 @@ const buildBalancedMealItems = (foods: Food[], mealType: MealTypeId, usedFoodIds
 
   const items: PlanFood[] = [];
   groups.forEach((group) => {
-    const food = pickFoodByGroup(foods, group, usedFoodIds);
+    const food = pickFoodByGroup(foods, group, mealType, usedFoodIds, usedLimitedFamilyKeys);
     if (!food) return;
     usedFoodIds.add(food.id);
+    const familyKey = getLimitedFoodFamilyKey(food);
+    if (familyKey) usedLimitedFamilyKeys.add(familyKey);
     items.push(createPlanFood(food, mealType));
   });
 
   if (items.length === 0) {
-    const fallback = foods.find((food) => !usedFoodIds.has(food.id)) || foods[0];
+    const fallback =
+      foods.find((food) => {
+        const familyKey = getLimitedFoodFamilyKey(food);
+        return !usedFoodIds.has(food.id)
+          && foodMatchesMealType(food, mealType)
+          && (!familyKey || !usedLimitedFamilyKeys.has(familyKey));
+      }) ||
+      foods.find((food) => !usedFoodIds.has(food.id) && foodMatchesMealType(food, mealType)) ||
+      foods.find((food) => !usedFoodIds.has(food.id)) ||
+      foods[0];
     if (fallback) {
       usedFoodIds.add(fallback.id);
+      const familyKey = getLimitedFoodFamilyKey(fallback);
+      if (familyKey) usedLimitedFamilyKeys.add(familyKey);
       items.push(createPlanFood(fallback, mealType));
     }
   }
@@ -721,7 +803,10 @@ export default function DietPlan() {
           carbs: Number(food.carbs || 0),
           fat: Number(food.fat || 0),
           serving_unit: food.serving_unit || '100g',
-          image_url: food.image_url || ''
+          image_url: food.image_url || '',
+          meal_type: Array.isArray(food.meal_type)
+            ? food.meal_type.map((item: unknown) => String(item || '').toLowerCase()).filter(Boolean)
+            : []
         }));
         dietPlanFoodCache = normalizedFoods;
         setFoods(normalizedFoods);
@@ -901,10 +986,11 @@ export default function DietPlan() {
     const nextItems = hasMenuForSelectedDay ? [] : [...existingItems];
 
     const usedFoodIds = new Set(nextItems.map((item) => item.food_id).filter(Boolean));
+    const usedLimitedFamilyKeys = new Set(nextItems.map(getLimitedFoodFamilyKey).filter(Boolean));
 
     activeMealTypes.forEach((meal) => {
       if (nextItems.some((item) => item.meal_type === meal.id)) return;
-      nextItems.push(...buildBalancedMealItems(foods, meal.id, usedFoodIds));
+      nextItems.push(...buildBalancedMealItems(foods, meal.id, usedFoodIds, usedLimitedFamilyKeys));
     });
 
     const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextItems };
