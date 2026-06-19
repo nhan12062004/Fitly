@@ -470,6 +470,48 @@ const buildHighProteinMealReply = () =>
     'Giữ dầu mỡ vừa phải, ưu tiên luộc/áp chảo/nướng để no lâu mà không đội calories quá cao.',
   ].join('\n\n');
 
+const buildNoMealPlanSuggestionReply = (question: string) => {
+  const normalized = normalizeVietnameseClient(question);
+  const mealLabel = normalized.includes('sang')
+    ? 'bữa sáng'
+    : normalized.includes('toi')
+      ? 'bữa tối'
+      : normalized.includes('phu') || normalized.includes('snack')
+        ? 'bữa phụ'
+        : 'bữa trưa';
+
+  const options =
+    mealLabel === 'bữa sáng'
+      ? [
+          '2 trứng + 1 hũ sữa chua Hy Lạp không đường + 1 quả chuối.',
+          'Yến mạch 50g + sữa ít béo + 1 muỗng whey hoặc 150g sữa chua.',
+          'Bánh mì nguyên cám + ức gà hoặc cá ngừ + rau xà lách.',
+        ]
+      : mealLabel === 'bữa tối'
+        ? [
+            'Cá hồi hoặc cá thu 150g + rau luộc/xào ít dầu + 1/2 chén cơm.',
+            'Ức gà áp chảo 160g + salad lớn + khoai lang 150g.',
+            'Đậu phụ sốt cà chua + trứng luộc + rau xanh, tinh bột vừa phải.',
+          ]
+        : mealLabel === 'bữa phụ'
+          ? [
+              'Sữa chua Hy Lạp + chuối hoặc dâu.',
+              '1 ly sữa ít béo + 1 nắm hạt nhỏ.',
+              '2 trứng luộc hoặc 1 hộp cá ngừ nhỏ nếu cần thêm protein.',
+            ]
+          : [
+              'Ức gà áp chảo 160-180g + 1 chén cơm + rau xanh.',
+              'Cá ngừ/cá hồi 150g + khoai lang 200g + salad.',
+              'Bò nạc 120-150g hoặc đậu phụ + cơm vừa phải + rau luộc.',
+            ];
+
+  return [
+    `Mình chưa thấy thực đơn chi tiết hôm nay, nhưng vẫn có thể gợi ý ${mealLabel} ngay:`,
+    options.map((item, index) => `${index + 1}. ${item}`).join('\n'),
+    'Chọn 1 món theo nguyên tắc: đủ đạm, nhiều rau, tinh bột vừa phải. Nếu bạn cho mình mục tiêu hiện tại như giảm cân/tăng cơ và cân nặng, mình sẽ chỉnh khẩu phần sát hơn.',
+  ].join('\n\n');
+};
+
 const isWeekStartColumnError = (error: any) =>
   String(error?.message || '').includes('week_start_date') ||
   String(error?.details || '').includes('week_start_date') ||
@@ -625,6 +667,10 @@ const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' 
 
   if (isGreetingQuestion(question)) {
     return buildNaturalGreetingReply(day);
+  }
+
+  if (day.meals.length === 0 && inferredTopic === 'meal') {
+    return buildNoMealPlanSuggestionReply(question);
   }
 
   if (

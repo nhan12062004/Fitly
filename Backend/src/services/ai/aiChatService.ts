@@ -164,6 +164,58 @@ const buildDailyCalorieTargetReply = (context?: AIChatContext): string => {
   ].join('\n\n');
 };
 
+const buildNoMealPlanSuggestionReply = (message: string, context?: AIChatContext): string => {
+  const normalized = normalizeVietnameseText(message);
+  const mealLabel = normalized.includes('sang')
+    ? 'bua sang'
+    : normalized.includes('toi')
+      ? 'bua toi'
+      : normalized.includes('phu') || normalized.includes('snack')
+        ? 'bua phu'
+        : 'bua trua';
+  const lifestyle = context?.lifestyle || {};
+  const goalText = normalizeVietnameseText(String((lifestyle as any).fitness_goal || ''));
+  const isMuscleGain = goalText.includes('tang co') || goalText.includes('muscle');
+  const isWeightLoss = goalText.includes('giam') || goalText.includes('loss');
+
+  const options =
+    mealLabel === 'bua sang'
+      ? [
+          '2 trung + 1 hu sua chua Hy Lap khong duong + 1 qua chuoi.',
+          'Yen mach 50g + sua it beo + 1 muong whey hoac 150g sua chua.',
+          'Banh mi nguyen cam + uc ga hoac ca ngu + rau xa lach.',
+        ]
+      : mealLabel === 'bua toi'
+        ? [
+            'Ca hoi hoac ca thu 150g + rau luoc/xao it dau + 1/2 chen com.',
+            'Uc ga ap chao 160g + salad lon + khoai lang 150g.',
+            'Dau phu sot ca chua + trung luoc + rau xanh, tinh bot vua phai.',
+          ]
+        : mealLabel === 'bua phu'
+          ? [
+              'Sua chua Hy Lap + chuoi hoac dau.',
+              '1 ly sua it beo + 1 nam hat nho.',
+              '2 trung luoc hoac 1 hop ca ngu nho neu can them protein.',
+            ]
+          : [
+              'Uc ga ap chao 160-180g + 1 chen com + rau xanh.',
+              'Ca ngu/ca hoi 150g + khoai lang 200g + salad.',
+              'Bo nac 120-150g hoac dau phu + com vua phai + rau luoc.',
+            ];
+
+  const goalNote = isMuscleGain
+    ? 'Neu dang tang co, tang them 1 phan tinh bot hoac sua sau bua.'
+    : isWeightLoss
+      ? 'Neu dang giam can, giu rau nhieu va giam bot dau/nuoc sot.'
+      : 'Neu chua ro muc tieu, giu khau phan vua phai va uu tien protein.';
+
+  return [
+    `Minh chua thay thuc don chi tiet hom nay, nhung co the goi y ${mealLabel} ngay:`,
+    options.map((item, index) => `${index + 1}. ${item}`).join('\n'),
+    `${goalNote} Neu ban cho minh can nang va muc tieu hien tai, minh se can lai khau phan sat hon.`,
+  ].join('\n\n');
+};
+
 const buildPlanOverviewReply = (message: string, context?: AIChatContext): string => {
   const normalized = normalizeVietnameseText(message);
   const dayLabel = context?.targetDayLabel || 'Hom nay';
@@ -230,7 +282,7 @@ const buildPlanOverviewReply = (message: string, context?: AIChatContext): strin
         .join('\n');
       sections.push(`${dayLabel} co ${meals.length} mon an:\n${lines}`);
     } else {
-      sections.push(`${dayLabel} hien chua co mon an nao trong thuc don.`);
+      sections.push(buildNoMealPlanSuggestionReply(message, context));
     }
   }
 
