@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth } from '../lib/Api';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../components/ToastProvider';
 
 type AdminTab = 'overview' | 'users' | 'exercises' | 'foods';
 
@@ -233,6 +234,7 @@ const toFoodForm = (row?: FoodRow | null): FoodForm => {
 
 export default function AdminPanel() {
   const { isAdmin } = useAuth();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -311,6 +313,10 @@ export default function AdminPanel() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error, toast]);
 
   const openNewExerciseForm = () => {
     setEditingExercise(null);
@@ -462,12 +468,6 @@ export default function AdminPanel() {
           );
         })}
       </div>
-
-      {error && (
-        <div className="rounded-xl border border-danger/25 bg-danger/10 px-4 py-3 text-sm font-semibold text-danger">
-          {error}
-        </div>
-      )}
 
       {activeTab !== 'overview' && (
         <div className="flex flex-col gap-3 rounded-xl border border-border-primary bg-bg-secondary/80 p-3 md:flex-row md:items-center md:justify-between">

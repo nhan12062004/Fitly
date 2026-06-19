@@ -6,6 +6,7 @@ import { fetchWithAuth } from '../lib/Api';
 import { createDailyExerciseSession } from '../lib/DailyExercises';
 import { supabase } from '../lib/Supabase';
 import { SkeletonBlock } from '../components/PageSkeleton';
+import { useToast } from '../components/ToastProvider';
 
 interface ExerciseDetailsLocationState {
   exercise?: ExerciseDetailItem;
@@ -127,6 +128,7 @@ export default function ExerciseDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const toast = useToast();
   const state = (location.state || {}) as ExerciseDetailsLocationState;
   const cachedExercise = state.exercise?.id ? exerciseDetailsCache.get(String(state.exercise.id)) || null : null;
   const initialExerciseDetail = state.exercise || cachedExercise || null;
@@ -136,7 +138,6 @@ export default function ExerciseDetails() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | ''>('');
-  const [toastVisible, setToastVisible] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(() => !initialExerciseDetail);
 
   const getVietnamDateKey = (date = new Date()): string => {
@@ -236,19 +237,19 @@ export default function ExerciseDetails() {
 
   useEffect(() => {
     if (!saveMessage) return;
-    setToastVisible(true);
-    const hide = window.setTimeout(() => {
-      setToastVisible(false);
-    }, 2200);
+    if (saveStatus === 'success') {
+      toast.success(saveMessage);
+    } else {
+      toast.error(saveMessage);
+    }
     const clear = window.setTimeout(() => {
       setSaveMessage('');
       setSaveStatus('');
-    }, 2600);
+    }, 0);
     return () => {
-      window.clearTimeout(hide);
       window.clearTimeout(clear);
     };
-  }, [saveMessage]);
+  }, [saveMessage, saveStatus, toast]);
 
   useEffect(() => {
     const exerciseId = state.exercise?.id;
@@ -321,20 +322,6 @@ export default function ExerciseDetails() {
 
   return (
     <div className="dashboard-page-shell overflow-y-auto custom-scrollbar text-sm pb-4 md:pb-6 lg:pb-7">
-      {saveMessage && (
-        <div
-          className={`fixed left-1/2 top-5 z-[200] -translate-x-1/2 rounded-lg border px-4 py-2.5 text-sm shadow-xl transition-all duration-300 ${
-            toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-          } ${
-            saveStatus === 'success'
-              ? 'border-accent/50 bg-accent/15 text-accent-muted'
-              : 'border-red-400/50 bg-red-500/15 text-red-200'
-          }`}
-        >
-          {saveMessage}
-        </div>
-      )}
-
       <ExerciseDetailOverlay
         key={`${exerciseDetail.id}-${exerciseDetail.gif_url}`}
         exercise={exerciseDetail}

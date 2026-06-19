@@ -20,6 +20,7 @@ import {
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
+import { useToast } from '../components/ToastProvider';
 
 const emptyForm = {
   full_name: '',
@@ -76,6 +77,7 @@ const getBmiStatus = (bmi: number | null) => {
 
 export default function Profile() {
   const { user, profile, membershipTier, refreshProfile } = useAuth();
+  const toast = useToast();
   const [formData, setFormData] = useState(emptyForm);
   const [latestBodyCreatedAt, setLatestBodyCreatedAt] = useState('');
   const [loading, setLoading] = useState(true);
@@ -145,6 +147,10 @@ export default function Profile() {
       cancelled = true;
     };
   }, [reloadKey, user?.id]);
+
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error, toast]);
 
   const bmi = useMemo(() => {
     const height = Number(formData.height);
@@ -301,12 +307,6 @@ export default function Profile() {
           <ProfileStat icon={<HeartPulse className="h-4 w-4" />} label="Sức khỏe" value={formatValue(formData.health_condition || formData.injuries, 'Không có lưu ý')} tone="danger" />
         </div>
       </section>
-
-      {error ? (
-        <div className="rounded-xl border border-danger/25 bg-danger/10 px-4 py-3 text-sm font-semibold text-danger">
-          {error}
-        </div>
-      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.72fr)]">
         <section className="rounded-xl border border-border-primary bg-bg-secondary p-5 shadow-[0_18px_50px_rgba(0,0,0,0.10)] md:p-6">

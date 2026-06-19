@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
+import { useToast } from './ToastProvider';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, initialMode = 'login', onClose }: AuthModalProps) {
+  const toast = useToast();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +36,10 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
     setShowPassword(false);
     setShowConfirmPassword(false);
   }, [isLogin, isOpen]);
+
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error, toast]);
 
   if (!isOpen) return null;
 
@@ -245,12 +251,6 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/50 rounded-xl text-red-500 text-xs text-center">
-                {error}
               </div>
             )}
 

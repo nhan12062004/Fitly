@@ -33,6 +33,16 @@ type NotificationUpsert = {
 };
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
+const WATER_REMINDER_SLOTS = ['09:00', '11:00', '14:00', '16:00', '20:00', '22:00'] as const;
+const WATER_MESSAGES = [
+  'Bắt đầu ngày mới bằng vài ngụm nước để giữ năng lượng ổn định.',
+  'Một nhịp nghỉ ngắn để bổ sung nước và giữ sự tập trung.',
+  'Cơ thể đang cần nước để hỗ trợ vận động, trao đổi chất và phục hồi.',
+  'Tạm dừng 30 giây. Uống chậm vài ngụm để duy trì hiệu suất trong ngày.',
+  'Bổ sung nước vừa đủ cho buổi tối, nhẹ nhàng và không quá sát giờ ngủ.',
+  'Kết ngày bằng một lượng nước nhỏ để cơ thể dễ chịu hơn khi nghỉ ngơi.'
+] as const;
+const SLEEP_REMINDER_SLOT = '09:30';
 
 const getDatePartsInTimeZone = (date: Date, timeZone: string) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -57,6 +67,36 @@ const addDaysToDateKey = (dateKey: string, days: number): string => {
   const date = new Date(`${dateKey}T00:00:00`);
   date.setDate(date.getDate() + days);
   return getVietnamDateKey(date);
+};
+
+const getVietnamTimeParts = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: VIETNAM_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  return {
+    hour: Number(parts.find((p) => p.type === 'hour')?.value || 0),
+    minute: Number(parts.find((p) => p.type === 'minute')?.value || 0)
+  };
+};
+
+const timeLabelToMinutes = (label: string): number => {
+  const [hour, minute] = label.split(':').map(Number);
+  return (Number(hour) || 0) * 60 + (Number(minute) || 0);
+};
+
+const getElapsedReminderSlots = (slots: readonly string[], date = new Date()): string[] => {
+  const { hour, minute } = getVietnamTimeParts(date);
+  const currentMinutes = hour * 60 + minute;
+  return slots.filter((slot) => timeLabelToMinutes(slot) <= currentMinutes);
+};
+
+const formatNumber = (value: unknown, fallback = '0'): string => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Number.isInteger(parsed) ? String(parsed) : parsed.toFixed(1);
 };
 
 const getWeekStartKey = (date = new Date()): string => {
@@ -129,7 +169,7 @@ export const recordWaterFromNotification = async (userId: string, amountMl = 250
   const [progressRes, lifestyleRes] = await Promise.all([
     supabase
       .from('daily_progress_logs')
-      .select('water_intake_ml')
+      .select('water_intake_ml, sleep_hours')
       .eq('user_id', userId)
       .eq('log_date', todayKey)
       .maybeSingle(),
@@ -166,19 +206,43 @@ export const recordWaterFromNotification = async (userId: string, amountMl = 250
   return nextMl;
 };
 
+export const recordSleepFromNotification = async (userId: string, sleepHours: number): Promise<number> => {
+  const todayKey = getVietnamDateKey();
+  const normalizedHours = Math.max(0, Math.min(12, Number(sleepHours) || 0));
+
+  const { error } = await supabase
+    .from('daily_progress_logs')
+    .upsert({
+      user_id: userId,
+      log_date: todayKey,
+      sleep_hours: normalizedHours,
+    }, { onConflict: 'user_id,log_date' });
+
+  if (error) throw error;
+  return normalizedHours;
+};
+
 export const ensureActionableNotifications = async (userId: string) => {
   const todayKey = getVietnamDateKey();
   const weekStartKey = getWeekStartKey();
   const twoWeeksAgoKey = addDaysToDateKey(todayKey, -14);
 
   const [
+    profileRes,
     lifestyleRes,
     progressRes,
+    yesterdayProgressRes,
+    healthRes,
     todayExercisesRes,
     latestAdjustmentRes,
     latestWorkoutPlanRes,
     completedExerciseRes,
   ] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', userId)
+      .maybeSingle(),
     supabase
       .from('lifestyle_settings')
       .select('daily_water_goal, workout_duration')
@@ -189,6 +253,17 @@ export const ensureActionableNotifications = async (userId: string) => {
       .select('water_intake_ml')
       .eq('user_id', userId)
       .eq('log_date', todayKey)
+      .maybeSingle(),
+    supabase
+      .from('daily_progress_logs')
+      .select('sleep_hours')
+      .eq('user_id', userId)
+      .eq('log_date', addDaysToDateKey(todayKey, -1))
+      .maybeSingle(),
+    supabase
+      .from('health_conditions')
+      .select('sleep_hours, sleep_quality')
+      .eq('user_id', userId)
       .maybeSingle(),
     supabase
       .from('daily_exercise_sessions')
@@ -224,6 +299,7 @@ export const ensureActionableNotifications = async (userId: string) => {
 
   const now = new Date().toISOString();
   const rows: NotificationUpsert[] = [];
+  const displayName = String(profileRes.data?.full_name || 'bạn');
 
   const todayExercises = todayExercisesRes.data || [];
   if (!todayExercisesRes.error && todayExercises.length > 0) {
@@ -251,20 +327,75 @@ export const ensureActionableNotifications = async (userId: string) => {
     const waterIntakeMl = Math.max(0, Number(progressRes.data?.water_intake_ml) || 0);
     if (waterGoalMl > 0) {
       const remainingMl = Math.max(0, waterGoalMl - waterIntakeMl);
+      const waterPercent = Math.min(100, Math.round((waterIntakeMl / Math.max(1, waterGoalMl)) * 100));
+      getElapsedReminderSlots(WATER_REMINDER_SLOTS).forEach((slot, slotIndex) => {
+        rows.push({
+          user_id: userId,
+          tone: 'nutrition',
+          title: `Fitly Daily Check-in · ${slot}`,
+          message: [
+            `Chào ${displayName}, ${WATER_MESSAGES[slotIndex]}`,
+            `Nước hôm nay: ${waterIntakeMl}/${waterGoalMl}ml · ${waterPercent}%.`,
+            remainingMl > 0
+              ? `Còn ${remainingMl}ml để đạt mục tiêu.`
+              : 'Mục tiêu nước hôm nay đã hoàn thành.',
+            'Ghi nhanh lượng nước vừa uống:'
+          ].join(' '),
+          href: '/overview',
+          source_type: 'daily_progress_logs',
+          dedupe_key: `water:${todayKey}:${slot}`,
+          metadata: {
+            log_date: todayKey,
+            slot,
+            slot_index: slotIndex,
+            water_goal_ml: waterGoalMl,
+            water_intake_ml: waterIntakeMl,
+            water_percent: waterPercent,
+          },
+          updated_at: now,
+        });
+      });
+    }
+  }
+
+  if (!healthRes.error && !progressRes.error && getElapsedReminderSlots([SLEEP_REMINDER_SLOT]).length > 0) {
+    const todaySleepHours = Number((progressRes.data as any)?.sleep_hours || 0);
+    const yesterdaySleepHours = Number(yesterdayProgressRes.data?.sleep_hours || 0);
+    if (!todaySleepHours) {
+      const targetSleepHours = Number(healthRes.data?.sleep_hours || 8);
+      const sleepQuality = String(healthRes.data?.sleep_quality || 'chưa ghi');
       rows.push({
         user_id: userId,
-        tone: 'nutrition',
-        title: remainingMl > 0 ? 'Nhắc uống nước' : 'Bạn đã đạt mục tiêu nước',
-        message: remainingMl > 0
-          ? `Bạn còn thiếu khoảng ${remainingMl}ml để đạt mục tiêu ${waterGoalMl}ml hôm nay.`
-          : `Đã ghi nhận ${waterIntakeMl}ml nước hôm nay. Làm tốt lắm.`,
+        tone: 'progress',
+        title: `Fitly Recovery Check-in · ${SLEEP_REMINDER_SLOT}`,
+        message: [
+          `Chào ${displayName}, ghi lại giấc ngủ để Fitly theo dõi phục hồi và điều chỉnh nhịp tập chính xác hơn.`,
+          `Mục tiêu: ${formatNumber(targetSleepHours, '8')}h/đêm.`,
+          `Chất lượng đã khai báo: ${sleepQuality}.`,
+          yesterdaySleepHours ? `Hôm qua: ${formatNumber(yesterdaySleepHours)}h.` : 'Hôm qua: chưa ghi nhận.',
+          'Đêm qua bạn ngủ bao lâu?'
+        ].join(' '),
         href: '/overview',
         source_type: 'daily_progress_logs',
-        dedupe_key: `water:${todayKey}`,
-        metadata: { log_date: todayKey, water_goal_ml: waterGoalMl, water_intake_ml: waterIntakeMl },
+        dedupe_key: `sleep:${todayKey}:${SLEEP_REMINDER_SLOT}`,
+        metadata: {
+          log_date: todayKey,
+          slot: SLEEP_REMINDER_SLOT,
+          target_sleep_hours: targetSleepHours,
+          sleep_quality: sleepQuality,
+          yesterday_sleep_hours: yesterdaySleepHours,
+        },
         updated_at: now,
       });
     }
+  }
+
+  if (!progressRes.error && Number((progressRes.data as any)?.sleep_hours || 0) > 0) {
+    await supabase
+      .from('user_notifications')
+      .update({ expires_at: now, updated_at: now })
+      .eq('user_id', userId)
+      .eq('dedupe_key', `sleep:${todayKey}:${SLEEP_REMINDER_SLOT}`);
   }
 
   const latestAdjustment = latestAdjustmentRes.data;
@@ -316,6 +447,12 @@ export const ensureActionableNotifications = async (userId: string) => {
   }
 
   if (rows.length === 0) return;
+
+  await supabase
+    .from('user_notifications')
+    .update({ expires_at: now, updated_at: now })
+    .eq('user_id', userId)
+    .eq('dedupe_key', `water:${todayKey}`);
 
   const { error } = await supabase
     .from('user_notifications')

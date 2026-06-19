@@ -8,6 +8,7 @@ import {
   fetchUserNotifications,
   markAllUserNotificationsRead,
   markNotificationRead,
+  recordSleepFromNotification,
   recordWaterFromNotification,
   type NotificationTone,
   type UserNotification,
@@ -52,6 +53,13 @@ const isWaterNotification = (item: UserNotification): boolean => {
   return item.tone === 'nutrition' && item.dedupe_key.startsWith('water:');
 };
 
+const isSleepNotification = (item: UserNotification): boolean => {
+  return item.dedupe_key.startsWith('sleep:');
+};
+
+const WATER_QUICK_AMOUNTS = [250, 500, 750, 1000];
+const SLEEP_QUICK_HOURS = [4, 5, 6, 7, 8, 9, 10];
+
 export default function Notifications() {
   const { user, refreshTick } = useAuth();
   const navigate = useNavigate();
@@ -59,7 +67,7 @@ export default function Notifications() {
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [recordingWaterId, setRecordingWaterId] = useState<string | null>(null);
+  const [recordingActionId, setRecordingActionId] = useState<string | null>(null);
 
   const unreadCount = notifications.filter((item) => !item.read_at).length;
 
@@ -86,6 +94,14 @@ export default function Notifications() {
   useEffect(() => {
     void loadNotifications(true);
   }, [loadNotifications, refreshTick]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const intervalId = window.setInterval(() => {
+      void loadNotifications(true);
+    }, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [loadNotifications, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -154,17 +170,31 @@ export default function Notifications() {
     navigate(item.href);
   };
 
-  const recordWater = async (item: UserNotification) => {
-    if (!user?.id || recordingWaterId) return;
-    setRecordingWaterId(item.id);
+  const recordWater = async (item: UserNotification, amountMl: number) => {
+    if (!user?.id || recordingActionId) return;
+    setRecordingActionId(`${item.id}:water:${amountMl}`);
     try {
-      await recordWaterFromNotification(user.id);
+      await recordWaterFromNotification(user.id, amountMl);
       await loadNotifications(true);
     } catch (error) {
       console.error('Notifications page water record error:', error);
       await loadNotifications(false);
     } finally {
-      setRecordingWaterId(null);
+      setRecordingActionId(null);
+    }
+  };
+
+  const recordSleep = async (item: UserNotification, sleepHours: number) => {
+    if (!user?.id || recordingActionId) return;
+    setRecordingActionId(`${item.id}:sleep:${sleepHours}`);
+    try {
+      await recordSleepFromNotification(user.id, sleepHours);
+      await loadNotifications(true);
+    } catch (error) {
+      console.error('Notifications page sleep record error:', error);
+      await loadNotifications(false);
+    } finally {
+      setRecordingActionId(null);
     }
   };
 
@@ -243,7 +273,7 @@ export default function Notifications() {
               return (
                 <div
                   key={item.id}
-                  className={`group flex w-full items-start gap-3 py-4 text-left transition-colors hover:bg-bg-tertiary md:px-2 ${
+                  className={`group flex w-full flex-col gap-3 py-4 text-left transition-colors hover:bg-bg-tertiary md:px-2 lg:flex-row lg:items-start ${
                     isRead ? 'opacity-75' : 'bg-bg-tertiary/40'
                   }`}
                 >
@@ -276,16 +306,54 @@ export default function Notifications() {
                   {isWaterNotification(item) && (
                     <button
                       type="button"
-                      onClick={() => recordWater(item)}
-                      disabled={recordingWaterId === item.id}
+                      onClick={() => recordWater(item, 250)}
+                      disabled={Boolean(recordingActionId)}
                       className="mt-0.5 inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-info/10 px-3 text-xs font-semibold text-info transition-colors hover:bg-info/15 disabled:cursor-default disabled:opacity-60"
                     >
-                      {recordingWaterId === item.id ? (
+                      {recordingActionId === `${item.id}:water:250` ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        'Đã uống'
+                        '+250ml'
                       )}
                     </button>
+                  )}
+
+                  {isWaterNotification(item) && (
+                    <div className="flex shrink-0 flex-wrap gap-1.5 pl-13 lg:max-w-[15rem] lg:justify-end lg:pl-0">
+                      {WATER_QUICK_AMOUNTS.filter((amountMl) => amountMl !== 250).map((amountMl) => {
+                        const actionId = `${item.id}:water:${amountMl}`;
+                        return (
+                          <button
+                            key={amountMl}
+                            type="button"
+                            onClick={() => recordWater(item, amountMl)}
+                            disabled={Boolean(recordingActionId)}
+                            className="inline-flex h-8 min-w-16 items-center justify-center rounded-full bg-info/10 px-3 text-xs font-semibold text-info transition-colors hover:bg-info/15 disabled:cursor-default disabled:opacity-60"
+                          >
+                            {recordingActionId === actionId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `+${amountMl}ml`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {isSleepNotification(item) && (
+                    <div className="flex shrink-0 flex-wrap gap-1.5 pl-13 lg:max-w-[15rem] lg:justify-end lg:pl-0">
+                      {SLEEP_QUICK_HOURS.map((sleepHours) => {
+                        const actionId = `${item.id}:sleep:${sleepHours}`;
+                        return (
+                          <button
+                            key={sleepHours}
+                            type="button"
+                            onClick={() => recordSleep(item, sleepHours)}
+                            disabled={Boolean(recordingActionId)}
+                            className="inline-flex h-8 min-w-12 items-center justify-center rounded-full bg-warning/10 px-3 text-xs font-semibold text-warning transition-colors hover:bg-warning/15 disabled:cursor-default disabled:opacity-60"
+                          >
+                            {recordingActionId === actionId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : `${sleepHours}${sleepHours >= 10 ? 'h+' : 'h'}`}
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
               );

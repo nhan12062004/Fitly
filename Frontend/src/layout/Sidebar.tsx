@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import type { ElementType } from 'react';
 import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
+import { useToast } from '../components/ToastProvider';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
@@ -65,6 +66,15 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
   onPasswordClick?: () => void 
 }) {
   const { signOut, user, openPremiumModal, isAdmin, isPremium, profile, refreshProfile, refreshTick } = useAuth();
+  const toast = useToast();
+  const alert = (message: unknown) => {
+    const text = String(message || '');
+    if (/lỗi|loi|không tìm|khong tim|không thể|khong the|hết hạn|het han|chưa được|chua duoc/i.test(text)) {
+      toast.error(text);
+      return;
+    }
+    toast.success(text);
+  };
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [waterIntake, setWaterIntake] = useState(0);

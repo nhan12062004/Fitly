@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import {
-  AlertCircle,
   Bot,
   Dumbbell,
   Loader2,
@@ -18,6 +17,7 @@ import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
+import { useToast } from '../components/ToastProvider';
 import {
   DEFAULT_WORKOUT_FREQUENCY,
   WORKOUT_FREQUENCY_OPTIONS,
@@ -1085,6 +1085,7 @@ function TodayDigestBubble({ day }: { day: DayPlan }) {
 
 export default function AICoach() {
   const { user, isLoggedIn, refreshTick, profile, isPremium, refreshProfile, openPremiumModal } = useAuth();
+  const toast = useToast();
   const initialTodayDateKey = getVietnamDateKey();
   const initialWeekStartKey = getWeekStartKey(new Date(`${initialTodayDateKey}T00:00:00`));
   const initialCoachCache = user?.id ? aiCoachPageCache.get(`${user.id}:${initialWeekStartKey}:${initialTodayDateKey}`) || null : null;
@@ -1099,7 +1100,6 @@ export default function AICoach() {
   const [planSettings, setPlanSettings] = useState<PlanSettings>(() => ({ ...DEFAULT_PLAN_SETTINGS }));
   const [isPlanSettingsOpen, setIsPlanSettingsOpen] = useState(false);
   const [isSavingPlanSettings, setIsSavingPlanSettings] = useState(false);
-  const [error, setError] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [chatInput, setChatInput] = useState('');
@@ -1159,8 +1159,6 @@ export default function AICoach() {
       } else if (cached) {
         setIsRefreshingPlan(true);
       }
-      setError('');
-
       try {
         const lifestyleResult = await supabase
           .from('lifestyle_settings')
@@ -1279,7 +1277,7 @@ export default function AICoach() {
           setFoodItems((foodPlanItems.data || []) as FoodPlanItem[]);
         }
       } catch (err: any) {
-        setError(err?.message || 'Không thể tải kế hoạch từ AI Coach.');
+        toast.error(err?.message || 'Không thể tải kế hoạch từ AI Coach.');
       } finally {
         hasHydratedPlanRef.current = true;
         setLoading(false);
@@ -1311,7 +1309,6 @@ export default function AICoach() {
   const generateCoachPlan = async () => {
     if (!user?.id) return;
     setIsGenerating(true);
-    setError('');
 
     try {
       const sessionRes = await supabase.auth.getSession();
@@ -1337,7 +1334,7 @@ export default function AICoach() {
         err instanceof TypeError
           ? 'Không thể kết nối tới AI Coach. Kiểm tra backend, VITE_API_URL hoặc CORS.'
           : err?.message || 'Không thể tạo kế hoạch từ AI Coach.';
-      setError(message);
+      toast.error(message);
     } finally {
       setIsGenerating(false);
     }
@@ -1352,7 +1349,6 @@ export default function AICoach() {
   const savePlanSettings = async (mode: 'save' | 'regenerate') => {
     if (!user?.id) return;
     setIsSavingPlanSettings(true);
-    setError('');
 
     const normalizedFrequency = normalizeWorkoutFrequency(planSettings.activity_level);
     const normalizedDuration = normalizeWorkoutDurationTag(planSettings.workout_duration);
@@ -1388,7 +1384,7 @@ export default function AICoach() {
       }
       setIsPlanSettingsOpen(false);
     } catch (err: any) {
-      setError(err?.message || 'Không thể lưu cài đặt kế hoạch.');
+      toast.error(err?.message || 'Không thể lưu cài đặt kế hoạch.');
     } finally {
       setIsSavingPlanSettings(false);
     }
@@ -1610,7 +1606,7 @@ export default function AICoach() {
       shouldJumpToLatestRef.current = true;
       setReloadKey((value) => value + 1);
     } catch {
-      setError('Không thể cập nhật đề xuất lúc này. Vui lòng thử lại.');
+      toast.error('Không thể cập nhật đề xuất lúc này. Vui lòng thử lại.');
     }
   };
 
@@ -1638,7 +1634,7 @@ export default function AICoach() {
     const SpeechRecognitionCtor =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognitionCtor) {
-      setError('Trinh duyet hien tai chua ho tro ghi am thanh van ban.');
+      toast.warning('Trinh duyet hien tai chua ho tro ghi am thanh van ban.');
       return;
     }
 
@@ -1655,7 +1651,7 @@ export default function AICoach() {
     };
     recognition.onerror = () => {
       if (!voiceStopRequestedRef.current) {
-        setError('Không thể nhận diện giọng nói lúc này.');
+        toast.error('Không thể nhận diện giọng nói lúc này.');
       }
     };
     recognition.onend = () => {
@@ -1882,13 +1878,6 @@ export default function AICoach() {
   return (
     <div className="contents xl:flex xl:flex-col xl:gap-5">
       <div className="-mt-1 w-full space-y-4 text-sm text-text-primary">
-        {error ? (
-          <div className="flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            <AlertCircle className="h-4 w-4" />
-            {error}
-          </div>
-        ) : null}
-
         <section>
             <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
               <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-2">

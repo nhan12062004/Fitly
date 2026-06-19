@@ -11,6 +11,7 @@ import {
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
+import { useToast } from '../components/ToastProvider';
 
 interface Food {
   id: string;
@@ -387,6 +388,15 @@ export function DietPlanSkeleton() {
 
 export default function DietPlan() {
   const { user } = useAuth();
+  const toast = useToast();
+  const alert = (message: unknown) => {
+    const text = String(message || '');
+    if (/lỗi|loi|không thể|khong the|vui lòng|vui long|bạn cần|ban can/i.test(text)) {
+      toast.error(text);
+      return;
+    }
+    toast.success(text);
+  };
   const initialWeekStart = getWeekStart(getVietnamTodayDate());
   const initialWeekKey = toDateKey(initialWeekStart);
   const initialTodayKey = getVietnamDateKey();

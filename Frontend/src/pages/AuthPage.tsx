@@ -15,6 +15,7 @@ import {
 import ScrollReveal from '../components/ScrollReveal';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
+import { useToast } from '../components/ToastProvider';
 
 type AuthPageProps = {
   initialMode: 'login' | 'signup';
@@ -35,6 +36,7 @@ const signupHighlights = [
 export default function AuthPage({ initialMode }: AuthPageProps) {
   const navigate = useNavigate();
   const { isLoggedIn } = useAuth();
+  const toast = useToast();
   const [isLogin, setIsLogin] = useState(initialMode === 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,6 +59,10 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
     setShowConfirmPassword(false);
     setError(null);
   }, [isLogin]);
+
+  useEffect(() => {
+    if (error) toast.error(error);
+  }, [error, toast]);
 
   if (isLoggedIn) {
     return <Navigate to="/overview" replace />;
@@ -308,12 +314,6 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                         {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
                     </div>
-                  </div>
-                )}
-
-                {error && (
-                  <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-center text-xs font-semibold text-red-500">
-                    {error}
                   </div>
                 )}
 

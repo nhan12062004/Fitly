@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { SkeletonBlock } from '../components/PageSkeleton';
+import { useToast } from '../components/ToastProvider';
 
 interface SessionExercise {
   id: string;
@@ -310,6 +311,15 @@ export default function WorkoutSession() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const toast = useToast();
+  const alert = (message: unknown) => {
+    const text = String(message || '');
+    if (/lỗi|loi|không thể|khong the|thất bại|that bai/i.test(text)) {
+      toast.error(text);
+      return;
+    }
+    toast.success(text);
+  };
   const state = (location.state || {}) as WorkoutSessionLocationState;
   const [isPageLoading, setIsPageLoading] = useState(() => !state.session || state.session.length === 0);
   const [, setIsRefreshing] = useState(false);

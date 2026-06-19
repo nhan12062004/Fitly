@@ -10,6 +10,7 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
 import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
+import { useToast } from '../components/ToastProvider';
 
 interface SessionExercise {
   id: string;
@@ -377,6 +378,7 @@ export const ExercisesSkeleton = () => {
 export default function Exercises() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const cacheForToday =
     exercisesPageCache && exercisesPageCache.vnToday === getVietnamDateKey()
       ? exercisesPageCache
@@ -388,7 +390,6 @@ export default function Exercises() {
   const [savingExerciseId, setSavingExerciseId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | ''>('');
-  const [toastVisible, setToastVisible] = useState(false);
   const [library, setLibrary] = useState<ExerciseLibraryItem[]>(() => cacheForToday?.library || []);
   const [vnToday, setVnToday] = useState(() => getVietnamDateKey());
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -645,7 +646,7 @@ export default function Exercises() {
       }
     } catch (error: any) {
       setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: currentStatus } : s));
-      alert("Loi: " + (error?.message || 'Cap nhat trang thai that bai'));
+      toast.error("Loi: " + (error?.message || 'Cap nhat trang thai that bai'));
     }
   };
 
@@ -659,7 +660,7 @@ export default function Exercises() {
       if (removedItem) {
         setSession(prev => [...prev, removedItem].sort((a, b) => a.order_index - b.order_index));
       }
-      alert("Lỗi: " + (deleteSessionError.message || 'Xóa bài tập thất bại'));
+      toast.error("Lỗi: " + (deleteSessionError.message || 'Xóa bài tập thất bại'));
       return;
     }
 
@@ -757,19 +758,19 @@ export default function Exercises() {
 
   useEffect(() => {
     if (!saveMessage) return;
-    setToastVisible(true);
-    const hide = window.setTimeout(() => {
-      setToastVisible(false);
-    }, 2200);
+    if (saveStatus === 'success') {
+      toast.success(saveMessage);
+    } else {
+      toast.error(saveMessage);
+    }
     const clear = window.setTimeout(() => {
       setSaveMessage('');
       setSaveStatus('');
-    }, 2600);
+    }, 0);
     return () => {
-      window.clearTimeout(hide);
       window.clearTimeout(clear);
     };
-  }, [saveMessage]);
+  }, [saveMessage, saveStatus, toast]);
 
   useEffect(() => {
     if (session.length === 0) {
@@ -892,20 +893,6 @@ export default function Exercises() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      {saveMessage && (
-        <div
-          className={`fixed left-1/2 top-5 z-[200] -translate-x-1/2 rounded-lg border px-4 py-2.5 text-sm shadow-xl transition-all duration-300 ${
-            toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
-          } ${
-            saveStatus === 'success'
-              ? 'border-accent/50 bg-accent/15 text-accent-muted'
-              : 'border-red-400/50 bg-red-500/15 text-red-200'
-          }`}
-        >
-          {saveMessage}
-        </div>
-      )}
-
       <div className="today-workout-shell bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex flex-wrap items-center gap-3">

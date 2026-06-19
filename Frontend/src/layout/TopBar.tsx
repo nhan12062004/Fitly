@@ -207,6 +207,14 @@ export default function TopBar({ onMenuClick, onProfileClick }: { onMenuClick?: 
 
   useEffect(() => {
     if (!user?.id) return;
+    const intervalId = window.setInterval(() => {
+      void loadNotifications(true);
+    }, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [loadNotifications, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
 
     const channel = supabase
       .channel(`topbar_notifications_${user.id}_${Date.now()}`)

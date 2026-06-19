@@ -29,6 +29,7 @@ import {
   WORKOUT_DURATION_TAGS,
   normalizeWorkoutDurationTag,
 } from '../lib/WorkoutDuration';
+import { useToast } from './ToastProvider';
 
 export type SurveyPlanSummary = {
   goal: string;
@@ -241,6 +242,7 @@ const estimateTargetCalories = ({
 
 export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormProps) {
   const { user, refreshProfile } = useAuth();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [isPreloading, setIsPreloading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -396,6 +398,10 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     }
     loadCurrentData();
   }, [user, isOpen]);
+
+  React.useEffect(() => {
+    if (submitError) toast.error(submitError);
+  }, [submitError, toast]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -899,11 +905,6 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
 
         {/* Footer */}
         <div className="flex flex-col gap-4 border-t border-border-primary bg-bg-secondary/96 px-4 py-4 backdrop-blur-xl sm:px-5 md:px-7">
-          {submitError && (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {submitError}
-            </div>
-          )}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="order-2 flex min-w-0 flex-1 items-center sm:order-1 sm:pr-4">
             <p className="text-sm font-black tracking-tight leading-snug">

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Lock, ShieldCheck, Loader2, X, Eye, EyeOff } from 'lucide-react';
+import { Lock, Loader2, X, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from './ToastProvider';
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -9,12 +10,22 @@ interface ChangePasswordModalProps {
 
 export default function ChangePasswordModal({ isOpen, onClose }: ChangePasswordModalProps) {
   const { user } = useAuth();
+  const toast = useToast();
 const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  React.useEffect(() => {
+    if (!message.text) return;
+    if (message.type === 'success') {
+      toast.success(message.text);
+    } else {
+      toast.error(message.text);
+    }
+  }, [message, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,14 +146,6 @@ const [oldPassword, setOldPassword] = useState('');
               placeholder={"Nhập lại mật khẩu mới"}
             />
           </div>
-
-          {message.text && (
-            <div className={`p-3 rounded-xl text-xs font-medium text-center ${message.type === 'success' ? 'bg-accent/10 text-accent border border-accent/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'
-              }`}>
-              {message.type === 'success' && <ShieldCheck className="w-4 h-4 inline-block mr-2" />}
-              {message.text}
-            </div>
-          )}
 
           <button
             type="submit"
