@@ -35,6 +35,8 @@ const AI_COACH_FREE_TRIAL_DAYS = 7;
 const AI_ACTION_FLOW_ENABLED = process.env.AI_ACTION_FLOW_ENABLED !== 'false';
 const PREMIUM_AUTO_PLAN_ENABLED = process.env.PREMIUM_AUTO_PLAN_ENABLED !== 'false';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const AI_FOOD_CATALOG_LIMIT = 180;
+const AI_FOOD_CATALOG_FETCH_LIMIT = 1000;
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -162,6 +164,17 @@ const getMealSlotsForCount = (mealsPerDay: number) => {
 
 type MealComponentGroup = 'protein' | 'carb' | 'vegetable' | 'fruit' | 'dairy' | 'fat' | 'snack' | 'other';
 
+const AI_FOOD_COMPONENT_QUOTAS: Array<{ group: MealComponentGroup; maxItems: number }> = [
+  { group: 'protein', maxItems: 42 },
+  { group: 'carb', maxItems: 32 },
+  { group: 'vegetable', maxItems: 32 },
+  { group: 'fruit', maxItems: 20 },
+  { group: 'dairy', maxItems: 14 },
+  { group: 'snack', maxItems: 20 },
+  { group: 'fat', maxItems: 8 },
+  { group: 'other', maxItems: 12 },
+];
+
 const getFoodMealTypes = (food: any): string[] => {
   const raw = food?.meal_type;
   if (Array.isArray(raw)) return raw.map((item) => String(item || '').toLowerCase()).filter(Boolean);
@@ -209,6 +222,30 @@ const classifyFoodComponent = (food: any): MealComponentGroup => {
   if (carbs >= 18 && carbs >= protein) return 'carb';
   if (calories <= 90 && carbs <= 14 && protein < 6) return 'vegetable';
   return 'other';
+};
+
+const selectBalancedFoodCatalog = (rows: any[] | null | undefined, maxItems = AI_FOOD_CATALOG_LIMIT) => {
+  const source = rows || [];
+  const selected: any[] = [];
+  const selectedIds = new Set<string>();
+
+  const addRows = (candidates: any[], maxCount: number) => {
+    for (const food of candidates) {
+      if (selected.length >= maxItems || maxCount <= 0) return;
+      const id = String(food?.id || '');
+      if (!id || selectedIds.has(id)) continue;
+      selected.push(food);
+      selectedIds.add(id);
+      maxCount -= 1;
+    }
+  };
+
+  AI_FOOD_COMPONENT_QUOTAS.forEach(({ group, maxItems: groupMaxItems }) => {
+    addRows(source.filter((food) => classifyFoodComponent(food) === group), groupMaxItems);
+  });
+
+  addRows(source, maxItems - selected.length);
+  return selected.slice(0, maxItems);
 };
 
 const getDefaultMealQuantity = (food: any, group: MealComponentGroup, mealType: string): number => {
@@ -1051,7 +1088,8 @@ async function generateWeeklyCoachPlanForUser(params: {
     supabase
       .from('foods')
       .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
-      .limit(100),
+      .order('created_at', { ascending: false })
+      .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
     supabase
       .from('daily_exercise_sessions')
       .select('log_date, exercise_id, sets, reps, weight_kg, rest_seconds, is_completed, exercises:exercise_id(name, body_part, target_muscle)')
@@ -1082,7 +1120,7 @@ async function generateWeeklyCoachPlanForUser(params: {
   const lifestyle = lifestyleRes.data || {};
   const health = healthRes.data || {};
   const exercises = clampList(exerciseCatalogRes.data as any[], 80);
-  const foods = clampList(foodCatalogRes.data as any[], 100);
+  const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT);
   const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
   const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
   const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
@@ -3661,7 +3699,8 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       supabase
         .from('foods')
         .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
-        .limit(100),
+        .order('created_at', { ascending: false })
+        .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
       supabase
         .from('daily_exercise_sessions')
         .select('log_date, exercise_id, sets, reps, weight_kg, rest_seconds, is_completed, exercises:exercise_id(name, body_part, target_muscle)')
@@ -3692,7 +3731,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const lifestyle = lifestyleRes.data || {};
     const health = healthRes.data || {};
     const exercises = clampList(exerciseCatalogRes.data as any[], 80);
-    const foods = clampList(foodCatalogRes.data as any[], 100);
+    const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT);
     const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
     const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
     const foodById = new Map(foods.map((item: any) => [String(item.id), item]));

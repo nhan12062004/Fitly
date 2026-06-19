@@ -52,6 +52,7 @@ type DietPlanPageCache = {
   restDays: Record<number, boolean>;
   planId: string | null;
   planName: string;
+  mealsPerDay: number;
   targetCalories: number;
   waterIntake: number;
   waterGoal: number;
@@ -81,6 +82,24 @@ const MEAL_TYPES: Array<{ id: MealTypeId; label: string; time: string }> = [
   { id: 'dinner', label: 'DINNER', time: '19:00' },
   { id: 'snack', label: 'SNACK', time: '22:00' }
 ];
+
+const resolveMealsPerDay = (value: unknown) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 3;
+  return Math.max(2, Math.min(5, Math.round(parsed)));
+};
+
+const getMealTypesForCount = (countValue: unknown) => {
+  const count = resolveMealsPerDay(countValue);
+  const ids: MealTypeId[] =
+    count <= 2
+      ? ['breakfast', 'dinner']
+      : count === 3
+        ? ['breakfast', 'lunch', 'dinner']
+        : ['breakfast', 'lunch', 'dinner', 'snack'];
+  const allowed = new Set(ids);
+  return MEAL_TYPES.filter((meal) => allowed.has(meal.id));
+};
 
 const MEAL_TYPE_THEME: Record<MealTypeId, {
   accent: string;
@@ -511,6 +530,7 @@ export default function DietPlan() {
   const [, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(initialWeekStart);
+  const [mealsPerDay, setMealsPerDay] = useState(() => initialDietCache?.mealsPerDay || 3);
   const [targetCalories, setTargetCalories] = useState(() => initialDietCache?.targetCalories || DEFAULT_CALORIE_TARGET);
   const [waterIntake, setWaterIntake] = useState(() => initialWaterIntake);
   const [waterGoal, setWaterGoal] = useState(() => initialDietCache?.waterGoal || DEFAULT_WATER_TARGET);
@@ -532,6 +552,18 @@ export default function DietPlan() {
   const isCurrentWeek = selectedWeekKey === toDateKey(getWeekStart(getVietnamTodayDate()));
 
   const dayItems = weeklyPlan[selectedDayId] || [];
+  const activeMealTypes = useMemo(() => getMealTypesForCount(mealsPerDay), [mealsPerDay]);
+  const activeMealTypeIds = useMemo(() => new Set(activeMealTypes.map((meal) => meal.id)), [activeMealTypes]);
+  const scopedDayItems = useMemo(
+    () => dayItems.filter((item) => activeMealTypeIds.has(item.meal_type as MealTypeId)),
+    [dayItems, activeMealTypeIds]
+  );
+
+  useEffect(() => {
+    if (!activeMealTypeIds.has(activeMealType)) {
+      setActiveMealType(activeMealTypes[0]?.id || 'breakfast');
+    }
+  }, [activeMealType, activeMealTypeIds, activeMealTypes]);
 
   const filteredFoods = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -543,7 +575,7 @@ export default function DietPlan() {
   }, [foods, search, filterCat]);
 
   const dayNutrition = useMemo(() => {
-    const totals = dayItems.reduce(
+    const totals = scopedDayItems.reduce(
       (acc, item) => ({
         calories: acc.calories + item.calories * item.quantity,
         protein: acc.protein + item.protein * item.quantity,
@@ -559,7 +591,7 @@ export default function DietPlan() {
       carbs: roundMacro(totals.carbs),
       fat: roundMacro(totals.fat)
     };
-  }, [dayItems]);
+  }, [scopedDayItems]);
 
   const macroTargets = useMemo(() => ({
     protein: Math.round(targetCalories * 0.3 / 4),
@@ -584,15 +616,16 @@ export default function DietPlan() {
     [selectedDayDate]
   );
   const mealsWithFoodCount = useMemo(
-    () => MEAL_TYPES.filter((meal) => dayItems.some((item) => item.meal_type === meal.id)).length,
-    [dayItems]
+    () => activeMealTypes.filter((meal) => scopedDayItems.some((item) => item.meal_type === meal.id)).length,
+    [activeMealTypes, scopedDayItems]
   );
   const isTodaySelected = isCurrentWeek && selectedDayId === getTodayDayIndex();
-  const highlightedMealId = isTodaySelected ? getCurrentMealType() : null;
+  const currentMealType = getCurrentMealType();
+  const highlightedMealId = isTodaySelected && activeMealTypeIds.has(currentMealType) ? currentMealType : null;
   const mealSummaries = useMemo(
     () =>
-      MEAL_TYPES.map((meal, mealIndex) => {
-        const items = dayItems.filter((item) => item.meal_type === meal.id);
+      activeMealTypes.map((meal, mealIndex) => {
+        const items = scopedDayItems.filter((item) => item.meal_type === meal.id);
         const mealCalories = Math.round(items.reduce((sum, item) => sum + item.calories * item.quantity, 0));
         const firstItem = items[0];
         const hasItems = items.length > 0;
@@ -619,7 +652,7 @@ export default function DietPlan() {
           isHighlighted: highlightedMealId === meal.id
         };
       }),
-    [dayItems, highlightedMealId]
+    [activeMealTypes, scopedDayItems, highlightedMealId]
   );
   const featuredMeal = useMemo(
     () =>
@@ -631,7 +664,7 @@ export default function DietPlan() {
   );
   const visibleMealSummaries = useMemo(() => mealSummaries.filter((meal) => meal.hasItems), [mealSummaries]);
   const hasMenuForSelectedDay = visibleMealSummaries.length > 0;
-  const mobileActionMealId = featuredMeal?.id || highlightedMealId || 'breakfast';
+  const mobileActionMealId = featuredMeal?.id || highlightedMealId || activeMealTypes[0]?.id || 'breakfast';
   const aiMenuButtonLabel = hasMenuForSelectedDay ? 'Đề xuất lại' : 'Tạo thực đơn AI';
 
   useEffect(() => {
@@ -709,12 +742,13 @@ export default function DietPlan() {
       try {
         const today = getVietnamDateKey();
         const [lifestyleRes, progressRes] = await Promise.all([
-          supabase.from('lifestyle_settings').select('target_calories, daily_water_goal').eq('user_id', userId).maybeSingle(),
+          supabase.from('lifestyle_settings').select('target_calories, daily_water_goal, meals_per_day').eq('user_id', userId).maybeSingle(),
           supabase.from('daily_progress_logs').select('water_intake_ml').eq('user_id', userId).eq('log_date', today).maybeSingle()
         ]);
 
         if (lifestyleRes.data?.target_calories) setTargetCalories(Number(lifestyleRes.data.target_calories));
         if (lifestyleRes.data?.daily_water_goal) setWaterGoal(Number(lifestyleRes.data.daily_water_goal));
+        setMealsPerDay(resolveMealsPerDay(lifestyleRes.data?.meals_per_day));
         setWaterIntake(Number(progressRes.data?.water_intake_ml || 0) / 1000);
       } catch (error) {
         console.error(error);
@@ -736,6 +770,7 @@ export default function DietPlan() {
         setRestDays(cached.restDays);
         setPlanId(cached.planId);
         setPlanName(cached.planName);
+        setMealsPerDay(cached.mealsPerDay || 3);
         setTargetCalories(cached.targetCalories);
         setWaterIntake(cached.waterLogDate === getVietnamDateKey() ? cached.waterIntake : 0);
         setWaterGoal(cached.waterGoal);
@@ -831,12 +866,13 @@ export default function DietPlan() {
       restDays,
       planId,
       planName,
+      mealsPerDay,
       targetCalories,
       waterIntake,
       waterGoal,
       waterLogDate: getVietnamDateKey()
     });
-  }, [cacheKey, foods, selectedDayId, weeklyPlan, restDays, planId, planName, targetCalories, waterIntake, waterGoal]);
+  }, [cacheKey, foods, selectedDayId, weeklyPlan, restDays, planId, planName, mealsPerDay, targetCalories, waterIntake, waterGoal]);
 
   const addFoodToPlan = useCallback((food: Food, mealType: MealTypeId = activeMealType) => {
     setWeeklyPlan((prev) => ({
@@ -861,12 +897,12 @@ export default function DietPlan() {
       return;
     }
 
-    const existingItems = weeklyPlan[selectedDayId] || [];
+    const existingItems = (weeklyPlan[selectedDayId] || []).filter((item) => activeMealTypeIds.has(item.meal_type as MealTypeId));
     const nextItems = hasMenuForSelectedDay ? [] : [...existingItems];
 
     const usedFoodIds = new Set(nextItems.map((item) => item.food_id).filter(Boolean));
 
-    MEAL_TYPES.forEach((meal) => {
+    activeMealTypes.forEach((meal) => {
       if (nextItems.some((item) => item.meal_type === meal.id)) return;
       nextItems.push(...buildBalancedMealItems(foods, meal.id, usedFoodIds));
     });
@@ -953,7 +989,9 @@ export default function DietPlan() {
           return;
         }
 
-        (planToSave[dayIndex] || []).forEach((item, index) => {
+        (planToSave[dayIndex] || [])
+          .filter((item) => activeMealTypeIds.has(item.meal_type as MealTypeId))
+          .forEach((item, index) => {
           rows.push({
             food_plan_id: nextPlanId,
             day_of_week: dayIndex,
@@ -983,10 +1021,12 @@ export default function DietPlan() {
         insertedItems.map((item) => [`${Number(item.day_of_week)}:${Number(item.order_index)}`, String(item.id)])
       );
       const planWithSavedIds = DAYS.reduce<Record<number, PlanFood[]>>((acc, { id: dayIndex }) => {
-        acc[dayIndex] = (planToSave[dayIndex] || []).map((item, index) => ({
-          ...item,
-          weekly_food_item_id: insertedIdByDayAndOrder.get(`${dayIndex}:${index}`) || item.weekly_food_item_id || null
-        }));
+        acc[dayIndex] = (planToSave[dayIndex] || [])
+          .filter((item) => activeMealTypeIds.has(item.meal_type as MealTypeId))
+          .map((item, index) => ({
+            ...item,
+            weekly_food_item_id: insertedIdByDayAndOrder.get(`${dayIndex}:${index}`) || item.weekly_food_item_id || null
+          }));
         return acc;
       }, {});
 
