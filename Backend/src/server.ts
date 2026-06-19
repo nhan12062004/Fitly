@@ -180,6 +180,14 @@ const AI_FOOD_COMPONENT_QUOTAS: Array<{ group: MealComponentGroup; maxItems: num
   { group: 'other', maxItems: 12 },
 ];
 
+type FoodCatalogPreference = {
+  lifestyle?: any;
+  mealsPerDay?: number;
+  mealTypes?: string[];
+  recentMeals?: any[];
+  currentFoodId?: string | null;
+};
+
 const getFoodMealTypes = (food: any): string[] => {
   const raw = food?.meal_type;
   if (Array.isArray(raw)) return raw.map((item) => String(item || '').toLowerCase()).filter(Boolean);
@@ -195,9 +203,155 @@ const foodMatchesMealType = (food: any, mealType: string): boolean => {
   return mealTypes.includes(mealType) || mealTypes.includes('all') || mealTypes.includes('any');
 };
 
+const foodMatchesAnyMealType = (food: any, mealTypes: string[]): boolean => {
+  if (mealTypes.length === 0) return true;
+  return mealTypes.some((mealType) => foodMatchesMealType(food, mealType));
+};
+
 const getLimitedFoodFamilyKey = (food: any): string => {
   const name = normalizeKeywordTokens(food?.name);
   return name.startsWith('banh ') ? 'banh' : '';
+};
+
+const normalizeFoodGoalText = (food: any): string =>
+  (Array.isArray(food?.goal_type) ? food.goal_type : String(food?.goal_type || '').split(','))
+    .map((item: unknown) => normalizeKeywordText(item))
+    .join('|');
+
+const getUserDietPreferenceKey = (lifestyle: any): 'vegetarian' | 'clean' | 'high_protein' | 'low_carb' | 'normal' => {
+  const text = normalizeKeywordText(`${lifestyle?.diet_preference || ''} ${lifestyle?.current_diet || ''}`);
+  if (includesAnyKeyword(text, ['an chay', 'vegetarian', 'vegan'])) return 'vegetarian';
+  if (includesAnyKeyword(text, ['eat clean', 'clean'])) return 'clean';
+  if (includesAnyKeyword(text, ['nhieu dam', 'high protein', 'protein'])) return 'high_protein';
+  if (includesAnyKeyword(text, ['low carb', 'keto'])) return 'low_carb';
+  return 'normal';
+};
+
+const getUserBudgetPreferenceKey = (lifestyle: any): 'low' | 'medium' | 'high' => {
+  const text = normalizeKeywordText(lifestyle?.budget_level);
+  if (includesAnyKeyword(text, ['tiet kiem', 'sinh vien', 're'])) return 'low';
+  if (includesAnyKeyword(text, ['thoai mai', 'cao cap', 'du loai'])) return 'high';
+  return 'medium';
+};
+
+const getFoodPriceKey = (food: any): 'low' | 'medium' | 'high' => {
+  const text = normalizeKeywordText(food?.price_level);
+  if (includesAnyKeyword(text, ['tiet kiem', 'sinh vien', 're'])) return 'low';
+  if (includesAnyKeyword(text, ['thoai mai', 'cao cap'])) return 'high';
+  return 'medium';
+};
+
+const foodMatchesDietPreference = (food: any, dietKey: ReturnType<typeof getUserDietPreferenceKey>): boolean => {
+  const goals = normalizeFoodGoalText(food);
+  if (dietKey === 'vegetarian') return goals.includes('an chay');
+  if (dietKey === 'clean') return goals.includes('eat clean');
+  if (dietKey === 'high_protein') return goals.includes('nhieu dam') || Number(food?.protein || 0) >= 18;
+  if (dietKey === 'low_carb') return goals.includes('low carb') || Number(food?.carbs || 0) <= 12;
+  return true;
+};
+
+const getRecentFoodContext = (recentMeals: any[] | null | undefined) => {
+  const idCounts = new Map<string, number>();
+  const familyCounts = new Map<string, number>();
+  const categoryCounts = new Map<string, number>();
+  const componentCounts = new Map<MealComponentGroup, number>();
+  const priceCounts = new Map<ReturnType<typeof getFoodPriceKey>, number>();
+  const goalCounts = new Map<string, number>();
+
+  (recentMeals || []).forEach((item) => {
+    const foodId = String(item?.food_id || '').trim();
+    if (foodId) idCounts.set(foodId, (idCounts.get(foodId) || 0) + 1);
+
+    const food = item?.foods || item?.food || item;
+    const familyKey = getLimitedFoodFamilyKey(food);
+    if (familyKey) familyCounts.set(familyKey, (familyCounts.get(familyKey) || 0) + 1);
+
+    const category = normalizeKeywordText(food?.category);
+    if (category) categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
+
+    const component = classifyFoodComponent({
+      ...food,
+      calories: food?.calories ?? item?.calories,
+      protein: food?.protein ?? item?.protein,
+      carbs: food?.carbs ?? item?.carbs,
+      fat: food?.fat ?? item?.fat
+    });
+    componentCounts.set(component, (componentCounts.get(component) || 0) + 1);
+
+    if (String(food?.price_level || '').trim()) {
+      const priceKey = getFoodPriceKey(food);
+      priceCounts.set(priceKey, (priceCounts.get(priceKey) || 0) + 1);
+    }
+
+    normalizeFoodGoalText(food)
+      .split('|')
+      .filter(Boolean)
+      .forEach((goal) => goalCounts.set(goal, (goalCounts.get(goal) || 0) + 1));
+  });
+
+  return { idCounts, familyCounts, categoryCounts, componentCounts, priceCounts, goalCounts };
+};
+
+const getFoodPreferenceScore = (
+  food: any,
+  preference: FoodCatalogPreference,
+  recentContext = getRecentFoodContext(preference.recentMeals)
+) => {
+  const lifestyle = preference.lifestyle || {};
+  const dietKey = getUserDietPreferenceKey(lifestyle);
+  const budgetKey = getUserBudgetPreferenceKey(lifestyle);
+  const priceKey = getFoodPriceKey(food);
+  const mealTypes = preference.mealTypes?.length
+    ? preference.mealTypes
+    : Array.from(new Set(getMealSlotsForCount(resolveMealsPerDay(preference.mealsPerDay || lifestyle?.meals_per_day))));
+  const goals = normalizeFoodGoalText(food);
+  const component = classifyFoodComponent(food);
+  const category = normalizeKeywordText(food?.category);
+  let score = 0;
+
+  if (foodMatchesAnyMealType(food, mealTypes)) score += 70;
+  else score -= 90;
+
+  if (dietKey === 'vegetarian') {
+    score += foodMatchesDietPreference(food, dietKey) ? 120 : -1000;
+  } else if (dietKey !== 'normal') {
+    score += foodMatchesDietPreference(food, dietKey) ? 62 : -18;
+  } else if (goals.includes('binh thuong') || goals.includes('giu dang')) {
+    score += 16;
+  }
+
+  if (budgetKey === priceKey) score += 46;
+  else if (budgetKey === 'low') score += priceKey === 'medium' ? -22 : -85;
+  else if (budgetKey === 'medium') score += priceKey === 'low' ? 10 : -18;
+  else score += priceKey === 'medium' ? 18 : 8;
+
+  const foodId = String(food?.id || '');
+  if (foodId && foodId === String(preference.currentFoodId || '')) score -= 1000;
+
+  const foodRepeatCount = foodId ? recentContext.idCounts.get(foodId) || 0 : 0;
+  if (foodRepeatCount === 1) score += 14;
+  else if (foodRepeatCount === 2) score -= 18;
+  else if (foodRepeatCount >= 3) score -= 90;
+
+  const familyKey = getLimitedFoodFamilyKey(food);
+  const familyRepeatCount = familyKey ? recentContext.familyCounts.get(familyKey) || 0 : 0;
+  if (familyRepeatCount === 1) score += 6;
+  else if (familyRepeatCount === 2) score -= 10;
+  else if (familyRepeatCount >= 3) score -= 36;
+
+  if (category) score += Math.min(36, (recentContext.categoryCounts.get(category) || 0) * 8);
+  score += Math.min(24, (recentContext.componentCounts.get(component) || 0) * 5);
+  score += Math.min(22, (recentContext.priceCounts.get(priceKey) || 0) * 5);
+  goals
+    .split('|')
+    .filter(Boolean)
+    .forEach((goal) => {
+      score += Math.min(18, (recentContext.goalCounts.get(goal) || 0) * 4);
+    });
+
+  if (food?.is_easy_to_prepare) score += 8;
+
+  return score;
 };
 
 const classifyFoodComponent = (food: any): MealComponentGroup => {
@@ -234,8 +388,22 @@ const classifyFoodComponent = (food: any): MealComponentGroup => {
   return 'other';
 };
 
-const selectBalancedFoodCatalog = (rows: any[] | null | undefined, maxItems = AI_FOOD_CATALOG_LIMIT) => {
-  const source = rows || [];
+const selectBalancedFoodCatalog = (
+  rows: any[] | null | undefined,
+  maxItems = AI_FOOD_CATALOG_LIMIT,
+  preference: FoodCatalogPreference = {}
+) => {
+  const recentContext = getRecentFoodContext(preference.recentMeals);
+  const lifestyle = preference.lifestyle || {};
+  const dietKey = getUserDietPreferenceKey(lifestyle);
+  const baseSource = rows || [];
+  const dietScoped = dietKey === 'vegetarian'
+    ? baseSource.filter((food) => foodMatchesDietPreference(food, dietKey))
+    : baseSource;
+  const scopedSource = dietScoped.length >= Math.min(maxItems, 40) ? dietScoped : baseSource;
+  const source = [...scopedSource].sort((a, b) =>
+    getFoodPreferenceScore(b, preference, recentContext) - getFoodPreferenceScore(a, preference, recentContext)
+  );
   const selected: any[] = [];
   const selectedIds = new Set<string>();
 
@@ -1145,7 +1313,8 @@ async function generateWeeklyCoachPlanForUser(params: {
     exerciseCatalogRes,
     foodCatalogRes,
     recentSessionsRes,
-    recentMealsRes
+    recentMealsRes,
+    recentMealLogsRes
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('body_metrics').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -1168,9 +1337,16 @@ async function generateWeeklyCoachPlanForUser(params: {
       .limit(20),
     supabase
       .from('weekly_food_items')
-      .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category)')
+      .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
       .eq('weekly_food_plans.user_id', userId)
-      .limit(20)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('daily_meal_logs')
+      .select('log_date, meal_type, food_id, quantity, calories, protein, carbs, fat, custom_food_name, foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
+      .eq('user_id', userId)
+      .order('log_date', { ascending: false })
+      .limit(40)
   ]);
 
   const firstError = [
@@ -1181,7 +1357,8 @@ async function generateWeeklyCoachPlanForUser(params: {
     exerciseCatalogRes.error,
     foodCatalogRes.error,
     recentSessionsRes.error,
-    recentMealsRes.error
+    recentMealsRes.error,
+    recentMealLogsRes.error
   ].find(Boolean);
   if (firstError) throw firstError;
 
@@ -1190,13 +1367,22 @@ async function generateWeeklyCoachPlanForUser(params: {
   const lifestyle = lifestyleRes.data || {};
   const health = healthRes.data || {};
   const exercises = clampList(exerciseCatalogRes.data as any[], 80);
-  const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT);
-  const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
-  const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
-  const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
+  const recentMealHistory = [
+    ...((recentMealLogsRes.data || []) as any[]),
+    ...((recentMealsRes.data || []) as any[])
+  ];
   const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.activity_level, lifestyle.weekly_workouts);
   const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
   const mealSlots = getMealSlotsForCount(mealsPerDay);
+  const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT, {
+    lifestyle,
+    mealsPerDay,
+    mealTypes: Array.from(new Set(mealSlots)),
+    recentMeals: recentMealHistory
+  });
+  const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
+  const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
+  const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
   const accessState = getAiCoachAccessState(profile);
 
   if (!profileRes.data?.id) {
@@ -1241,8 +1427,8 @@ async function generateWeeklyCoachPlanForUser(params: {
     .map((item: any) => `${item.log_date}|${truncateText(item.exercises?.name || item.exercise_id, 32)}|${item.sets}x${item.reps}|${item.weight_kg || 0}kg|done=${!!item.is_completed}`)
     .join('\n') || 'No recent training history.';
 
-  const recentEating = clampList(recentMealsRes.data as any[], 12)
-    .map((item: any) => `d=${item.day_of_week}|${item.meal_type}|${truncateText(item.foods?.name || item.food_id, 28)}|qty=${item.quantity}`)
+  const recentEating = clampList(recentMealHistory, 12)
+    .map((item: any) => `d=${item.day_of_week || item.log_date || ''}|${item.meal_type}|${truncateText(item.foods?.name || item.custom_food_name || item.food_id, 28)}|qty=${item.quantity}`)
     .join('\n') || 'No recent meal plan history.';
 
   const prompt = `
@@ -1299,6 +1485,10 @@ Rules:
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
 - Prefer foods whose meal_type, goal_type, allergens, price_level, cooking_time_minutes and region match the user profile.
 - Avoid foods whose allergens conflict with allergies_or_medical_history.
+- FOOD_CATALOG is already ranked by meal slot, diet preference, budget and eating-history trends; earlier rows are better matches.
+- Breakfast must use foods that support breakfast; lunch and dinner must use foods that support lunch/dinner; snack must use snack/breakfast-friendly foods.
+- Use recent meal history to infer the user's preferred categories, protein/carb/vegetable balance, diet style and budget tendency.
+- Repeating a liked food is allowed, but do not over-repeat the same exact food or same limited family more than 2-3 times in a week.
 - Training days should match weekly_workouts. Rest days: is_rest_day=true and no exercises.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
@@ -2838,7 +3028,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     const weeklyFoodPlanQuery = requestedWeekStartDate
       ? supabase
           .from('weekly_food_plans')
-          .select('id, weekly_food_items(id, day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type))')
+          .select('id, weekly_food_items(id, day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level))')
           .eq('user_id', authUserId)
           .eq('week_start_date', requestedWeekStartDate)
           .order('updated_at', { ascending: false })
@@ -2846,7 +3036,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           .maybeSingle()
       : supabase
           .from('weekly_food_plans')
-          .select('id, weekly_food_items(id, day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type))')
+          .select('id, weekly_food_items(id, day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level))')
           .eq('user_id', authUserId)
           .eq('plan_status', 'active')
           .order('updated_at', { ascending: false })
@@ -2864,6 +3054,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       dailyExerciseSessionsRes,
       recentProgressLogsRes,
       recentExerciseSessionsRes,
+      recentMealLogsRes,
     ] = await Promise.all([
       weeklyPlanQuery,
       weeklyFoodPlanQuery,
@@ -2919,7 +3110,13 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .from('daily_exercise_sessions')
         .select('log_date, is_completed, sets, planned_sets, completed_sets')
         .eq('user_id', authUserId)
+        .in('log_date', recentDateKeys),
+      supabase
+        .from('daily_meal_logs')
+        .select('log_date, meal_type, food_id, quantity, calories, protein, carbs, fat, custom_food_name, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
+        .eq('user_id', authUserId)
         .in('log_date', recentDateKeys)
+        .order('log_date', { ascending: false })
     ]);
 
     const workoutRows = (todayWorkoutRes.data as any)?.weekly_plan_exercises || [];
@@ -3005,15 +3202,26 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       const mealType = String(currentMeal?.meal_type || 'dinner');
       const candidateFoodsRes = await supabase
         .from('foods')
-        .select('id, name, calories, protein, carbs, fat, meal_type')
+        .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
         .contains('meal_type', [mealType])
-        .limit(10);
+        .order('created_at', { ascending: false })
+        .limit(300);
       if (candidateFoodsRes.error) throw candidateFoodsRes.error;
+      const candidateFoods = selectBalancedFoodCatalog(candidateFoodsRes.data as any[], 24, {
+        lifestyle: weekPlanRes.data || {},
+        mealsPerDay: Number((weekPlanRes.data as any)?.meals_per_day || 3),
+        mealTypes: [mealType],
+        recentMeals: [
+          ...((recentMealLogsRes.data || []) as any[]),
+          ...mealRows
+        ],
+        currentFoodId: currentMeal?.food_id || null
+      });
 
       aiResponse = await mealAdjusterService({
         dayOfWeek: dayIndex,
         currentMeal,
-        candidateFoods: (candidateFoodsRes.data || []).map((item: any) => ({
+        candidateFoods: candidateFoods.map((item: any) => ({
           id: String(item.id),
           name: String(item.name || ''),
           calories: item.calories,
@@ -3757,7 +3965,8 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       exerciseCatalogRes,
       foodCatalogRes,
       recentSessionsRes,
-      recentMealsRes
+      recentMealsRes,
+      recentMealLogsRes
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('body_metrics').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -3780,9 +3989,16 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
         .limit(20),
       supabase
         .from('weekly_food_items')
-        .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category)')
+        .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
         .eq('weekly_food_plans.user_id', userId)
-        .limit(20)
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('daily_meal_logs')
+        .select('log_date, meal_type, food_id, quantity, calories, protein, carbs, fat, custom_food_name, foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
+        .eq('user_id', userId)
+        .order('log_date', { ascending: false })
+        .limit(40)
     ]);
 
     const firstError = [
@@ -3793,7 +4009,8 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       exerciseCatalogRes.error,
       foodCatalogRes.error,
       recentSessionsRes.error,
-      recentMealsRes.error
+      recentMealsRes.error,
+      recentMealLogsRes.error
     ].find(Boolean);
     if (firstError) throw firstError;
 
@@ -3802,13 +4019,22 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const lifestyle = lifestyleRes.data || {};
     const health = healthRes.data || {};
     const exercises = clampList(exerciseCatalogRes.data as any[], 80);
-    const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT);
-    const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
-    const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
-    const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
+    const recentMealHistory = [
+      ...((recentMealLogsRes.data || []) as any[]),
+      ...((recentMealsRes.data || []) as any[])
+    ];
     const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.activity_level, lifestyle.weekly_workouts);
     const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
     const mealSlots = getMealSlotsForCount(mealsPerDay);
+    const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT, {
+      lifestyle,
+      mealsPerDay,
+      mealTypes: Array.from(new Set(mealSlots)),
+      recentMeals: recentMealHistory
+    });
+    const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
+    const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
+    const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
     const accessState = getAiCoachAccessState(profile);
 
     if (!profileRes.data?.id) {
@@ -3845,8 +4071,8 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       .map((item: any) => `${item.log_date}|${truncateText(item.exercises?.name || item.exercise_id, 32)}|${item.sets}x${item.reps}|${item.weight_kg || 0}kg|done=${!!item.is_completed}`)
       .join('\n') || 'No recent training history.';
 
-    const recentEating = clampList(recentMealsRes.data as any[], 12)
-      .map((item: any) => `d=${item.day_of_week}|${item.meal_type}|${truncateText(item.foods?.name || item.food_id, 28)}|qty=${item.quantity}`)
+    const recentEating = clampList(recentMealHistory, 12)
+      .map((item: any) => `d=${item.day_of_week || item.log_date || ''}|${item.meal_type}|${truncateText(item.foods?.name || item.custom_food_name || item.food_id, 28)}|qty=${item.quantity}`)
       .join('\n') || 'No recent meal plan history.';
 
     const prompt = `
@@ -3903,6 +4129,10 @@ Rules:
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
 - Prefer foods whose meal_type, goal_type, allergens, price_level, cooking_time_minutes and region match the user profile.
 - Avoid foods whose allergens conflict with allergies_or_medical_history.
+- FOOD_CATALOG is already ranked by meal slot, diet preference, budget and eating-history trends; earlier rows are better matches.
+- Breakfast must use foods that support breakfast; lunch and dinner must use foods that support lunch/dinner; snack must use snack/breakfast-friendly foods.
+- Use recent meal history to infer the user's preferred categories, protein/carb/vegetable balance, diet style and budget tendency.
+- Repeating a liked food is allowed, but do not over-repeat the same exact food or same limited family more than 2-3 times in a week.
 - Training days should match weekly_workouts. Rest days: is_rest_day=true and no exercises.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.

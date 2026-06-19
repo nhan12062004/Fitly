@@ -39,7 +39,7 @@ type ExistingFood = {
   is_easy_to_prepare: boolean | null;
 };
 
-const DEFAULT_TARGET_COUNT = 2000;
+const DEFAULT_TARGET_COUNT = 2300;
 const BATCH_SIZE = 400;
 const FOOD_SELECT = 'id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare';
 const INSERT_CATEGORY_SHARES: Array<[string, number]> = [
