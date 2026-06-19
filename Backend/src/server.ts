@@ -225,7 +225,7 @@ const parseJsonFromAiText = (text: string) => {
 };
 
 const DAY_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const AI_CHAT_DAY_LABELS = ['Thu 2', 'Thu 3', 'Thu 4', 'Thu 5', 'Thu 6', 'Thu 7', 'Chu nhat'];
+const AI_CHAT_DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 const DAY_TO_INDEX: Record<string, number> = {
   monday: 0,
   tuesday: 1,
@@ -314,17 +314,17 @@ const buildAiCoachProgressSummary = ({
   const targetWeight = readPositiveNumber(bodyMetrics?.target_weight, profile?.target_weight);
   const notes: string[] = [];
 
-  if (goalText) notes.push(`muc tieu=${lifestyle?.fitness_goal}`);
+  if (goalText) notes.push(`mục tiêu=${lifestyle?.fitness_goal}`);
   if (weight && targetWeight) {
-    const direction = targetWeight < weight ? 'giam can' : targetWeight > weight ? 'tang can/tang co' : 'giu can';
-    notes.push(`can nang ${Math.round(weight * 10) / 10}kg -> muc tieu ${Math.round(targetWeight * 10) / 10}kg (${direction})`);
+    const direction = targetWeight < weight ? 'giảm cân' : targetWeight > weight ? 'tăng cân/tăng cơ' : 'giữ cân';
+    notes.push(`cân nặng ${Math.round(weight * 10) / 10}kg -> mục tiêu ${Math.round(targetWeight * 10) / 10}kg (${direction})`);
   }
-  if (dietText) notes.push(`che do an=${truncateText(dietText, 80)}`);
-  if (equipmentText || locationText) notes.push(`tap o ${locationText || 'chua ro'}, dung cu=${equipmentText || 'chua ro'}`);
-  if (injuryText) notes.push(`can than voi suc khoe/chan thuong=${truncateText(injuryText, 100)}`);
-  if (waterGoalMl && Number(todayLog?.water_intake_ml || 0) < Math.round(waterGoalMl * 0.5)) notes.push('hom nay nuoc dang thap, uu tien nhac bu nuoc');
-  if (sleepTargetHours && Number(todayLog?.sleep_hours || 0) > 0 && Number(todayLog?.sleep_hours || 0) < sleepTargetHours) notes.push('ngu hom nay thap hon muc tieu, nen giam tai hoac uu tien phuc hoi');
-  if (todaySessions.length > 0 && todayCompletedExercises < todaySessions.length) notes.push('buoi tap hom nay chua hoan thanh het');
+  if (dietText) notes.push(`chế độ ăn=${truncateText(dietText, 80)}`);
+  if (equipmentText || locationText) notes.push(`tập ở ${locationText || 'chưa rõ'}, dụng cụ=${equipmentText || 'chưa rõ'}`);
+  if (injuryText) notes.push(`cẩn thận với sức khỏe/chấn thương=${truncateText(injuryText, 100)}`);
+  if (waterGoalMl && Number(todayLog?.water_intake_ml || 0) < Math.round(waterGoalMl * 0.5)) notes.push('hôm nay nước đang thấp, ưu tiên nhắc bù nước');
+  if (sleepTargetHours && Number(todayLog?.sleep_hours || 0) > 0 && Number(todayLog?.sleep_hours || 0) < sleepTargetHours) notes.push('ngủ hôm nay thấp hơn mục tiêu, nên giảm tải hoặc ưu tiên phục hồi');
+  if (todaySessions.length > 0 && todayCompletedExercises < todaySessions.length) notes.push('buổi tập hôm nay chưa hoàn thành hết');
 
   return {
     todayDate: todayKey,

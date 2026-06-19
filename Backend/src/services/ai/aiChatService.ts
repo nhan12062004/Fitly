@@ -173,6 +173,14 @@ const buildNoMealPlanSuggestionReply = (message: string, context?: AIChatContext
       : normalized.includes('phu') || normalized.includes('snack')
         ? 'bua phu'
         : 'bua trua';
+  const mealDisplayLabel =
+    mealLabel === 'bua sang'
+      ? 'bữa sáng'
+      : mealLabel === 'bua toi'
+        ? 'bữa tối'
+        : mealLabel === 'bua phu'
+          ? 'bữa phụ'
+          : 'bữa trưa';
   const lifestyle = context?.lifestyle || {};
   const body = context?.bodyMetrics || {};
   const goalText = normalizeVietnameseText(String((lifestyle as any).fitness_goal || ''));
@@ -189,66 +197,66 @@ const buildNoMealPlanSuggestionReply = (message: string, context?: AIChatContext
     isVegetarian
       ? mealLabel === 'bua sang'
         ? [
-            'Yen mach 50g + sua dau nanh/Greek yogurt + 1 qua chuoi.',
-            'Banh mi nguyen cam + trung + dau hu ap chao + rau.',
-            'Sua chua Hy Lap + trai cay + hat chia/hanh nhan vua phai.',
+            'Yến mạch 50g + sữa đậu nành/Greek yogurt + 1 quả chuối.',
+            'Bánh mì nguyên cám + trứng + đậu hũ áp chảo + rau.',
+            'Sữa chua Hy Lạp + trái cây + hạt chia/hạnh nhân vừa phải.',
           ]
         : mealLabel === 'bua toi'
           ? [
-              'Dau hu/tempeh 180g + rau xanh + 1/2-1 chen com.',
-              'Trung chien it dau + salad lon + khoai lang 150-200g.',
-              'Dau lang/dau ga ham rau cu + com vua phai.',
+              'Đậu hũ/tempeh 180g + rau xanh + 1/2-1 chén cơm.',
+              'Trứng chiên ít dầu + salad lớn + khoai lang 150-200g.',
+              'Đậu lăng/đậu gà hầm rau củ + cơm vừa phải.',
             ]
           : mealLabel === 'bua phu'
             ? [
-                'Sua chua Hy Lap hoac sua dau nanh + trai cay.',
-                'Dau hu non + cacao khong duong.',
-                '1 nam hat nho + 1 qua chuoi neu can nang luong.',
+                'Sữa chua Hy Lạp hoặc sữa đậu nành + trái cây.',
+                'Đậu hũ non + cacao không đường.',
+                '1 nắm hạt nhỏ + 1 quả chuối nếu cần năng lượng.',
               ]
             : [
-                'Dau hu/tempeh 180g + 1 chen com + rau xanh.',
-                'Dau ga/dau lang + khoai lang 200g + salad.',
-                'Trung + dau hu sot ca chua + com vua phai.',
+                'Đậu hũ/tempeh 180g + 1 chén cơm + rau xanh.',
+                'Đậu gà/đậu lăng + khoai lang 200g + salad.',
+                'Trứng + đậu hũ sốt cà chua + cơm vừa phải.',
               ]
       : mealLabel === 'bua sang'
       ? [
-          '2 trung + 1 hu sua chua Hy Lap khong duong + 1 qua chuoi.',
-          'Yen mach 50g + sua it beo + 1 muong whey hoac 150g sua chua.',
-          'Banh mi nguyen cam + uc ga hoac ca ngu + rau xa lach.',
+          '2 trứng + 1 hũ sữa chua Hy Lạp không đường + 1 quả chuối.',
+          'Yến mạch 50g + sữa ít béo + 1 muỗng whey hoặc 150g sữa chua.',
+          'Bánh mì nguyên cám + ức gà hoặc cá ngừ + rau xà lách.',
         ]
       : mealLabel === 'bua toi'
         ? [
-            'Ca hoi hoac ca thu 150g + rau luoc/xao it dau + 1/2 chen com.',
-            'Uc ga ap chao 160g + salad lon + khoai lang 150g.',
-            'Dau phu sot ca chua + trung luoc + rau xanh, tinh bot vua phai.',
+            'Cá hồi hoặc cá thu 150g + rau luộc/xào ít dầu + 1/2 chén cơm.',
+            'Ức gà áp chảo 160g + salad lớn + khoai lang 150g.',
+            'Đậu phụ sốt cà chua + trứng luộc + rau xanh, tinh bột vừa phải.',
           ]
         : mealLabel === 'bua phu'
           ? [
-              'Sua chua Hy Lap + chuoi hoac dau.',
-              '1 ly sua it beo + 1 nam hat nho.',
-              '2 trung luoc hoac 1 hop ca ngu nho neu can them protein.',
+              'Sữa chua Hy Lạp + chuối hoặc dâu.',
+              '1 ly sữa ít béo + 1 nắm hạt nhỏ.',
+              '2 trứng luộc hoặc 1 hộp cá ngừ nhỏ nếu cần thêm protein.',
             ]
           : [
-              'Uc ga ap chao 160-180g + 1 chen com + rau xanh.',
-              'Ca ngu/ca hoi 150g + khoai lang 200g + salad.',
-              'Bo nac 120-150g hoac dau phu + com vua phai + rau luoc.',
+              'Ức gà áp chảo 160-180g + 1 chén cơm + rau xanh.',
+              'Cá ngừ/cá hồi 150g + khoai lang 200g + salad.',
+              'Bò nạc 120-150g hoặc đậu phụ + cơm vừa phải + rau luộc.',
             ];
 
   const goalNote = isMuscleGain
-    ? 'Neu dang tang co, tang them 1 phan tinh bot hoac sua sau bua.'
+    ? 'Nếu đang tăng cơ, tăng thêm 1 phần tinh bột hoặc sữa sau bữa.'
     : isWeightLoss
-      ? 'Neu dang giam can, giu rau nhieu va giam bot dau/nuoc sot.'
-      : 'Neu chua ro muc tieu, giu khau phan vua phai va uu tien protein.';
+      ? 'Nếu đang giảm cân, giữ rau nhiều và giảm bớt dầu/nước sốt.'
+      : 'Nếu chưa rõ mục tiêu, giữ khẩu phần vừa phải và ưu tiên protein.';
   const calorieNote = perMealCalories
-    ? `Voi muc ${targetCalories} kcal/ngay va ${mealsPerDay} bua/ngay, bua nay nen xoay quanh ${perMealCalories - 100}-${perMealCalories + 100} kcal.`
-    : 'Minh chua thay muc kcal muc tieu nen tam giu khau phan vua phai.';
+    ? `Với mức ${targetCalories} kcal/ngày và ${mealsPerDay} bữa/ngày, bữa này nên xoay quanh ${perMealCalories - 100}-${perMealCalories + 100} kcal.`
+    : 'Mình chưa thấy mức kcal mục tiêu nên tạm giữ khẩu phần vừa phải.';
   const proteinNote = weight
-    ? `Protein ngay nen nam khoang ${Math.round(weight * 1.6)}-${Math.round(weight * 2)}g, nen chia deu vao cac bua.`
-    : 'Neu cap nhat can nang, minh se can lai protein sat hon.';
-  const dietNote = isVegetarian ? 'Minh dang uu tien lua chon phu hop che do an chay cua ban.' : '';
+    ? `Protein ngày nên nằm khoảng ${Math.round(weight * 1.6)}-${Math.round(weight * 2)}g, nên chia đều vào các bữa.`
+    : 'Nếu cập nhật cân nặng, mình sẽ cân lại protein sát hơn.';
+  const dietNote = isVegetarian ? 'Mình đang ưu tiên lựa chọn phù hợp chế độ ăn chay của bạn.' : '';
 
   return [
-    `Minh chua thay thuc don chi tiet hom nay trong Fitly, nhung co the goi y ${mealLabel} theo ho so hien tai:`,
+    `Mình chưa thấy thực đơn chi tiết hôm nay trong Fitly, nhưng có thể gợi ý ${mealDisplayLabel} theo hồ sơ hiện tại:`,
     options.map((item, index) => `${index + 1}. ${item}`).join('\n'),
     [goalNote, calorieNote, proteinNote, dietNote].filter(Boolean).join(' '),
   ].join('\n\n');
@@ -315,17 +323,17 @@ const buildPlanOverviewReply = (message: string, context?: AIChatContext): strin
         .map((meal, index) => {
           const calories = formatMealCalories(meal);
           const quantity = Number(meal.quantity || 1);
-          return `${index + 1}. ${getMealTypeLabel(meal.meal_type)} - ${meal.name || 'Mon an'} x${quantity} (${calories} kcal)`;
+          return `${index + 1}. ${getMealTypeLabel(meal.meal_type)} - ${meal.name || 'Món ăn'} x${quantity} (${calories} kcal)`;
         })
         .join('\n');
-      sections.push(`${dayLabel} co ${meals.length} mon an:\n${lines}`);
+      sections.push(`${dayLabel} có ${meals.length} món ăn:\n${lines}`);
     } else {
       sections.push(buildNoMealPlanSuggestionReply(message, context));
     }
   }
 
   if (sections.length === 0) {
-    return `${dayLabel} hien chua co du lieu workout hoac meal plan. Ban co the yeu cau tao lai lich hoac noi ro muc tieu hom nay de minh goi y theo tinh huong.`;
+    return `${dayLabel} hiện chưa có dữ liệu workout hoặc meal plan. Bạn có thể yêu cầu tạo lại lịch hoặc nói rõ mục tiêu hôm nay để mình gợi ý theo tình huống.`;
   }
 
   return sections.join('\n\n');
@@ -333,13 +341,13 @@ const buildPlanOverviewReply = (message: string, context?: AIChatContext): strin
 
 const buildInjuryCareReply = (): string =>
   [
-    'Neu ban dang dau, sung, te, choang vang, hoac co dau hieu chan thuong ro, hay uu tien an toan truoc va tam dung cac bai tap tac dong manh ngay luc nay.',
-    'Cach xu ly muc co ban: nghi ngoi, chuom lanh 15-20 phut moi lan, bang ep nhe neu co sung, ke cao vung bi dau, va tranh cac dong tac gay tang dau.',
-    'Neu dau tang, khong chiu luc duoc, sung bam tim ro, te, bien dang khop, choang vang, hoac sau 2-3 ngay khong giam, ban nen di kham co xuong khop hoac y te the thao.',
+    'Nếu bạn đang đau, sưng, tê, choáng váng, hoặc có dấu hiệu chấn thương rõ, hãy ưu tiên an toàn trước và tạm dừng các bài tập tác động mạnh ngay lúc này.',
+    'Cách xử lý mức cơ bản: nghỉ ngơi, chườm lạnh 15-20 phút mỗi lần, băng ép nhẹ nếu có sưng, kê cao vùng bị đau, và tránh các động tác gây tăng đau.',
+    'Nếu đau tăng, không chịu lực được, sưng bầm tím rõ, tê, biến dạng khớp, choáng váng, hoặc sau 2-3 ngày không giảm, bạn nên đi khám cơ xương khớp hoặc y tế thể thao.',
   ].join('\n\n');
 
 const buildRecoveryReply = (context?: AIChatContext): string => {
-  const dayLabel = context?.targetDayLabel || 'Hom nay';
+  const dayLabel = context?.targetDayLabel || 'Hôm nay';
   const exercises = Array.isArray(context?.exercises) ? context.exercises : [];
   const meals = Array.isArray(context?.meals) ? context.meals : [];
 
@@ -347,51 +355,51 @@ const buildRecoveryReply = (context?: AIChatContext): string => {
     const firstExercise = exercises[0];
     const restSeconds = Math.max(75, Number(firstExercise?.rest_seconds || 60));
     return [
-      `${dayLabel} neu ban thay met, uu tien giam 1 set moi bai, giu ky thuat sach, va tang thoi gian nghi len khoang ${restSeconds} giay.`,
-      'Sau buoi tap, nen bu protein, bu nuoc, di bo nhe 5-10 phut, va ngu du. Neu muon, minh co the rut gon buoi tap hom nay thanh phien ban de phuc hoi hon.',
+      `${dayLabel} nếu bạn thấy mệt, ưu tiên giảm 1 set mỗi bài, giữ kỹ thuật sạch, và tăng thời gian nghỉ lên khoảng ${restSeconds} giây.`,
+      'Sau buổi tập, nên bù protein, bù nước, đi bộ nhẹ 5-10 phút, và ngủ đủ. Nếu muốn, mình có thể rút gọn buổi tập hôm nay thành phiên bản dễ phục hồi hơn.',
     ].join('\n\n');
   }
 
   if (meals.length > 0) {
     return [
-      `${dayLabel} ban co the uu tien phuc hoi bang cach giu du protein, them nuoc, rau, va mot nguon tinh bot vua phai quanh buoi tap.`,
-      'Neu ban muon, minh co the goi y mot bua gon hon nhung van ho tro phuc hoi tot.',
+      `${dayLabel} bạn có thể ưu tiên phục hồi bằng cách giữ đủ protein, thêm nước, rau, và một nguồn tinh bột vừa phải quanh buổi tập.`,
+      'Nếu bạn muốn, mình có thể gợi ý một bữa gọn hơn nhưng vẫn hỗ trợ phục hồi tốt.',
     ].join('\n\n');
   }
 
   return [
-    `${dayLabel} minh chua thay du workout hoac meal plan cu the, nen uu tien phuc hoi co ban: ngu du, uong nuoc, an du protein, va van dong nhe trong nguong de chiu.`,
-    'Neu ban noi ro dang met, dau co, hay muon nhe buoi tap, minh se goi y sat hon.',
+    `${dayLabel} mình chưa thấy đủ workout hoặc meal plan cụ thể, nên ưu tiên phục hồi cơ bản: ngủ đủ, uống nước, ăn đủ protein, và vận động nhẹ trong ngưỡng dễ chịu.`,
+    'Nếu bạn nói rõ đang mệt, đau cơ, hay muốn nhẹ buổi tập, mình sẽ gợi ý sát hơn.',
   ].join('\n\n');
 };
 
 const buildMotivationReply = (context?: AIChatContext): string => {
-  const dayLabel = context?.targetDayLabel || 'Hom nay';
+  const dayLabel = context?.targetDayLabel || 'Hôm nay';
   const workoutCount = Number(context?.todayWorkoutCount || 0);
   const mealCount = Number(context?.todayMealCount || 0);
 
   if (workoutCount > 0) {
     return [
-      `Neu ${dayLabel.toLowerCase()} ban dang luoi hoac mat nhip, dung nghi den ca buoi tap. Chi can bat dau bang 10 phut dau tien hoac 1 bai dau tien.`,
-      'Hoan thanh diem bat dau do truoc, sau do moi quyet dinh co tap tiep hay khong. Neu ban muon, minh co the rut gon buoi hom nay de de vao nhip hon.',
+      `Nếu ${dayLabel.toLowerCase()} bạn đang lười hoặc mất nhịp, đừng nghĩ đến cả buổi tập. Chỉ cần bắt đầu bằng 10 phút đầu tiên hoặc 1 bài đầu tiên.`,
+      'Hoàn thành điểm bắt đầu đó trước, sau đó mới quyết định có tập tiếp hay không. Nếu bạn muốn, mình có thể rút gọn buổi hôm nay để dễ vào nhịp hơn.',
     ].join('\n\n');
   }
 
   if (mealCount > 0) {
     return [
-      `Neu ban de bo bua hoac khong muon an theo ke hoach ${dayLabel.toLowerCase()}, hay giu muc tieu nho: an dung 1 bua chinh hoac giu du protein cho bua sap toi.`,
-      'Chi can bam sat mot diem nho hom nay la du de giu nhiep. Neu can, minh co the doi sang lua chon gon hon.',
+      `Nếu bạn dễ bỏ bữa hoặc không muốn ăn theo kế hoạch ${dayLabel.toLowerCase()}, hãy giữ mục tiêu nhỏ: ăn đúng 1 bữa chính hoặc giữ đủ protein cho bữa sắp tới.`,
+      'Chỉ cần bám sát một điểm nhỏ hôm nay là đủ để giữ nhịp. Nếu cần, mình có thể đổi sang lựa chọn gọn hơn.',
     ].join('\n\n');
   }
 
   return [
-    'Neu hom nay ban mat dong luc, dung ep ban than vao muc tieu qua lon. Chon 1 viec rat nho de bat dau: di bo 10 phut, uong nuoc, hoac an dung 1 bua.',
-    'Sau khi lam xong viec nho do, minh co the giup ban len buoc tiep theo.',
+    'Nếu hôm nay bạn mất động lực, đừng ép bản thân vào mục tiêu quá lớn. Chọn 1 việc rất nhỏ để bắt đầu: đi bộ 10 phút, uống nước, hoặc ăn đúng 1 bữa.',
+    'Sau khi làm xong việc nhỏ đó, mình có thể giúp bạn lên bước tiếp theo.',
   ].join('\n\n');
 };
 
 const buildGeneralHealthReply = (context?: AIChatContext): string => {
-  const dayLabel = context?.targetDayLabel || 'Hom nay';
+  const dayLabel = context?.targetDayLabel || 'Hôm nay';
   const todayWorkoutCount = Number(context?.todayWorkoutCount || 0);
   const todayMealCount = Number(context?.todayMealCount || 0);
   const notes = Array.isArray(context?.progressSummary?.planFitNotes)
@@ -399,16 +407,16 @@ const buildGeneralHealthReply = (context?: AIChatContext): string => {
     : [];
 
   if (todayWorkoutCount + todayMealCount > 0) {
-    const personalCue = notes.length ? ` Diem minh se bam theo: ${notes.join('; ')}.` : '';
-    return `${dayLabel} hien co ${todayWorkoutCount} bai tap va ${todayMealCount} mon an.${personalCue} Ban co the hoi ro hon ve workout, meal plan, phuc hoi, giam met, hoac cach bam sat muc tieu hom nay.`;
+    const personalCue = notes.length ? ` Điểm mình sẽ bám theo: ${notes.join('; ')}.` : '';
+    return `${dayLabel} hiện có ${todayWorkoutCount} bài tập và ${todayMealCount} món ăn.${personalCue} Bạn có thể hỏi rõ hơn về workout, meal plan, phục hồi, giảm mệt, hoặc cách bám sát mục tiêu hôm nay.`;
   }
 
-  const personalCue = notes.length ? ` Minh se tam dua tren: ${notes.join('; ')}.` : '';
-  return `${dayLabel} minh chua thay du lich tap hoac thuc don.${personalCue} Ban co the hoi ve dinh duong, phuc hoi, hoac yeu cau tao lai ke hoach de minh ho tro sat hon.`;
+  const personalCue = notes.length ? ` Mình sẽ tạm dựa trên: ${notes.join('; ')}.` : '';
+  return `${dayLabel} mình chưa thấy đủ lịch tập hoặc thực đơn.${personalCue} Bạn có thể hỏi về dinh dưỡng, phục hồi, hoặc yêu cầu tạo lại kế hoạch để mình hỗ trợ sát hơn.`;
 };
 
 const buildOutOfScopeReply = (): string =>
-  'Minh tap trung vao workout, meal plan, phuc hoi, va thoi quen suc khoe. Neu ban can, hay hoi minh ve buoi tap hom nay, thuc don, giam met, phuc hoi, hoac cach giu dong luc.';
+  'Mình tập trung vào workout, meal plan, phục hồi, và thói quen sức khỏe. Nếu bạn cần, hãy hỏi mình về buổi tập hôm nay, thực đơn, giảm mệt, phục hồi, hoặc cách giữ động lực.';
 
 const getFallbackReply = (message: string, intent: AIIntent, context?: AIChatContext): string => {
   if (isGreetingMessage(message)) return buildGreetingReply(context);

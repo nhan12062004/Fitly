@@ -525,14 +525,14 @@ const buildPersonalizedNoMealPlanSuggestionReply = (question: string, lifestyle?
   const isWeightLoss = goalText.includes('giam') || goalText.includes('loss');
   const isVegetarian = dietText.includes('chay') || dietText.includes('vegetarian') || dietText.includes('vegan');
   const goalNote = isMuscleGain
-    ? 'Vi muc tieu cua ban nghieng ve tang co, hay giu moi bua co 30-45g protein va them tinh bot quanh buoi tap.'
+    ? 'Vì mục tiêu của bạn nghiêng về tăng cơ, hãy giữ mỗi bữa có 30-45g protein và thêm tinh bột quanh buổi tập.'
     : isWeightLoss
-      ? 'Vi muc tieu cua ban nghieng ve giam can, hay giu rau nhieu, protein cao va tiet che dau/nuoc sot.'
-      : 'Minh se tam giu khau phan vua phai, uu tien protein va rau de de bam ke hoach.';
+      ? 'Vì mục tiêu của bạn nghiêng về giảm cân, hãy giữ rau nhiều, protein cao và tiết chế dầu/nước sốt.'
+      : 'Mình sẽ tạm giữ khẩu phần vừa phải, ưu tiên protein và rau để dễ bám kế hoạch.';
   const calorieNote = perMealCalories
-    ? `Voi muc ${targetCalories} kcal/ngay va ${mealsPerDay} bua/ngay, bua nay nen xoay quanh ${perMealCalories - 100}-${perMealCalories + 100} kcal.`
-    : 'Neu cap nhat target calories, minh se can khau phan sat hon.';
-  const dietNote = isVegetarian ? 'Minh dang uu tien cach chon mon hop che do an chay cua ban.' : '';
+    ? `Với mức ${targetCalories} kcal/ngày và ${mealsPerDay} bữa/ngày, bữa này nên xoay quanh ${perMealCalories - 100}-${perMealCalories + 100} kcal.`
+    : 'Nếu cập nhật target calories, mình sẽ cân khẩu phần sát hơn.';
+  const dietNote = isVegetarian ? 'Mình đang ưu tiên cách chọn món hợp chế độ ăn chay của bạn.' : '';
 
   return [baseReply, [goalNote, calorieNote, dietNote].filter(Boolean).join(' ')].join('\n\n');
 };
