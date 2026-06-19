@@ -34,6 +34,7 @@ interface PlanFood {
   category: string;
   meal_type: string;
   quantity: number;
+  serving_unit: string;
   // Stored per serving/unit. UI totals must multiply by quantity.
   calories: number;
   protein: number;
@@ -119,6 +120,55 @@ const DEFAULT_CALORIE_TARGET = 2400;
 const DEFAULT_WATER_TARGET = 2.5;
 const DEFAULT_PLAN_NAME = 'Thực đơn';
 
+type FoodGroup = 'protein' | 'carb' | 'vegetable' | 'fruit' | 'dairy' | 'fat' | 'snack' | 'other';
+
+const normalizeFoodText = (value: unknown) =>
+  String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd');
+
+const hasAnyFoodKeyword = (value: string, keywords: string[]) => keywords.some((keyword) => value.includes(keyword));
+
+const classifyFoodGroup = (food: Pick<Food, 'name' | 'category' | 'protein' | 'carbs' | 'fat' | 'calories'>): FoodGroup => {
+  const text = normalizeFoodText(`${food.category || ''} ${food.name || ''}`);
+  if (hasAnyFoodKeyword(text, ['rau', 'cu', 'salad', 'vegetable', 'cai', 'dua leo', 'ca chua'])) return 'vegetable';
+  if (hasAnyFoodKeyword(text, ['trai cay', 'fruit', 'chuoi', 'tao', 'cam', 'dau tay'])) return 'fruit';
+  if (hasAnyFoodKeyword(text, ['carb', 'com', 'gao', 'rice', 'khoai', 'bun', 'pho', 'mi', 'pasta', 'banh mi', 'yen mach', 'oat'])) return 'carb';
+  if (hasAnyFoodKeyword(text, ['dam', 'protein', 'thit', 'ga', 'bo', 'ca ', 'tom', 'trung', 'dau hu', 'tofu', 'tempeh', 'whey'])) return 'protein';
+  if (hasAnyFoodKeyword(text, ['sua', 'yogurt', 'pho mai', 'cheese'])) return food.protein >= food.carbs ? 'protein' : 'dairy';
+  if (hasAnyFoodKeyword(text, ['hat', 'dau olive', 'bo dau phong', 'avocado']) || food.fat >= 10) return 'fat';
+  if (food.protein >= 8 && food.protein >= food.carbs * 0.55) return 'protein';
+  if (food.carbs >= 18 && food.carbs >= food.protein) return 'carb';
+  if (food.calories <= 90 && food.carbs <= 14 && food.protein < 6) return 'vegetable';
+  return 'other';
+};
+
+const getDefaultFoodQuantity = (food: Food, mealType: MealTypeId) => {
+  const group = classifyFoodGroup(food);
+  const unit = normalizeFoodText(food.serving_unit);
+  const isGramUnit = unit.includes('100g') || unit.includes('100 g') || unit === 'g' || unit.includes('gram');
+  if (!isGramUnit) return 1;
+  if (group === 'vegetable') return 2.5;
+  if (group === 'protein') return mealType === 'breakfast' ? 1.2 : 1.5;
+  if (group === 'carb') return mealType === 'breakfast' ? 0.8 : 1.5;
+  if (group === 'fruit') return 1.5;
+  if (group === 'fat') return 0.3;
+  return 1;
+};
+
+const formatFoodQuantity = (item: Pick<PlanFood, 'quantity' | 'serving_unit'>) => {
+  const unit = item.serving_unit || '100g';
+  const quantity = Number(item.quantity || 1);
+  const normalizedUnit = normalizeFoodText(unit);
+  if (normalizedUnit.includes('100g') || normalizedUnit.includes('100 g')) {
+    return `${Math.round(quantity * 100)}g`;
+  }
+  if (Math.abs(quantity - 1) < 0.01) return unit;
+  return `${roundMacro(quantity)} x ${unit}`;
+};
+
 let dietPlanFoodCache: Food[] | null = null;
 const dietPlanPageCache = new Map<string, DietPlanPageCache>();
 
@@ -194,6 +244,53 @@ const pickLatestPlan = (plans: any[] | null) => {
 };
 
 const roundMacro = (value: number) => Math.round(value * 10) / 10;
+
+const createPlanFood = (food: Food, mealType: MealTypeId, quantity = getDefaultFoodQuantity(food, mealType)): PlanFood => ({
+  tempId: crypto.randomUUID(),
+  weekly_food_item_id: null,
+  food_id: food.id,
+  name: food.name,
+  image_url: food.image_url,
+  category: food.category,
+  meal_type: mealType,
+  quantity,
+  serving_unit: food.serving_unit,
+  calories: food.calories,
+  protein: food.protein,
+  carbs: food.carbs,
+  fat: food.fat,
+  is_rest_day: false
+});
+
+const pickFoodByGroup = (foods: Food[], group: FoodGroup, usedFoodIds: Set<string>) =>
+  foods.find((food) => !usedFoodIds.has(food.id) && classifyFoodGroup(food) === group) || null;
+
+const buildBalancedMealItems = (foods: Food[], mealType: MealTypeId, usedFoodIds: Set<string>) => {
+  const groups: FoodGroup[] =
+    mealType === 'lunch' || mealType === 'dinner'
+      ? ['carb', 'protein', 'vegetable']
+      : mealType === 'breakfast'
+        ? ['carb', 'protein']
+        : ['fruit'];
+
+  const items: PlanFood[] = [];
+  groups.forEach((group) => {
+    const food = pickFoodByGroup(foods, group, usedFoodIds);
+    if (!food) return;
+    usedFoodIds.add(food.id);
+    items.push(createPlanFood(food, mealType));
+  });
+
+  if (items.length === 0) {
+    const fallback = foods.find((food) => !usedFoodIds.has(food.id)) || foods[0];
+    if (fallback) {
+      usedFoodIds.add(fallback.id);
+      items.push(createPlanFood(fallback, mealType));
+    }
+  }
+
+  return items;
+};
 
 const resolveFoodImage = (food: Food | undefined, index: number) => {
   const url = String(food?.image_url || '').trim();
@@ -692,6 +789,7 @@ export default function DietPlan() {
                 category: joinedFood.category || '',
                 meal_type: item.meal_type || 'breakfast',
                 quantity: Number(item.quantity || 1),
+                serving_unit: joinedFood.serving_unit || '100g',
                 calories: Number(joinedFood.calories ?? item.calories ?? 0),
                 protein: Number(joinedFood.protein ?? item.protein ?? 0),
                 carbs: Number(joinedFood.carbs ?? item.carbs ?? 0),
@@ -745,21 +843,7 @@ export default function DietPlan() {
       ...prev,
       [selectedDayId]: [
         ...(prev[selectedDayId] || []),
-        {
-          tempId: crypto.randomUUID(),
-          weekly_food_item_id: null,
-          food_id: food.id,
-          name: food.name,
-          image_url: food.image_url,
-          category: food.category,
-          meal_type: mealType,
-          quantity: 1,
-          calories: food.calories,
-          protein: food.protein,
-          carbs: food.carbs,
-          fat: food.fat,
-          is_rest_day: false
-        }
+        createPlanFood(food, mealType)
       ]
     }));
     setRestDays((prev) => ({ ...prev, [selectedDayId]: false }));
@@ -780,24 +864,11 @@ export default function DietPlan() {
     const existingItems = weeklyPlan[selectedDayId] || [];
     const nextItems = hasMenuForSelectedDay ? [] : [...existingItems];
 
-    MEAL_TYPES.forEach((meal, index) => {
+    const usedFoodIds = new Set(nextItems.map((item) => item.food_id).filter(Boolean));
+
+    MEAL_TYPES.forEach((meal) => {
       if (nextItems.some((item) => item.meal_type === meal.id)) return;
-      const food = foods[index % foods.length];
-      nextItems.push({
-        tempId: crypto.randomUUID(),
-        weekly_food_item_id: null,
-        food_id: food.id,
-        name: food.name,
-        image_url: food.image_url,
-        category: food.category,
-        meal_type: meal.id,
-        quantity: 1,
-        calories: food.calories,
-        protein: food.protein,
-        carbs: food.carbs,
-        fat: food.fat,
-        is_rest_day: false
-      });
+      nextItems.push(...buildBalancedMealItems(foods, meal.id, usedFoodIds));
     });
 
     const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextItems };
@@ -987,6 +1058,7 @@ export default function DietPlan() {
                 name: replacement.name,
                 image_url: replacement.image_url,
                 category: replacement.category,
+                serving_unit: replacement.serving_unit,
                 calories: replacement.calories,
                 protein: replacement.protein,
                 carbs: replacement.carbs,
@@ -1227,7 +1299,9 @@ export default function DietPlan() {
                 <div className="mt-3 grid gap-2 text-xs font-semibold text-text-tertiary">
                   {meal.items.map((item) => (
                     <div key={item.tempId} className="diet-food-pill flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
-                      <span className="min-w-0 truncate text-text-secondary">{item.name}</span>
+                      <span className="min-w-0 truncate text-text-secondary">
+                        {item.name} <span className="text-text-tertiary">• {formatFoodQuantity(item)}</span>
+                      </span>
                       <span className="shrink-0 text-text-tertiary">{Math.round(item.calories * item.quantity)} kcal</span>
                     </div>
                   ))}

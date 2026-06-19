@@ -160,32 +160,194 @@ const getMealSlotsForCount = (mealsPerDay: number) => {
   return ['breakfast', 'snack', 'lunch', 'snack', 'dinner'];
 };
 
+type MealComponentGroup = 'protein' | 'carb' | 'vegetable' | 'fruit' | 'dairy' | 'fat' | 'snack' | 'other';
+
+const getFoodMealTypes = (food: any): string[] => {
+  const raw = food?.meal_type;
+  if (Array.isArray(raw)) return raw.map((item) => String(item || '').toLowerCase()).filter(Boolean);
+  return String(raw || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+};
+
+const foodMatchesMealType = (food: any, mealType: string): boolean => {
+  const mealTypes = getFoodMealTypes(food);
+  if (mealTypes.length === 0) return true;
+  return mealTypes.includes(mealType) || mealTypes.includes('all') || mealTypes.includes('any');
+};
+
+const classifyFoodComponent = (food: any): MealComponentGroup => {
+  const text = normalizeKeywordText(`${food?.category || ''} ${food?.name || ''}`);
+  const protein = Number(food?.protein || 0);
+  const carbs = Number(food?.carbs || 0);
+  const fat = Number(food?.fat || 0);
+  const calories = Number(food?.calories || 0);
+
+  if (includesAnyKeyword(text, ['rau', 'cu', 'salad', 'vegetable', 'greens', 'broccoli', 'spinach', 'cai', 'dua leo', 'ca chua'])) {
+    return 'vegetable';
+  }
+  if (includesAnyKeyword(text, ['trai cay', 'fruit', 'chuoi', 'tao', 'cam', 'dau tay', 'berries'])) {
+    return 'fruit';
+  }
+  if (includesAnyKeyword(text, ['carb', 'com', 'gao', 'rice', 'khoai', 'bun', 'pho', 'mi', 'pasta', 'banh mi', 'yen mach', 'oat'])) {
+    return 'carb';
+  }
+  if (includesAnyKeyword(text, ['dam', 'protein', 'thit', 'ga', 'bo', 'ca ', 'ca_', 'tom', 'trung', 'dau hu', 'tofu', 'tempeh', 'whey'])) {
+    return 'protein';
+  }
+  if (includesAnyKeyword(text, ['sua', 'yogurt', 'dairy', 'pho mai', 'cheese'])) {
+    return protein >= carbs ? 'protein' : 'dairy';
+  }
+  if (includesAnyKeyword(text, ['hat', 'dau olive', 'bo dau phong', 'avocado']) || fat >= 10) {
+    return 'fat';
+  }
+  if (includesAnyKeyword(text, ['snack', 'bua phu'])) {
+    return 'snack';
+  }
+  if (protein >= 8 && protein >= carbs * 0.55) return 'protein';
+  if (carbs >= 18 && carbs >= protein) return 'carb';
+  if (calories <= 90 && carbs <= 14 && protein < 6) return 'vegetable';
+  return 'other';
+};
+
+const getDefaultMealQuantity = (food: any, group: MealComponentGroup, mealType: string): number => {
+  const unit = normalizeKeywordText(food?.serving_unit);
+  const name = normalizeKeywordText(food?.name);
+  const isGramUnit = unit.includes('100g') || unit.includes('100 g') || unit === 'g' || unit.includes('gram');
+  if (!isGramUnit) return 1;
+
+  if (group === 'vegetable') return 2.5; // 250g rau/cu.
+  if (group === 'protein') return mealType === 'breakfast' ? 1.2 : 1.5; // 120-150g thit/ca/trung/dau.
+  if (group === 'carb') {
+    if (includesAnyKeyword(name, ['com', 'rice', 'bun', 'pho', 'mi', 'banh mi'])) return 1.5;
+    return mealType === 'breakfast' ? 0.8 : 1.5;
+  }
+  if (group === 'fruit') return 1.5;
+  if (group === 'fat') return 0.3;
+  return 1;
+};
+
+const getRequiredMealComponents = (mealType: string): MealComponentGroup[] => {
+  if (mealType === 'lunch' || mealType === 'dinner') return ['carb', 'protein', 'vegetable'];
+  if (mealType === 'breakfast') return ['carb', 'protein'];
+  return [];
+};
+
+const pickFoodForComponent = (
+  foods: any[],
+  mealType: string,
+  group: MealComponentGroup,
+  usedFoodIds: Set<string>
+) => {
+  const candidates = foods.filter((food) => {
+    const id = String(food?.id || '');
+    if (!id || usedFoodIds.has(id)) return false;
+    return classifyFoodComponent(food) === group;
+  });
+  const scoped = candidates.filter((food) => foodMatchesMealType(food, mealType));
+  const pool = scoped.length ? scoped : candidates;
+  return [...pool].sort((a, b) => {
+    const aEasy = a?.is_easy_to_prepare ? -8 : 0;
+    const bEasy = b?.is_easy_to_prepare ? -8 : 0;
+    const aMeal = foodMatchesMealType(a, mealType) ? -12 : 0;
+    const bMeal = foodMatchesMealType(b, mealType) ? -12 : 0;
+    const aCalories = Math.abs(Number(a?.calories || 0) - (group === 'vegetable' ? 45 : group === 'protein' ? 160 : 180));
+    const bCalories = Math.abs(Number(b?.calories || 0) - (group === 'vegetable' ? 45 : group === 'protein' ? 160 : 180));
+    return aEasy + aMeal + aCalories - (bEasy + bMeal + bCalories);
+  })[0] || null;
+};
+
+const expandAiMealItems = (meals: any[], foodById: Map<string, any>) =>
+  (Array.isArray(meals) ? meals : []).flatMap((meal: any) => {
+    const foodIds = Array.isArray(meal.food_ids) ? meal.food_ids : [];
+    return foodIds.map((foodId: string, index: number) => {
+      const safeFoodId = String(foodId || '');
+      const food = foodById.get(safeFoodId);
+      const mealType = String(meal.meal_type || 'lunch').toLowerCase();
+      const component = classifyFoodComponent(food);
+      const rawQuantity = Array.isArray(meal.quantities) ? Number(meal.quantities[index]) : Number(meal.quantity);
+      return {
+        meal_type: mealType,
+        food_id: safeFoodId,
+        quantity: Number.isFinite(rawQuantity) && rawQuantity > 0
+          ? Math.max(0.25, Math.min(6, rawQuantity))
+          : getDefaultMealQuantity(food, component, mealType),
+        order_index: index
+      };
+    });
+  });
+
+const enrichMealComponents = (rawMeals: any[], mealsPerDay: number, foodById: Map<string, any>, foods: any[]) => {
+  const slots = Array.from(new Set(getMealSlotsForCount(mealsPerDay)));
+  const result = (Array.isArray(rawMeals) ? rawMeals : [])
+    .filter((item) => foodById.has(String(item?.food_id || '')))
+    .map((item) => ({
+      ...item,
+      meal_type: String(item.meal_type || 'lunch').toLowerCase()
+    }));
+  const usedFoodIds = new Set(result.map((item) => String(item.food_id || '')).filter(Boolean));
+
+  const addComponent = (mealType: string, group: MealComponentGroup) => {
+    const candidate = pickFoodForComponent(foods, mealType, group, usedFoodIds);
+    if (!candidate?.id) return;
+    const foodId = String(candidate.id);
+    usedFoodIds.add(foodId);
+    result.push({
+      meal_type: mealType,
+      food_id: foodId,
+      quantity: getDefaultMealQuantity(candidate, group, mealType),
+      order_index: 99
+    });
+  };
+
+  slots.forEach((mealType) => {
+    const requirements = getRequiredMealComponents(mealType);
+    const existing = () => result.filter((item) => String(item.meal_type) === mealType && foodById.has(String(item.food_id || '')));
+    requirements.forEach((group) => {
+      if (!existing().some((item) => classifyFoodComponent(foodById.get(String(item.food_id))) === group)) {
+        addComponent(mealType, group);
+      }
+    });
+
+    if (mealType === 'snack' && existing().length === 0) {
+      addComponent(mealType, 'fruit');
+      if (existing().length === 0) addComponent(mealType, 'protein');
+    }
+  });
+
+  return result;
+};
+
 const normalizeDayMeals = (rawMeals: any[], mealsPerDay: number, foodById: Map<string, any>) => {
   const slots = getMealSlotsForCount(mealsPerDay);
   const meals = Array.isArray(rawMeals) ? rawMeals : [];
   const validMeals = meals.filter((item) => foodById.has(String(item?.food_id || '')));
   if (validMeals.length === 0) return [];
 
-  const usedIndexes = new Set<number>();
-  const normalized = slots.map((mealType, slotIndex) => {
-    let sourceIndex = validMeals.findIndex((item, index) => !usedIndexes.has(index) && String(item?.meal_type || '') === mealType);
-    if (sourceIndex < 0) {
-      sourceIndex = validMeals.findIndex((_, index) => !usedIndexes.has(index));
-    }
-    if (sourceIndex < 0) {
-      sourceIndex = Math.min(slotIndex, validMeals.length - 1);
-    }
-
-    usedIndexes.add(sourceIndex);
-    const source = validMeals[sourceIndex] || validMeals[0];
-    return {
-      ...source,
-      meal_type: mealType,
-      order_index: slotIndex
-    };
+  const normalized: any[] = [];
+  const slotsSeen = new Set<string>();
+  slots.forEach((mealType) => {
+    if (slotsSeen.has(mealType)) return;
+    slotsSeen.add(mealType);
+    validMeals
+      .filter((item) => String(item?.meal_type || '') === mealType)
+      .forEach((source) => {
+        normalized.push({
+          ...source,
+          meal_type: mealType,
+          order_index: normalized.length
+        });
+      });
   });
 
-  return normalized;
+  if (normalized.length > 0) return normalized;
+
+  return validMeals.map((source, index) => ({
+    ...source,
+    meal_type: slots[Math.min(index, slots.length - 1)] || 'lunch',
+    order_index: index
+  }));
 };
 
 const getAiCoachAccessState = (profile: any) => {
@@ -379,6 +541,7 @@ type NormalizedAiPlan = {
       meals: Array<{
         meal_type: string;
         food_ids: string[];
+        quantities?: number[];
         total_calories: number;
       }>;
     }>;
@@ -434,6 +597,9 @@ const normalizeAiPlanPayload = (raw: any): NormalizedAiPlan => {
         return {
           meal_type: String(item.meal_type || 'lunch').toLowerCase(),
           food_ids: ids,
+          quantities: Array.isArray(item.quantities)
+            ? ids.map((_: string, index: number) => Math.max(0.25, Math.min(6, Number(item.quantities[index]) || 0)))
+            : [],
           total_calories: Math.max(0, Number(item.total_calories) || 0)
         };
       })
@@ -960,7 +1126,7 @@ async function generateWeeklyCoachPlanForUser(params: {
     .join('\n');
 
   const foodCatalog = foods
-    .map((item: any) => `${item.id}|${truncateText(item.name, 36)}|cat=${truncateText(item.category, 18)}|kcal=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 12)}|meals=${truncateText((item.meal_type || []).join(','), 28)}|goals=${truncateText((item.goal_type || []).join(','), 32)}|allergens=${truncateText((item.allergens || []).join(','), 32)}|price=${truncateText(item.price_level, 12)}|cook_min=${item.cooking_time_minutes || ''}|region=${truncateText(item.region, 14)}|easy=${item.is_easy_to_prepare ?? ''}`)
+    .map((item: any) => `${item.id}|${truncateText(item.name, 36)}|group=${classifyFoodComponent(item)}|cat=${truncateText(item.category, 18)}|kcal=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 12)}|meals=${truncateText((item.meal_type || []).join(','), 28)}|goals=${truncateText((item.goal_type || []).join(','), 32)}|allergens=${truncateText((item.allergens || []).join(','), 32)}|price=${truncateText(item.price_level, 12)}|cook_min=${item.cooking_time_minutes || ''}|region=${truncateText(item.region, 14)}|easy=${item.is_easy_to_prepare ?? ''}`)
     .join('\n');
 
   const recentTraining = clampList(recentSessionsRes.data as any[], 12)
@@ -1032,7 +1198,12 @@ Rules:
 - Each day must include exactly ${mealsPerDay} meals.
 - Allowed meal slots for each day: ${mealSlots.join(', ')}.
 - Do not add extra meals beyond those slots.
-- Use reasonable quantity multipliers.
+- A meal object is one complete eating occasion, not one single food.
+- Lunch and dinner must have at least 3 food_ids: 1 group=carb/starch, 1 group=protein, and 1 group=vegetable. Example: rice + chicken/fish/tofu + vegetables.
+- Breakfast should have at least 2 food_ids when possible: carb + protein/dairy.
+- Snack can have 1-2 food_ids.
+- Use reasonable quantity multipliers in "quantities". If serving_unit is 100g, vegetables should usually be 2-3 (200-300g), protein 1.2-2 (120-200g), carb 1-2 servings.
+- The length of quantities must match food_ids. Do not make lunch or dinner with only one food_id.
 
 JSON schema (fixed):
 {
@@ -1069,6 +1240,7 @@ JSON schema (fixed):
           {
             "meal_type": "breakfast",
             "food_ids": ["exact id from catalog"],
+            "quantities": [1],
             "total_calories": 420
           }
         ]
@@ -1234,16 +1406,9 @@ JSON schema (fixed):
       continue;
     }
 
-    const expandedMeals = (day.meals || []).flatMap((meal: any) => {
-      const foodIds = Array.isArray(meal.food_ids) ? meal.food_ids : [];
-      return foodIds.map((foodId: string, idx: number) => ({
-        meal_type: meal.meal_type,
-        food_id: foodId,
-        quantity: 1,
-        order_index: idx
-      }));
-    });
-    const normalizedMeals = normalizeDayMeals(expandedMeals, mealsPerDay, foodById);
+    const expandedMeals = expandAiMealItems(day.meals || [], foodById);
+    const enrichedMeals = enrichMealComponents(expandedMeals, mealsPerDay, foodById, foods);
+    const normalizedMeals = normalizeDayMeals(enrichedMeals, mealsPerDay, foodById);
     normalizedMeals.forEach((item: any, index: number) => {
       const foodId = String(item.food_id || '');
       const food = foodById.get(foodId);
@@ -3563,7 +3728,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       .join('\n');
 
     const foodCatalog = foods
-      .map((item: any) => `${item.id}|${truncateText(item.name, 36)}|cat=${truncateText(item.category, 18)}|kcal=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 12)}|meals=${truncateText((item.meal_type || []).join(','), 28)}|goals=${truncateText((item.goal_type || []).join(','), 32)}|allergens=${truncateText((item.allergens || []).join(','), 32)}|price=${truncateText(item.price_level, 12)}|cook_min=${item.cooking_time_minutes || ''}|region=${truncateText(item.region, 14)}|easy=${item.is_easy_to_prepare ?? ''}`)
+      .map((item: any) => `${item.id}|${truncateText(item.name, 36)}|group=${classifyFoodComponent(item)}|cat=${truncateText(item.category, 18)}|kcal=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 12)}|meals=${truncateText((item.meal_type || []).join(','), 28)}|goals=${truncateText((item.goal_type || []).join(','), 32)}|allergens=${truncateText((item.allergens || []).join(','), 32)}|price=${truncateText(item.price_level, 12)}|cook_min=${item.cooking_time_minutes || ''}|region=${truncateText(item.region, 14)}|easy=${item.is_easy_to_prepare ?? ''}`)
       .join('\n');
 
     const recentTraining = clampList(recentSessionsRes.data as any[], 12)
@@ -3635,7 +3800,12 @@ Rules:
 - Each day must include exactly ${mealsPerDay} meals.
 - Allowed meal slots for each day: ${mealSlots.join(', ')}.
 - Do not add extra meals beyond those slots.
-- Use reasonable quantity multipliers.
+- A meal object is one complete eating occasion, not one single food.
+- Lunch and dinner must have at least 3 food_ids: 1 group=carb/starch, 1 group=protein, and 1 group=vegetable. Example: rice + chicken/fish/tofu + vegetables.
+- Breakfast should have at least 2 food_ids when possible: carb + protein/dairy.
+- Snack can have 1-2 food_ids.
+- Use reasonable quantity multipliers in "quantities". If serving_unit is 100g, vegetables should usually be 2-3 (200-300g), protein 1.2-2 (120-200g), carb 1-2 servings.
+- The length of quantities must match food_ids. Do not make lunch or dinner with only one food_id.
 
 JSON schema (fixed):
 {
@@ -3672,6 +3842,7 @@ JSON schema (fixed):
           {
             "meal_type": "breakfast",
             "food_ids": ["exact id from catalog"],
+            "quantities": [1],
             "total_calories": 420
           }
         ]
@@ -3837,16 +4008,9 @@ JSON schema (fixed):
         continue;
       }
 
-      const expandedMeals = (day.meals || []).flatMap((meal: any) => {
-        const foodIds = Array.isArray(meal.food_ids) ? meal.food_ids : [];
-        return foodIds.map((foodId: string, idx: number) => ({
-          meal_type: meal.meal_type,
-          food_id: foodId,
-          quantity: 1,
-          order_index: idx
-        }));
-      });
-      const normalizedMeals = normalizeDayMeals(expandedMeals, mealsPerDay, foodById);
+      const expandedMeals = expandAiMealItems(day.meals || [], foodById);
+      const enrichedMeals = enrichMealComponents(expandedMeals, mealsPerDay, foodById, foods);
+      const normalizedMeals = normalizeDayMeals(enrichedMeals, mealsPerDay, foodById);
       normalizedMeals.forEach((item: any, index: number) => {
         const foodId = String(item.food_id || '');
         const food = foodById.get(foodId);
