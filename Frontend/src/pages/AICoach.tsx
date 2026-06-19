@@ -145,6 +145,8 @@ type LifestyleSummary = {
   fitness_goal?: string | null;
   diet_preference?: string | null;
   meals_per_day?: number | null;
+  target_calories?: number | null;
+  daily_water_goal?: number | null;
 };
 
 type PlanSettings = {
@@ -470,7 +472,7 @@ const buildHighProteinMealReply = () =>
     'Giữ dầu mỡ vừa phải, ưu tiên luộc/áp chảo/nướng để no lâu mà không đội calories quá cao.',
   ].join('\n\n');
 
-const buildNoMealPlanSuggestionReply = (question: string) => {
+const buildNoMealPlanSuggestionReply = (question: string, lifestyle?: LifestyleSummary | null) => {
   const normalized = normalizeVietnameseClient(question);
   const mealLabel = normalized.includes('sang')
     ? 'bữa sáng'
@@ -510,6 +512,29 @@ const buildNoMealPlanSuggestionReply = (question: string) => {
     options.map((item, index) => `${index + 1}. ${item}`).join('\n'),
     'Chọn 1 món theo nguyên tắc: đủ đạm, nhiều rau, tinh bột vừa phải. Nếu bạn cho mình mục tiêu hiện tại như giảm cân/tăng cơ và cân nặng, mình sẽ chỉnh khẩu phần sát hơn.',
   ].join('\n\n');
+};
+
+const buildPersonalizedNoMealPlanSuggestionReply = (question: string, lifestyle?: LifestyleSummary | null) => {
+  const baseReply = buildNoMealPlanSuggestionReply(question, lifestyle);
+  const goalText = normalizeVietnameseClient(lifestyle?.fitness_goal || '');
+  const dietText = normalizeVietnameseClient(lifestyle?.diet_preference || '');
+  const targetCalories = Number(lifestyle?.target_calories || 0);
+  const mealsPerDay = Math.max(2, Math.min(5, Math.round(Number(lifestyle?.meals_per_day || 3))));
+  const perMealCalories = targetCalories ? Math.round(targetCalories / mealsPerDay / 50) * 50 : 0;
+  const isMuscleGain = goalText.includes('tang co') || goalText.includes('muscle');
+  const isWeightLoss = goalText.includes('giam') || goalText.includes('loss');
+  const isVegetarian = dietText.includes('chay') || dietText.includes('vegetarian') || dietText.includes('vegan');
+  const goalNote = isMuscleGain
+    ? 'Vi muc tieu cua ban nghieng ve tang co, hay giu moi bua co 30-45g protein va them tinh bot quanh buoi tap.'
+    : isWeightLoss
+      ? 'Vi muc tieu cua ban nghieng ve giam can, hay giu rau nhieu, protein cao va tiet che dau/nuoc sot.'
+      : 'Minh se tam giu khau phan vua phai, uu tien protein va rau de de bam ke hoach.';
+  const calorieNote = perMealCalories
+    ? `Voi muc ${targetCalories} kcal/ngay va ${mealsPerDay} bua/ngay, bua nay nen xoay quanh ${perMealCalories - 100}-${perMealCalories + 100} kcal.`
+    : 'Neu cap nhat target calories, minh se can khau phan sat hon.';
+  const dietNote = isVegetarian ? 'Minh dang uu tien cach chon mon hop che do an chay cua ban.' : '';
+
+  return [baseReply, [goalNote, calorieNote, dietNote].filter(Boolean).join(' ')].join('\n\n');
 };
 
 const isWeekStartColumnError = (error: any) =>
@@ -648,7 +673,12 @@ const buildWorkoutListReply = (day: DayPlan) => {
   ].join('\n\n');
 };
 
-const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' | 'workout' | null) => {
+const buildCoachReply = (
+  day: DayPlan,
+  question: string,
+  previousTopic?: 'meal' | 'workout' | null,
+  lifestyle?: LifestyleSummary | null,
+) => {
   const normalizedQuestion = question.toLowerCase();
   const normalizedIntent = normalizeVietnameseClient(question);
   const inferredTopic = inferChatTopic(question) || previousTopic || null;
@@ -670,7 +700,7 @@ const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' 
   }
 
   if (day.meals.length === 0 && inferredTopic === 'meal') {
-    return buildNoMealPlanSuggestionReply(question);
+    return buildPersonalizedNoMealPlanSuggestionReply(question, lifestyle);
   }
 
   if (
@@ -707,7 +737,7 @@ const buildCoachReply = (day: DayPlan, question: string, previousTopic?: 'meal' 
   ) {
     return day.meals.length > 0
       ? `${day.label} đang có ${day.meals.length} món, tổng khoảng ${calories || 0} kcal và ${protein || 0}g protein. Nếu muốn siết mỡ hơn, hãy giữ protein và cắt bớt món phụ hoặc tinh bột ở bữa tối.`
-      : `${day.label} chưa có thực đơn chi tiết. Nên ưu tiên 1 nguồn đạm nạc, 1 phần rau lớn và tinh bột vừa phải quanh buổi tập.`;
+      : buildPersonalizedNoMealPlanSuggestionReply(question, lifestyle);
   }
 
   if (
@@ -1209,7 +1239,7 @@ export default function AICoach() {
         const lifestyleResult = await supabase
           .from('lifestyle_settings')
           .select(
-            'weekly_workouts, activity_level, workout_duration, workout_location, equipment_available, experience_level, fitness_goal, diet_preference, meals_per_day',
+            'weekly_workouts, activity_level, workout_duration, workout_location, equipment_available, experience_level, fitness_goal, diet_preference, meals_per_day, target_calories, daily_water_goal',
           )
           .eq('user_id', user.id)
           .maybeSingle();
@@ -1879,7 +1909,7 @@ export default function AICoach() {
         throw new Error(payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');
       }
 
-      const replyContent = String(payload.reply || '').trim() || buildCoachReply(selectedDay, message, previousTopic);
+      const replyContent = String(payload.reply || '').trim() || buildCoachReply(selectedDay, message, previousTopic, lifestyle);
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
@@ -1900,7 +1930,7 @@ export default function AICoach() {
       const fallbackMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
-        content: buildCoachReply(selectedDay, message, previousTopic),
+        content: buildCoachReply(selectedDay, message, previousTopic, lifestyle),
         responseMode: 'coach_advice',
         optimistic: true,
       };

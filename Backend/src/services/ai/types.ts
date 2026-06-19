@@ -103,6 +103,28 @@ export type AIChatMealSummary = {
   fat?: number | null;
 };
 
+export type AIChatProgressSummary = {
+  todayDate?: string;
+  recentDays?: number;
+  waterGoalMl?: number;
+  waterTodayMl?: number;
+  averageWaterMl?: number;
+  waterHitDays?: number;
+  sleepTargetHours?: number;
+  sleepTodayHours?: number;
+  averageSleepHours?: number;
+  sleepHitDays?: number;
+  targetCalories?: number;
+  caloriesToday?: number;
+  workoutDaysWithData?: number;
+  workoutCompletedDays?: number;
+  todayCompletedExercises?: number;
+  todayTotalExercises?: number;
+  todayCompletedSets?: number;
+  todayPlannedSets?: number;
+  planFitNotes?: string[];
+};
+
 export type AIChatContext = {
   todayWorkoutCount?: number;
   todayMealCount?: number;
@@ -118,6 +140,7 @@ export type AIChatContext = {
   todayStatus?: string;
   actionLog?: string;
   extraContext?: string;
+  progressSummary?: AIChatProgressSummary | null;
   chatHistory?: Array<{
     role: 'user' | 'assistant' | 'system';
     content: string;

@@ -174,12 +174,43 @@ const buildNoMealPlanSuggestionReply = (message: string, context?: AIChatContext
         ? 'bua phu'
         : 'bua trua';
   const lifestyle = context?.lifestyle || {};
+  const body = context?.bodyMetrics || {};
   const goalText = normalizeVietnameseText(String((lifestyle as any).fitness_goal || ''));
+  const dietText = normalizeVietnameseText(String((lifestyle as any).diet_preference || (lifestyle as any).current_diet || ''));
   const isMuscleGain = goalText.includes('tang co') || goalText.includes('muscle');
   const isWeightLoss = goalText.includes('giam') || goalText.includes('loss');
+  const isVegetarian = dietText.includes('chay') || dietText.includes('vegetarian') || dietText.includes('vegan');
+  const targetCalories = readNumber((lifestyle as any).target_calories);
+  const mealsPerDay = Math.max(2, Math.min(5, Math.round(Number((lifestyle as any).meals_per_day || 3))));
+  const perMealCalories = targetCalories ? Math.round(targetCalories / mealsPerDay / 50) * 50 : 0;
+  const weight = readNumber((body as any).weight, (context?.profile as any)?.weight);
 
   const options =
-    mealLabel === 'bua sang'
+    isVegetarian
+      ? mealLabel === 'bua sang'
+        ? [
+            'Yen mach 50g + sua dau nanh/Greek yogurt + 1 qua chuoi.',
+            'Banh mi nguyen cam + trung + dau hu ap chao + rau.',
+            'Sua chua Hy Lap + trai cay + hat chia/hanh nhan vua phai.',
+          ]
+        : mealLabel === 'bua toi'
+          ? [
+              'Dau hu/tempeh 180g + rau xanh + 1/2-1 chen com.',
+              'Trung chien it dau + salad lon + khoai lang 150-200g.',
+              'Dau lang/dau ga ham rau cu + com vua phai.',
+            ]
+          : mealLabel === 'bua phu'
+            ? [
+                'Sua chua Hy Lap hoac sua dau nanh + trai cay.',
+                'Dau hu non + cacao khong duong.',
+                '1 nam hat nho + 1 qua chuoi neu can nang luong.',
+              ]
+            : [
+                'Dau hu/tempeh 180g + 1 chen com + rau xanh.',
+                'Dau ga/dau lang + khoai lang 200g + salad.',
+                'Trung + dau hu sot ca chua + com vua phai.',
+              ]
+      : mealLabel === 'bua sang'
       ? [
           '2 trung + 1 hu sua chua Hy Lap khong duong + 1 qua chuoi.',
           'Yen mach 50g + sua it beo + 1 muong whey hoac 150g sua chua.',
@@ -208,11 +239,18 @@ const buildNoMealPlanSuggestionReply = (message: string, context?: AIChatContext
     : isWeightLoss
       ? 'Neu dang giam can, giu rau nhieu va giam bot dau/nuoc sot.'
       : 'Neu chua ro muc tieu, giu khau phan vua phai va uu tien protein.';
+  const calorieNote = perMealCalories
+    ? `Voi muc ${targetCalories} kcal/ngay va ${mealsPerDay} bua/ngay, bua nay nen xoay quanh ${perMealCalories - 100}-${perMealCalories + 100} kcal.`
+    : 'Minh chua thay muc kcal muc tieu nen tam giu khau phan vua phai.';
+  const proteinNote = weight
+    ? `Protein ngay nen nam khoang ${Math.round(weight * 1.6)}-${Math.round(weight * 2)}g, nen chia deu vao cac bua.`
+    : 'Neu cap nhat can nang, minh se can lai protein sat hon.';
+  const dietNote = isVegetarian ? 'Minh dang uu tien lua chon phu hop che do an chay cua ban.' : '';
 
   return [
-    `Minh chua thay thuc don chi tiet hom nay, nhung co the goi y ${mealLabel} ngay:`,
+    `Minh chua thay thuc don chi tiet hom nay trong Fitly, nhung co the goi y ${mealLabel} theo ho so hien tai:`,
     options.map((item, index) => `${index + 1}. ${item}`).join('\n'),
-    `${goalNote} Neu ban cho minh can nang va muc tieu hien tai, minh se can lai khau phan sat hon.`,
+    [goalNote, calorieNote, proteinNote, dietNote].filter(Boolean).join(' '),
   ].join('\n\n');
 };
 
@@ -356,12 +394,17 @@ const buildGeneralHealthReply = (context?: AIChatContext): string => {
   const dayLabel = context?.targetDayLabel || 'Hom nay';
   const todayWorkoutCount = Number(context?.todayWorkoutCount || 0);
   const todayMealCount = Number(context?.todayMealCount || 0);
+  const notes = Array.isArray(context?.progressSummary?.planFitNotes)
+    ? context.progressSummary.planFitNotes.slice(0, 3)
+    : [];
 
   if (todayWorkoutCount + todayMealCount > 0) {
-    return `${dayLabel} hien co ${todayWorkoutCount} bai tap va ${todayMealCount} mon an. Ban co the hoi ro hon ve workout, meal plan, phuc hoi, giam met, hoac cach bam sat muc tieu hom nay.`;
+    const personalCue = notes.length ? ` Diem minh se bam theo: ${notes.join('; ')}.` : '';
+    return `${dayLabel} hien co ${todayWorkoutCount} bai tap va ${todayMealCount} mon an.${personalCue} Ban co the hoi ro hon ve workout, meal plan, phuc hoi, giam met, hoac cach bam sat muc tieu hom nay.`;
   }
 
-  return `${dayLabel} minh chua thay du lich tap hoac thuc don. Ban co the hoi ve dinh duong, phuc hoi, hoac yeu cau tao lai ke hoach de minh ho tro sat hon.`;
+  const personalCue = notes.length ? ` Minh se tam dua tren: ${notes.join('; ')}.` : '';
+  return `${dayLabel} minh chua thay du lich tap hoac thuc don.${personalCue} Ban co the hoi ve dinh duong, phuc hoi, hoac yeu cau tao lai ke hoach de minh ho tro sat hon.`;
 };
 
 const buildOutOfScopeReply = (): string =>

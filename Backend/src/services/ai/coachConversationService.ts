@@ -50,7 +50,15 @@ const formatExercisesForPrompt = (exercises: AIChatContext['exercises']): string
     .slice(0, 8)
     .map((item, index) => {
       const name = item.name || item.target_muscle || item.body_part || 'Bai tap';
-      return `${index + 1}. ${name}: ${item.sets || 3} set x ${item.reps || '8-12'}, nghi ${item.rest_seconds || 60}s`;
+      const sets = item.sets || item.planned_sets || 3;
+      const reps = item.reps || item.planned_reps || '8-12';
+      const weight = Number(item.weight_kg ?? item.planned_weight_kg ?? 0);
+      const plannedSets = Number(item.planned_sets || item.sets || 0);
+      const completedSets = Number(item.completed_sets || 0);
+      const progress = plannedSets > 0 ? `, da xong ${completedSets}/${plannedSets} set` : '';
+      const load = weight > 0 ? `, ${weight}kg` : '';
+      const rpe = Number(item.target_rpe || 0) > 0 ? `, RPE ${item.target_rpe}` : '';
+      return `${index + 1}. ${name}: ${sets} set x ${reps}, nghi ${item.rest_seconds || 60}s${load}${rpe}${progress}`;
     })
     .join('\n');
 };
@@ -65,6 +73,36 @@ const formatMealsForPrompt = (meals: AIChatContext['meals']): string => {
       return `${index + 1}. ${getMealTypeLabel(item.meal_type)} - ${item.name || 'Mon an'} x${item.quantity || 1}: ${calories} kcal, ${item.protein || 0}g protein`;
     })
     .join('\n');
+};
+
+const formatPromptNumber = (value: unknown, suffix = '', fallback = 'Chua co'): string => {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return fallback;
+  const rounded = Math.round(numberValue * 10) / 10;
+  return `${rounded}${suffix}`;
+};
+
+const formatPositivePromptNumber = (value: unknown, suffix = '', fallback = 'Chua co'): string => {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) return fallback;
+  return formatPromptNumber(numberValue, suffix, fallback);
+};
+
+const formatProgressSummaryForPrompt = (summary: AIChatContext['progressSummary']): string => {
+  if (!summary) return 'Chua co tom tat tien do gan day.';
+
+  const notes = Array.isArray(summary.planFitNotes)
+    ? summary.planFitNotes.filter(Boolean).slice(0, 6)
+    : [];
+
+  return [
+    `- Ngay hien tai: ${summary.todayDate || 'Chua co'} | Cua so gan day: ${summary.recentDays || 0} ngay`,
+    `- Nuoc: hom nay ${formatPromptNumber(summary.waterTodayMl, 'ml')}/${formatPromptNumber(summary.waterGoalMl, 'ml')}; trung binh ${formatPromptNumber(summary.averageWaterMl, 'ml/ngay')}; dat muc tieu ${summary.waterHitDays || 0}/${summary.recentDays || 0} ngay`,
+    `- Ngu: hom nay ${formatPromptNumber(summary.sleepTodayHours, 'h')}; trung binh ${formatPromptNumber(summary.averageSleepHours, 'h')}; dat muc tieu ${summary.sleepHitDays || 0}/${summary.recentDays || 0} ngay; muc tieu ${formatPositivePromptNumber(summary.sleepTargetHours, 'h')}`,
+    `- Kcal: hom nay ${formatPromptNumber(summary.caloriesToday, ' kcal')}; muc tieu ${formatPositivePromptNumber(summary.targetCalories, ' kcal')}`,
+    `- Tap luyen: hom nay ${summary.todayCompletedExercises || 0}/${summary.todayTotalExercises || 0} bai, ${summary.todayCompletedSets || 0}/${summary.todayPlannedSets || 0} set; gan day co du lieu ${summary.workoutDaysWithData || 0}/${summary.recentDays || 0} ngay, hoan thanh ${summary.workoutCompletedDays || 0} ngay`,
+    notes.length ? `- Tin hieu ca nhan hoa: ${notes.join(' | ')}` : '- Tin hieu ca nhan hoa: Chua co du lieu noi bat',
+  ].join('\n');
 };
 
 export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => {
@@ -98,8 +136,15 @@ export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => 
 - Trinh do: ${compactValue((lifestyle as any).experience_level)} | So buoi/tuan: ${compactValue((lifestyle as any).weekly_workouts || (lifestyle as any).activity_level)}
 - Noi tap: ${compactValue((lifestyle as any).workout_location)} | Dung cu: ${compactValue((lifestyle as any).equipment_available)}
 - Thoi luong/buoi: ${compactValue((lifestyle as any).workout_duration)} phut | Budget: ${compactValue((lifestyle as any).budget_level)}
+- An uong: ${compactValue((lifestyle as any).diet_preference || (lifestyle as any).current_diet)} | So bua/ngay: ${compactValue((lifestyle as any).meals_per_day)}
+- Muc tieu kcal: ${compactValue((lifestyle as any).target_calories)} | Muc tieu nuoc: ${compactValue((lifestyle as any).daily_water_goal)}L/ngay
+- Gio tap ua thich: ${compactValue((lifestyle as any).preferred_workout_time || (lifestyle as any).workout_time)}
 - Benh ly: ${compactValue((health as any).health_condition)} | Chan thuong: ${compactValue((health as any).injuries)}
 - Di ung/lich su y te: ${compactValue((health as any).medical_history || (health as any).allergies)}
+- Thuoc dang dung: ${compactValue((health as any).medications)} | Muc tieu ngu/chat luong ngu: ${compactValue((health as any).sleep_hours || (health as any).sleep_quality)}
+
+[CHAN DUNG CA NHAN HOA VA TIEN DO GAN DAY]
+${formatProgressSummaryForPrompt(context?.progressSummary)}
 
 [DU LIEU NGAY DUOC CHON: ${dayLabel}]
 Bai tap:
@@ -130,7 +175,11 @@ ${context?.extraContext ? `[DU LIEU TRENDfit MO RONG]\n${context.extraContext}\n
 7. Neu cau hoi mo ho, hoi toi da 1 cau lam ro. Neu co the dua phuong an an toan mac dinh thi lam ngay.
 8. Khong tra JSON, khong noi ve backend, khong noi minh la model AI.
 9. Giong coach that: ro rang, thuc te, khong noi lan man, khong khen xa giao qua muc.
-10. Neu nguoi dung yeu cau thay doi lich/tap/mon an, chi dua goi y noi dung. Viec tao proposal se do he thong Fitly xu ly rieng.`;
+10. Moi cau tra loi nen bam vao it nhat 1 du kien ca nhan dang co: muc tieu, can nang, muc tieu kcal/protein, thiet bi, dia diem tap, chan thuong, diet, tien do nuoc/ngu/tap, hoac lich su chat.
+11. Khong tra loi chung chung kieu "uu tien dam, rau, tinh bot" neu nguoi dung hoi an gi. Hay dua 2-3 lua chon mon/khau phan, uoc tinh kcal/protein khi co the, va noi cach chinh theo muc tieu cua ho.
+12. Neu chua co lich tap/thuc don trong Fitly, van de xuat phuong an tam thoi du cu the theo ho so ca nhan; dong thoi noi ro "minh chua thay lich/thuc don trong Fitly".
+13. Neu tien do gan day cho thay thieu nuoc, ngu it, hoac tap chua xong, dua uu tien thuc te cho ngay hom nay thay vi ke hoach qua lon.
+14. Neu nguoi dung yeu cau thay doi lich/tap/mon an, chi dua goi y noi dung. Viec tao proposal se do he thong Fitly xu ly rieng.`;
 };
 
 export const buildGuestCoachSystemPrompt = (): string => `Ban la "Fitly AI" - huan luyen vien ca nhan va chuyen gia dinh duong cua ung dung Fitly.

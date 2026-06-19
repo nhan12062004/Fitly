@@ -14,7 +14,7 @@ import { aiPlannerService } from './services/ai/aiPlannerService';
 import { workoutAdjusterService } from './services/ai/workoutAdjusterService';
 import { mealAdjusterService } from './services/ai/mealAdjusterService';
 import { progressAnalyzerService } from './services/ai/progressAnalyzerService';
-import { AIChatResponse, AIIntent } from './services/ai/types';
+import { AIChatContext, AIChatResponse, AIIntent } from './services/ai/types';
 import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservability';
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
@@ -241,6 +241,113 @@ const isValidDayIndex = (value: unknown): value is number =>
 
 const isMealIntent = (intent: AIIntent): boolean =>
   intent === 'meal_plan' || intent === 'adjust_meal' || intent === 'create_meal_plan';
+
+const readPositiveNumber = (...values: unknown[]): number => {
+  for (const value of values) {
+    const numberValue = Number(value);
+    if (Number.isFinite(numberValue) && numberValue > 0) return numberValue;
+  }
+  return 0;
+};
+
+const averagePositiveValues = (values: unknown[]): number => {
+  const numbers = values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (numbers.length === 0) return 0;
+  return Math.round((numbers.reduce((sum, value) => sum + value, 0) / numbers.length) * 10) / 10;
+};
+
+const buildAiCoachProgressSummary = ({
+  todayKey,
+  recentDateKeys,
+  profile,
+  bodyMetrics,
+  lifestyle,
+  health,
+  progressLogs,
+  exerciseSessions,
+}: {
+  todayKey: string;
+  recentDateKeys: string[];
+  profile?: any;
+  bodyMetrics?: any;
+  lifestyle?: any;
+  health?: any;
+  progressLogs?: any[];
+  exerciseSessions?: any[];
+}): AIChatContext['progressSummary'] => {
+  const logs = Array.isArray(progressLogs) ? progressLogs : [];
+  const sessions = Array.isArray(exerciseSessions) ? exerciseSessions : [];
+  const todayLog = logs.find((item) => item?.log_date === todayKey) || {};
+  const waterGoalMl = Math.round(readPositiveNumber(lifestyle?.daily_water_goal, 2) * 1000);
+  const sleepTargetHours = readPositiveNumber(health?.sleep_hours, lifestyle?.sleep_hours, 8);
+  const targetCalories = readPositiveNumber(lifestyle?.target_calories);
+
+  const waterHitDays = logs.filter((item) => Number(item?.water_intake_ml || 0) >= waterGoalMl).length;
+  const sleepHitDays = logs.filter((item) => Number(item?.sleep_hours || 0) >= sleepTargetHours).length;
+  const sessionsByDate = new Map<string, any[]>();
+  sessions.forEach((session) => {
+    const key = String(session?.log_date || '');
+    if (!key) return;
+    const rows = sessionsByDate.get(key) || [];
+    rows.push(session);
+    sessionsByDate.set(key, rows);
+  });
+
+  const todaySessions = sessionsByDate.get(todayKey) || [];
+  const todayCompletedExercises = todaySessions.filter((item) => item?.is_completed).length;
+  const todayCompletedSets = todaySessions.reduce((sum, item) => sum + Number(item?.completed_sets || (item?.is_completed ? item?.sets : 0) || 0), 0);
+  const todayPlannedSets = todaySessions.reduce((sum, item) => sum + Number(item?.planned_sets || item?.sets || 0), 0);
+  const workoutDaysWithData = recentDateKeys.filter((dateKey) => (sessionsByDate.get(dateKey) || []).length > 0).length;
+  const workoutCompletedDays = recentDateKeys.filter((dateKey) => {
+    const rows = sessionsByDate.get(dateKey) || [];
+    return rows.length > 0 && rows.every((item) => item?.is_completed || Number(item?.completed_sets || 0) >= Number(item?.planned_sets || item?.sets || 1));
+  }).length;
+
+  const goalText = normalizeKeywordText(lifestyle?.fitness_goal);
+  const dietText = String(lifestyle?.diet_preference || lifestyle?.current_diet || '').trim();
+  const equipmentText = String(lifestyle?.equipment_available || '').trim();
+  const locationText = String(lifestyle?.workout_location || '').trim();
+  const injuryText = String(health?.injuries || health?.health_condition || '').trim();
+  const weight = readPositiveNumber(bodyMetrics?.weight, profile?.weight);
+  const targetWeight = readPositiveNumber(bodyMetrics?.target_weight, profile?.target_weight);
+  const notes: string[] = [];
+
+  if (goalText) notes.push(`muc tieu=${lifestyle?.fitness_goal}`);
+  if (weight && targetWeight) {
+    const direction = targetWeight < weight ? 'giam can' : targetWeight > weight ? 'tang can/tang co' : 'giu can';
+    notes.push(`can nang ${Math.round(weight * 10) / 10}kg -> muc tieu ${Math.round(targetWeight * 10) / 10}kg (${direction})`);
+  }
+  if (dietText) notes.push(`che do an=${truncateText(dietText, 80)}`);
+  if (equipmentText || locationText) notes.push(`tap o ${locationText || 'chua ro'}, dung cu=${equipmentText || 'chua ro'}`);
+  if (injuryText) notes.push(`can than voi suc khoe/chan thuong=${truncateText(injuryText, 100)}`);
+  if (waterGoalMl && Number(todayLog?.water_intake_ml || 0) < Math.round(waterGoalMl * 0.5)) notes.push('hom nay nuoc dang thap, uu tien nhac bu nuoc');
+  if (sleepTargetHours && Number(todayLog?.sleep_hours || 0) > 0 && Number(todayLog?.sleep_hours || 0) < sleepTargetHours) notes.push('ngu hom nay thap hon muc tieu, nen giam tai hoac uu tien phuc hoi');
+  if (todaySessions.length > 0 && todayCompletedExercises < todaySessions.length) notes.push('buoi tap hom nay chua hoan thanh het');
+
+  return {
+    todayDate: todayKey,
+    recentDays: recentDateKeys.length,
+    waterGoalMl,
+    waterTodayMl: Number(todayLog?.water_intake_ml || 0),
+    averageWaterMl: averagePositiveValues(logs.map((item) => item?.water_intake_ml)),
+    waterHitDays,
+    sleepTargetHours,
+    sleepTodayHours: Number(todayLog?.sleep_hours || 0),
+    averageSleepHours: averagePositiveValues(logs.map((item) => item?.sleep_hours)),
+    sleepHitDays,
+    targetCalories,
+    caloriesToday: Number(todayLog?.calories_consumed || 0),
+    workoutDaysWithData,
+    workoutCompletedDays,
+    todayCompletedExercises,
+    todayTotalExercises: todaySessions.length,
+    todayCompletedSets,
+    todayPlannedSets,
+    planFitNotes: notes,
+  };
+};
 
 type NormalizedAiPlan = {
   workoutPlan: {
@@ -2416,7 +2523,9 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       }
     }
 
-    const today = new Date(`${getVietnamDateKey()}T00:00:00`);
+    const todayKey = getVietnamDateKey();
+    const today = new Date(`${todayKey}T00:00:00`);
+    const recentDateKeys = Array.from({ length: 7 }, (_, index) => getVietnamDateKey(addDays(today, -index)));
     const day = today.getDay();
     const todayDayIndex = day === 0 ? 6 : day - 1;
     const requestDayIndex = isValidDayIndex(Number(selectedDayIndex)) ? Number(selectedDayIndex) : null;
@@ -2469,7 +2578,19 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-    const [todayWorkoutRes, todayMealRes, weekPlanRes, feedbackRes, profileRes, bodyMetricsRes, healthRes, recentChatRes, dailyExerciseSessionsRes] = await Promise.all([
+    const [
+      todayWorkoutRes,
+      todayMealRes,
+      weekPlanRes,
+      feedbackRes,
+      profileRes,
+      bodyMetricsRes,
+      healthRes,
+      recentChatRes,
+      dailyExerciseSessionsRes,
+      recentProgressLogsRes,
+      recentExerciseSessionsRes,
+    ] = await Promise.all([
       weeklyPlanQuery,
       weeklyFoodPlanQuery,
       supabase
@@ -2512,8 +2633,19 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .from('daily_exercise_sessions')
         .select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, actual_sets, actual_reps, actual_weight_kg, actual_rest_seconds, target_rpe, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, body_part, target_muscle)')
         .eq('user_id', authUserId)
-        .eq('log_date', getVietnamDateKey())
-        .order('order_index', { ascending: true })
+        .eq('log_date', todayKey)
+        .order('order_index', { ascending: true }),
+      supabase
+        .from('daily_progress_logs')
+        .select('log_date, water_intake_ml, calories_consumed, calories_burned, sleep_hours')
+        .eq('user_id', authUserId)
+        .in('log_date', recentDateKeys)
+        .order('log_date', { ascending: false }),
+      supabase
+        .from('daily_exercise_sessions')
+        .select('log_date, is_completed, sets, planned_sets, completed_sets')
+        .eq('user_id', authUserId)
+        .in('log_date', recentDateKeys)
     ]);
 
     const workoutRows = (todayWorkoutRes.data as any)?.weekly_plan_exercises || [];
@@ -2545,6 +2677,16 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       body_part: row.exercises?.body_part || null,
       target_muscle: row.exercises?.target_muscle || null
     }));
+    const aiCoachProgressSummary = buildAiCoachProgressSummary({
+      todayKey,
+      recentDateKeys,
+      profile: profileRes.data || null,
+      bodyMetrics: bodyMetricsRes.data || null,
+      lifestyle: weekPlanRes.data || null,
+      health: healthRes.data || null,
+      progressLogs: (recentProgressLogsRes.data || []) as any[],
+      exerciseSessions: (recentExerciseSessionsRes.data || []) as any[],
+    });
     try {
       [todayStatusContext, coachDataContext] = await Promise.all([
         buildTodayStatus(authUserId),
@@ -2633,6 +2775,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         todayStatus: todayStatusContext,
         actionLog: trackingActionLog,
         extraContext: coachDataContext,
+        progressSummary: aiCoachProgressSummary,
         chatHistory: mergedChatHistory,
         exercises: targetWorkoutContext,
         meals: targetMealRows.map((row: any) => ({
