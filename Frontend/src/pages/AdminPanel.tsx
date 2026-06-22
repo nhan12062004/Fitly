@@ -21,6 +21,7 @@ import {
 import { fetchWithAuth } from '../lib/Api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ToastProvider';
+import { getApiErrorMessage } from '../lib/ErrorMessage';
 
 type AdminTab = 'overview' | 'users' | 'exercises' | 'foods';
 
@@ -271,7 +272,6 @@ export default function AdminPanel() {
     }
 
     if (!response.ok) {
-      const serverMessage = payload?.error || payload?.message || responseText?.trim();
       const fallbackByStatus: Record<number, string> = {
         401: 'Phiên đăng nhập đã hết hạn hoặc thiếu token.',
         403: 'Tài khoản hiện tại chưa có quyền quản trị.',
@@ -279,7 +279,13 @@ export default function AdminPanel() {
         500: 'Backend gặp lỗi khi tải dữ liệu quản trị.',
         503: 'Backend Render đang không sẵn sàng hoặc service đang lỗi.'
       };
-      throw new Error(serverMessage || fallbackByStatus[response.status] || `Không thể tải dữ liệu quản trị (HTTP ${response.status})`);
+      throw new Error(getApiErrorMessage({
+        status: response.status,
+        payload,
+        responseText,
+        fallbackMessage: 'Không thể tải dữ liệu quản trị',
+        fallbackByStatus
+      }));
     }
     return payload.data ?? payload;
   };

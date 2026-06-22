@@ -1221,15 +1221,16 @@ const syncWorkoutCaloriesBurnedForDate = async (userId: string, logDate: string)
 
   const sessionsRes = await supabase
     .from('daily_exercise_sessions')
-    .select('actual_kcal_estimated, estimated_kcal, is_completed')
+    .select('actual_kcal_estimated, estimated_kcal, is_completed, actual_sets, sets, completed_sets')
     .eq('user_id', userId)
     .eq('log_date', logDate);
   if (sessionsRes.error) throw sessionsRes.error;
 
+  const sessionRows = sessionsRes.data || [];
   const caloriesBurned = Math.max(
     0,
     Math.round(
-      (sessionsRes.data || []).reduce((sum: number, item: any) => {
+      sessionRows.reduce((sum: number, item: any) => {
         const actualKcal = Math.max(0, Number(item.actual_kcal_estimated) || 0);
         if (actualKcal > 0) return sum + actualKcal;
         return sum + (item.is_completed ? Math.max(0, Number(item.estimated_kcal) || 0) : 0);
@@ -1247,7 +1248,7 @@ const syncWorkoutCaloriesBurnedForDate = async (userId: string, logDate: string)
 
   const workoutSessionRes = await supabase
     .from('daily_workout_sessions')
-    .select('id')
+    .select('id, started_at, completed_at')
     .eq('user_id', userId)
     .eq('log_date', logDate)
     .order('started_at', { ascending: false })
@@ -1256,9 +1257,26 @@ const syncWorkoutCaloriesBurnedForDate = async (userId: string, logDate: string)
   if (workoutSessionRes.error) throw workoutSessionRes.error;
 
   if (workoutSessionRes.data?.id) {
+    const hasAnyProgress = sessionRows.some((item: any) =>
+      item.is_completed ||
+      Math.max(0, Number(item.completed_sets) || 0) > 0 ||
+      Math.max(0, Number(item.actual_kcal_estimated) || 0) > 0
+    );
+    const allCompleted = sessionRows.length > 0 && sessionRows.every((item: any) => {
+      if (item.is_completed) return true;
+      const totalSets = Math.max(1, Number(item.actual_sets ?? item.sets) || 1);
+      return Math.max(0, Number(item.completed_sets) || 0) >= totalSets;
+    });
+    const nextStatus = allCompleted ? 'completed' : hasAnyProgress ? 'in_progress' : 'planned';
+    const nowIso = new Date().toISOString();
     const updateWorkoutSessionRes = await supabase
       .from('daily_workout_sessions')
-      .update({ calories_burned: caloriesBurned })
+      .update({
+        calories_burned: caloriesBurned,
+        status: nextStatus,
+        started_at: hasAnyProgress ? (workoutSessionRes.data.started_at || nowIso) : workoutSessionRes.data.started_at,
+        completed_at: allCompleted ? (workoutSessionRes.data.completed_at || nowIso) : null
+      })
       .eq('id', workoutSessionRes.data.id);
     if (updateWorkoutSessionRes.error) throw updateWorkoutSessionRes.error;
   }

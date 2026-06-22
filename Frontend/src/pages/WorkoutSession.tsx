@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Pause, Play, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Pause, Play, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
@@ -131,6 +131,41 @@ const getExerciseKcal = (exercise: SessionExercise | null | undefined): number =
   const actualKcal = Math.max(0, Math.round(Number(exercise?.actual_kcal_estimated) || 0));
   if (actualKcal > 0) return actualKcal;
   return exercise?.is_completed ? Math.max(0, Math.round(Number(exercise?.estimated_kcal) || 0)) : 0;
+};
+
+const getExercisePlannedKcal = (exercise: SessionExercise | null | undefined): number =>
+  Math.max(0, Math.round(Number(exercise?.estimated_kcal) || 0));
+
+const normalizeSessionExercise = (row: any): SessionExercise => ({
+  ...row,
+  id: String(row?.id || ''),
+  exercise_id: String(row?.exercise_id || ''),
+  name: row?.name || row?.exercises?.name || 'Bai tap',
+  gif_url: normalizeGifUrl(row?.gif_url || row?.exercises?.image_url || row?.exercises?.gif_url || ''),
+  order_index: Number(row?.order_index || 0),
+  is_completed: !!row?.is_completed,
+  exercises: row?.exercises || null,
+  instructions: row?.instructions || row?.exercises?.instructions || []
+});
+
+const getResumeExerciseIndex = (items: SessionExercise[], selectedSessionId?: string): number => {
+  if (items.length === 0) return 0;
+
+  const inProgressIndex = items.findIndex((item) => {
+    const completedSets = getExerciseCompletedSets(item);
+    return !item.is_completed && completedSets > 0 && completedSets < getExerciseSets(item);
+  });
+  if (inProgressIndex >= 0) return inProgressIndex;
+
+  const firstPendingIndex = items.findIndex((item) => !item.is_completed);
+  if (firstPendingIndex >= 0) return firstPendingIndex;
+
+  if (selectedSessionId) {
+    const selectedIndex = items.findIndex((item) => item.id === selectedSessionId);
+    if (selectedIndex >= 0) return selectedIndex;
+  }
+
+  return 0;
 };
 
 const getWeekStartKey = (baseDate: Date): string => {
@@ -324,21 +359,15 @@ export default function WorkoutSession() {
   const [isPageLoading, setIsPageLoading] = useState(() => !state.session || state.session.length === 0);
   const [, setIsRefreshing] = useState(false);
   const [sessionItems, setSessionItems] = useState<SessionExercise[]>(() =>
-    [...(state.session || [])].sort((a, b) => a.order_index - b.order_index)
+    [...(state.session || [])].map(normalizeSessionExercise).sort((a, b) => a.order_index - b.order_index)
   );
   const orderedSession = useMemo(
     () => [...sessionItems].sort((a, b) => a.order_index - b.order_index),
     [sessionItems]
   );
-
-  const initialIndex = useMemo(() => {
-    if (!state.selectedSessionId) return 0;
-    const found = orderedSession.findIndex((item) => item.id === state.selectedSessionId);
-    return found >= 0 ? found : 0;
-  }, [orderedSession, state.selectedSessionId]);
-
-  const initialExercise = orderedSession[initialIndex] || orderedSession[0] || null;
-  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const initialExerciseIndex = getResumeExerciseIndex(orderedSession, state.selectedSessionId);
+  const initialExercise = orderedSession[initialExerciseIndex] || orderedSession[0] || null;
+  const [activeIndex, setActiveIndex] = useState(initialExerciseIndex);
   const [isRunning, setIsRunning] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -377,8 +406,26 @@ export default function WorkoutSession() {
   const timerAngle = Math.max(0, Math.min(360, timerProgress * 360));
 
   useEffect(() => {
-    setActiveIndex(initialIndex);
-  }, [initialIndex]);
+    setCompletedSetsByExercise(
+      Object.fromEntries(orderedSession.map((item) => [item.id, getExerciseCompletedSets(item)]))
+    );
+    setCompletedIds(
+      orderedSession
+        .filter((item) => item.is_completed || getExerciseCompletedSets(item) >= getExerciseSets(item))
+        .map((item) => item.id)
+    );
+  }, [orderedSession]);
+
+  useEffect(() => {
+    setActiveIndex((previousIndex) => {
+      if (orderedSession.length === 0) return 0;
+      const current = orderedSession[previousIndex];
+      if (current && !current.is_completed && getExerciseCompletedSets(current) < getExerciseSets(current)) {
+        return previousIndex;
+      }
+      return getResumeExerciseIndex(orderedSession, state.selectedSessionId);
+    });
+  }, [orderedSession, state.selectedSessionId]);
 
   useEffect(() => {
     const nextRestSeconds = getExerciseRestSeconds(activeExercise);
@@ -404,16 +451,31 @@ export default function WorkoutSession() {
       setIsPageLoading(!hasWarmState);
       setIsRefreshing(hasWarmState);
       try {
-        const { data, error } = await supabase
-          .from('daily_workout_sessions')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('log_date', state.logDate)
-          .order('started_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!error && data?.id) {
-          setWorkoutSessionId(data.id);
+        const [workoutSessionRes, dailyExercisesRes] = await Promise.all([
+          supabase
+            .from('daily_workout_sessions')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('log_date', state.logDate)
+            .order('started_at', { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from('daily_exercise_sessions')
+            .select(`
+              *,
+              exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
+            `)
+            .eq('user_id', user.id)
+            .eq('log_date', state.logDate)
+            .order('order_index', { ascending: true })
+        ]);
+
+        if (!workoutSessionRes.error && workoutSessionRes.data?.id) {
+          setWorkoutSessionId(workoutSessionRes.data.id);
+        }
+        if (!dailyExercisesRes.error && (dailyExercisesRes.data || []).length > 0) {
+          setSessionItems((dailyExercisesRes.data || []).map(normalizeSessionExercise));
         }
       } finally {
         setIsPageLoading(false);
@@ -436,8 +498,15 @@ export default function WorkoutSession() {
   }, 0);
 
   const progressPercent = totalSetsInSession > 0 ? (completedSetsInSession / totalSetsInSession) * 100 : 0;
-  const nextExercise = orderedSession[activeIndex + 1] || null;
+  const isSessionExerciseDone = (item: SessionExercise): boolean => {
+    if (completedIds.includes(item.id)) return true;
+    return (completedSetsByExercise[item.id] || getExerciseCompletedSets(item)) >= getExerciseSets(item);
+  };
+  const allExercisesCompleted = orderedSession.length > 0 && orderedSession.every(isSessionExerciseDone);
+  const nextExercise = orderedSession.find((item, index) => index > activeIndex && !isSessionExerciseDone(item)) || null;
   const activeExerciseSteps = activeExercise ? getExerciseSteps(activeExercise) : [];
+  const totalActualKcal = orderedSession.reduce((sum, item) => sum + getExerciseKcal(item), 0);
+  const totalPlannedKcal = orderedSession.reduce((sum, item) => sum + getExercisePlannedKcal(item), 0);
 
   const updateEditForm = (exercise: SessionExercise | null) => {
     const setsValue = getExerciseSets(exercise);
@@ -783,6 +852,112 @@ export default function WorkoutSession() {
     return <WorkoutSessionSkeleton />;
   }
 
+  if (allExercisesCompleted) {
+    return (
+      <div className="dashboard-page-shell flex min-h-[70vh] flex-col items-center justify-center text-sm">
+        <div className="w-full max-w-3xl rounded-[28px] border border-border-primary bg-bg-secondary p-6 text-center shadow-[0_28px_80px_rgba(0,0,0,0.35)] md:p-8">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent/15 text-accent">
+            <CheckCircle2 className="h-8 w-8" />
+          </div>
+          <p className="mt-5 text-xs font-black uppercase tracking-[0.08em] text-text-tertiary">Buổi tập hôm nay</p>
+          <h1 className="mt-2 text-3xl font-black leading-tight text-text-primary md:text-4xl">
+            Đã hoàn thành xong buổi tập hôm nay
+          </h1>
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-border-primary bg-bg-tertiary p-4">
+              <p className="text-2xl font-black text-text-primary">{orderedSession.length}/{orderedSession.length}</p>
+              <p className="mt-1 text-xs font-bold text-text-tertiary">Bài đã xong</p>
+            </div>
+            <div className="rounded-2xl border border-border-primary bg-bg-tertiary p-4">
+              <p className="text-2xl font-black text-text-primary">{completedSetsInSession}/{totalSetsInSession}</p>
+              <p className="mt-1 text-xs font-bold text-text-tertiary">Hiệp đã xong</p>
+            </div>
+            <div className="rounded-2xl border border-border-primary bg-bg-tertiary p-4">
+              <p className="text-2xl font-black text-text-primary">~{totalActualKcal || totalPlannedKcal}</p>
+              <p className="mt-1 text-xs font-bold text-text-tertiary">Kcal ghi nhận</p>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col justify-center gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => navigate('/exercises')}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-border-secondary bg-bg-tertiary px-5 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent"
+            >
+              Quay lại bài tập
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFeedbackCompletedAll(true);
+                setIsFeedbackModalOpen(true);
+              }}
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
+            >
+              Gửi feedback
+            </button>
+          </div>
+        </div>
+
+        {isFeedbackModalOpen && (
+          <div className="themed-modal-backdrop fixed inset-0 z-[150] flex items-center justify-center px-4">
+            <div className="w-full max-w-xl rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
+              <h2 className="text-xl font-black text-text-primary">Buổi tập hôm nay thế nào?</h2>
+              <div className="mt-5 space-y-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.08em] text-text-tertiary">Độ khó</p>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'too_easy', label: 'Quá dễ' },
+                      { value: 'just_right', label: 'Vừa sức' },
+                      { value: 'too_hard', label: 'Quá khó' }
+                    ].map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setFeedbackDifficulty(item.value as WorkoutDifficulty)}
+                        className={`h-10 rounded-xl border text-sm font-bold transition-colors ${
+                          feedbackDifficulty === item.value
+                            ? 'border-accent bg-accent/15 text-accent'
+                            : 'border-border-primary bg-bg-secondary text-text-secondary hover:border-accent/30'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <textarea
+                  value={feedbackComment}
+                  onChange={(event) => setFeedbackComment(event.target.value)}
+                  placeholder="Ghi chú thêm (không bắt buộc)"
+                  className="h-24 w-full resize-none rounded-2xl border border-border-primary bg-bg-secondary px-4 py-3 text-sm text-text-primary outline-none transition-colors focus:border-accent"
+                />
+              </div>
+              <div className="mt-5 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsFeedbackModalOpen(false)}
+                  disabled={isSavingFeedback}
+                  className="h-11 rounded-xl border border-border-primary bg-bg-secondary px-4 text-sm font-bold text-text-primary transition-colors hover:border-border-secondary disabled:opacity-50"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={submitWorkoutFeedback}
+                  disabled={isSavingFeedback}
+                  className="h-11 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
+                >
+                  {isSavingFeedback ? 'Đang lưu...' : 'Gửi feedback'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (!activeExercise) {
     return (
       <div className="mx-auto flex min-h-[70vh] w-full max-w-5xl items-center justify-center">
@@ -830,6 +1005,13 @@ export default function WorkoutSession() {
             {orderedSession.map((item, index) => {
               const isActive = index === activeIndex;
               const isDone = completedIds.includes(item.id);
+              const itemSets = getExerciseSets(item);
+              const itemCompletedSets = Math.min(itemSets, completedSetsByExercise[item.id] || getExerciseCompletedSets(item));
+              const statusText = isDone
+                ? 'Đã xong'
+                : itemCompletedSets > 0
+                  ? `Đang dở ${itemCompletedSets}/${itemSets} hiệp`
+                  : 'Chưa tập';
               return (
                 <button
                   key={item.id}
@@ -851,6 +1033,9 @@ export default function WorkoutSession() {
                   <div className="min-w-0 flex-1">
                     <p className={`truncate text-sm font-bold ${isActive ? 'text-text-primary' : 'text-text-secondary'}`}>{item.name}</p>
                     <p className="mt-1 text-xs text-text-tertiary">{getExerciseReps(item)} rep • {getExerciseSets(item)} hiệp</p>
+                    <p className={`mt-1 text-[11px] font-bold ${isDone ? 'text-accent' : itemCompletedSets > 0 ? 'text-text-primary' : 'text-text-tertiary'}`}>
+                      {statusText}
+                    </p>
                   </div>
                   <span className="flex shrink-0 items-start">
                     <span
@@ -1031,8 +1216,11 @@ export default function WorkoutSession() {
                       } catch (error) {
                         console.error('Không thể đồng bộ trạng thái hoàn thành bài tập:', error);
                       }
-                      if (activeIndex < orderedSession.length - 1) {
-                        setActiveIndex((prev) => prev + 1);
+                      const nextPendingIndex = orderedSession.findIndex((item, index) =>
+                        index > activeIndex && item.id !== activeExercise.id && !isSessionExerciseDone(item)
+                      );
+                      if (nextPendingIndex >= 0) {
+                        setActiveIndex(nextPendingIndex);
                       }
                     }
                     setSecondsLeft(startingSeconds);

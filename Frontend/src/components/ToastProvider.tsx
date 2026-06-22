@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Info, TriangleAlert, X } from 'lucide-react';
+import { sanitizeErrorMessage } from '../lib/ErrorMessage';
 
 type ToastTone = 'success' | 'error' | 'warning' | 'info';
 
@@ -55,14 +56,15 @@ const normalizeToastInput = (toast: ToastInput & { tone?: ToastTone }): Omit<Toa
   if (typeof toast === 'string') {
     return {
       tone: 'info',
-      message: toast,
+      message: sanitizeErrorMessage(toast),
       duration: 3200,
     };
   }
 
+  const tone = toast.tone || 'info';
   return {
-    tone: toast.tone || 'info',
-    message: toast.message,
+    tone,
+    message: tone === 'error' ? sanitizeErrorMessage(toast.message) : toast.message,
     title: toast.title,
     duration: toast.duration ?? 3200,
   };
