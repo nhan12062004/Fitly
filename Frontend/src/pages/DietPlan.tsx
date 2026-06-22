@@ -1219,15 +1219,6 @@ export default function DietPlan() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={autoCreateMenu}
-                disabled={isSaving}
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Bot className="h-4 w-4" />
-                {isSaving ? 'Đang lưu...' : aiMenuButtonLabel}
-              </button>
             </div>
 
             <div className="rounded-xl border border-border-primary bg-bg-tertiary/40 p-1">

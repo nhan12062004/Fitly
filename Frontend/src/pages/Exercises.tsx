@@ -100,12 +100,12 @@ const LIBRARY_VISIBLE_BATCH_SIZE = 12;
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DAYS = [
-  { id: 0, label: 'T2', full: 'Thứ 2' },
-  { id: 1, label: 'T3', full: 'Thứ 3' },
-  { id: 2, label: 'T4', full: 'Thứ 4' },
-  { id: 3, label: 'T5', full: 'Thứ 5' },
-  { id: 4, label: 'T6', full: 'Thứ 6' },
-  { id: 5, label: 'T7', full: 'Thứ 7' },
+  { id: 0, label: 'TH2', full: 'Thứ 2' },
+  { id: 1, label: 'TH3', full: 'Thứ 3' },
+  { id: 2, label: 'TH4', full: 'Thứ 4' },
+  { id: 3, label: 'TH5', full: 'Thứ 5' },
+  { id: 4, label: 'TH6', full: 'Thứ 6' },
+  { id: 5, label: 'TH7', full: 'Thứ 7' },
   { id: 6, label: 'CN', full: 'Chủ nhật' }
 ];
 
@@ -451,6 +451,8 @@ export default function Exercises() {
   }, [user, selectedDateKey, vnToday]);
 
   useEffect(() => {
+    if (isLoading) return;
+
     const updateDayIndicator = () => {
       const container = dayTabContainerRef.current;
       const activeTab = dayTabRefs.current[selectedDayId];
@@ -473,7 +475,7 @@ export default function Exercises() {
       window.cancelAnimationFrame(frame);
       window.removeEventListener('resize', updateDayIndicator);
     };
-  }, [selectedDayId, selectedWeekStart]);
+  }, [isLoading, selectedDayId, selectedWeekStart]);
 
   const loadSession = async (silent = false) => {
     if (silent) {
