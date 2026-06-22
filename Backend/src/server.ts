@@ -36,7 +36,7 @@ const AI_COACH_FREE_TRIAL_DAYS = 7;
 const AI_ACTION_FLOW_ENABLED = process.env.AI_ACTION_FLOW_ENABLED !== 'false';
 const PREMIUM_AUTO_PLAN_ENABLED = process.env.PREMIUM_AUTO_PLAN_ENABLED !== 'false';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const AI_FOOD_CATALOG_LIMIT = 180;
+const AI_FOOD_CATALOG_LIMIT = 220;
 const AI_FOOD_CATALOG_FETCH_LIMIT = 1000;
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
@@ -183,10 +183,12 @@ const AI_FOOD_COMPONENT_QUOTAS: Array<{ group: MealComponentGroup; maxItems: num
 
 type FoodCatalogPreference = {
   lifestyle?: any;
+  health?: any;
   mealsPerDay?: number;
   mealTypes?: string[];
   recentMeals?: any[];
   currentFoodId?: string | null;
+  targetCalories?: number | null;
 };
 
 const getFoodMealTypes = (food: any): string[] => {
@@ -293,6 +295,150 @@ const getRecentFoodContext = (recentMeals: any[] | null | undefined) => {
   return { idCounts, familyCounts, categoryCounts, componentCounts, priceCounts, goalCounts };
 };
 
+const ALLERGEN_GROUPS = [
+  ['dau phong', 'lac', 'peanut'],
+  ['sua', 'milk', 'lactose', 'dairy'],
+  ['trung', 'egg'],
+  ['tom', 'shrimp', 'shellfish', 'hai san', 'seafood'],
+  ['ca', 'fish'],
+  ['dau nanh', 'soy', 'soya'],
+  ['lua mi', 'wheat', 'gluten'],
+  ['me', 'sesame'],
+  ['hat dieu', 'cashew'],
+  ['hanh nhan', 'almond']
+];
+
+const getFoodAllergenText = (food: any): string =>
+  normalizeKeywordText([
+    food?.name,
+    food?.category,
+    Array.isArray(food?.allergens) ? food.allergens.join(' ') : food?.allergens
+  ].filter(Boolean).join(' '));
+
+const getUserAllergenGroups = (health: any): string[][] => {
+  const text = normalizeKeywordText([
+    health?.allergies,
+    health?.medical_history,
+    health?.health_condition
+  ].filter(Boolean).join(' '));
+  if (!text || includesAnyKeyword(text, ['khong di ung', 'khong co di ung', 'none', 'no allergy'])) return [];
+  return ALLERGEN_GROUPS.filter((group) => includesAnyKeyword(text, group));
+};
+
+const foodConflictsWithUserAllergies = (food: any, preference: FoodCatalogPreference): boolean => {
+  const groups = getUserAllergenGroups(preference.health);
+  if (groups.length === 0) return false;
+  const foodText = getFoodAllergenText(food);
+  return groups.some((group) => includesAnyKeyword(foodText, group));
+};
+
+const getFoodCatalogLimit = (rows: any[], maxItems: number, preference: FoodCatalogPreference): number => {
+  if (maxItems !== AI_FOOD_CATALOG_LIMIT) return Math.max(1, Math.min(maxItems, rows.length || maxItems));
+  const lifestyle = preference.lifestyle || {};
+  const mealsPerDay = resolveMealsPerDay(preference.mealsPerDay || lifestyle?.meals_per_day);
+  const recentCount = (preference.recentMeals || []).length;
+  const dietKey = getUserDietPreferenceKey(lifestyle);
+  let target = mealsPerDay <= 2 ? 130 : mealsPerDay === 3 ? 160 : mealsPerDay === 4 ? 195 : 220;
+  if (recentCount >= 28) target -= 30;
+  else if (recentCount >= 12) target -= 15;
+  else if (recentCount <= 3) target += 15;
+  if (dietKey !== 'normal') target += 15;
+  return Math.max(90, Math.min(maxItems, rows.length || maxItems, Math.round(target)));
+};
+
+const getMacroScoreAdjustment = (food: any, preference: FoodCatalogPreference): number => {
+  const lifestyle = preference.lifestyle || {};
+  const targetCalories = readPositiveNumber(preference.targetCalories, lifestyle?.target_calories);
+  const goalText = normalizeKeywordText(`${lifestyle?.fitness_goal || ''} ${lifestyle?.diet_preference || ''} ${lifestyle?.current_diet || ''}`);
+  const component = classifyFoodComponent(food);
+  const calories = Number(food?.calories || 0);
+  const protein = Number(food?.protein || 0);
+  const carbs = Number(food?.carbs || 0);
+  const fat = Number(food?.fat || 0);
+  const proteinDensity = calories > 0 ? (protein * 100) / calories : 0;
+  let score = 0;
+
+  if (includesAnyKeyword(goalText, ['giam can', 'giam mo', 'fat loss', 'weight loss'])) {
+    if (component === 'vegetable' || component === 'fruit') score += 18;
+    if (proteinDensity >= 8) score += 18;
+    if (calories > 450) score -= 30;
+    if (fat > 18) score -= 12;
+  }
+
+  if (includesAnyKeyword(goalText, ['tang co', 'muscle', 'high protein', 'nhieu dam'])) {
+    if (protein >= 18) score += 26;
+    else if (protein >= 10) score += 12;
+    if (component === 'protein') score += 18;
+  }
+
+  if (includesAnyKeyword(goalText, ['low carb', 'keto'])) {
+    if (carbs <= 12) score += 26;
+    if (carbs > 35) score -= 42;
+  }
+
+  if (targetCalories > 0) {
+    const mealsPerDay = resolveMealsPerDay(preference.mealsPerDay || lifestyle?.meals_per_day);
+    const averageMealCalories = targetCalories / mealsPerDay;
+    const idealByComponent: Record<MealComponentGroup, number> = {
+      protein: Math.min(260, averageMealCalories * 0.35),
+      carb: Math.min(260, averageMealCalories * 0.32),
+      vegetable: Math.min(110, averageMealCalories * 0.16),
+      fruit: Math.min(150, averageMealCalories * 0.18),
+      dairy: Math.min(190, averageMealCalories * 0.22),
+      fat: Math.min(120, averageMealCalories * 0.14),
+      snack: Math.min(220, averageMealCalories * 0.25),
+      other: Math.min(220, averageMealCalories * 0.25)
+    };
+    const ideal = Math.max(40, idealByComponent[component] || 180);
+    score += Math.max(-24, 18 - Math.abs(calories - ideal) / 8);
+  }
+
+  return score;
+};
+
+const getPreparationScoreAdjustment = (food: any, preference: FoodCatalogPreference): number => {
+  const lifestyle = preference.lifestyle || {};
+  const ability = normalizeKeywordText(`${lifestyle?.cooking_ability || ''} ${lifestyle?.workout_time || ''}`);
+  const cookMinutes = Number(food?.cooking_time_minutes || 0);
+  let score = 0;
+  if (food?.is_easy_to_prepare) score += 10;
+  if (includesAnyKeyword(ability, ['khong biet nau', 'ban ron', 'it thoi gian', 'de', 'nhanh'])) {
+    if (cookMinutes > 0 && cookMinutes <= 15) score += 20;
+    else if (cookMinutes > 30) score -= 30;
+  } else if (cookMinutes > 0 && cookMinutes <= 25) {
+    score += 8;
+  }
+  return score;
+};
+
+const applyHardFoodFilters = (rows: any[], maxItems: number, preference: FoodCatalogPreference): any[] => {
+  const lifestyle = preference.lifestyle || {};
+  const mealTypes = preference.mealTypes?.length
+    ? preference.mealTypes
+    : Array.from(new Set(getMealSlotsForCount(resolveMealsPerDay(preference.mealsPerDay || lifestyle?.meals_per_day))));
+  const dietKey = getUserDietPreferenceKey(lifestyle);
+  const budgetKey = getUserBudgetPreferenceKey(lifestyle);
+  const minViable = Math.min(Math.max(40, maxItems), Math.max(1, rows.length));
+
+  let source = rows.filter((food) => !foodConflictsWithUserAllergies(food, preference));
+  if (source.length < minViable) source = rows;
+
+  const mealScoped = source.filter((food) => foodMatchesAnyMealType(food, mealTypes));
+  if (mealScoped.length >= minViable) source = mealScoped;
+
+  if (dietKey === 'vegetarian') {
+    const dietScoped = source.filter((food) => foodMatchesDietPreference(food, dietKey));
+    if (dietScoped.length >= Math.min(minViable, 30)) source = dietScoped;
+  }
+
+  if (budgetKey === 'low') {
+    const budgetScoped = source.filter((food) => getFoodPriceKey(food) !== 'high');
+    if (budgetScoped.length >= minViable) source = budgetScoped;
+  }
+
+  return source;
+};
+
 const getFoodPreferenceScore = (
   food: any,
   preference: FoodCatalogPreference,
@@ -309,6 +455,8 @@ const getFoodPreferenceScore = (
   const component = classifyFoodComponent(food);
   const category = normalizeKeywordText(food?.category);
   let score = 0;
+
+  if (foodConflictsWithUserAllergies(food, preference)) score -= 10000;
 
   if (foodMatchesAnyMealType(food, mealTypes)) score += 70;
   else score -= 90;
@@ -350,7 +498,8 @@ const getFoodPreferenceScore = (
       score += Math.min(18, (recentContext.goalCounts.get(goal) || 0) * 4);
     });
 
-  if (food?.is_easy_to_prepare) score += 8;
+  score += getMacroScoreAdjustment(food, preference);
+  score += getPreparationScoreAdjustment(food, preference);
 
   return score;
 };
@@ -398,19 +547,23 @@ const selectBalancedFoodCatalog = (
   const lifestyle = preference.lifestyle || {};
   const dietKey = getUserDietPreferenceKey(lifestyle);
   const baseSource = rows || [];
+  const effectiveMaxItems = getFoodCatalogLimit(baseSource, maxItems, preference);
+  const hardFilteredSource = applyHardFoodFilters(baseSource, effectiveMaxItems, preference);
   const dietScoped = dietKey === 'vegetarian'
-    ? baseSource.filter((food) => foodMatchesDietPreference(food, dietKey))
-    : baseSource;
-  const scopedSource = dietScoped.length >= Math.min(maxItems, 40) ? dietScoped : baseSource;
+    ? hardFilteredSource.filter((food) => foodMatchesDietPreference(food, dietKey))
+    : hardFilteredSource;
+  const scopedSource = dietScoped.length >= Math.min(effectiveMaxItems, 40) ? dietScoped : hardFilteredSource;
   const source = [...scopedSource].sort((a, b) =>
     getFoodPreferenceScore(b, preference, recentContext) - getFoodPreferenceScore(a, preference, recentContext)
   );
   const selected: any[] = [];
   const selectedIds = new Set<string>();
+  const quotaBaseTotal = AI_FOOD_COMPONENT_QUOTAS.reduce((sum, item) => sum + item.maxItems, 0);
+  const quotaScale = effectiveMaxItems / Math.max(1, quotaBaseTotal);
 
   const addRows = (candidates: any[], maxCount: number) => {
     for (const food of candidates) {
-      if (selected.length >= maxItems || maxCount <= 0) return;
+      if (selected.length >= effectiveMaxItems || maxCount <= 0) return;
       const id = String(food?.id || '');
       if (!id || selectedIds.has(id)) continue;
       selected.push(food);
@@ -420,11 +573,11 @@ const selectBalancedFoodCatalog = (
   };
 
   AI_FOOD_COMPONENT_QUOTAS.forEach(({ group, maxItems: groupMaxItems }) => {
-    addRows(source.filter((food) => classifyFoodComponent(food) === group), groupMaxItems);
+    addRows(source.filter((food) => classifyFoodComponent(food) === group), Math.max(4, Math.round(groupMaxItems * quotaScale)));
   });
 
-  addRows(source, maxItems - selected.length);
-  return selected.slice(0, maxItems);
+  addRows(source, effectiveMaxItems - selected.length);
+  return selected.slice(0, effectiveMaxItems);
 };
 
 const getDefaultMealQuantity = (food: any, group: MealComponentGroup, mealType: string): number => {
@@ -1397,9 +1550,11 @@ async function generateWeeklyCoachPlanForUser(params: {
   const mealSlots = getMealSlotsForCount(mealsPerDay);
   const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT, {
     lifestyle,
+    health,
     mealsPerDay,
     mealTypes: Array.from(new Set(mealSlots)),
-    recentMeals: recentMealHistory
+    recentMeals: recentMealHistory,
+    targetCalories: Number(lifestyle.target_calories || 0)
   });
   const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
   const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
@@ -4052,9 +4207,11 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const mealSlots = getMealSlotsForCount(mealsPerDay);
     const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT, {
       lifestyle,
+      health,
       mealsPerDay,
       mealTypes: Array.from(new Set(mealSlots)),
-      recentMeals: recentMealHistory
+      recentMeals: recentMealHistory,
+      targetCalories: Number(lifestyle.target_calories || 0)
     });
     const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
     const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
