@@ -15,6 +15,7 @@ import { workoutAdjusterService } from './services/ai/workoutAdjusterService';
 import { mealAdjusterService } from './services/ai/mealAdjusterService';
 import { progressAnalyzerService } from './services/ai/progressAnalyzerService';
 import { AIChatContext, AIChatResponse, AIIntent } from './services/ai/types';
+import { WorkoutPrescription, prescribeWorkoutExercise } from './services/workoutPrescriptionService';
 import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservability';
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
@@ -945,7 +946,8 @@ const buildWeeklyWorkoutPlanRow = ({
   item,
   orderIndex,
   exercise,
-  bodyWeightKg
+  bodyWeightKg,
+  prescription
 }: {
   weeklyPlanId: string;
   dayIndex: number;
@@ -953,18 +955,19 @@ const buildWeeklyWorkoutPlanRow = ({
   orderIndex: number;
   exercise?: any;
   bodyWeightKg: number;
+  prescription?: WorkoutPrescription;
 }) => {
-  const plannedSets = Math.max(1, Math.min(6, Number(item.sets) || 3));
-  const plannedReps = String(item.reps || '10-12').slice(0, 20);
-  const plannedWeightKg = Math.max(0, Number(item.weight_kg) || 0);
-  const plannedRestSeconds = Math.max(30, Math.min(180, Number(item.rest_seconds) || 60));
-  const targetRpe = Math.max(5, Math.min(10, Number(item.target_rpe) || 7));
-  const estimatedKcal = estimatePlannedExerciseKcal({
+  const plannedSets = prescription?.sets ?? Math.max(1, Math.min(6, Number(item.sets) || 3));
+  const plannedReps = prescription?.reps ?? String(item.reps || '10-12').slice(0, 20);
+  const plannedWeightKg = prescription?.weightKg ?? Math.max(0, Number(item.weight_kg) || 0);
+  const plannedRestSeconds = prescription?.restSeconds ?? Math.max(30, Math.min(180, Number(item.rest_seconds) || 60));
+  const targetRpe = prescription?.targetRpe ?? Math.max(5, Math.min(10, Number(item.target_rpe) || 7));
+  const estimatedKcal = prescription?.estimatedKcal ?? estimatePlannedExerciseKcal({
     exercise,
     bodyWeightKg,
     sets: plannedSets,
     repsText: plannedReps,
-    weightKg: plannedWeightKg,
+    weightKg: plannedWeightKg ?? 0,
     restSeconds: plannedRestSeconds
   });
 
@@ -985,7 +988,7 @@ const buildWeeklyWorkoutPlanRow = ({
     target_rpe: targetRpe,
     estimated_kcal: estimatedKcal,
     ai_note: String(item.note || '').slice(0, 200) || null,
-    load_instruction: String(item.load_instruction || '').slice(0, 160) || null
+    load_instruction: String(item.load_instruction || prescription?.loadInstruction || '').slice(0, 160) || null
   };
 };
 
@@ -1656,20 +1659,33 @@ JSON schema (fixed):
       continue;
     }
 
-    day.exercises.forEach((item: any, index: number) => {
+    for (const [index, item] of day.exercises.entries()) {
       const exerciseId = String(item.exercise_id || '');
-      if (!exerciseIds.has(exerciseId)) return;
+      if (!exerciseIds.has(exerciseId)) continue;
+      const exercise = exerciseById.get(exerciseId);
+      const prescription = await prescribeWorkoutExercise({
+        userId,
+        exerciseId,
+        exercise,
+        source: 'ai_plan',
+        suggestedSets: item.sets,
+        suggestedReps: item.reps,
+        suggestedWeightKg: item.weight_kg,
+        suggestedRestSeconds: item.rest_seconds,
+        suggestedTargetRpe: item.target_rpe
+      });
       workoutRows.push(
         buildWeeklyWorkoutPlanRow({
           weeklyPlanId,
           dayIndex,
           item: { ...item, exercise_id: exerciseId },
           orderIndex: index,
-          exercise: exerciseById.get(exerciseId),
-          bodyWeightKg: Number(bodyMetrics.weight || 70)
+          exercise,
+          bodyWeightKg: Number(bodyMetrics.weight || 70),
+          prescription
         })
       );
-    });
+    }
   }
   if (workoutRows.length > 0) {
     const insertedWorkout = await supabase.from('weekly_plan_exercises').insert(workoutRows);
@@ -2652,21 +2668,19 @@ app.post('/api/workout/daily-exercises', async (req, res) => {
       orderIndex = Number(latestOrderRes.data?.order_index ?? -1) + 1;
     }
 
-    const [bodyWeightKg, exerciseMeta] = await Promise.all([
-      getLatestBodyWeightKg(authUserId),
-      getExerciseMetaForKcal(exerciseId)
-    ]);
+    const exerciseMeta = await getExerciseMetaForKcal(exerciseId);
     const hasManualWeight = !(rawWeightKg === null || rawWeightKg === undefined || String(rawWeightKg).trim() === '');
-    const defaultWeightKg = hasManualWeight
-      ? Math.max(0, Number(rawWeightKg) || 0)
-      : suggestManualStartingWeightKg({ exercise: exerciseMeta, bodyWeightKg });
-    const estimatedKcal = estimatePlannedExerciseKcal({
+    const prescription = await prescribeWorkoutExercise({
+      userId: authUserId,
+      exerciseId,
       exercise: exerciseMeta,
-      bodyWeightKg,
-      sets: defaultSets,
-      repsText: defaultReps,
-      weightKg: defaultWeightKg ?? 0,
-      restSeconds: defaultRestSeconds
+      source: 'manual_add',
+      suggestedSets: defaultSets,
+      suggestedReps: defaultReps,
+      suggestedWeightKg: rawWeightKg,
+      suggestedRestSeconds: defaultRestSeconds,
+      suggestedTargetRpe: targetRpe,
+      forceManualWeight: hasManualWeight
     });
 
     const insertRes = await supabase
@@ -2678,12 +2692,12 @@ app.post('/api/workout/daily-exercises', async (req, res) => {
           exerciseId,
           orderIndex,
           weeklyPlanExerciseId: null,
-          plannedSets: defaultSets,
-          plannedReps: defaultReps,
-          plannedWeightKg: defaultWeightKg,
-          plannedRestSeconds: defaultRestSeconds,
-          targetRpe,
-          estimatedKcal,
+          plannedSets: prescription.sets,
+          plannedReps: prescription.reps,
+          plannedWeightKg: prescription.weightKg,
+          plannedRestSeconds: prescription.restSeconds,
+          targetRpe: prescription.targetRpe,
+          estimatedKcal: prescription.estimatedKcal,
           loadAdjustmentNote: hasManualWeight ? null : 'Tạ khởi điểm được hệ thống đề xuất tự động. Hãy giảm nếu mất form hoặc tăng nếu còn quá nhẹ.'
         })
       )
@@ -3544,18 +3558,9 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
           .map((item: any) => String(item?.exercise_id || '').trim())
           .filter((id: string) => Boolean(id))
       )];
-      const latestBodyMetricsRes = await supabase
-        .from('body_metrics')
-        .select('weight')
-        .eq('user_id', authUserId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (latestBodyMetricsRes.error) throw latestBodyMetricsRes.error;
-      const bodyWeightKg = Math.max(40, Number(latestBodyMetricsRes.data?.weight) || 70);
       const validExercisesRes = await supabase
         .from('exercises')
-        .select('id, calories_per_minute')
+        .select('id, name, body_part, target_muscle, equipment, difficulty, movement_pattern, calories_per_minute')
         .in('id', exerciseIds);
       if (validExercisesRes.error) throw validExercisesRes.error;
       const exerciseMetaById = new Map<string, any>((validExercisesRes.data || []).map((item: any) => [String(item.id), item]));
@@ -3565,36 +3570,37 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
         return res.status(400).json({ error: `Invalid exercise_id: ${missingExerciseIds.join(', ')}` });
       }
 
-      const rows = exercises
-        .map((item: any, index: number) => {
+      const rows = (await Promise.all(
+        exercises.map(async (item: any, index: number) => {
           const exerciseId = String(item.exercise_id || '').trim();
           if (!exerciseId) return null;
-          const plannedSets = Math.max(1, Number(item.sets || 2));
-          const plannedReps = String(item.reps || '8-10').slice(0, 20);
-          const plannedWeightKg = Math.max(0, Number(item.weight_kg || 0));
-          const plannedRestSeconds = Math.max(30, Number(item.rest_seconds || 60));
+          const exerciseMeta = exerciseMetaById.get(exerciseId);
+          const prescription = await prescribeWorkoutExercise({
+            userId: String(authUserId),
+            exerciseId,
+            exercise: exerciseMeta,
+            source: 'ai_adjustment',
+            suggestedSets: item.sets,
+            suggestedReps: item.reps,
+            suggestedWeightKg: item.weight_kg,
+            suggestedRestSeconds: item.rest_seconds,
+            suggestedTargetRpe: item.target_rpe
+          });
           return buildDailyExerciseSessionRow({
             userId: String(authUserId),
             logDate: targetLogDate,
             exerciseId,
             orderIndex: index,
-            plannedSets,
-            plannedReps,
-            plannedWeightKg,
-            plannedRestSeconds,
-            targetRpe: Math.max(5, Math.min(10, Number(item.target_rpe) || 7)),
-            estimatedKcal: estimatePlannedExerciseKcal({
-              exercise: exerciseMetaById.get(exerciseId),
-              bodyWeightKg,
-              sets: plannedSets,
-              repsText: plannedReps,
-              weightKg: plannedWeightKg,
-              restSeconds: plannedRestSeconds
-            }),
-            loadAdjustmentNote: String(item.load_instruction || item.note || '').slice(0, 160) || null
+            plannedSets: prescription.sets,
+            plannedReps: prescription.reps,
+            plannedWeightKg: prescription.weightKg,
+            plannedRestSeconds: prescription.restSeconds,
+            targetRpe: prescription.targetRpe,
+            estimatedKcal: prescription.estimatedKcal,
+            loadAdjustmentNote: String(item.load_instruction || item.note || prescription.loadInstruction || '').slice(0, 160) || null
           });
         })
-        .filter(Boolean) as any[];
+      )).filter(Boolean) as any[];
 
       const existingDailyRes = await supabase
         .from('daily_exercise_sessions')
@@ -4300,20 +4306,33 @@ JSON schema (fixed):
         continue;
       }
 
-      day.exercises.forEach((item: any, index: number) => {
+      for (const [index, item] of day.exercises.entries()) {
         const exerciseId = String(item.exercise_id || '');
-        if (!exerciseIds.has(exerciseId)) return;
+        if (!exerciseIds.has(exerciseId)) continue;
+        const exercise = exerciseById.get(exerciseId);
+        const prescription = await prescribeWorkoutExercise({
+          userId,
+          exerciseId,
+          exercise,
+          source: 'ai_plan',
+          suggestedSets: item.sets,
+          suggestedReps: item.reps,
+          suggestedWeightKg: item.weight_kg,
+          suggestedRestSeconds: item.rest_seconds,
+          suggestedTargetRpe: item.target_rpe
+        });
         workoutRows.push(
           buildWeeklyWorkoutPlanRow({
             weeklyPlanId,
             dayIndex,
             item: { ...item, exercise_id: exerciseId },
             orderIndex: index,
-            exercise: exerciseById.get(exerciseId),
-            bodyWeightKg: Number(bodyMetrics.weight || 70)
+            exercise,
+            bodyWeightKg: Number(bodyMetrics.weight || 70),
+            prescription
           })
         );
-      });
+      }
     }
     if (workoutRows.length > 0) {
       const insertedWorkout = await supabase.from('weekly_plan_exercises').insert(workoutRows);
