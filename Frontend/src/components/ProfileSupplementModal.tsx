@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react';
 import {
   Apple,
   CheckCircle2,
@@ -173,6 +173,30 @@ const toInputValue = (value: unknown) => {
 };
 
 const filled = (value: string) => value.trim().length > 0;
+const hasSavedText = (value: unknown) => String(value ?? '').trim().length > 0;
+const hasSavedNumber = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0;
+};
+
+const getAnsweredSupplementFields = (
+  body: Record<string, any>,
+  lifestyle: Record<string, any>,
+  health: Record<string, any>
+) => {
+  const answered = new Set<QuestionField>();
+
+  if (hasSavedNumber(body.target_weight)) answered.add('target_weight');
+  if (hasSavedText(lifestyle.workout_time)) answered.add('workout_time');
+  if (hasSavedText(lifestyle.cooking_ability)) answered.add('cooking_ability');
+  if (hasSavedNumber(health.sleep_hours)) answered.add('sleep_hours');
+  if (hasSavedText(health.injuries)) answered.add('injuries');
+  if (hasSavedText(health.medical_history)) answered.add('allergies');
+  if (hasSavedText(lifestyle.motivation)) answered.add('motivation');
+  if (hasSavedText(lifestyle.expectations)) answered.add('expectations');
+
+  return answered;
+};
 
 export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSupplementModalProps) {
   const { user, refreshProfile } = useAuth();
@@ -186,10 +210,12 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
     height: null,
   });
   const [formData, setFormData] = useState<ProfileSupplementFormData>(DEFAULT_FORM_DATA);
+  const [answeredFields, setAnsweredFields] = useState<Set<QuestionField>>(new Set());
 
   useEffect(() => {
     if (isOpen) {
       setCurrentQuestionIndex(0);
+      setAnsweredFields(new Set());
     }
   }, [isOpen]);
 
@@ -230,6 +256,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
         const lifestyle = lifestyleRes.data || {};
         const health = healthRes.data || {};
 
+        setAnsweredFields(getAnsweredSupplementFields(body, lifestyle, health));
         setBaseBody({
           weight: Number(body.weight) || null,
           height: Number(body.height) || null,
@@ -273,6 +300,15 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
     if (error) toast.error(error);
   }, [error, toast]);
 
+  const visibleQuestions = useMemo(
+    () => SUPPLEMENT_QUESTIONS.filter((question) => !answeredFields.has(question.field)),
+    [answeredFields]
+  );
+
+  useEffect(() => {
+    setCurrentQuestionIndex((prev) => Math.min(prev, Math.max(visibleQuestions.length - 1, 0)));
+  }, [visibleQuestions.length]);
+
   const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -287,7 +323,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
   };
 
   const goToNextQuestion = () => {
-    setCurrentQuestionIndex((prev) => Math.min(prev + 1, SUPPLEMENT_QUESTIONS.length - 1));
+    setCurrentQuestionIndex((prev) => Math.min(prev + 1, visibleQuestions.length - 1));
   };
 
   const handleSave = async () => {
@@ -337,6 +373,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
       if (firstError) throw firstError;
 
       await refreshProfile();
+      window.dispatchEvent(new Event('fitly:profile-supplement-saved'));
       onClose();
     } catch (err: any) {
       setError(err?.message || 'Không thể lưu hồ sơ AI.');
@@ -347,7 +384,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
 
   const handleQuestionSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (currentQuestionIndex >= SUPPLEMENT_QUESTIONS.length - 1) {
+    if (visibleQuestions.length === 0 || currentQuestionIndex >= visibleQuestions.length - 1) {
       void handleSave();
       return;
     }
@@ -357,12 +394,15 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
 
   if (!isOpen) return null;
 
-  const currentQuestion = SUPPLEMENT_QUESTIONS[currentQuestionIndex];
-  const currentValue = formData[currentQuestion.field];
-  const questionProgress = Math.round(((currentQuestionIndex + 1) / SUPPLEMENT_QUESTIONS.length) * 100);
-  const isLastQuestion = currentQuestionIndex === SUPPLEMENT_QUESTIONS.length - 1;
+  const hasPendingQuestions = visibleQuestions.length > 0;
+  const currentQuestion = visibleQuestions[currentQuestionIndex];
+  const currentValue = currentQuestion ? formData[currentQuestion.field] : '';
+  const questionProgress = hasPendingQuestions
+    ? Math.round(((currentQuestionIndex + 1) / visibleQuestions.length) * 100)
+    : 100;
+  const isLastQuestion = currentQuestionIndex === visibleQuestions.length - 1;
   const hasCurrentAnswer = filled(currentValue);
-  const CurrentQuestionIcon = currentQuestion.icon;
+  const CurrentQuestionIcon = currentQuestion?.icon || Sparkles;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4">
@@ -400,6 +440,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
                 <div className="h-full rounded-full bg-ai transition-all" style={{ width: `${questionProgress}%` }} />
               </div>
 
+              {hasPendingQuestions && currentQuestion ? (
               <section className="mx-auto max-w-xl">
                 <div className="mb-7 flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
@@ -411,7 +452,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
                         {currentQuestion.eyebrow}
                       </p>
                       <p className="mt-1 text-xs font-semibold text-text-tertiary">
-                        Câu {currentQuestionIndex + 1}/{SUPPLEMENT_QUESTIONS.length}
+                        Câu {currentQuestionIndex + 1}/{visibleQuestions.length}
                       </p>
                     </div>
                   </div>
@@ -435,6 +476,19 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
                   />
                 </div>
               </section>
+              ) : (
+                <section className="mx-auto flex min-h-[18rem] max-w-xl flex-col items-center justify-center text-center">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-ai/12 text-ai">
+                    <CheckCircle2 className="h-6 w-6" />
+                  </span>
+                  <h3 className="mt-5 text-2xl font-black leading-tight text-text-primary sm:text-[28px]">
+                    Hồ sơ AI đã đủ thông tin
+                  </h3>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary">
+                    Các mục bổ sung đã có dữ liệu nên bạn không cần nhập lại.
+                  </p>
+                </section>
+              )}
             </div>
 
             <footer className="shrink-0 border-t border-border-primary bg-bg-tertiary/65 px-4 py-4 sm:px-6">
@@ -454,7 +508,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
                   )}
                 </button>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  {!isLastQuestion && !hasCurrentAnswer ? (
+                  {hasPendingQuestions && !isLastQuestion && !hasCurrentAnswer ? (
                     <button
                       type="button"
                       onClick={goToNextQuestion}
@@ -464,18 +518,19 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
                     </button>
                   ) : null}
                   <button
-                    type="submit"
+                    type={hasPendingQuestions ? 'submit' : 'button'}
+                    onClick={hasPendingQuestions ? undefined : onClose}
                     disabled={saving}
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-ai px-5 text-sm font-black text-white transition-colors hover:bg-ai-hover disabled:opacity-60"
                   >
                     {saving ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : isLastQuestion ? (
+                    ) : !hasPendingQuestions || isLastQuestion ? (
                       <CheckCircle2 className="h-4 w-4" />
                     ) : (
                       <ChevronRight className="h-4 w-4" />
                     )}
-                    {isLastQuestion ? 'Lưu hồ sơ AI' : 'Tiếp theo'}
+                    {hasPendingQuestions ? (isLastQuestion ? 'Lưu hồ sơ AI' : 'Tiếp theo') : 'Xong'}
                   </button>
                 </div>
               </div>

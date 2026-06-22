@@ -79,6 +79,15 @@ export default function ProfileCompletionNudge({ onOpenProfile }: ProfileComplet
     };
   }, [dismissKey, refreshTick, user?.id]);
 
+  useEffect(() => {
+    const handleSupplementSaved = () => {
+      setDismissed(true);
+    };
+
+    window.addEventListener('fitly:profile-supplement-saved', handleSupplementSaved);
+    return () => window.removeEventListener('fitly:profile-supplement-saved', handleSupplementSaved);
+  }, []);
+
   const profileState = useMemo(() => {
     if (!data) return null;
 
@@ -90,30 +99,32 @@ export default function ProfileCompletionNudge({ onOpenProfile }: ProfileComplet
       toNumber(data.body?.body_fat_percentage) > 0 ||
       toNumber(data.body?.waist) > 0 ||
       toNumber(data.body?.hips) > 0;
+    const hasEatingDetail =
+      isFilled(data.lifestyle?.current_diet) ||
+      isFilled(data.lifestyle?.cooking_ability) ||
+      isFilled(data.health?.medical_history);
+    const hasRecoveryDetail =
+      isFilled(data.lifestyle?.workout_time) &&
+      isFilled(data.health?.sleep_hours) &&
+      isFilled(data.health?.stress_level);
+    const hasCoachPreference = isFilled(data.lifestyle?.expectations) || isFilled(data.lifestyle?.motivation);
 
     const sections = [
-      {
-        label: 'Thông tin liên hệ & công việc',
-        done: isFilled(data.profile?.phone) && isFilled(data.profile?.job),
-      },
       {
         label: 'Mục tiêu cơ thể chi tiết',
         done: hasBodyDetail,
       },
       {
         label: 'Thói quen ăn uống hiện tại',
-        done: isFilled(data.lifestyle?.current_diet),
+        done: hasEatingDetail,
       },
       {
         label: 'Lịch sinh hoạt & phục hồi',
-        done:
-          isFilled(data.lifestyle?.workout_time) &&
-          isFilled(data.health?.sleep_hours) &&
-          isFilled(data.health?.stress_level),
+        done: hasRecoveryDetail,
       },
       {
         label: 'Ghi chú riêng cho AI Coach',
-        done: isFilled(data.lifestyle?.expectations),
+        done: hasCoachPreference,
       },
     ];
 
