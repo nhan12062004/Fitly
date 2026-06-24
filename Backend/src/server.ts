@@ -20,6 +20,14 @@ import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservab
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
 import {
+  buildSafetyPromptAddendum,
+  filterSafeExercisesForUser,
+  filterSafeFoodsForUser,
+  getFoodSafetyDecision,
+  sanitizeWorkoutActionExercises,
+  sanitizeWorkoutPlanForUser,
+} from './services/ai/personalizationGuardService';
+import {
   buildCoachDataContext,
   buildTodayStatus,
   executeCoachCommand,
@@ -1540,7 +1548,8 @@ async function generateWeeklyCoachPlanForUser(params: {
   const bodyMetrics = bodyMetricsRes.data || {};
   const lifestyle = lifestyleRes.data || {};
   const health = healthRes.data || {};
-  const exercises = clampList(exerciseCatalogRes.data as any[], 80);
+  const safetyContext = { profile, lifestyle, health };
+  const exercises = filterSafeExercisesForUser(clampList(exerciseCatalogRes.data as any[], 80), safetyContext);
   const recentMealHistory = [
     ...((recentMealLogsRes.data || []) as any[]),
     ...((recentMealsRes.data || []) as any[])
@@ -1548,7 +1557,8 @@ async function generateWeeklyCoachPlanForUser(params: {
   const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.activity_level, lifestyle.weekly_workouts);
   const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
   const mealSlots = getMealSlotsForCount(mealsPerDay);
-  const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT, {
+  const safeFoodSource = filterSafeFoodsForUser(foodCatalogRes.data as any[], safetyContext);
+  const foods = selectBalancedFoodCatalog(safeFoodSource, AI_FOOD_CATALOG_LIMIT, {
     lifestyle,
     health,
     mealsPerDay,
@@ -1648,13 +1658,16 @@ ${recentTraining}
 RECENT_MEAL_PLAN:
 ${recentEating}
 
+${buildSafetyPromptAddendum(safetyContext)}
+
 EXERCISE_CATALOG:
-${exerciseCatalog}
+${exerciseCatalog || 'No safe exercise ids available after hard safety filtering. Use rest/recovery days only.'}
 
 FOOD_CATALOG:
 ${foodCatalog}
 
 Rules:
+- Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
 - Exactly 7 days, day_of_week 0..6 where 0 is Monday.
 - Never create new exercises or foods. Pick only exercise_id values from EXERCISE_CATALOG and food_id values from FOOD_CATALOG.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
@@ -1754,6 +1767,12 @@ JSON schema (fixed):
 
   const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
   const normalizedPlan = normalizeAiPlanPayload(parsed);
+  const guardedWorkout = sanitizeWorkoutPlanForUser(
+    normalizedPlan.workoutPlan,
+    safetyContext,
+    exerciseById
+  );
+  normalizedPlan.workoutPlan = guardedWorkout.workoutPlan;
 
   const existingWorkoutPlans = await supabase
     .from('weekly_plans')
@@ -3379,10 +3398,16 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     detectedIntent = intent;
 
     let aiResponse: AIChatResponse;
+    const chatSafetyContext = {
+      profile: profileRes.data || null,
+      lifestyle: weekPlanRes.data || null,
+      health: healthRes.data || null
+    };
     if (intent === 'adjust_workout') {
       aiResponse = await workoutAdjusterService({
         dayOfWeek: dayIndex,
-        todayExercises: targetWorkoutContext
+        todayExercises: targetWorkoutContext,
+        safetyContext: chatSafetyContext
       });
     } else if (intent === 'adjust_meal') {
       const currentMeal = targetMealRows[0] || null;
@@ -3394,8 +3419,10 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .order('created_at', { ascending: false })
         .limit(300);
       if (candidateFoodsRes.error) throw candidateFoodsRes.error;
-      const candidateFoods = selectBalancedFoodCatalog(candidateFoodsRes.data as any[], 24, {
+      const safeCandidateFoodSource = filterSafeFoodsForUser(candidateFoodsRes.data as any[], chatSafetyContext);
+      const candidateFoods = selectBalancedFoodCatalog(safeCandidateFoodSource, 24, {
         lifestyle: weekPlanRes.data || {},
+        health: healthRes.data || {},
         mealsPerDay: Number((weekPlanRes.data as any)?.meals_per_day || 3),
         mealTypes: [mealType],
         recentMeals: [
@@ -3676,6 +3703,18 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       return res.status(400).json({ error: payloadValidation.message || 'Invalid action payload' });
     }
     const dayOfWeek = Number(newData.day_of_week);
+    const [applyProfileRes, applyLifestyleRes, applyHealthRes] = await Promise.all([
+      supabase.from('profiles').select('id, gender, birthday, job').eq('id', authUserId).maybeSingle(),
+      supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
+      supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle()
+    ]);
+    const applyFirstError = [applyProfileRes.error, applyLifestyleRes.error, applyHealthRes.error].find(Boolean);
+    if (applyFirstError) throw applyFirstError;
+    const applySafetyContext = {
+      profile: applyProfileRes.data || null,
+      lifestyle: applyLifestyleRes.data || null,
+      health: applyHealthRes.data || null
+    };
 
     if (adjustmentRes.data.plan_type === 'workout') {
       const requestedWorkoutPlanId = String((oldData as any).weekly_plan_id || '').trim();
@@ -3715,7 +3754,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       )];
       const validExercisesRes = await supabase
         .from('exercises')
-        .select('id, name, body_part, target_muscle, equipment, difficulty, movement_pattern, calories_per_minute')
+        .select('id, name, body_part, target_muscle, equipment, difficulty, movement_pattern, contraindications, calories_per_minute')
         .in('id', exerciseIds);
       if (validExercisesRes.error) throw validExercisesRes.error;
       const exerciseMetaById = new Map<string, any>((validExercisesRes.data || []).map((item: any) => [String(item.id), item]));
@@ -3724,9 +3763,15 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       if (missingExerciseIds.length > 0) {
         return res.status(400).json({ error: `Invalid exercise_id: ${missingExerciseIds.join(', ')}` });
       }
+      const guardedExercises = sanitizeWorkoutActionExercises(exercises, applySafetyContext, exerciseMetaById);
+      if (guardedExercises.exercises.length === 0 && exercises.length > 0) {
+        return res.status(400).json({
+          error: 'Adjustment blocked by safety guard: selected exercises conflict with current health or injury profile.'
+        });
+      }
 
       const rows = (await Promise.all(
-        exercises.map(async (item: any, index: number) => {
+        guardedExercises.exercises.map(async (item: any, index: number) => {
           const exerciseId = String(item.exercise_id || '').trim();
           if (!exerciseId) return null;
           const exerciseMeta = exerciseMetaById.get(exerciseId);
@@ -3908,12 +3953,18 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
 
       const foodRes = await supabase
         .from('foods')
-        .select('id, calories, protein, carbs, fat')
+        .select('id, name, category, calories, protein, carbs, fat, allergens, price_level, goal_type')
         .eq('id', newFoodId)
         .maybeSingle();
       if (foodRes.error) throw foodRes.error;
       if (!foodRes.data?.id) {
         return res.status(400).json({ error: 'new_food_id does not exist' });
+      }
+      const foodSafety = getFoodSafetyDecision(foodRes.data as any, applySafetyContext);
+      if (!foodSafety.allowed) {
+        return res.status(400).json({
+          error: `Adjustment blocked by food safety guard: ${foodSafety.reasons.join(', ')}`
+        });
       }
 
       const updateMealRes = await supabase
@@ -4077,6 +4128,11 @@ app.post('/api/generate-plan', async (req, res) => {
       ]);
 
       const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.data?.activity_level, lifestyle.data?.weekly_workouts);
+      const safetyContext = {
+        profile: profile.data || null,
+        lifestyle: lifestyle.data || null,
+        health: health.data || null
+      };
 
       userContext = `
 Thong tin cuc ky chi tiet cua nguoi dung can duoc ca nhan hoa:
@@ -4100,6 +4156,8 @@ Thong tin cuc ky chi tiet cua nguoi dung can duoc ca nhan hoa:
    - Dang dung thuoc: ${health.data?.medications || 'Khong'}.
    - Thoi quen hut thuoc/uong ruou: ${health.data?.smoke_drink || 'Khong'}.
    - Muc do stress: ${health.data?.stress_level || 'Binh thuong'} | Giac ngu trung binh: ${health.data?.sleep_hours || 7} tieng/ngay.
+
+${buildSafetyPromptAddendum(safetyContext)}
 
 Day la day du ho so cua nguoi dung lay truc tiep tu Database he thong (dua theo form khao sat ho da dien). Hay dung cac thong tin nay nhu mot chuyen gia de lap ke hoach chi tiet, chinh xac 100% phu hop voi tui tien, benh ly, va so do cua ho:
 
@@ -4197,7 +4255,8 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const bodyMetrics = bodyMetricsRes.data || {};
     const lifestyle = lifestyleRes.data || {};
     const health = healthRes.data || {};
-    const exercises = clampList(exerciseCatalogRes.data as any[], 80);
+    const safetyContext = { profile, lifestyle, health };
+    const exercises = filterSafeExercisesForUser(clampList(exerciseCatalogRes.data as any[], 80), safetyContext);
     const recentMealHistory = [
       ...((recentMealLogsRes.data || []) as any[]),
       ...((recentMealsRes.data || []) as any[])
@@ -4205,7 +4264,8 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.activity_level, lifestyle.weekly_workouts);
     const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
     const mealSlots = getMealSlotsForCount(mealsPerDay);
-    const foods = selectBalancedFoodCatalog(foodCatalogRes.data as any[], AI_FOOD_CATALOG_LIMIT, {
+    const safeFoodSource = filterSafeFoodsForUser(foodCatalogRes.data as any[], safetyContext);
+    const foods = selectBalancedFoodCatalog(safeFoodSource, AI_FOOD_CATALOG_LIMIT, {
       lifestyle,
       health,
       mealsPerDay,
@@ -4297,13 +4357,16 @@ ${recentTraining}
 RECENT_MEAL_PLAN:
 ${recentEating}
 
+${buildSafetyPromptAddendum(safetyContext)}
+
 EXERCISE_CATALOG:
-${exerciseCatalog}
+${exerciseCatalog || 'No safe exercise ids available after hard safety filtering. Use rest/recovery days only.'}
 
 FOOD_CATALOG:
 ${foodCatalog}
 
 Rules:
+- Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
 - Exactly 7 days, day_of_week 0..6 where 0 is Monday.
 - Never create new exercises or foods. Pick only exercise_id values from EXERCISE_CATALOG and food_id values from FOOD_CATALOG.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
@@ -4403,6 +4466,12 @@ JSON schema (fixed):
 
     const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
     const normalizedPlan = normalizeAiPlanPayload(parsed);
+    const guardedWorkout = sanitizeWorkoutPlanForUser(
+      normalizedPlan.workoutPlan,
+      safetyContext,
+      exerciseById
+    );
+    normalizedPlan.workoutPlan = guardedWorkout.workoutPlan;
 
     const existingWorkoutPlans = await supabase
       .from('weekly_plans')

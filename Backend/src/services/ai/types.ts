@@ -33,6 +33,8 @@ export type WorkoutExercisePayload = {
   reps?: string;
   rest_seconds?: number;
   weight_kg?: number;
+  target_rpe?: number;
+  load_instruction?: string;
   note?: string;
 };
 

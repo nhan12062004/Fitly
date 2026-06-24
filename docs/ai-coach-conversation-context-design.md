@@ -265,6 +265,83 @@ type AIChatResponse = {
 - The system should never present unsafe certainty about injuries or illness.
 - The system should never auto-apply plan reductions or removals without explicit user confirmation.
 
+## Prompt vs TypeScript Guard Ownership
+
+The AI prompt and the TypeScript guard have different authority levels.
+
+### Prompt Owns Soft Personalization
+
+Prompt rules may guide the model to:
+
+- explain why a plan fits the user's goal, schedule, equipment, budget, and diet style
+- choose among already-safe catalog items
+- prefer cheaper, simpler, familiar, or easier-to-cook foods
+- prefer beginner-friendly intensity, volume, and progression
+- write Vietnamese coaching notes and plan explanations
+- ask one clarifying question when the user intent is ambiguous
+- recommend conservative advice for pain, fatigue, recovery, and red-flag symptoms
+
+Prompt rules are allowed to improve output quality, but they are not the final safety authority.
+
+### TypeScript Guard Owns Hard Constraints
+
+Hard constraints must live in backend TypeScript, currently `personalizationGuardService.ts`, when the rule must be true even if the model ignores the prompt.
+
+TypeScript guard owns:
+
+- blocking exercises that conflict with injury, fracture, surgery, postpartum/pregnancy, cardiac risk, blood pressure risk, dizziness, chest pain, or other acute warning signs
+- capping workout intensity, sets, RPE, rest, training days, and external load for high-risk profiles
+- filtering exercise catalogs before prompt generation
+- sanitizing AI workout JSON after generation and before database insert
+- blocking unsafe workout proposals again at `apply-adjustment`
+- filtering food catalogs by allergy, vegetarian preference, and low/student budget
+- blocking high-price foods such as Kobe, Wagyu, sashimi, caviar, lobster, or premium foods for low/student budget profiles
+- blocking unsafe meal proposals again at `apply-adjustment`
+- keeping reusable safety decisions testable without calling an AI model
+
+If a rule can harm the user, waste money, violate allergy/diet constraints, or mutate stored plan data, it belongs in TypeScript guard first. The prompt may repeat it for model guidance, but must not be the only enforcement layer.
+
+### Shared Ownership
+
+Some rules appear in both layers:
+
+- The TS guard pre-filters unsafe choices and blocks unsafe final payloads.
+- The prompt tells the model why those constraints exist and how to choose within the remaining safe options.
+- The UI shows the user the proposal and still requires explicit `Apply`.
+
+### Execution Order
+
+For weekly plan generation:
+
+1. Load latest profile, body metrics, lifestyle, health, recent training, and recent meals.
+2. Build safety profile in TypeScript.
+3. Filter unsafe exercises and foods before building the prompt.
+4. Send safe catalog plus `SAFETY_CONSTRAINTS` to the model.
+5. Parse AI JSON.
+6. Sanitize the parsed workout plan again in TypeScript.
+7. Insert only guarded rows into weekly plan tables.
+
+For chat adjustments:
+
+1. Load current day plan and latest user health/lifestyle.
+2. For workout changes, remove unsafe exercises before creating the proposal.
+3. For meal changes, filter candidate foods before creating the proposal.
+4. Store only a proposed adjustment, not a direct mutation.
+5. On `apply-adjustment`, reload latest health/lifestyle and run the guard again before writing changes.
+
+### Do Not Put These Only In Prompt
+
+Never rely only on prompt text for:
+
+- postpartum/pregnancy restrictions
+- fracture, surgery, or injury restrictions
+- cardiac, blood pressure, chest pain, dizziness, or fainting restrictions
+- allergy exclusion
+- vegetarian exclusion
+- student/low-budget food exclusion
+- exercise id and food id validity
+- final permission to mutate weekly or daily plan data
+
 ## Acceptance Criteria
 
 - A meal or workout change request produces an actionable proposal tied to today's plan.
@@ -273,4 +350,3 @@ type AIChatResponse = {
 - A pain or injury question gives conservative guidance and escalation signs.
 - Reloading or logging in again on the same day preserves the thread.
 - A new day starts a new thread with a fresh daily digest.
-
