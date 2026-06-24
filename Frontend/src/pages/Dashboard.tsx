@@ -116,7 +116,7 @@ export default function Dashboard() {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 w-full h-screen overflow-y-auto custom-scrollbar">
-        <TopBar onMenuClick={() => setIsMobileMenuOpen(true)} onProfileClick={openProfileEditor} />
+        <TopBar onMenuClick={() => setIsMobileMenuOpen(true)} />
         <main className="flex min-h-0 flex-1 flex-col gap-6 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 lg:px-7 min-w-0 relative">
           <div className="mx-auto w-full">
             <ProfileCompletionNudge onOpenProfile={openProfileSupplement} />

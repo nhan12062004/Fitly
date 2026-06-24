@@ -1435,7 +1435,7 @@ export default function Progress() {
                       axisLine={false}
                       width={44}
                     />
-                    <Tooltip content={<NutritionTooltip />} />
+                    <Tooltip content={<NutritionTooltip />} cursor={false} />
                     <Bar dataKey="calories" radius={[8, 8, 0, 0]}>
                       {viewModel.nutrition.chart.map((entry) => (
                         <Cell
@@ -1813,7 +1813,7 @@ export default function Progress() {
                       axisLine={false}
                       width={52}
                     />
-                    <Tooltip content={<NutritionTooltip />} />
+                    <Tooltip content={<NutritionTooltip />} cursor={false} />
                     <Bar dataKey="calories" radius={[10, 10, 0, 0]}>
                       {viewModel.nutrition.chart.map((entry) => (
                         <Cell

@@ -1,0 +1,1199 @@
+﻿{
+    "vi_core":  {
+                    "version":  "0.1.20260610",
+                    "status_code":  40502,
+                    "status_message":  "POST Data Is Empty.",
+                    "time":  "0 sec.",
+                    "cost":  0,
+                    "tasks_count":  0,
+                    "tasks_error":  0,
+                    "tasks":  null
+                },
+    "vi_volume":  {
+                      "version":  "0.1.20260610",
+                      "status_code":  40502,
+                      "status_message":  "POST Data Is Empty.",
+                      "time":  "0 sec.",
+                      "cost":  0,
+                      "tasks_count":  0,
+                      "tasks_error":  0,
+                      "tasks":  null
+                  },
+    "en_ai":  {
+                  "version":  "0.1.20260610",
+                  "status_code":  20000,
+                  "status_message":  "Ok.",
+                  "time":  "0.1093 sec.",
+                  "cost":  0.075,
+                  "tasks_count":  1,
+                  "tasks_error":  0,
+                  "tasks":  [
+                                {
+                                    "id":  "06241127-1659-0367-0000-e150a0bf648e",
+                                    "status_code":  20000,
+                                    "status_message":  "Ok.",
+                                    "time":  "0.0404 sec.",
+                                    "cost":  0.075,
+                                    "result_count":  15,
+                                    "path":  [
+                                                 "v3",
+                                                 "keywords_data",
+                                                 "google_ads",
+                                                 "search_volume",
+                                                 "live"
+                                             ],
+                                    "data":  {
+                                                 "api":  "keywords_data",
+                                                 "function":  "search_volume",
+                                                 "se":  "google_ads",
+                                                 "language_code":  "en",
+                                                 "location_code":  2840,
+                                                 "keywords":  [
+                                                                  "ai workout planner",
+                                                                  "ai meal planner",
+                                                                  "ai fitness coach",
+                                                                  "workout plan generator",
+                                                                  "meal plan generator",
+                                                                  "personalized workout plan",
+                                                                  "personalized meal plan",
+                                                                  "fitness meal planner",
+                                                                  "calorie calculator",
+                                                                  "macro calculator",
+                                                                  "weight loss meal plan",
+                                                                  "beginner gym workout plan",
+                                                                  "home workout plan",
+                                                                  "gym workout plan for beginners",
+                                                                  "body recomposition meal plan"
+                                                              ]
+                                             },
+                                    "result":  [
+                                                   {
+                                                       "keyword":  "ai workout planner",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "MEDIUM",
+                                                       "competition_index":  44,
+                                                       "search_volume":  480,
+                                                       "low_top_of_page_bid":  1.13,
+                                                       "high_top_of_page_bid":  4.29,
+                                                       "cpc":  4.28,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  320
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  320
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  320
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  390
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  390
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  720
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "ai meal planner",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "MEDIUM",
+                                                       "competition_index":  44,
+                                                       "search_volume":  720,
+                                                       "low_top_of_page_bid":  1.55,
+                                                       "high_top_of_page_bid":  6.45,
+                                                       "cpc":  4.79,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  1000
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "ai fitness coach",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "LOW",
+                                                       "competition_index":  30,
+                                                       "search_volume":  480,
+                                                       "low_top_of_page_bid":  1.36,
+                                                       "high_top_of_page_bid":  3.92,
+                                                       "cpc":  4.63,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  390
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  390
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  320
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  320
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  390
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  590
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "workout plan generator",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "MEDIUM",
+                                                       "competition_index":  60,
+                                                       "search_volume":  720,
+                                                       "low_top_of_page_bid":  1.11,
+                                                       "high_top_of_page_bid":  5.03,
+                                                       "cpc":  5.25,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  480
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  720
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "meal plan generator",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "MEDIUM",
+                                                       "competition_index":  55,
+                                                       "search_volume":  1000,
+                                                       "low_top_of_page_bid":  1.09,
+                                                       "high_top_of_page_bid":  5.13,
+                                                       "cpc":  5.12,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  1300
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  1300
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "personalized workout plan",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "LOW",
+                                                       "competition_index":  15,
+                                                       "search_volume":  3600,
+                                                       "low_top_of_page_bid":  2.2,
+                                                       "high_top_of_page_bid":  8.48,
+                                                       "cpc":  7.59,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  1600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  1300
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  5400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  3600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  4400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  5400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  2900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  4400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  4400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  4400
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "personalized meal plan",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "LOW",
+                                                       "competition_index":  32,
+                                                       "search_volume":  880,
+                                                       "low_top_of_page_bid":  3.63,
+                                                       "high_top_of_page_bid":  9.52,
+                                                       "cpc":  9.59,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  390
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  590
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  1300
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  720
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  1600
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "fitness meal planner",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "HIGH",
+                                                       "competition_index":  83,
+                                                       "search_volume":  1300,
+                                                       "low_top_of_page_bid":  1.95,
+                                                       "high_top_of_page_bid":  9.08,
+                                                       "cpc":  7.17,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  880
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  1300
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  1300
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  1300
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  1000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  1600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  1600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  1300
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "calorie calculator",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "LOW",
+                                                       "competition_index":  5,
+                                                       "search_volume":  1000000,
+                                                       "low_top_of_page_bid":  0.43,
+                                                       "high_top_of_page_bid":  2,
+                                                       "cpc":  1.57,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  1220000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  823000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  673000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  550000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  673000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  368000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  450000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  450000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  550000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  2240000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  2240000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  1000000
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "macro calculator",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "LOW",
+                                                       "competition_index":  28,
+                                                       "search_volume":  110000,
+                                                       "low_top_of_page_bid":  0.06,
+                                                       "high_top_of_page_bid":  1.37,
+                                                       "cpc":  0.87,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  110000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  110000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  110000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  90500
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  135000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  74000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  74000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  90500
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  90500
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  110000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  110000
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  135000
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "weight loss meal plan",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "HIGH",
+                                                       "competition_index":  100,
+                                                       "search_volume":  8100,
+                                                       "low_top_of_page_bid":  2.65,
+                                                       "high_top_of_page_bid":  11,
+                                                       "cpc":  9.28,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  8100
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  6600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  8100
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  6600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  9900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  8100
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  6600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  8100
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  8100
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  9900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  12100
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  9900
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "beginner gym workout plan",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "LOW",
+                                                       "competition_index":  33,
+                                                       "search_volume":  2900,
+                                                       "low_top_of_page_bid":  1.12,
+                                                       "high_top_of_page_bid":  4.2,
+                                                       "cpc":  4.51,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  3600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  2900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  3600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  4400
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "home workout plan",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "MEDIUM",
+                                                       "competition_index":  44,
+                                                       "search_volume":  3600,
+                                                       "low_top_of_page_bid":  1.29,
+                                                       "high_top_of_page_bid":  5.18,
+                                                       "cpc":  5.21,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  2900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  4400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  2900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  2900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  2900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  9900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  6600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  3600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  4400
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "gym workout plan for beginners",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "LOW",
+                                                       "competition_index":  33,
+                                                       "search_volume":  2900,
+                                                       "low_top_of_page_bid":  1.12,
+                                                       "high_top_of_page_bid":  4.2,
+                                                       "cpc":  4.51,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  3600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  1900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  2400
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  2900
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  3600
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  4400
+                                                                                }
+                                                                            ]
+                                                   },
+                                                   {
+                                                       "keyword":  "body recomposition meal plan",
+                                                       "spell":  null,
+                                                       "location_code":  2840,
+                                                       "language_code":  "en",
+                                                       "search_partners":  false,
+                                                       "competition":  "HIGH",
+                                                       "competition_index":  70,
+                                                       "search_volume":  140,
+                                                       "low_top_of_page_bid":  0.76,
+                                                       "high_top_of_page_bid":  6.42,
+                                                       "cpc":  4.31,
+                                                       "monthly_searches":  [
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  5,
+                                                                                    "search_volume":  210
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  4,
+                                                                                    "search_volume":  170
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  3,
+                                                                                    "search_volume":  170
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  2,
+                                                                                    "search_volume":  110
+                                                                                },
+                                                                                {
+                                                                                    "year":  2026,
+                                                                                    "month":  1,
+                                                                                    "search_volume":  170
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  12,
+                                                                                    "search_volume":  90
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  11,
+                                                                                    "search_volume":  110
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  10,
+                                                                                    "search_volume":  140
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  9,
+                                                                                    "search_volume":  110
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  8,
+                                                                                    "search_volume":  140
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  7,
+                                                                                    "search_volume":  170
+                                                                                },
+                                                                                {
+                                                                                    "year":  2025,
+                                                                                    "month":  6,
+                                                                                    "search_volume":  210
+                                                                                }
+                                                                            ]
+                                                   }
+                                               ]
+                                }
+                            ]
+              }
+}
