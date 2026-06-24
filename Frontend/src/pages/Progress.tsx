@@ -24,18 +24,12 @@ import {
 } from 'recharts';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
-import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
+import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-const TIME_RANGES = [
-  { label: '7 ngày', value: 7 },
-  { label: '30 ngày', value: 30 },
-  { label: '90 ngày', value: 90 },
-] as const;
+const PROGRESS_RANGE_DAYS = 7;
 const ESTIMATED_MINUTES_PER_EXERCISE = 8;
-
-type TimeRangeValue = (typeof TIME_RANGES)[number]['value'];
 
 type LifestyleRow = {
   weekly_workouts: number | null;
@@ -836,7 +830,6 @@ function WorkoutTooltip({
 function ProgressSkeleton() {
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <SkeletonHero titleWidth="w-[64%] max-w-[24rem]" chips={3} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.7fr_1fr]">
         <SkeletonSurface className="rounded-[28px] p-5 md:p-6">
           <div className="flex items-start justify-between gap-4">
@@ -1087,12 +1080,12 @@ function EmptyMetricState({ title, body }: { title: string; body: string }) {
 export default function Progress() {
   const navigate = useNavigate();
   const { user, isLoggedIn, refreshTick } = useAuth();
-  const initialProgressCache = user?.id ? progressPageCache.get(`${user.id}:7:${getVietnamDateKey()}`) || null : null;
-  const [rangeDays, setRangeDays] = useState<TimeRangeValue>(7);
+  const rangeDays = PROGRESS_RANGE_DAYS;
+  const initialProgressCache = user?.id ? progressPageCache.get(`${user.id}:${PROGRESS_RANGE_DAYS}:${getVietnamDateKey()}`) || null : null;
   const [loading, setLoading] = useState(() => !initialProgressCache);
   const [, setIsRefreshing] = useState(false);
   const [viewModel, setViewModel] = useState<ProgressViewModel | null>(() => initialProgressCache?.viewModel || null);
-  const cacheKey = user?.id ? `${user.id}:${rangeDays}:${getVietnamDateKey()}` : null;
+  const cacheKey = user?.id ? `${user.id}:${PROGRESS_RANGE_DAYS}:${getVietnamDateKey()}` : null;
 
   useEffect(() => {
     let isMounted = true;
@@ -1279,7 +1272,7 @@ export default function Progress() {
     return () => {
       isMounted = false;
     };
-  }, [user, isLoggedIn, rangeDays, refreshTick, cacheKey]);
+  }, [user, isLoggedIn, refreshTick, cacheKey]);
 
   if (loading) return <ProgressSkeleton />;
   if (!viewModel) return <ProgressSkeleton />;
@@ -1308,32 +1301,6 @@ export default function Progress() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl font-black text-text-primary md:text-2xl">Tiến độ</h1>
-            <p className="mt-1 text-sm font-semibold text-text-secondary">{viewModel.filterLabel} gần nhất</p>
-          </div>
-
-          <div className="progress-range-tabs inline-flex h-fit rounded-xl border p-1">
-            {TIME_RANGES.map((range) => (
-              <button
-                key={range.value}
-                type="button"
-                onClick={() => setRangeDays(range.value)}
-                className={`rounded-lg px-3 py-2 text-sm font-black transition-colors ${
-                  rangeDays === range.value
-                    ? 'bg-accent text-text-inverse'
-                    : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
-                }`}
-              >
-                {range.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {isEmpty ? (
         <section className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-5 md:p-6">
           <div className="max-w-2xl">
