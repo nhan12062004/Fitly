@@ -5,12 +5,14 @@ import {
   Check,
   Eye,
   EyeOff,
+  KeyRound,
   Loader2,
   Lock,
   Mail,
   ShieldCheck,
   Sparkles,
   User,
+  X,
 } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,6 +45,9 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [isForgotPasswordOpen, setIsForgotPasswordOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -57,6 +62,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
   useEffect(() => {
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setIsForgotPasswordOpen(false);
     setError(null);
   }, [isLogin]);
 
@@ -125,6 +131,39 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
       setError(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = () => {
+    setResetEmail(email);
+    setIsForgotPasswordOpen(true);
+    setError(null);
+  };
+
+  const handleSendPasswordReset = async () => {
+    setError(null);
+
+    const trimmedEmail = resetEmail.trim();
+    if (!trimmedEmail) {
+      setError('Vui lòng nhập email để lấy lại mật khẩu');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) throw resetError;
+
+      setEmail(trimmedEmail);
+      setIsForgotPasswordOpen(false);
+      toast.success('Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư của bạn.');
+    } catch (err: any) {
+      setError(err.message || 'Không thể gửi email đặt lại mật khẩu, vui lòng thử lại');
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -291,6 +330,19 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {isLogin && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleForgotPassword}
+                        disabled={resetLoading || loading}
+                        className="inline-flex items-center gap-1.5 text-xs font-black text-accent transition-colors hover:text-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {resetLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+                        Quên mật khẩu?
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {!isLogin && (
@@ -354,6 +406,75 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
           </ScrollReveal>
         </section>
       </main>
+
+      {isForgotPasswordOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Đóng"
+            onClick={() => setIsForgotPasswordOpen(false)}
+            className="absolute inset-0 bg-black/65 backdrop-blur-md"
+          />
+          <div className="relative w-full max-w-[448px] rounded-lg border border-white/10 bg-[#111111]/95 p-6 shadow-[0_26px_90px_rgba(0,0,0,0.55)]">
+            <div>
+              <div className="flex items-start justify-between gap-4">
+                <h2 className="text-2xl font-black leading-tight text-white">Quên mật khẩu?</h2>
+                <button
+                  type="button"
+                  aria-label="Đóng modal quên mật khẩu"
+                  onClick={() => setIsForgotPasswordOpen(false)}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <p className="mt-3 max-w-[360px] text-sm font-semibold leading-6 text-zinc-400">
+                Nhập email tài khoản của bạn, Supabase sẽ gửi link đặt lại mật khẩu.
+              </p>
+            </div>
+
+            <div className="mt-6 space-y-2">
+              <label className="text-xs font-bold text-zinc-400">Email nhận link đặt lại mật khẩu</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <input
+                  type="email"
+                  value={resetEmail}
+                  onChange={(event) => setResetEmail(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void handleSendPasswordReset();
+                    }
+                  }}
+                  placeholder="email@vidu.com"
+                  className="h-12 w-full rounded-lg border border-accent bg-black/25 pl-11 pr-4 text-sm font-semibold text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-accent focus:ring-1 focus:ring-accent"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setIsForgotPasswordOpen(false)}
+                className="inline-flex h-11 items-center justify-center rounded-lg border border-white/10 bg-transparent px-6 text-sm font-black text-zinc-200 transition-colors hover:border-white/20 hover:bg-white/5"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSendPasswordReset}
+                disabled={resetLoading}
+                className="landing-action inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-accent px-6 text-sm font-black text-text-inverse transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {resetLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                Gửi link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

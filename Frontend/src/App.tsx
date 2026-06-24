@@ -16,6 +16,7 @@ import Notifications from './pages/Notifications';
 import Overview from './pages/Overview';
 import Profile from './pages/Profile';
 import Progress from './pages/Progress';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import WorkoutSession from './pages/WorkoutSession';
 
 const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'));
@@ -31,6 +32,7 @@ export default function App() {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<AuthPage initialMode="login" />} />
                 <Route path="/signup" element={<AuthPage initialMode="signup" />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route element={<Dashboard />}>
                   <Route path="overview" element={<Overview />} />
                   <Route path="notifications" element={<Notifications />} />

@@ -31,6 +31,20 @@ const normalizeMembershipTier = (value: unknown): 'free' | 'premium' => {
   return value === 'premium' ? 'premium' : 'free';
 };
 
+const getSupabaseAuthType = () => {
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+
+  return searchParams.get('type') || hashParams.get('type');
+};
+
+const moveRecoveryLinkToResetPage = () => {
+  if (window.location.pathname === '/reset-password') return false;
+
+  window.location.replace(`/reset-password${window.location.search}${window.location.hash}`);
+  return true;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
@@ -82,16 +96,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleInitialHash = () => {
       const hash = window.location.hash;
       const searchParams = new URLSearchParams(window.location.search);
+      const authType = getSupabaseAuthType();
+
+      if (authType === 'recovery') {
+        setIsVerifying(false);
+        if (moveRecoveryLinkToResetPage()) return;
+      }
+
+      if (window.location.pathname === '/reset-password') {
+        setIsVerifying(false);
+        return;
+      }
 
       // Supabase thường gửi kèm access_token trong hash sau khi verify email
-      if (hash.includes('access_token=') && (hash.includes('type=signup') || hash.includes('type=recovery'))) {
+      if (hash.includes('access_token=') && authType === 'signup') {
         setIsVerifying(true);
         // Xóa hash để URL sạch hơn
         window.history.replaceState(null, '', window.location.pathname);
       }
 
       // Hoặc kiểm tra qua query params nếu có cấu hình khác
-      if (searchParams.get('verified') === 'true') {
+      if (searchParams.get('verified') === 'true' && authType !== 'recovery') {
         setIsVerifying(true);
       }
     };
@@ -111,7 +136,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsVerifying(false);
+        moveRecoveryLinkToResetPage();
+      }
+
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
