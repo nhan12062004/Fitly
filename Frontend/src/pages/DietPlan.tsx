@@ -5,6 +5,7 @@ import {
   Droplet,
   Plus,
   Search,
+  Trash2,
   Utensils,
   X
 } from 'lucide-react';
@@ -960,16 +961,24 @@ export default function DietPlan() {
   }, [cacheKey, foods, selectedDayId, weeklyPlan, restDays, planId, planName, mealsPerDay, targetCalories, waterIntake, waterGoal]);
 
   const addFoodToPlan = useCallback((food: Food, mealType: MealTypeId = activeMealType) => {
-    setWeeklyPlan((prev) => ({
-      ...prev,
+    const nextWeeklyPlan = {
+      ...weeklyPlan,
       [selectedDayId]: [
-        ...(prev[selectedDayId] || []),
+        ...(weeklyPlan[selectedDayId] || []),
         createPlanFood(food, mealType)
       ]
-    }));
-    setRestDays((prev) => ({ ...prev, [selectedDayId]: false }));
+    };
+    const nextRestDays = { ...restDays, [selectedDayId]: false };
+
+    setWeeklyPlan(nextWeeklyPlan);
+    setRestDays(nextRestDays);
     setFoodPickerOpen(false);
-  }, [activeMealType, selectedDayId]);
+    void savePlan({
+      weeklyPlanOverride: nextWeeklyPlan,
+      restDaysOverride: nextRestDays,
+      showSuccess: false
+    });
+  }, [activeMealType, restDays, selectedDayId, weeklyPlan]);
 
   const openFoodPicker = (mealType: MealTypeId) => {
     setActiveMealType(mealType);
@@ -1127,6 +1136,23 @@ export default function DietPlan() {
     }
   };
 
+  const removeFoodFromPlan = async (item: PlanFood) => {
+    const nextWeeklyPlan = {
+      ...weeklyPlan,
+      [selectedDayId]: (weeklyPlan[selectedDayId] || []).filter((entry) => entry.tempId !== item.tempId)
+    };
+    const nextRestDays = { ...restDays, [selectedDayId]: false };
+
+    setWeeklyPlan(nextWeeklyPlan);
+    setRestDays(nextRestDays);
+
+    await savePlan({
+      weeklyPlanOverride: nextWeeklyPlan,
+      restDaysOverride: nextRestDays,
+      showSuccess: false
+    });
+  };
+
   const suggestAlternativeFood = (item: PlanFood): Food | null => {
     if (!foods.length) return null;
     const candidates = foods.filter((food) => food.id !== item.food_id);
@@ -1174,25 +1200,29 @@ export default function DietPlan() {
         return;
       }
 
-      setWeeklyPlan((prev) => {
-        const nextDayItems = (prev[selectedDayId] || []).map((entry) =>
-          entry.tempId === item.tempId
-            ? {
-                ...entry,
-                weekly_food_item_id: null,
-                food_id: replacement.id,
-                name: replacement.name,
-                image_url: replacement.image_url,
-                category: replacement.category,
-                serving_unit: replacement.serving_unit,
-                calories: replacement.calories,
-                protein: replacement.protein,
-                carbs: replacement.carbs,
-                fat: replacement.fat
-              }
-            : entry
-        );
-        return { ...prev, [selectedDayId]: nextDayItems };
+      const nextDayItems = (weeklyPlan[selectedDayId] || []).map((entry) =>
+        entry.tempId === item.tempId
+          ? {
+              ...entry,
+              weekly_food_item_id: null,
+              food_id: replacement.id,
+              name: replacement.name,
+              image_url: replacement.image_url,
+              category: replacement.category,
+              serving_unit: replacement.serving_unit,
+              calories: replacement.calories,
+              protein: replacement.protein,
+              carbs: replacement.carbs,
+              fat: replacement.fat
+            }
+          : entry
+      );
+      const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextDayItems };
+      setWeeklyPlan(nextWeeklyPlan);
+      await savePlan({
+        weeklyPlanOverride: nextWeeklyPlan,
+        restDaysOverride: restDays,
+        showSuccess: false
       });
       alert(`Đã đổi sang món tương đương: ${replacement.name}.`);
       return;
@@ -1416,10 +1446,20 @@ export default function DietPlan() {
                 <div className="mt-3 grid gap-2 text-xs font-semibold text-text-tertiary">
                   {meal.items.map((item) => (
                     <div key={item.tempId} className="diet-food-pill flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
-                      <span className="min-w-0 truncate text-text-secondary">
+                      <span className="min-w-0 flex-1 truncate text-text-secondary">
                         {item.name} <span className="text-text-tertiary">• {formatFoodQuantity(item)}</span>
                       </span>
                       <span className="shrink-0 text-text-tertiary">{Math.round(item.calories * item.quantity)} kcal</span>
+                      <button
+                        type="button"
+                        onClick={() => void removeFoodFromPlan(item)}
+                        disabled={isSaving}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-tertiary transition hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={`Xóa ${item.name}`}
+                        title="Xóa món"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1450,7 +1490,7 @@ export default function DietPlan() {
                     onClick={() => openFoodPicker(meal.id)}
                     className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
                   >
-                    Tự chọn món
+                    Thêm món
                   </button>
                 </div>
               </article>
@@ -1475,7 +1515,7 @@ export default function DietPlan() {
             onClick={() => openFoodPicker(mobileActionMealId)}
             className="diet-control inline-flex h-11 items-center justify-center rounded-xl border border-border-primary px-3 text-sm font-black transition"
           >
-            Tự chọn món
+            {hasMenuForSelectedDay ? 'Thêm món' : 'Tự chọn món'}
           </button>
         </div>
       </div>

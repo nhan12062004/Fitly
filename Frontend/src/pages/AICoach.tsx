@@ -569,7 +569,7 @@ const buildCoachOpening = (day: DayPlan) => {
 
 const buildMealDigest = (day: DayPlan) => {
   if (day.meals.length === 0) {
-    return 'Meal plan hôm nay chưa có món nào.';
+    return 'Thực đơn hôm nay chưa có món nào.';
   }
 
   const calories = Math.round(sumMealMetric(day.meals, 'calories'));
@@ -586,7 +586,7 @@ const buildMealDigest = (day: DayPlan) => {
     lines.push(`+${remaining} món nữa`);
   }
 
-  return `Meal plan hôm nay có ${day.meals.length} món, ${calories} kcal và ${protein}g protein.\n${lines.join('\n')}`;
+  return `Thực đơn hôm nay có ${day.meals.length} món, ${calories} kcal và ${protein}g protein.\n${lines.join('\n')}`;
 };
 
 const isGreetingQuestion = (value: string) => {
@@ -755,7 +755,7 @@ const buildCoachReply = (
   }
 
   if (firstMeal?.foods?.name) {
-    return `${day.label} hiện nghiêng về dinh dưỡng nhiều hơn vận động. Bạn có thể giữ meal plan hiện tại và thêm cardio nhẹ hoặc đi bộ sau bữa chính.`;
+    return `${day.label} hiện nghiêng về dinh dưỡng nhiều hơn vận động. Bạn có thể giữ thực đơn hiện tại và thêm cardio nhẹ hoặc đi bộ sau bữa chính.`;
   }
 
   return `Mình đang bám theo dữ liệu của ${day.label}. Hãy hỏi cụ thể hơn về bài tập hoặc thực đơn để mình gợi ý sát hơn.`;
@@ -1112,7 +1112,10 @@ function TodayDigestBubble({ day }: { day: DayPlan }) {
 
         <div className="space-y-2">
           {day.exercises.length === 0 ? (
-            <p className="text-sm font-semibold text-text-secondary">Hôm nay chưa có bài tập nào.</p>
+            <p className="flex items-start gap-2 text-sm font-semibold text-text-secondary">
+              <Dumbbell className="mt-0.5 h-4 w-4 shrink-0 text-ai" />
+              <span>Hôm nay chưa có bài tập nào.</span>
+            </p>
           ) : (
             <>
               <p className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
@@ -1966,7 +1969,7 @@ export default function AICoach() {
                     <div>
                       <p className="text-xl font-black leading-none text-text-primary">AI Coach</p>
                       <p className="mt-0.5 text-[11px] font-semibold text-text-secondary">
-                        {plan ? 'Chat, workout và meal plan trong ngày' : 'Chat trước, tạo kế hoạch khi bạn sẵn sàng'}
+                        {plan ? 'Chat, bài tập và thực đơn trong ngày' : 'Chat trước, tạo kế hoạch khi bạn sẵn sàng'}
                       </p>
                     </div>
                   </div>
