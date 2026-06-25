@@ -387,7 +387,7 @@ const getAssistantModeLabel = (message: ChatMessage) => {
   if (message.responseMode === 'safety') return 'An toan';
   if (message.responseMode === 'redirect') return 'Pham vi AI Coach';
   if (message.intent === 'recovery') return 'Phuc hoi';
-  if (message.intent === 'meal_plan' || message.intent === 'workout_plan') return 'Ke hoach hom nay';
+  if (message.intent === 'meal_plan' || message.intent === 'workout_plan') return 'Kế hoạch hôm nay';
   return 'AI Coach';
 };
 
@@ -1960,8 +1960,8 @@ export default function AICoach() {
         <section>
             <article className="ai-coach-chat-shell flex h-[calc(100dvh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
               <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-2">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-text-primary">
                       <Bot className="h-3.5 w-3.5" />
                       <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-bg-secondary bg-ai" />
@@ -1976,11 +1976,11 @@ export default function AICoach() {
                   <button
                     type="button"
                     onClick={() => setIsPlanSettingsOpen(true)}
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-3 text-xs font-black text-text-primary transition-colors hover:border-ai/40 hover:text-ai"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-xs font-black text-text-primary transition-colors hover:border-ai/40 hover:text-ai sm:w-auto sm:gap-2 sm:px-3"
                     aria-label="Cài đặt kế hoạch"
                   >
                     <Settings2 className="h-4 w-4" />
-                    Cài đặt kế hoạch
+                    <span className="hidden sm:inline">Cài đặt kế hoạch</span>
                   </button>
                 </div>
               </div>

@@ -23,6 +23,59 @@ type CoachCompletionInput = {
   temperature?: number;
 };
 
+const normalizeText = (value: string): string =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+const containsNutritionExpertReferral = (value: string): boolean => {
+  const normalized = normalizeText(value);
+  const mentionsNutritionExpert =
+    normalized.includes('chuyen gia dinh duong') ||
+    normalized.includes('dietitian') ||
+    normalized.includes('dietician') ||
+    normalized.includes('nutritionist') ||
+    normalized.includes('nutrition expert');
+  if (!mentionsNutritionExpert) return false;
+
+  return [
+    'tham khao',
+    'hoi y kien',
+    'trao doi voi',
+    'tu van voi',
+    'gap',
+    'lien he',
+    'nen gap',
+    'nen tham khao',
+    'khuyen',
+    'khuyen nghi',
+  ].some((term) => normalized.includes(term));
+};
+
+export const sanitizeCoachReply = (reply: string): string => {
+  const text = String(reply || '').trim();
+  if (!text) return text;
+
+  const cleanedBlocks = text
+    .split('\n')
+    .map((line) => {
+      if (!containsNutritionExpertReferral(line)) return line;
+      const sentencePieces = line.match(/[^.!?]+[.!?]?/g) || [line];
+      const keptSentences = sentencePieces.filter((sentence) => !containsNutritionExpertReferral(sentence));
+      return keptSentences.join('').trim();
+    })
+    .filter((line) => line.trim().length > 0)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return cleanedBlocks || text
+    .replace(/chuyên gia dinh dưỡng/gi, 'bác sĩ')
+    .replace(/chuyen gia dinh duong/gi, 'bác sĩ')
+    .replace(/dietitian|dietician|nutritionist|nutrition expert/gi, 'bác sĩ');
+};
+
 const getMealTypeLabel = (mealType?: string | null): string => {
   const key = String(mealType || '').toLowerCase();
   if (key === 'breakfast') return 'Bua sang';
@@ -115,7 +168,7 @@ export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => 
   const detectedIntent = context?.detectedIntent || 'general_health';
   const responseMode = context?.responseMode || 'coach_advice';
 
-  return `Ban la "Fitly AI" - huan luyen vien ca nhan va chuyen gia dinh duong cua ung dung Fitly.
+  return `Ban la "Fitly AI" - huan luyen vien ca nhan cua ung dung Fitly.
 
 [KENH TRA LOI]
 - Dang tra loi tren: ${platform}
@@ -170,8 +223,8 @@ ${context?.extraContext ? `[DU LIEU TRENDfit MO RONG]\n${context.extraContext}\n
 2. Khong tu tao chi so suc khoe, calories, can nang, lich su tap neu khong co context.
 3. Khi hoi ve bai tap/thuc don, dua goi y cu the: bai/sets/reps/rest hoac khau phan/kcal/protein neu phu hop.
 4. Khong chan doan benh. Voi dau nguc, chong mat, te/bien dang khop, chan thuong nang hoac dau khong giam, khuyen ngung tap va gap bac si.
-5. Voi cau hoi dinh duong thong thuong nhu kcal/ngay, macro, giam can, tang co: dua con so uoc tinh va cach theo doi dieu chinh. Khong ket bang cau "hay tham khao chuyen gia dinh duong" neu khong co dau hieu y te/nguy co cao.
-6. Chi khuyen gap bac si/chuyen gia khi co benh ly, chan thuong, dau hieu nguy hiem, roi loan an uong, mang thai, dung thuoc dieu tri, hoac muc tieu cuc doan.
+5. Voi cau hoi dinh duong thong thuong nhu kcal/ngay, macro, giam can, tang co: dua con so uoc tinh va cach theo doi dieu chinh.
+6. Tuyet doi khong bao nguoi dung tham khao/hoi/gap chuyen gia dinh duong, dietitian, nutritionist hay nutrition expert. Neu co dau hieu y te/nguy co cao, chi khuyen gap bac si hoac co so y te phu hop.
 7. Neu cau hoi mo ho, hoi toi da 1 cau lam ro. Neu co the dua phuong an an toan mac dinh thi lam ngay.
 8. Khong tra JSON, khong noi ve backend, khong noi minh la model AI.
 9. Giong coach that: ro rang, thuc te, khong noi lan man, khong khen xa giao qua muc.
@@ -182,9 +235,10 @@ ${context?.extraContext ? `[DU LIEU TRENDfit MO RONG]\n${context.extraContext}\n
 14. Neu nguoi dung yeu cau thay doi lich/tap/mon an, chi dua goi y noi dung. Viec tao proposal se do he thong Fitly xu ly rieng.`;
 };
 
-export const buildGuestCoachSystemPrompt = (): string => `Ban la "Fitly AI" - huan luyen vien ca nhan va chuyen gia dinh duong cua ung dung Fitly.
+export const buildGuestCoachSystemPrompt = (): string => `Ban la "Fitly AI" - huan luyen vien ca nhan cua ung dung Fitly.
 Nguoi dung nay chua lien ket Telegram voi tai khoan Fitly.
 Hay tra loi ngan gon, thuc te, bang tieng Viet tu nhien. Neu ho hoi ve fitness/dinh duong thi van tra loi duoc, nhung nhac nhe rang lien ket tai khoan se giup ca nhan hoa theo lich tap, thuc don va chi so co the.
+Tuyet doi khong bao nguoi dung tham khao/hoi/gap chuyen gia dinh duong, dietitian, nutritionist hay nutrition expert.
 Khong chan doan benh; voi dau nguc, chong mat, chan thuong nang, te/bien dang khop hoac dau khong giam, khuyen gap bac si.`;
 
 export const callCoachCompletion = async ({
@@ -229,7 +283,7 @@ export const callCoachCompletion = async ({
     throw new Error(result?.error?.message || 'Groq AI request failed');
   }
 
-  const reply = String(result?.choices?.[0]?.message?.content || '').trim();
+  const reply = sanitizeCoachReply(String(result?.choices?.[0]?.message?.content || '').trim());
   if (!reply) throw new Error('Groq AI returned empty reply');
   return reply;
 };

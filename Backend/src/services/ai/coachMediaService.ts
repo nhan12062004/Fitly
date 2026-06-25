@@ -1,4 +1,4 @@
-import { callCoachCompletion, CoachChatMessage } from './coachConversationService';
+import { callCoachCompletion, CoachChatMessage, sanitizeCoachReply } from './coachConversationService';
 
 const GROQ_CHAT_COMPLETIONS_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_AUDIO_TRANSCRIPTIONS_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
@@ -141,10 +141,11 @@ export const analyzeMealPhotoCalories = async ({
 }: AnalyzeMealPhotoInput): Promise<string> => {
   const groqKey = ensureGroqKey();
   const systemPrompt = [
-    'Ban la Fitly AI, chuyen gia dinh duong tren Telegram.',
+    'Ban la Fitly AI, coach dinh duong tren Telegram.',
     'Nhiem vu: nhin anh bua an va uoc tinh calories/macros mot cach thuc te.',
     'Khong dua con so tuyet doi. Luon tra theo khoang kcal va noi ro do tin cay.',
     'Neu khong nhin ro mon/khau phan, hoi toi da 1 cau lam ro.',
+    'Tuyet doi khong bao nguoi dung tham khao/hoi/gap chuyen gia dinh duong, dietitian, nutritionist hay nutrition expert.',
     'Khong tu dong khang dinh da ghi vao Fitly. Neu user muon luu, huong dan nhan "ghi 650 kcal" hoac con so ho chon.',
     'Tra loi bang tieng Viet ngan gon, de doc tren dien thoai, khong dung bang markdown.',
   ].join('\n');
@@ -192,7 +193,7 @@ export const analyzeMealPhotoCalories = async ({
     throw new Error(result?.error?.message || 'Groq vision request failed');
   }
 
-  const reply = String(result?.choices?.[0]?.message?.content || '').trim();
+  const reply = sanitizeCoachReply(String(result?.choices?.[0]?.message?.content || '').trim());
   if (!reply) {
     throw new Error('Groq vision returned empty reply');
   }

@@ -895,19 +895,19 @@ export default function Exercises() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <div className="today-workout-shell bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-xl md:text-2xl font-black text-text-primary">{selectedDayTitle}</h1>
-            <div className="flex items-center gap-1.5 text-xs md:text-sm text-text-tertiary">
+      <div className="today-workout-shell overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+        <div className="today-workout-header mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
+            <h1 className="text-[1.35rem] font-black leading-tight text-text-primary md:text-2xl">{selectedDayTitle}</h1>
+            <div className="today-workout-date inline-flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-tertiary/45 px-3 py-1.5 text-xs font-bold text-text-tertiary md:text-sm">
               <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
               <p>{selectedDayDateLabel}</p>
             </div>
           </div>
         </div>
 
-        <div className="mb-4 overflow-x-auto rounded-xl border border-border-primary bg-bg-tertiary/40 p-1 custom-scrollbar">
-          <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 overflow-x-auto md:min-w-0">
+        <div className="today-workout-day-tabs mb-4 overflow-x-auto rounded-xl border border-border-primary bg-bg-tertiary/40 p-1 custom-scrollbar">
+          <div ref={dayTabContainerRef} className="relative flex min-w-max gap-1 md:grid md:min-w-0 md:grid-cols-7">
             <span
               className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
               style={{
@@ -930,7 +930,7 @@ export default function Exercises() {
                   }}
                   type="button"
                   onClick={() => setSelectedDayId(day.id)}
-                  className={`inline-flex min-h-[40px] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition ${
+                  className={`inline-flex min-h-[40px] min-w-[4.25rem] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition md:min-w-0 ${
                     isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
                   }`}
                   title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
@@ -942,7 +942,7 @@ export default function Exercises() {
           </div>
         </div>
 
-        <div className="-ml-2 -mt-1 grid grid-cols-1 gap-5 md:gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-stretch">
+        <div className="today-workout-content grid grid-cols-1 gap-5 md:-ml-2 md:-mt-1 md:gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-stretch">
           {selectedSessionExercise ? (
             <>
               <article className="min-w-0 p-4 md:p-4 xl:pr-8">
@@ -1036,65 +1036,64 @@ export default function Exercises() {
               </aside>
             </>
           ) : (
-            <div className="h-[220px] flex flex-col items-center justify-center text-center">
-              <AlertCircle className="w-10 h-10 text-text-tertiary mb-3" />
-              <p className="text-sm text-text-secondary">
+            <div className="today-workout-empty-state flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/30 px-5 py-8 text-center">
+              <span className="today-workout-empty-icon mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-tertiary">
+                <AlertCircle className="h-6 w-6" />
+              </span>
+              <p className="text-sm font-semibold text-text-secondary">
                 {isTodaySelected ? 'Chưa có bài tập nào hôm nay.' : 'Chưa có bài tập cho ngày này.'}
               </p>
+              <button
+                type="button"
+                onClick={() => navigate('/smart-planner')}
+                className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
+              >
+                <Plus className="h-4 w-4" />
+                Tạo kế hoạch
+              </button>
             </div>
           )}
         </div>
       </div>
 
       <div className="bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-          <div>
+        <div className="relative mb-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-xl md:text-2xl font-black text-text-primary">Thư viện bài tập</h2>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {muscleFilterOptions.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setAppliedMuscleFilter(opt.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-colors ${appliedMuscleFilter === opt.id ? 'bg-accent text-text-inverse' : 'bg-bg-tertiary border border-border-primary text-text-secondary hover:border-accent/40 hover:text-text-primary'}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="relative" ref={filterPopoverRef}>
-            <button
-              type="button"
-              onClick={() => {
-                setIsFilterModalOpen((prev) => {
-                  if (prev) return false;
-                  setDraftEquipmentFilter(appliedEquipmentFilter);
-                  return true;
-                });
-              }}
-              className={`group relative inline-flex h-8 items-center gap-1.5 px-2.5 rounded-lg border transition-all ${
-                isEquipmentFilterActive
-                  ? 'border-accent/45 bg-accent/10 text-accent shadow-[inset_0_0_0_1px_rgb(var(--accent-rgb)_/_0.08)]'
-                  : 'border-border-primary bg-bg-tertiary text-text-secondary hover:border-accent/40 hover:text-text-primary'
-              }`}
-            >
-              {isEquipmentFilterActive && (
-                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-bg-secondary bg-accent" />
-              )}
-              <SlidersHorizontal className={`w-3.5 h-3.5 ${isEquipmentFilterActive ? 'text-accent' : 'text-text-secondary'}`} />
-              <span className="text-xs font-medium leading-none">Bộ lọc</span>
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isFilterModalOpen ? 'rotate-180' : ''} ${isEquipmentFilterActive ? 'text-accent' : 'text-text-secondary group-hover:text-text-primary'}`} />
-            </button>
+            <div className="relative shrink-0" ref={filterPopoverRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFilterModalOpen((prev) => {
+                    if (prev) return false;
+                    setDraftEquipmentFilter(appliedEquipmentFilter);
+                    return true;
+                  });
+                }}
+                className={`group relative inline-flex h-8 items-center gap-1.5 px-2.5 rounded-lg border transition-all ${
+                  isEquipmentFilterActive
+                    ? 'border-accent/45 bg-accent/10 text-accent shadow-[inset_0_0_0_1px_rgb(var(--accent-rgb)_/_0.08)]'
+                    : 'border-border-primary bg-bg-tertiary text-text-secondary hover:border-accent/40 hover:text-text-primary'
+                }`}
+              >
+                {isEquipmentFilterActive && (
+                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-bg-secondary bg-accent" />
+                )}
+                <SlidersHorizontal className={`w-3.5 h-3.5 ${isEquipmentFilterActive ? 'text-accent' : 'text-text-secondary'}`} />
+                <span className="text-xs font-medium leading-none">Bộ lọc</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isFilterModalOpen ? 'rotate-180' : ''} ${isEquipmentFilterActive ? 'text-accent' : 'text-text-secondary group-hover:text-text-primary'}`} />
+              </button>
 
-            {isFilterModalOpen && (
-              <div className="absolute z-[120] right-[calc(100%+8px)] top-1/2 -translate-y-1/2 w-[min(92vw,320px)] max-h-[72vh] overflow-y-auto custom-scrollbar rounded-2xl border border-border-primary bg-bg-secondary p-4 md:p-5 shadow-2xl max-md:right-0 max-md:top-full max-md:translate-y-0 max-md:mt-2">
+              {isFilterModalOpen && (
+                <div className="absolute z-[120] right-[calc(100%+8px)] top-1/2 -translate-y-1/2 w-[min(92vw,320px)] max-h-[72vh] overflow-y-auto custom-scrollbar rounded-2xl border border-border-primary bg-bg-secondary p-4 md:p-5 shadow-2xl max-md:right-0 max-md:top-full max-md:translate-y-0 max-md:mt-2">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-sm md:text-base font-black tracking-wide text-text-primary">Bộ lọc</h3>
                 <button
                   type="button"
                   onClick={() => {
                     setDraftEquipmentFilter('all');
+                    setAppliedEquipmentFilter('all');
+                    setIsFilterModalOpen(false);
                   }}
                   className="h-8 px-1 text-accent hover:text-accent-hover inline-flex items-center gap-1.5"
                 >
@@ -1135,7 +1134,20 @@ export default function Exercises() {
                 </button>
               </div>
             </div>
-            )}
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
+            {muscleFilterOptions.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setAppliedMuscleFilter(opt.id)}
+                className={`inline-flex min-h-8 w-full items-center justify-center rounded-lg px-2 py-1.5 text-xs font-bold tracking-wide transition-colors sm:w-auto sm:px-3 ${appliedMuscleFilter === opt.id ? 'bg-accent text-text-inverse' : 'bg-bg-tertiary border border-border-primary text-text-secondary hover:border-accent/40 hover:text-text-primary'}`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
 

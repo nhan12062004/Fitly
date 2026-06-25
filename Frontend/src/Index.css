@@ -1818,6 +1818,153 @@ html, body, * {
   color: #03130a;
 }
 
+.light .today-workout-shell {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), color-mix(in srgb, var(--bg-card) 64%, #ffffff 36%));
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.light .today-workout-shell > div:first-child {
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+.light .today-workout-date {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #64748b;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+}
+
+.light .today-workout-shell .bg-bg-tertiary\/40,
+.light .today-workout-day-tabs {
+  background: rgba(248, 250, 252, 0.88);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.light .today-workout-shell .bg-bg-secondary {
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.light .today-workout-shell .diet-tab {
+  color: #64748b;
+}
+
+.light .today-workout-shell .diet-tab-indicator {
+  background: #111827;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.16);
+}
+
+.light .today-workout-shell .diet-tab-selected {
+  color: #ffffff;
+}
+
+.light .today-workout-shell .themed-image-surface {
+  background:
+    linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.92));
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.light .today-workout-shell .today-workout-meta-item {
+  border-color: rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  color: #475569;
+}
+
+.light .today-workout-shell .today-workout-list-item {
+  border-color: rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.light .today-workout-shell .today-workout-list-item:hover {
+  border-color: rgba(34, 197, 94, 0.24);
+  background: #ffffff;
+}
+
+.light .today-workout-shell .today-workout-list-item-active {
+  border-color: rgba(34, 197, 94, 0.34);
+  background: rgba(34, 197, 94, 0.10);
+}
+
+.light .today-workout-shell .today-workout-list-index {
+  background: #f8fafc;
+  color: #64748b;
+}
+
+.light .today-workout-shell .today-workout-list-item-active .today-workout-list-index {
+  background: #22c55e;
+  color: #052e16;
+}
+
+.light .today-workout-empty-state {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.94), rgba(248,250,252,0.82));
+  border-color: rgba(148, 163, 184, 0.34);
+}
+
+.light .today-workout-empty-icon {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #64748b;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 767px) {
+  .today-workout-shell {
+    border-radius: 18px;
+    padding: 0.9rem !important;
+  }
+
+  .today-workout-header {
+    margin-bottom: 0.8rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  .today-workout-date {
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .today-workout-day-tabs {
+    margin-inline: -0.1rem;
+    margin-bottom: 0.85rem !important;
+    border-radius: 16px;
+    padding: 0.28rem !important;
+  }
+
+  .today-workout-day-tabs > div {
+    align-items: center;
+  }
+
+  .today-workout-day-tabs button {
+    min-height: 38px;
+    border-radius: 12px;
+    letter-spacing: 0;
+  }
+
+  .today-workout-content {
+    gap: 0.9rem !important;
+  }
+
+  .today-workout-empty-state {
+    min-height: 178px;
+    border-radius: 16px;
+    padding: 1.35rem 1rem;
+  }
+
+  .today-workout-empty-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .today-workout-empty-state button {
+    width: 100%;
+    max-width: 13rem;
+  }
+}
+
 .today-workout-meta {
   margin-top: 0.15rem;
 }
