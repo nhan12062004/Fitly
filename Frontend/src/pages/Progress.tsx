@@ -1051,7 +1051,7 @@ function MetricTile({
   footer?: ReactNode;
 }) {
   return (
-    <article className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-4">
+    <article className="progress-simple-card progress-metric-tile rounded-xl border border-border-primary bg-bg-secondary p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">{label}</p>
@@ -1300,7 +1300,7 @@ export default function Progress() {
     : '--';
 
   return (
-    <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
+    <div className="dashboard-page-shell progress-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
       {isEmpty ? (
         <section className="progress-simple-card rounded-xl border border-border-primary bg-bg-secondary p-5 md:p-6">
           <div className="max-w-2xl">
@@ -1329,7 +1329,7 @@ export default function Progress() {
         </section>
       ) : (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="progress-metric-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <MetricTile
               label="Điểm duy trì"
               value={viewModel.score.value !== null ? `${viewModel.score.value}/100` : '--'}

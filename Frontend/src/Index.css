@@ -2485,6 +2485,51 @@ svg {
     align-items: stretch;
   }
 
+  .change-password-backdrop {
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+  }
+
+  .change-password-panel {
+    width: min(100%, 21rem) !important;
+    max-width: 21rem !important;
+    max-height: min(88dvh, 35rem) !important;
+    border: 1px solid var(--border-primary) !important;
+    border-radius: 22px !important;
+    padding: 1rem !important;
+    overflow-y: auto;
+  }
+
+  .change-password-panel > .flex {
+    margin-bottom: 1rem !important;
+  }
+
+  .change-password-panel > .flex > div {
+    width: 3rem !important;
+    height: 3rem !important;
+    border-radius: 16px !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .change-password-panel > .flex svg {
+    width: 1.35rem !important;
+    height: 1.35rem !important;
+  }
+
+  .change-password-panel form {
+    gap: 0.75rem;
+  }
+
+  .change-password-panel input {
+    padding-block: 0.7rem !important;
+    font-size: 0.82rem !important;
+  }
+
+  .change-password-panel button[type="submit"] {
+    padding-block: 0.75rem !important;
+  }
+
   .admin-drawer-backdrop {
     align-items: flex-end;
     justify-content: center !important;
@@ -2525,6 +2570,98 @@ svg {
   .overview-hero,
   .landing-product-card {
     border-radius: 18px !important;
+  }
+
+  .progress-page-shell {
+    gap: 0.7rem !important;
+  }
+
+  .progress-page-shell > section {
+    gap: 0.7rem !important;
+  }
+
+  .progress-page-shell .progress-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem !important;
+  }
+
+  .progress-page-shell .progress-simple-card {
+    border-radius: 14px !important;
+    padding: 0.75rem !important;
+    box-shadow:
+      0 8px 18px rgb(var(--shadow-rgb) / 0.07),
+      inset 0 1px 0 rgba(255,255,255,0.03);
+  }
+
+  .progress-page-shell .progress-metric-tile {
+    padding: 0.62rem !important;
+  }
+
+  .progress-page-shell .progress-metric-tile > div {
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+
+  .progress-page-shell .progress-metric-tile p:first-child {
+    font-size: 0.62rem;
+    line-height: 0.85rem;
+    letter-spacing: 0.08em;
+  }
+
+  .progress-page-shell .progress-metric-tile p.mt-3 {
+    margin-top: 0.3rem;
+    font-size: 1.05rem;
+    line-height: 1.2rem;
+  }
+
+  .progress-page-shell .progress-metric-tile > p {
+    display: none;
+  }
+
+  .progress-page-shell .progress-metric-tile > .mt-3 {
+    margin-top: 0.45rem;
+  }
+
+  .progress-page-shell .progress-svg-mark--sm {
+    height: 1.85rem;
+    width: 1.85rem;
+    border-radius: 0.6rem;
+  }
+
+  .progress-page-shell .progress-svg-glyph svg {
+    height: 0.95rem;
+    width: 0.95rem;
+  }
+
+  .progress-page-shell .progress-bar-track {
+    margin-top: 0.5rem;
+    height: 0.3rem;
+  }
+
+  .progress-page-shell article h2 {
+    margin-top: 0.3rem;
+    font-size: 1rem;
+    line-height: 1.25rem;
+  }
+
+  .progress-page-shell article p {
+    line-height: 1.3rem;
+  }
+
+  .progress-page-shell [class*="h-[230px]"] {
+    height: 11rem;
+  }
+
+  .progress-page-shell [class*="mt-4"] {
+    margin-top: 0.7rem;
+  }
+
+  .progress-page-shell [class*="px-4"][class*="py-3"] {
+    padding: 0.6rem 0.7rem;
+  }
+
+  .progress-page-shell .rounded-xl {
+    border-radius: 0.7rem;
   }
 
   .today-workout-stats > div {

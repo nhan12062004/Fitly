@@ -66,7 +66,6 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [recordingActionId, setRecordingActionId] = useState<string | null>(null);
 
   const unreadCount = notifications.filter((item) => !item.read_at).length;
@@ -78,7 +77,6 @@ export default function Notifications() {
       return;
     }
 
-    if (syncActionable) setIsSyncing(true);
     try {
       if (syncActionable) await ensureActionableNotifications(user.id);
       const items = await fetchUserNotifications(user.id, 80);
@@ -87,7 +85,6 @@ export default function Notifications() {
       console.error('Notifications page load error:', error);
     } finally {
       setIsLoading(false);
-      setIsSyncing(false);
     }
   }, [user?.id]);
 
@@ -175,7 +172,12 @@ export default function Notifications() {
     setRecordingActionId(`${item.id}:water:${amountMl}`);
     try {
       await recordWaterFromNotification(user.id, amountMl);
-      await loadNotifications(true);
+      const readAt = new Date().toISOString();
+      setNotifications((items) => items.map((notification) => (
+        notification.id === item.id ? { ...notification, read_at: notification.read_at || readAt } : notification
+      )));
+      await markNotificationRead(user.id, item.id);
+      await loadNotifications(false);
     } catch (error) {
       console.error('Notifications page water record error:', error);
       await loadNotifications(false);
@@ -189,7 +191,12 @@ export default function Notifications() {
     setRecordingActionId(`${item.id}:sleep:${sleepHours}`);
     try {
       await recordSleepFromNotification(user.id, sleepHours);
-      await loadNotifications(true);
+      const readAt = new Date().toISOString();
+      setNotifications((items) => items.map((notification) => (
+        notification.id === item.id ? { ...notification, read_at: notification.read_at || readAt } : notification
+      )));
+      await markNotificationRead(user.id, item.id);
+      await loadNotifications(false);
     } catch (error) {
       console.error('Notifications page sleep record error:', error);
       await loadNotifications(false);
@@ -203,18 +210,9 @@ export default function Notifications() {
       <div className="flex flex-col gap-3 border-b border-border-primary pb-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold text-text-primary md:text-2xl">Thông báo</h1>
-          <p className="mt-1 text-sm text-text-secondary">{unreadCount} thông báo chưa đọc</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => loadNotifications(true)}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border-primary bg-bg-secondary px-3 text-xs font-semibold text-text-secondary transition-colors hover:border-accent/30 hover:text-accent"
-          >
-            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
-            Cập nhật
-          </button>
           <button
             type="button"
             onClick={markAllRead}
@@ -261,7 +259,7 @@ export default function Notifications() {
           <div className="flex min-h-[22rem] flex-col items-center justify-center px-4 text-center">
             <Bell className="mb-3 h-9 w-9 text-text-tertiary" />
             <p className="text-sm font-semibold text-text-primary">Không có thông báo phù hợp</p>
-            <p className="mt-1 max-w-md text-xs text-text-tertiary">Thử đổi bộ lọc hoặc bấm Cập nhật để đồng bộ lại thông tin hôm nay.</p>
+            <p className="mt-1 max-w-md text-xs text-text-tertiary">Thử đổi bộ lọc hoặc quay lại sau khi có cập nhật mới.</p>
           </div>
         ) : (
           <div className="divide-y divide-border-primary border-y border-border-primary">
@@ -303,24 +301,16 @@ export default function Notifications() {
                     </span>
                   </button>
 
-                  {isWaterNotification(item) && (
-                    <button
-                      type="button"
-                      onClick={() => recordWater(item, 250)}
-                      disabled={Boolean(recordingActionId)}
-                      className="mt-0.5 inline-flex h-9 shrink-0 items-center justify-center rounded-full bg-info/10 px-3 text-xs font-semibold text-info transition-colors hover:bg-info/15 disabled:cursor-default disabled:opacity-60"
-                    >
-                      {recordingActionId === `${item.id}:water:250` ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        '+250ml'
-                      )}
-                    </button>
+                  {(isWaterNotification(item) || isSleepNotification(item)) && isRead && (
+                    <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-accent/20 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent lg:self-start">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Đã ghi
+                    </div>
                   )}
 
-                  {isWaterNotification(item) && (
+                  {isWaterNotification(item) && !isRead && (
                     <div className="flex shrink-0 flex-wrap gap-1.5 pl-13 lg:max-w-[15rem] lg:justify-end lg:pl-0">
-                      {WATER_QUICK_AMOUNTS.filter((amountMl) => amountMl !== 250).map((amountMl) => {
+                      {WATER_QUICK_AMOUNTS.map((amountMl) => {
                         const actionId = `${item.id}:water:${amountMl}`;
                         return (
                           <button
@@ -337,7 +327,7 @@ export default function Notifications() {
                     </div>
                   )}
 
-                  {isSleepNotification(item) && (
+                  {isSleepNotification(item) && !isRead && (
                     <div className="flex shrink-0 flex-wrap gap-1.5 pl-13 lg:max-w-[15rem] lg:justify-end lg:pl-0">
                       {SLEEP_QUICK_HOURS.map((sleepHours) => {
                         const actionId = `${item.id}:sleep:${sleepHours}`;

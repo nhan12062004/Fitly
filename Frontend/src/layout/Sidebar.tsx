@@ -323,6 +323,7 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
                   <button 
                     onClick={() => {
                       setIsSettingsOpen(false);
+                      onClose?.();
                       onProfileClick?.();
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-quaternary rounded-xl transition-colors"
@@ -333,6 +334,7 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
                   <button 
                     onClick={() => {
                       setIsSettingsOpen(false);
+                      onClose?.();
                       onPasswordClick?.();
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-quaternary rounded-xl transition-colors mt-1"
