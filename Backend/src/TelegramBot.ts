@@ -2262,7 +2262,7 @@ export const initTelegramBot = () => {
 ${todayStatus}
 ${actionLog ? `[HỆ THỐNG VỪA THỰC HIỆN]\n${actionLog}` : ''}
 
-[DU LIEU TRENDfit MO RONG]
+[DU LIEU FITLY MO RONG]
 ${coachDataContext}
 
 [QUY TAC SU DUNG DU LIEU]

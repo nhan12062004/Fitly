@@ -30,7 +30,7 @@ type SourceDish = {
 
 const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
 const WIKIDATA_SPARQL = 'https://query.wikidata.org/sparql';
-const USER_AGENT = 'TrendFitDataImport/1.0 (local development; source-backed food catalog)';
+const USER_AGENT = 'FitlyDataImport/1.0 (local development; source-backed food catalog)';
 
 const WIKIPEDIA_CATEGORIES = [
   'Category:Vietnamese cuisine',

@@ -154,7 +154,7 @@ export const analyzeMealPhotoCalories = async ({
     `Nguoi dung: ${profileName || 'khach hang'}`,
     `Caption/cau hoi: ${truncate(userQuestion, 500) || 'Uoc tinh calories cua bua an trong anh.'}`,
     '',
-    '[DU LIEU TRENDfit TOM TAT]',
+    '[DU LIEU FITLY TOM TAT]',
     truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chua co du lieu Fitly kem theo.',
     '',
     'Hay tra loi theo format:',
@@ -218,7 +218,7 @@ export const answerVoiceCoachQuestion = ({
     'Tra loi bang tieng Viet ngan gon, de doc tren dien thoai.',
     '',
     `[NGUOI DUNG] ${profileName || 'khach hang'}`,
-    '[DU LIEU TRENDfit TOM TAT]',
+    '[DU LIEU FITLY TOM TAT]',
     truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chua co du lieu Fitly kem theo.',
   ].join('\n');
 

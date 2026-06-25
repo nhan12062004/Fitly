@@ -208,7 +208,7 @@ ${formatMealsForPrompt(context?.meals)}
 
 ${context?.todayStatus ? `[TIEN DO HOM NAY]\n${context.todayStatus}\n` : ''}
 ${context?.actionLog ? `[HE THONG VUA THUC HIEN]\n${context.actionLog}\n` : ''}
-${context?.extraContext ? `[DU LIEU TRENDfit MO RONG]\n${context.extraContext}\n` : ''}
+${context?.extraContext ? `[DU LIEU FITLY MO RONG]\n${context.extraContext}\n` : ''}
 
 [PHAN LOAI CAU HOI]
 - Intent hien tai: ${detectedIntent}
