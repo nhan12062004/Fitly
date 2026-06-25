@@ -1223,6 +1223,11 @@ body {
     border-color: var(--border-primary);
   }
 
+  .diet-day-tabs {
+    background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+    border-color: var(--border-primary);
+  }
+
   .diet-today-shell .diet-tab-indicator {
     background: color-mix(in srgb, var(--bg-quaternary) 78%, var(--bg-secondary) 22%);
     box-shadow:
@@ -1234,7 +1239,17 @@ body {
     color: var(--text-primary);
   }
 
-  .diet-today-shell .diet-macro-card {
+  .diet-macro-shell {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 94%, transparent), color-mix(in srgb, var(--bg-tertiary) 54%, transparent));
+    border-color: var(--border-primary);
+    box-shadow:
+      0 18px 42px rgb(var(--shadow-rgb) / 0.10),
+      inset 0 1px 0 rgba(255,255,255,0.035);
+  }
+
+  .diet-today-shell .diet-macro-card,
+  .diet-macro-shell .diet-macro-card {
     border-color: rgb(var(--diet-macro-rgb) / 0.30);
     background:
       linear-gradient(180deg, rgb(var(--diet-macro-rgb) / 0.115), rgb(var(--diet-macro-rgb) / 0.055)),
@@ -1252,11 +1267,13 @@ body {
     background: rgb(var(--diet-macro-rgb));
   }
 
-  .diet-today-shell .diet-today-calories {
+  .diet-today-shell .diet-today-calories,
+  .diet-macro-shell .diet-today-calories {
     --diet-macro-rgb: 249 115 22;
   }
 
-  .diet-today-shell .diet-today-protein {
+  .diet-today-shell .diet-today-protein,
+  .diet-macro-shell .diet-today-protein {
     --diet-macro-rgb: 192 132 252;
   }
 
@@ -1268,19 +1285,79 @@ body {
     --diet-macro-rgb: 234 179 8;
   }
 
-  .diet-today-shell .diet-today-fat {
+  .diet-today-carbs > div > .diet-macro-card-label:first-child {
+    font-size: 0;
+    line-height: 0;
+  }
+
+  .diet-today-carbs > div > .diet-macro-card-label:first-child::after {
+    content: "Carbs";
+    font-size: 0.6875rem;
+    line-height: 1.25rem;
+  }
+
+  .diet-today-carbs > p.mt-1 + p.mt-1 {
+    display: none;
+  }
+
+  .diet-today-shell .diet-today-fat,
+  .diet-macro-shell .diet-today-fat {
     --diet-macro-rgb: 251 113 133;
+  }
+
+  .diet-today-shell .diet-today-meals,
+  .diet-macro-shell .diet-today-meals {
+    --diet-macro-rgb: 34 197 94;
   }
 
   .diet-today-shell .diet-today-calories .bg-bg-tertiary,
   .diet-today-shell .diet-today-water .bg-bg-tertiary,
   .diet-today-shell .diet-today-carbs .bg-bg-tertiary,
-  .diet-today-shell .diet-today-fat .bg-bg-tertiary {
+  .diet-today-shell .diet-today-fat .bg-bg-tertiary,
+  .diet-macro-shell .bg-bg-tertiary {
     background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
   }
 
   .diet-today-shell .diet-today-protein .bg-bg-tertiary {
     background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+  }
+
+  .light .diet-today-shell {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.96), color-mix(in srgb, var(--bg-card) 64%, #ffffff 36%));
+    border-color: rgba(15, 23, 42, 0.08);
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+  }
+
+  .light .diet-page-shell {
+    background: #ffffff;
+  }
+
+  .light .diet-page-shell .diet-today-shell,
+  .light .diet-page-shell .diet-meals-shell {
+    background: #ffffff;
+    border-color: rgba(15, 23, 42, 0.08);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+  }
+
+  .light .diet-day-tabs {
+    background: rgba(248, 250, 252, 0.88);
+    border-color: rgba(15, 23, 42, 0.08);
+  }
+
+  .light .diet-today-shell .diet-tab {
+    color: #64748b;
+  }
+
+  .light .diet-today-shell .diet-tab-indicator {
+    background: #111827;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.16);
+  }
+
+  .light .diet-today-shell .diet-tab-selected {
+    background: #111827;
+    color: #ffffff;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.16);
   }
 
   .diet-meals-shell {
@@ -1335,13 +1412,6 @@ body {
       0 14px 34px rgb(var(--shadow-rgb) / 0.08);
   }
 
-  .diet-mobile-sticky-actions {
-    border-color: var(--border-primary);
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--bg-secondary) 82%, transparent), color-mix(in srgb, var(--bg-primary) 96%, transparent));
-    box-shadow: 0 -18px 44px rgb(var(--shadow-rgb) / 0.18);
-  }
-
   .diet-water-icon {
     background: var(--bg-tertiary);
     border-color: var(--border-primary);
@@ -1387,6 +1457,44 @@ body {
 
   .diet-macro-separator {
     background: var(--border-primary);
+  }
+
+  @media (max-width: 767px) {
+    .diet-today-shell,
+    .diet-meals-shell {
+      border-radius: 18px;
+      padding: 0.9rem !important;
+    }
+
+    .diet-day-tabs {
+      border-radius: 16px;
+      padding: 0.28rem !important;
+    }
+
+    .diet-day-tabs > div {
+      align-items: center;
+    }
+
+    .diet-day-tabs button {
+      min-height: 38px;
+      border-radius: 12px;
+      letter-spacing: 0;
+    }
+
+    .diet-today-shell .diet-macro-card,
+    .diet-macro-shell .diet-macro-card {
+      min-height: 7rem;
+      padding: 0.7rem !important;
+    }
+
+    .diet-today-shell .diet-macro-card p:nth-of-type(2),
+    .diet-macro-shell .diet-macro-card p:nth-of-type(2) {
+      line-height: 1.1;
+    }
+
+    .diet-meal-summary-card {
+      padding: 0.9rem !important;
+    }
   }
 
   .diet-empty-thumb,
@@ -1823,6 +1931,21 @@ html, body, * {
     linear-gradient(180deg, rgba(255,255,255,0.96), color-mix(in srgb, var(--bg-card) 64%, #ffffff 36%));
   border-color: rgba(15, 23, 42, 0.08);
   box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+}
+
+.light .exercise-page-shell {
+  background: #ffffff;
+}
+
+.light .exercise-page-shell .today-workout-shell {
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+}
+
+.light .exercise-library-shell {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
 }
 
 .light .today-workout-shell > div:first-child {
@@ -2376,17 +2499,12 @@ svg {
   }
 
   .diet-page-shell {
-    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .diet-card {
     border-radius: 18px !important;
     padding: 0.85rem !important;
-  }
-
-  .diet-mobile-sticky-actions {
-    margin-inline: -0.75rem !important;
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
   }
 
   .diet-picker-overlay {

@@ -2,7 +2,6 @@ import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState }
 import {
   Bot,
   Calendar,
-  Droplet,
   Plus,
   Search,
   Trash2,
@@ -683,7 +682,6 @@ export default function DietPlan() {
   }), [targetCalories]);
 
   const calorieProgress = Math.min(100, Math.round((dayNutrition.calories / Math.max(1, targetCalories)) * 100));
-  const waterProgress = Math.min(100, Math.round((waterIntake / Math.max(0.1, waterGoal)) * 100));
   const remainingCalories = Math.max(0, targetCalories - dayNutrition.calories);
   const remainingProtein = Math.max(0, macroTargets.protein - dayNutrition.protein);
   const remainingCarbs = Math.max(0, macroTargets.carbs - dayNutrition.carbs);
@@ -697,10 +695,6 @@ export default function DietPlan() {
         month: 'long'
       }),
     [selectedDayDate]
-  );
-  const mealsWithFoodCount = useMemo(
-    () => activeMealTypes.filter((meal) => scopedDayItems.some((item) => item.meal_type === meal.id)).length,
-    [activeMealTypes, scopedDayItems]
   );
   const isTodaySelected = isCurrentWeek && selectedDayId === getTodayDayIndex();
   const currentMealType = getCurrentMealType();
@@ -737,18 +731,8 @@ export default function DietPlan() {
       }),
     [activeMealTypes, scopedDayItems, highlightedMealId]
   );
-  const featuredMeal = useMemo(
-    () =>
-      mealSummaries.find((meal) => meal.id === highlightedMealId && meal.hasItems) ||
-      mealSummaries.find((meal) => meal.hasItems) ||
-      mealSummaries[0] ||
-      null,
-    [highlightedMealId, mealSummaries]
-  );
   const visibleMealSummaries = useMemo(() => mealSummaries.filter((meal) => meal.hasItems), [mealSummaries]);
   const hasMenuForSelectedDay = visibleMealSummaries.length > 0;
-  const mobileActionMealId = featuredMeal?.id || highlightedMealId || activeMealTypes[0]?.id || 'breakfast';
-  const aiMenuButtonLabel = hasMenuForSelectedDay ? 'Đề xuất lại' : 'Tạo thực đơn AI';
 
   useEffect(() => {
     if (isCurrentWeek) setSelectedDayId(getTodayDayIndex());
@@ -1234,7 +1218,7 @@ export default function DietPlan() {
   if (isLoading) return <DietPlanSkeleton />;
 
   return (
-    <div className="dashboard-page-shell diet-page-shell flex flex-col gap-4 overflow-x-hidden overflow-y-auto text-sm pb-24 md:gap-5 md:pb-6 lg:pb-7">
+    <div className="dashboard-page-shell diet-page-shell flex flex-col gap-4 overflow-x-hidden overflow-y-auto text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="w-full space-y-4 overflow-hidden">
         <section className="diet-card diet-today-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
           <div className="flex flex-col gap-4">
@@ -1251,8 +1235,8 @@ export default function DietPlan() {
 
             </div>
 
-            <div className="rounded-xl border border-border-primary bg-bg-tertiary/40 p-1">
-              <div ref={dayTabContainerRef} className="relative grid min-w-[520px] grid-cols-7 gap-1 overflow-x-auto md:min-w-0">
+            <div className="diet-day-tabs overflow-x-auto rounded-xl border border-border-primary bg-bg-tertiary/40 p-1 custom-scrollbar">
+              <div ref={dayTabContainerRef} className="relative flex min-w-max gap-1 md:grid md:min-w-0 md:grid-cols-7">
                 <span
                   className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
                   style={{
@@ -1276,7 +1260,7 @@ export default function DietPlan() {
                       }}
                       type="button"
                       onClick={() => setSelectedDayId(day.id)}
-                      className={`inline-flex min-h-[40px] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition ${
+                      className={`inline-flex min-h-[40px] min-w-[4.25rem] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition md:min-w-0 ${
                         isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
                       }`}
                       title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
@@ -1288,13 +1272,13 @@ export default function DietPlan() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-              <div className="diet-today-calories diet-macro-card rounded-xl border px-4 py-3">
+            <div className="diet-macro-grid grid grid-cols-2 gap-2 md:grid-cols-4">
+              <div className="diet-today-calories diet-macro-card rounded-xl border px-3 py-2.5 md:px-4 md:py-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Calories</p>
                   <span className="diet-macro-card-label text-xs font-black">{calorieProgress}%</span>
                 </div>
-                <p className="mt-2 text-lg font-black text-text-primary">
+                <p className="mt-2 text-base font-black text-text-primary md:text-lg">
                   {dayNutrition.calories.toLocaleString()} / {targetCalories.toLocaleString()}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Còn {remainingCalories.toLocaleString()} kcal</p>
@@ -1302,9 +1286,9 @@ export default function DietPlan() {
                   <div className="diet-macro-card-fill h-full rounded-full transition-all" style={{ width: `${calorieProgress}%` }} />
                 </div>
               </div>
-              <div className="diet-today-protein diet-macro-card rounded-xl border px-4 py-3">
+              <div className="diet-today-protein diet-macro-card rounded-xl border px-3 py-2.5 md:px-4 md:py-3">
                 <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Protein</p>
-                <p className="mt-2 text-lg font-black text-text-primary">{Math.round(dayNutrition.protein)} / {macroTargets.protein}g</p>
+                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(dayNutrition.protein)} / {macroTargets.protein}g</p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingProtein)}g</p>
                 <div className="mt-3 flex gap-1">
                   {Array.from({ length: 4 }).map((_, index) => (
@@ -1315,33 +1299,9 @@ export default function DietPlan() {
                   ))}
                 </div>
               </div>
-              <div className="diet-today-water diet-macro-card rounded-xl border px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Nước</p>
-                  <span className="diet-macro-card-label text-xs font-black">{waterProgress}%</span>
-                </div>
-                <p className="mt-2 text-lg font-black text-text-primary">{waterIntake.toFixed(1)} / {waterGoal.toFixed(1)}L</p>
-                <p className="mt-1 text-xs font-semibold text-text-tertiary">Mục tiêu trong ngày</p>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
-                  <div className="diet-macro-card-fill h-full rounded-full transition-all" style={{ width: `${waterProgress}%` }} />
-                </div>
-              </div>
-              <div className="diet-today-carbs diet-macro-card rounded-xl border px-4 py-3">
-                <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Carbs</p>
-                <p className="mt-2 text-lg font-black text-text-primary">{Math.round(dayNutrition.carbs)} / {macroTargets.carbs}g</p>
-                <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingCarbs)}g</p>
-                <div className="mt-3 flex gap-1">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <span
-                      key={index}
-                      className={`h-1.5 flex-1 rounded-full ${index < Math.ceil((dayNutrition.carbs / Math.max(1, macroTargets.carbs)) * 4) ? 'diet-macro-card-fill' : 'bg-bg-tertiary'}`}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="diet-today-fat diet-macro-card rounded-xl border px-4 py-3">
+              <div className="diet-today-fat diet-macro-card rounded-xl border px-3 py-2.5 md:px-4 md:py-3">
                 <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Fat</p>
-                <p className="mt-2 text-lg font-black text-text-primary">{Math.round(dayNutrition.fat)} / {macroTargets.fat}g</p>
+                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(dayNutrition.fat)} / {macroTargets.fat}g</p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingFat)}g</p>
                 <div className="mt-3 flex gap-1">
                   {Array.from({ length: 4 }).map((_, index) => (
@@ -1350,6 +1310,18 @@ export default function DietPlan() {
                       className={`h-1.5 flex-1 rounded-full ${index < Math.ceil((dayNutrition.fat / Math.max(1, macroTargets.fat)) * 4) ? 'diet-macro-card-fill' : 'bg-bg-tertiary'}`}
                     />
                   ))}
+                </div>
+              </div>
+              <div className="diet-today-carbs diet-macro-card rounded-xl border px-3 py-2.5 md:px-4 md:py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Bữa</p>
+                  <span className="diet-macro-card-label text-xs font-black">{Math.min(100, Math.round((dayNutrition.carbs / Math.max(1, macroTargets.carbs)) * 100))}%</span>
+                </div>
+                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(dayNutrition.carbs)} / {macroTargets.carbs}g</p>
+                <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingCarbs)}g</p>
+                <p className="mt-1 text-xs font-semibold text-text-tertiary">Đã có món</p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                  <div className="diet-macro-card-fill h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.round((dayNutrition.carbs / Math.max(1, macroTargets.carbs)) * 100))}%` }} />
                 </div>
               </div>
             </div>
@@ -1497,27 +1469,6 @@ export default function DietPlan() {
             ))}
           </main>
         </section>
-      </div>
-
-      <div className="diet-mobile-sticky-actions sticky bottom-0 z-20 -mx-4 border-t px-4 py-3 backdrop-blur-xl md:hidden">
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={autoCreateMenu}
-            disabled={isSaving}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-3 text-sm font-black text-text-inverse transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Bot className="h-4 w-4" />
-            {isSaving ? 'Đang lưu...' : aiMenuButtonLabel}
-          </button>
-          <button
-            type="button"
-            onClick={() => openFoodPicker(mobileActionMealId)}
-            className="diet-control inline-flex h-11 items-center justify-center rounded-xl border border-border-primary px-3 text-sm font-black transition"
-          >
-            {hasMenuForSelectedDay ? 'Thêm món' : 'Tự chọn món'}
-          </button>
-        </div>
       </div>
 
       <FoodPicker

@@ -288,7 +288,7 @@ const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; cla
 // ====================================================================
 export const ExercisesSkeleton = () => {
   return (
-    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7" aria-hidden="true">
+    <div className="dashboard-page-shell exercise-page-shell flex flex-col gap-4 animate-pulse overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7" aria-hidden="true">
       <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex items-center gap-3">
@@ -894,7 +894,7 @@ export default function Exercises() {
     if (isLoading) return <ExercisesSkeleton />;
 
   return (
-    <div className="dashboard-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
+    <div className="dashboard-page-shell exercise-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="today-workout-shell overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
         <div className="today-workout-header mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
@@ -1056,7 +1056,7 @@ export default function Exercises() {
         </div>
       </div>
 
-      <div className="bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
+      <div className="exercise-library-shell bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
         <div className="relative mb-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-xl md:text-2xl font-black text-text-primary">Thư viện bài tập</h2>
