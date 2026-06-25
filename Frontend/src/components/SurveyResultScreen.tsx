@@ -50,22 +50,7 @@ export default function SurveyResultScreen({
     <div className="min-h-[100dvh] w-full bg-bg-primary px-3 py-3 text-text-primary sm:px-5 sm:py-5 lg:px-10">
       <div className="mx-auto flex min-h-[calc(100dvh-24px)] w-full max-w-6xl flex-col justify-center sm:min-h-[calc(100dvh-40px)]">
         <section className="rounded-[28px] border border-border-primary bg-bg-secondary p-4 shadow-[0_24px_80px_rgba(0,0,0,0.18)] sm:p-5 md:p-7 lg:p-8">
-          <div className="themed-subtle-panel rounded-[24px] border p-4 sm:p-5">
-            <div className="flex items-center gap-3">
-              <img src="/logo.svg" alt="Trợ lý cá nhân" className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">Trợ lý cá nhân</p>
-                <h1 className="mt-1 text-2xl font-black tracking-tight text-text-primary sm:text-3xl md:text-4xl">
-                  Kế hoạch cá nhân của bạn đã sẵn sàng
-                </h1>
-              </div>
-            </div>
-            <p className="mt-4 max-w-3xl text-sm font-semibold leading-6 text-text-secondary">
-              Đây là cấu hình mở đầu để bạn bắt đầu ngay hôm nay. Bên dưới là bài tập đầu tiên và thực đơn mẫu theo thông tin bạn vừa chọn.
-            </p>
-          </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {planItems.map(({ label, value, icon: Icon }) => (
               <div key={label} className="rounded-2xl border border-border-primary bg-bg-primary/65 p-4">
                 <div className="flex items-start gap-3">

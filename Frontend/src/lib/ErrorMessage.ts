@@ -13,6 +13,15 @@ const isRenderSuspendedMessage = (value: unknown): boolean => {
   return normalized.includes('service suspended') || normalized.includes('service has been suspended');
 };
 
+const isAiProviderLimitMessage = (value: unknown): boolean => {
+  if (typeof value !== 'string') return false;
+  const normalized = value.toLowerCase();
+  return normalized.includes('request too large')
+    || normalized.includes('tokens per minute')
+    || normalized.includes('tpm')
+    || normalized.includes('rate_limit_exceeded');
+};
+
 const normalizePlainMessage = (value: unknown): string => {
   if (typeof value !== 'string') return '';
   return value.replace(/\s+/g, ' ').trim();
@@ -27,6 +36,10 @@ export const sanitizeErrorMessage = (
 
   if (isRenderSuspendedMessage(normalized)) {
     return 'Dịch vụ backend đang bị tạm ngưng. Vui lòng kiểm tra deploy hoặc thử lại sau.';
+  }
+
+  if (isAiProviderLimitMessage(normalized)) {
+    return 'AI đang quá tải khi tạo lịch 7 ngày. Vui lòng thử lại sau ít phút.';
   }
 
   if (isHtmlLikeMessage(normalized)) {

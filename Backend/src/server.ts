@@ -44,8 +44,9 @@ const AI_COACH_FREE_TRIAL_DAYS = 7;
 const AI_ACTION_FLOW_ENABLED = process.env.AI_ACTION_FLOW_ENABLED !== 'false';
 const PREMIUM_AUTO_PLAN_ENABLED = process.env.PREMIUM_AUTO_PLAN_ENABLED !== 'false';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const AI_FOOD_CATALOG_LIMIT = 220;
-const AI_FOOD_CATALOG_FETCH_LIMIT = 1000;
+const AI_EXERCISE_CATALOG_LIMIT = 48;
+const AI_FOOD_CATALOG_LIMIT = 72;
+const AI_FOOD_CATALOG_FETCH_LIMIT = 320;
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -351,7 +352,7 @@ const getFoodCatalogLimit = (rows: any[], maxItems: number, preference: FoodCata
   else if (recentCount >= 12) target -= 15;
   else if (recentCount <= 3) target += 15;
   if (dietKey !== 'normal') target += 15;
-  return Math.max(90, Math.min(maxItems, rows.length || maxItems, Math.round(target)));
+  return Math.max(1, Math.min(maxItems, rows.length || maxItems, Math.round(target)));
 };
 
 const getMacroScoreAdjustment = (food: any, preference: FoodCatalogPreference): number => {
@@ -1457,6 +1458,29 @@ class ApiRequestError extends Error {
   }
 }
 
+const isGroqTokenLimitError = (message: unknown): boolean => {
+  const normalized = String(message || '').toLowerCase();
+  return normalized.includes('request too large')
+    || normalized.includes('tokens per minute')
+    || normalized.includes('tpm')
+    || normalized.includes('rate_limit_exceeded');
+};
+
+const toAiProviderRequestError = (message: unknown) => {
+  const rawMessage = String(message || 'Groq AI request failed');
+  if (isGroqTokenLimitError(rawMessage)) {
+    return new ApiRequestError(503, {
+      code: 'AI_TOKEN_LIMIT',
+      error: 'AI đang quá tải khi tạo lịch 7 ngày. Vui lòng thử lại sau ít phút.'
+    });
+  }
+
+  return new ApiRequestError(502, {
+    code: 'AI_PROVIDER_ERROR',
+    error: 'AI chưa tạo được lịch 7 ngày lúc này. Vui lòng thử lại sau.'
+  });
+};
+
 const hasExistingWeeklyCoachPlan = async (userId: string, weekStartKey: string) => {
   const [workoutRes, foodRes] = await Promise.all([
     supabase
@@ -1505,7 +1529,7 @@ async function generateWeeklyCoachPlanForUser(params: {
     supabase
       .from('exercises')
       .select('id, name, body_part, target_muscle, equipment, difficulty, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
-      .limit(80),
+      .limit(AI_EXERCISE_CATALOG_LIMIT),
     supabase
       .from('foods')
       .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
@@ -1549,7 +1573,7 @@ async function generateWeeklyCoachPlanForUser(params: {
   const lifestyle = lifestyleRes.data || {};
   const health = healthRes.data || {};
   const safetyContext = { profile, lifestyle, health };
-  const exercises = filterSafeExercisesForUser(clampList(exerciseCatalogRes.data as any[], 80), safetyContext);
+  const exercises = filterSafeExercisesForUser(clampList(exerciseCatalogRes.data as any[], AI_EXERCISE_CATALOG_LIMIT), safetyContext);
   const recentMealHistory = [
     ...((recentMealLogsRes.data || []) as any[]),
     ...((recentMealsRes.data || []) as any[])
@@ -1602,18 +1626,18 @@ async function generateWeeklyCoachPlanForUser(params: {
   }
 
   const exerciseCatalog = exercises
-    .map((item: any) => `${item.id}|${truncateText(item.name, 40)}|body=${truncateText(item.body_part, 16)}|target=${truncateText(item.target_muscle, 20)}|equipment=${truncateText(item.equipment, 18)}|level=${truncateText(item.difficulty, 14)}|goals=${truncateText((item.goal_type || []).join(','), 36)}|avoid=${truncateText((item.contraindications || []).join(','), 36)}|duration_s=${item.estimated_duration_seconds || ''}|kcal_min=${item.calories_per_minute || ''}|pattern=${truncateText(item.movement_pattern, 14)}`)
+    .map((item: any) => `${item.id}|${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|eq=${truncateText(item.equipment, 14)}|level=${truncateText(item.difficulty, 10)}|pattern=${truncateText(item.movement_pattern, 12)}`)
     .join('\n');
 
   const foodCatalog = foods
-    .map((item: any) => `${item.id}|${truncateText(item.name, 36)}|group=${classifyFoodComponent(item)}|cat=${truncateText(item.category, 18)}|kcal=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 12)}|meals=${truncateText((item.meal_type || []).join(','), 28)}|goals=${truncateText((item.goal_type || []).join(','), 32)}|allergens=${truncateText((item.allergens || []).join(','), 32)}|price=${truncateText(item.price_level, 12)}|cook_min=${item.cooking_time_minutes || ''}|region=${truncateText(item.region, 14)}|easy=${item.is_easy_to_prepare ?? ''}`)
+    .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
     .join('\n');
 
-  const recentTraining = clampList(recentSessionsRes.data as any[], 12)
+  const recentTraining = clampList(recentSessionsRes.data as any[], 6)
     .map((item: any) => `${item.log_date}|${truncateText(item.exercises?.name || item.exercise_id, 32)}|${item.sets}x${item.reps}|${item.weight_kg || 0}kg|done=${!!item.is_completed}`)
     .join('\n') || 'No recent training history.';
 
-  const recentEating = clampList(recentMealHistory, 12)
+  const recentEating = clampList(recentMealHistory, 6)
     .map((item: any) => `d=${item.day_of_week || item.log_date || ''}|${item.meal_type}|${truncateText(item.foods?.name || item.custom_food_name || item.food_id, 28)}|qty=${item.quantity}`)
     .join('\n') || 'No recent meal plan history.';
 
@@ -1762,7 +1786,9 @@ JSON schema (fixed):
 
   const groqResult: any = await groqResponse.json();
   if (!groqResponse.ok || groqResult.error) {
-    throw new Error(groqResult?.error?.message || 'Groq AI request failed');
+    const groqMessage = groqResult?.error?.message || 'Groq AI request failed';
+    console.warn('[ai-coach-generate] Groq provider error:', groqMessage);
+    throw toAiProviderRequestError(groqMessage);
   }
 
   const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
@@ -4212,7 +4238,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       supabase
         .from('exercises')
         .select('id, name, body_part, target_muscle, equipment, difficulty, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
-        .limit(80),
+        .limit(AI_EXERCISE_CATALOG_LIMIT),
       supabase
         .from('foods')
         .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
@@ -4256,7 +4282,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const lifestyle = lifestyleRes.data || {};
     const health = healthRes.data || {};
     const safetyContext = { profile, lifestyle, health };
-    const exercises = filterSafeExercisesForUser(clampList(exerciseCatalogRes.data as any[], 80), safetyContext);
+    const exercises = filterSafeExercisesForUser(clampList(exerciseCatalogRes.data as any[], AI_EXERCISE_CATALOG_LIMIT), safetyContext);
     const recentMealHistory = [
       ...((recentMealLogsRes.data || []) as any[]),
       ...((recentMealsRes.data || []) as any[])
@@ -4301,18 +4327,18 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     }
 
     const exerciseCatalog = exercises
-      .map((item: any) => `${item.id}|${truncateText(item.name, 40)}|body=${truncateText(item.body_part, 16)}|target=${truncateText(item.target_muscle, 20)}|equipment=${truncateText(item.equipment, 18)}|level=${truncateText(item.difficulty, 14)}|goals=${truncateText((item.goal_type || []).join(','), 36)}|avoid=${truncateText((item.contraindications || []).join(','), 36)}|duration_s=${item.estimated_duration_seconds || ''}|kcal_min=${item.calories_per_minute || ''}|pattern=${truncateText(item.movement_pattern, 14)}`)
+      .map((item: any) => `${item.id}|${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|eq=${truncateText(item.equipment, 14)}|level=${truncateText(item.difficulty, 10)}|pattern=${truncateText(item.movement_pattern, 12)}`)
       .join('\n');
 
     const foodCatalog = foods
-      .map((item: any) => `${item.id}|${truncateText(item.name, 36)}|group=${classifyFoodComponent(item)}|cat=${truncateText(item.category, 18)}|kcal=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 12)}|meals=${truncateText((item.meal_type || []).join(','), 28)}|goals=${truncateText((item.goal_type || []).join(','), 32)}|allergens=${truncateText((item.allergens || []).join(','), 32)}|price=${truncateText(item.price_level, 12)}|cook_min=${item.cooking_time_minutes || ''}|region=${truncateText(item.region, 14)}|easy=${item.is_easy_to_prepare ?? ''}`)
+      .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
       .join('\n');
 
-    const recentTraining = clampList(recentSessionsRes.data as any[], 12)
+    const recentTraining = clampList(recentSessionsRes.data as any[], 6)
       .map((item: any) => `${item.log_date}|${truncateText(item.exercises?.name || item.exercise_id, 32)}|${item.sets}x${item.reps}|${item.weight_kg || 0}kg|done=${!!item.is_completed}`)
       .join('\n') || 'No recent training history.';
 
-    const recentEating = clampList(recentMealHistory, 12)
+    const recentEating = clampList(recentMealHistory, 6)
       .map((item: any) => `d=${item.day_of_week || item.log_date || ''}|${item.meal_type}|${truncateText(item.foods?.name || item.custom_food_name || item.food_id, 28)}|qty=${item.quantity}`)
       .join('\n') || 'No recent meal plan history.';
 
@@ -4461,7 +4487,9 @@ JSON schema (fixed):
 
     const groqResult: any = await groqResponse.json();
     if (!groqResponse.ok || groqResult.error) {
-      throw new Error(groqResult?.error?.message || 'Groq AI request failed');
+      const groqMessage = groqResult?.error?.message || 'Groq AI request failed';
+      console.warn('[ai-coach-generate] Groq provider error:', groqMessage);
+      throw toAiProviderRequestError(groqMessage);
     }
 
     const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
@@ -4709,7 +4737,13 @@ JSON schema (fixed):
     });
   } catch (error: any) {
     console.error('[ai-coach-generate] failed:', error?.message || 'unknown_error');
-    return res.status(500).json({ error: error?.message || 'Failed to generate AI Coach plan' });
+    if (error instanceof ApiRequestError) {
+      return res.status(error.status).json(error.body);
+    }
+    return res.status(500).json({
+      code: 'AI_GENERATION_FAILED',
+      error: 'Không thể tạo lịch AI 7 ngày lúc này. Vui lòng thử lại sau.'
+    });
   }
 });
 

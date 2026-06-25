@@ -10,6 +10,7 @@ import ChangePasswordModal from '../components/ChangePasswordModal';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingScreen from '../components/LoadingScreen';
 import { fetchWithAuth } from '../lib/Api';
+import { getApiErrorMessage } from '../lib/ErrorMessage';
 import { supabase } from '../lib/Supabase';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
@@ -139,7 +140,14 @@ export default function Dashboard() {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload?.error || 'Không thể tạo lịch AI 7 ngày.');
+      throw new Error(getApiErrorMessage({
+        status: response.status,
+        payload,
+        fallbackMessage: 'Không thể tạo lịch AI 7 ngày. Vui lòng thử lại sau.',
+        fallbackByStatus: {
+          503: 'AI đang quá tải khi tạo lịch 7 ngày. Vui lòng thử lại sau ít phút.'
+        }
+      }));
     }
 
     const weeklyPlanId = payload?.data?.weeklyPlanId;
