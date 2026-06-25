@@ -628,7 +628,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
 
           {isOpen && (
-            <div className="absolute top-full left-0 right-0 mt-2 z-50 sm:hidden">
+            <div className="fixed left-3 right-3 top-[76px] z-50 sm:hidden">
               <div className="rounded-[28px] border border-border-primary bg-bg-secondary/96 p-3 shadow-[0_24px_70px_rgba(0,0,0,0.38)] backdrop-blur-xl">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />

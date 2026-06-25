@@ -41,6 +41,15 @@ export type SurveyPlanSummary = {
   todayWorkout: string;
   todayDuration: string;
   meals: string;
+  todayExercises: Array<{
+    name: string;
+    detail: string;
+  }>;
+  todayMeals: Array<{
+    label: string;
+    dish: string;
+    detail: string;
+  }>;
 };
 
 interface SurveyFormProps {
@@ -112,11 +121,12 @@ interface StepSurveyCardProps {
   title: string;
   subtitle: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
 }
 
-function StepSurveyCard({ icon: Icon, iconWrapClass, iconClass, title, subtitle, children }: StepSurveyCardProps) {
+function StepSurveyCard({ icon: Icon, iconWrapClass, iconClass, title, subtitle, children, footer }: StepSurveyCardProps) {
   return (
-    <section className="rounded-[24px] border border-border-primary bg-bg-secondary/80 p-4 shadow-[0_20px_48px_rgba(0,0,0,0.12)] md:p-7">
+    <section className="rounded-[24px] border border-border-primary bg-bg-secondary/92 p-4 shadow-[0_20px_48px_rgba(0,0,0,0.12)] md:p-7">
       <div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
           <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconWrapClass}`}>
@@ -130,6 +140,11 @@ function StepSurveyCard({ icon: Icon, iconWrapClass, iconClass, title, subtitle,
         <div className="mt-6 space-y-5 md:mt-7 md:space-y-6">
           {children}
         </div>
+        {footer ? (
+          <div className="mt-6 border-t border-border-primary pt-5 md:mt-7 md:pt-6">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -140,26 +155,30 @@ function ChoiceGrid({
   value,
   options,
   onChange,
-  columns = 'md:grid-cols-3'
+  columns = 'md:grid-cols-3',
+  compact = false
 }: {
   name: string;
   value: string;
   options: ChoiceOption[];
   onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
   columns?: string;
+  compact?: boolean;
 }) {
   return (
-    <div className={`grid grid-cols-1 gap-2.5 ${columns}`}>
+    <div className={`grid grid-cols-1 ${compact ? 'gap-2' : 'gap-2.5'} ${columns}`}>
       {options.map((option) => {
         const active = value === option.value;
         const Icon = option.icon;
         return (
           <label
             key={option.value}
-            className={`group flex min-h-[72px] cursor-pointer flex-col justify-between rounded-2xl border px-3.5 py-3 transition-colors sm:px-4 ${
+            className={`group flex cursor-pointer flex-col border transition-colors sm:px-4 ${
+              compact ? 'min-h-[58px] rounded-xl px-3.5 py-2.5' : 'min-h-[72px] justify-between rounded-2xl px-3.5 py-3'
+            } ${
               active
-                ? 'border-accent/50 bg-accent/10 text-text-primary'
-                : 'border-border-primary bg-bg-primary/55 text-text-secondary hover:border-accent/30 hover:bg-bg-primary'
+                ? 'border-accent/50 bg-accent/10 text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                : 'border-border-primary bg-bg-primary/65 text-text-secondary hover:border-accent/30 hover:bg-bg-primary'
             }`}
           >
             <input
@@ -174,15 +193,15 @@ function ChoiceGrid({
               <span>
                 <span className="block text-sm font-black text-text-primary">{option.label}</span>
                 {option.description ? (
-                  <span className="mt-1 block text-xs font-semibold leading-5 text-text-tertiary">{option.description}</span>
+                  <span className={`${compact ? 'mt-0.5 leading-4' : 'mt-1 leading-5'} block text-xs font-semibold text-text-tertiary`}>{option.description}</span>
                 ) : null}
               </span>
               {Icon ? (
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? 'bg-accent/15 text-accent' : 'bg-bg-secondary text-text-tertiary'}`}>
+                <span className={`flex ${compact ? 'h-7 w-7' : 'h-8 w-8'} shrink-0 items-center justify-center rounded-lg ${active ? 'bg-accent/15 text-accent' : 'bg-bg-secondary text-text-tertiary'}`}>
                   <Icon className="h-4 w-4" />
                 </span>
               ) : (
-                <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${active ? 'bg-accent' : 'border border-border-primary'}`} />
+                <span className={`mt-1 ${compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} shrink-0 rounded-full ${active ? 'bg-accent' : 'border border-border-primary'}`} />
               )}
             </span>
           </label>
@@ -212,6 +231,146 @@ const ageToBirthday = (age: string) => {
 const hasPositiveNumber = (value: string) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0;
+};
+
+const normalizePlainText = (value: string) =>
+  value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+const buildTodayExercises = ({
+  experience,
+  location,
+  goal
+}: {
+  experience: string;
+  location: string;
+  goal: string;
+}) => {
+  const normalizedExperience = normalizePlainText(experience);
+  const normalizedLocation = normalizePlainText(location);
+  const normalizedGoal = normalizePlainText(goal);
+  const isHome = normalizedLocation.includes('nha') || normalizedLocation.includes('home');
+  const isBeginner = normalizedExperience.includes('nguoi moi') || normalizedExperience.includes('duoi 6 thang');
+
+  if (isHome) {
+    return [
+      { name: 'Squat ghế', detail: isBeginner ? '3 hiệp x 10-12 lần' : '4 hiệp x 12-15 lần' },
+      { name: 'Chống đẩy nghiêng', detail: isBeginner ? '3 hiệp x 8-10 lần' : '4 hiệp x 10-12 lần' },
+      { name: 'Glute bridge', detail: '3 hiệp x 12-15 lần' },
+      { name: 'Dead bug', detail: '3 hiệp x 10 lần mỗi bên' },
+      { name: 'Plank', detail: isBeginner ? '3 hiệp x 20-30 giây' : '3 hiệp x 35-45 giây' }
+    ];
+  }
+
+  if (isBeginner) {
+    return [
+      { name: 'Leg press', detail: '3 hiệp x 10-12 lần' },
+      { name: 'Chest press machine', detail: '3 hiệp x 10-12 lần' },
+      { name: 'Lat pulldown', detail: '3 hiệp x 10-12 lần' },
+      { name: 'Seated row', detail: '3 hiệp x 10-12 lần' },
+      { name: 'Plank', detail: '3 hiệp x 25-35 giây' }
+    ];
+  }
+
+  if (normalizedGoal.includes('tang co')) {
+    return [
+      { name: 'Goblet squat', detail: '4 hiệp x 8-10 lần' },
+      { name: 'Dumbbell bench press', detail: '4 hiệp x 8-10 lần' },
+      { name: 'Lat pulldown', detail: '4 hiệp x 10-12 lần' },
+      { name: 'Romanian deadlift', detail: '3 hiệp x 8-10 lần' },
+      { name: 'Cable crunch', detail: '3 hiệp x 12-15 lần' }
+    ];
+  }
+
+  if (normalizedGoal.includes('giam can')) {
+    return [
+      { name: 'Đi bộ dốc trên máy', detail: '8 phút khởi động' },
+      { name: 'Goblet squat', detail: '3 hiệp x 12 lần' },
+      { name: 'Dumbbell row', detail: '3 hiệp x 12 lần mỗi bên' },
+      { name: 'Kettlebell deadlift', detail: '3 hiệp x 12 lần' },
+      { name: 'Mountain climber', detail: '3 hiệp x 30 giây' }
+    ];
+  }
+
+  return [
+    { name: 'Squat hoặc leg press', detail: '3 hiệp x 10-12 lần' },
+    { name: 'Push press nhẹ', detail: '3 hiệp x 10 lần' },
+    { name: 'Lat pulldown', detail: '3 hiệp x 10-12 lần' },
+    { name: 'Hip hinge', detail: '3 hiệp x 10 lần' },
+    { name: 'Side plank', detail: '3 hiệp x 25-35 giây mỗi bên' }
+  ];
+};
+
+const mealLabelsByCount: Record<number, string[]> = {
+  2: ['Bữa chính 1', 'Bữa chính 2'],
+  3: ['Bữa sáng', 'Bữa trưa', 'Bữa tối'],
+  4: ['Bữa sáng', 'Bữa trưa', 'Bữa phụ', 'Bữa tối'],
+  5: ['Bữa sáng', 'Bữa phụ sáng', 'Bữa trưa', 'Bữa phụ chiều', 'Bữa tối']
+};
+
+const mealTemplateIndexesByCount: Record<number, number[]> = {
+  2: [1, 4],
+  3: [0, 2, 4],
+  4: [0, 2, 3, 4],
+  5: [0, 1, 2, 3, 4]
+};
+
+const mealTemplatesByDiet = {
+  vegetarian: [
+    { dish: 'Yến mạch sữa hạt + chuối', detail: 'Dễ tiêu, nhiều chất xơ' },
+    { dish: 'Sữa chua đậu nành + hạt chia', detail: 'Bữa phụ nhẹ' },
+    { dish: 'Cơm gạo lứt + đậu phụ sốt nấm', detail: 'Protein thực vật' },
+    { dish: 'Sinh tố bơ đậu phộng', detail: 'Bổ sung năng lượng' },
+    { dish: 'Salad quinoa + trứng/đậu gà', detail: 'No lâu, cân bằng đạm' }
+  ],
+  keto: [
+    { dish: 'Trứng ốp la + bơ + rau xanh', detail: 'Ít carb, giàu chất béo tốt' },
+    { dish: 'Phô mai tươi + hạnh nhân', detail: 'Bữa phụ ít đường' },
+    { dish: 'Ức gà áp chảo + salad dầu olive', detail: 'Protein cao, carb thấp' },
+    { dish: 'Sữa chua Hy Lạp không đường', detail: 'Giữ no giữa buổi' },
+    { dish: 'Cá hồi + bông cải xanh', detail: 'Omega-3 và rau xanh' }
+  ],
+  highProtein: [
+    { dish: 'Trứng cuộn + bánh mì đen', detail: 'Đạm cao cho buổi sáng' },
+    { dish: 'Sữa chua Hy Lạp + whey/chuối', detail: 'Bữa phụ phục hồi' },
+    { dish: 'Cơm gạo lứt + ức gà + rau luộc', detail: 'Bữa chính giàu protein' },
+    { dish: 'Phô mai tươi + hạnh nhân', detail: 'Đạm chậm, no lâu' },
+    { dish: 'Cá ngừ/cá hồi + khoai lang + salad', detail: 'Cân bằng đạm và carb' }
+  ],
+  clean: [
+    { dish: 'Yến mạch qua đêm + trái cây', detail: 'Nguyên liệu sạch, ít chế biến' },
+    { dish: 'Táo + bơ đậu phộng', detail: 'Bữa phụ gọn' },
+    { dish: 'Cơm gạo lứt + cá áp chảo + rau', detail: 'Cân bằng năng lượng' },
+    { dish: 'Sữa chua Hy Lạp + granola', detail: 'Giữ no nhẹ nhàng' },
+    { dish: 'Ức gà + khoai lang + salad', detail: 'Dễ bám plan' }
+  ],
+  normal: [
+    { dish: 'Yến mạch chuối + trứng luộc', detail: 'Carb chậm và protein vừa đủ' },
+    { dish: 'Sữa chua Hy Lạp + hạnh nhân', detail: 'Bữa phụ no lâu' },
+    { dish: 'Cơm gạo lứt + ức gà + rau xanh', detail: 'Bữa chính cân bằng' },
+    { dish: 'Chuối + sữa ít đường', detail: 'Nạp nhẹ trước/sau tập' },
+    { dish: 'Cá hồi/cá trắng + khoai lang + salad', detail: 'Tối nhẹ, đủ đạm' }
+  ]
+};
+
+const buildTodayMeals = (dietPreference: string, mealsPerDay: string) => {
+  const normalizedDiet = normalizePlainText(dietPreference);
+  const mealCount = Math.max(2, Math.min(5, Number(mealsPerDay) || 3));
+  const labels = mealLabelsByCount[mealCount] || mealLabelsByCount[3];
+  const indexes = mealTemplateIndexesByCount[mealCount] || mealTemplateIndexesByCount[3];
+  const template = normalizedDiet.includes('chay')
+    ? mealTemplatesByDiet.vegetarian
+    : normalizedDiet.includes('keto') || normalizedDiet.includes('low carb')
+      ? mealTemplatesByDiet.keto
+      : normalizedDiet.includes('dam') || normalizedDiet.includes('protein')
+        ? mealTemplatesByDiet.highProtein
+        : normalizedDiet.includes('eat clean')
+          ? mealTemplatesByDiet.clean
+          : mealTemplatesByDiet.normal;
+
+  return labels.map((label, index) => ({
+    label,
+    ...template[indexes[index]]
+  }));
 };
 
 const estimateTargetCalories = ({
@@ -412,6 +571,59 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
 
   const modalMode = Boolean(isOpen);
   const progressPercent = (currentStep / TOTAL_STEPS) * 100;
+  const surveyFooter = (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="order-2 min-w-0 flex-1 sm:order-1 sm:pr-4">
+        <p className="text-sm font-bold leading-6 text-text-secondary">
+          Bạn có thể bổ sung thông tin nâng cao sau khi xem kế hoạch đầu tiên. Bước này chỉ hỏi dữ liệu cần thiết.
+        </p>
+      </div>
+      <div className="order-1 flex w-full shrink-0 flex-col-reverse gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-row sm:gap-3">
+        {currentStep > 1 && (
+          <button
+            type="button"
+            onClick={goPrev}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-primary px-5 py-2.5 text-sm font-bold text-text-primary transition-all hover:bg-bg-secondary/80 disabled:opacity-50 sm:w-auto"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Quay lại
+          </button>
+        )}
+        {currentStep < TOTAL_STEPS ? (
+          <button
+            key="survey-next-step-inline"
+            type="button"
+            onClick={goNext}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-8 py-2.5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
+          >
+            Tiếp theo
+            <ChevronRight className="w-4 h-4 text-text-inverse" />
+          </button>
+        ) : (
+          <button
+            key="survey-submit-inline"
+            type="submit"
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-8 py-2.5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Đang tạo kế hoạch...
+              </>
+            ) : (
+              <>
+                {isOpen ? "CẬP NHẬT HỒ SƠ" : "TẠO KẾ HOẠCH ĐẦU TIÊN"}
+                <Zap className="w-4 h-4 text-text-inverse" />
+              </>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 
   const getFirstInvalidStep = (): number | null => {
     if (
@@ -434,7 +646,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     return null;
   };
 
-  const goNext = () => {
+  function goNext() {
     setIsSubmitted(true);
     if (currentStep === 1) {
       if (
@@ -459,13 +671,13 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     }
     setIsSubmitted(false);
     if (currentStep < TOTAL_STEPS) setCurrentStep(s => s + 1);
-  };
+  }
 
-  const goPrev = () => {
+  function goPrev() {
     setIsSubmitted(false);
     setSubmitError('');
     setCurrentStep(s => Math.max(1, s - 1));
-  };
+  }
 
   if (isPreloading) {
     return (
@@ -619,6 +831,12 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
       const selectedFrequency = WORKOUT_FREQUENCY_OPTIONS.find(
         option => option.value === normalizeWorkoutFrequency(formData.activity_level)
       );
+      const todayExercises = buildTodayExercises({
+        experience: formData.experience_level,
+        location: formData.workout_location,
+        goal: formData.fitness_goal
+      });
+      const todayMeals = buildTodayMeals(formData.diet_preference, formData.meals_per_day);
       const summary: SurveyPlanSummary = {
         goal: formData.fitness_goal,
         experience: formData.experience_level,
@@ -635,7 +853,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
         location: formData.workout_location === 'Tập tại nhà (Home Workout)' ? 'Tại nhà' : 'Phòng gym',
         todayWorkout: formData.experience_level === 'Người mới' ? 'Full Body Beginner' : 'Full Body Strength',
         todayDuration: `${durationMinutes} phút`,
-        meals: selectedMeals?.label || `${formData.meals_per_day} bữa/ngày`
+        meals: selectedMeals?.label || `${formData.meals_per_day} bữa/ngày`,
+        todayExercises,
+        todayMeals
       };
 
       await refreshProfile();
@@ -651,15 +871,15 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
 
 
   return (
-    <div className={modalMode ? 'fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-5' : 'min-h-screen w-full bg-bg-primary'}>
+    <div className={modalMode ? 'fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-5' : 'min-h-[100dvh] w-full bg-bg-primary px-3 py-3 sm:px-5 sm:py-5'}>
       {/* Backdrop */}
       {modalMode ? <div className="themed-modal-backdrop absolute inset-0 backdrop-blur-md" /> : null}
 
       {/* Modal Content */}
-      <div className={`relative grid w-full grid-cols-1 overflow-hidden border border-border-primary bg-bg-secondary ${
+      <div className={`relative flex w-full flex-col overflow-hidden bg-transparent ${
         modalMode
-          ? 'max-w-5xl rounded-none shadow-[0_30px_90px_rgba(0,0,0,0.34)] animate-in zoom-in duration-300 md:rounded-[28px] lg:grid-cols-[280px_minmax(0,1fr)]'
-          : 'mx-auto min-h-screen max-w-6xl rounded-none shadow-none xl:grid-cols-[320px_minmax(0,1fr)]'
+          ? 'max-h-[100dvh] max-w-5xl rounded-none animate-in zoom-in duration-300 sm:max-h-[92dvh]'
+          : 'mx-auto min-h-[calc(100dvh-1.5rem)] max-w-5xl sm:min-h-[calc(100dvh-2.5rem)]'
       }`}>
 
         {/* Close Button (Only for Profile Editing) */}
@@ -672,7 +892,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           </button>
         )}
 
-        <aside className={`border-b border-border-primary bg-bg-secondary p-4 sm:p-5 lg:p-6 ${modalMode ? 'lg:border-b-0 lg:border-r' : 'xl:border-b-0 xl:border-r'}`}>
+        <aside className="hidden">
           <div className="themed-subtle-panel rounded-[24px] border p-4 shadow-[0_18px_42px_rgba(0,0,0,0.18)] sm:p-5">
             <div className="flex items-center gap-3">
               <img src="/logo.svg" alt="Trợ lý cá nhân" className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
@@ -770,8 +990,74 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           </div>
         </aside>
 
-        <div className={`flex min-h-0 flex-col bg-bg-primary ${modalMode ? 'max-h-[100dvh] md:max-h-[92vh]' : 'xl:min-h-screen'}`}>
-          <div className="border-b border-border-primary bg-bg-secondary px-4 py-4 sm:px-5 md:px-7">
+        <div className={`flex min-h-0 flex-1 flex-col bg-bg-primary ${modalMode ? 'max-h-[100dvh] sm:max-h-[92dvh]' : ''}`}>
+          <div className="hidden">
+            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <img src="/logo.svg" alt="Fitly" className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">Khảo sát Fitly</p>
+                    <h2 className="mt-1 text-xl font-black leading-tight text-text-primary sm:text-2xl">
+                      {isOpen ? "Cập nhật hồ sơ" : "Tạo kế hoạch đầu tiên"}
+                    </h2>
+                  </div>
+                </div>
+                <p className="mt-4 max-w-3xl text-sm font-semibold leading-6 text-text-secondary sm:text-base sm:leading-7">
+                  {isOpen
+                    ? "Cập nhật dữ liệu cốt lõi để kế hoạch tập luyện và thực đơn sát hơn."
+                    : "Trả lời nhanh các thông tin quan trọng. Fitly sẽ tạo khởi đầu phù hợp và bạn có thể bổ sung chi tiết sau."}
+                </p>
+              </div>
+              <div className="shrink-0 rounded-2xl border border-accent/20 bg-accent/10 px-4 py-3 text-left md:min-w-36 md:text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-accent">Tiến độ</p>
+                <p className="mt-1 text-2xl font-black text-text-primary">{Math.round(progressPercent)}%</p>
+              </div>
+            </div>
+
+            <div className="mt-5 h-2 overflow-hidden rounded-full bg-bg-tertiary">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {STEP_NAV_LABELS.map((label, idx) => {
+                const n = idx + 1;
+                const active = n === currentStep;
+                const done = currentStep > n;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setCurrentStep(n)}
+                    className={`flex min-h-[56px] items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-colors ${
+                      active
+                        ? 'border-accent/45 bg-accent/10 text-accent'
+                        : done
+                          ? 'border-border-primary bg-bg-primary/70 text-text-primary'
+                          : 'border-border-primary/70 bg-bg-primary/35 text-text-secondary hover:border-accent/30 hover:bg-bg-primary/70'
+                    }`}
+                  >
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-black ${
+                      active || done ? 'bg-accent text-text-inverse' : 'bg-bg-secondary text-text-tertiary'
+                    }`}>
+                      {n}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-text-primary">{label}</span>
+                      <span className="mt-0.5 block text-xs font-semibold text-text-tertiary">
+                        {active ? 'Đang thực hiện' : done ? 'Đã qua' : 'Sắp tới'}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="hidden">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-sm font-black text-text-primary">
@@ -792,7 +1078,74 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           </div>
 
         {/* Form Body */}
-        <form id="survey-form" onSubmit={handleSubmit} className="custom-scrollbar flex-1 overflow-y-auto space-y-6 px-4 py-4 sm:px-5 md:space-y-8 md:px-7 md:py-6">
+        <form id="survey-form" onSubmit={handleSubmit} className="custom-scrollbar mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-y-auto px-0 py-4 sm:px-0 md:px-0 md:py-6">
+          <div className="space-y-6 md:space-y-8">
+            <div className="hidden">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <img src="/logo.svg" alt="Fitly" className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">Khảo sát Fitly</p>
+                      <h2 className="mt-1 text-xl font-black leading-tight text-text-primary sm:text-2xl">
+                        {isOpen ? "Cập nhật hồ sơ" : "Tạo kế hoạch đầu tiên"}
+                      </h2>
+                    </div>
+                  </div>
+                  <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-text-secondary">
+                    {isOpen
+                      ? "Cập nhật dữ liệu cốt lõi để kế hoạch tập luyện và thực đơn sát hơn."
+                      : "Trả lời nhanh các thông tin quan trọng. Fitly sẽ tạo khởi đầu phù hợp và bạn có thể bổ sung chi tiết sau."}
+                  </p>
+                </div>
+                <div className="shrink-0 text-left md:text-right">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-accent">Tiến độ</p>
+                  <p className="mt-1 text-2xl font-black text-text-primary">{Math.round(progressPercent)}%</p>
+                </div>
+              </div>
+
+              <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                <div
+                  className="h-full rounded-full bg-accent transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {STEP_NAV_LABELS.map((label, idx) => {
+                  const n = idx + 1;
+                  const active = n === currentStep;
+                  const done = currentStep > n;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setCurrentStep(n)}
+                      className={`flex min-h-[54px] items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors ${
+                        active
+                          ? 'border-accent/45 bg-accent/10 text-accent'
+                          : done
+                            ? 'border-border-primary bg-bg-secondary/80 text-text-primary'
+                            : 'border-border-primary/70 bg-transparent text-text-secondary hover:border-accent/30 hover:bg-bg-secondary/60'
+                      }`}
+                    >
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-black ${
+                        active || done ? 'bg-accent text-text-inverse' : 'bg-bg-secondary text-text-tertiary'
+                      }`}>
+                        {n}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black text-text-primary">{label}</span>
+                        <span className="mt-0.5 block text-xs font-semibold text-text-tertiary">
+                          {active ? 'Đang thực hiện' : done ? 'Đã qua' : 'Sắp tới'}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
           {currentStep === 1 && (
           <StepSurveyCard
             icon={User}
@@ -800,15 +1153,16 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
             iconClass="h-5 w-5 text-accent"
             title={"1. Mục tiêu & cơ thể"}
             subtitle={"Chỉ nhập các thông tin cần thiết để Trợ lý cá nhân tạo kế hoạch đầu tiên nhanh nhất."}
+            footer={surveyFooter}
           >
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Mục tiêu"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="fitness_goal" value={formData.fitness_goal} options={GOAL_OPTIONS} onChange={handleInputChange} />
+              <ChoiceGrid name="fitness_goal" value={formData.fitness_goal} options={GOAL_OPTIONS} onChange={handleInputChange} compact />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Giới tính"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="gender" value={formData.gender} options={GENDER_OPTIONS} onChange={handleInputChange} />
+              <ChoiceGrid name="gender" value={formData.gender} options={GENDER_OPTIONS} onChange={handleInputChange} compact />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -838,6 +1192,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
             iconClass="h-5 w-5 text-accent"
             title={"2. Khả năng tập luyện"}
             subtitle={"Trợ lý cá nhân dùng các thông tin này để chọn bài tập, lịch tuần và cường độ phù hợp."}
+            footer={surveyFooter}
           >
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Trình độ tập luyện"} <span className="text-red-500">*</span></label>
@@ -877,15 +1232,16 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
             iconClass="h-5 w-5 text-accent"
             title={"3. An toàn & ăn uống"}
             subtitle={"Thông tin này giúp Trợ lý cá nhân tránh bài tập, món ăn không phù hợp và chia thực đơn đúng nhịp sinh hoạt."}
+            footer={surveyFooter}
           >
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Chế độ ăn ưu tiên"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="diet_preference" value={formData.diet_preference} options={DIET_OPTIONS} onChange={handleInputChange} columns="sm:grid-cols-2 lg:grid-cols-5" />
+              <ChoiceGrid name="diet_preference" value={formData.diet_preference} options={DIET_OPTIONS} onChange={handleInputChange} columns="sm:grid-cols-2 lg:grid-cols-5" compact />
             </div>
 
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Số bữa/ngày"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="meals_per_day" value={formData.meals_per_day} options={MEAL_OPTIONS} onChange={handleInputChange} columns="sm:grid-cols-2 lg:grid-cols-4" />
+              <ChoiceGrid name="meals_per_day" value={formData.meals_per_day} options={MEAL_OPTIONS} onChange={handleInputChange} columns="sm:grid-cols-2 lg:grid-cols-4" compact />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -901,11 +1257,64 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           </StepSurveyCard>
           )}
 
+          <div className="hidden">
+            <div className="order-2 min-w-0 flex-1 sm:order-1 sm:pr-4">
+              <p className="text-sm font-bold leading-6 text-text-secondary">
+                Bạn có thể bổ sung thông tin nâng cao sau khi xem kế hoạch đầu tiên. Bước này chỉ hỏi dữ liệu cần thiết.
+              </p>
+            </div>
+            <div className="order-1 flex w-full shrink-0 flex-col-reverse gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-row sm:gap-3">
+              {currentStep > 1 && (
+                <button
+                  type="button"
+                  onClick={goPrev}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-primary px-5 py-2.5 text-sm font-bold text-text-primary transition-all hover:bg-bg-secondary/80 disabled:opacity-50 sm:w-auto"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Quay lại
+                </button>
+              )}
+              {currentStep < TOTAL_STEPS ? (
+                <button
+                  key="survey-next-step-inline"
+                  type="button"
+                  onClick={goNext}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-8 py-2.5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
+                >
+                  Tiếp theo
+                  <ChevronRight className="w-4 h-4 text-text-inverse" />
+                </button>
+              ) : (
+                <button
+                  key="survey-submit-inline"
+                  type="submit"
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-8 py-2.5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-50 sm:w-auto"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Đang tạo kế hoạch...
+                    </>
+                  ) : (
+                    <>
+                      {isOpen ? "CẬP NHẬT HỒ SƠ" : "TẠO KẾ HOẠCH ĐẦU TIÊN"}
+                      <Zap className="w-4 h-4 text-text-inverse" />
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+
+          </div>
         </form>
 
         {/* Footer */}
-        <div className="flex flex-col gap-4 border-t border-border-primary bg-bg-secondary/96 px-4 py-4 backdrop-blur-xl sm:px-5 md:px-7">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="hidden">
+          <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="order-2 flex min-w-0 flex-1 items-center sm:order-1 sm:pr-4">
             <p className="text-sm font-black tracking-tight leading-snug">
               <span className="text-text-secondary font-bold">

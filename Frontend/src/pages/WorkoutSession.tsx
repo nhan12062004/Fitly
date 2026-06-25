@@ -221,7 +221,7 @@ const getExerciseSteps = (exercise: SessionExercise): string[] => {
 
 function WorkoutSessionSkeleton() {
   return (
-    <div className="dashboard-page-shell flex flex-col animate-pulse text-sm pb-4 md:pb-6 lg:pb-7" aria-hidden="true">
+    <div className="dashboard-page-shell workout-session-page flex flex-col animate-pulse text-sm pb-4 md:pb-6 lg:pb-7" aria-hidden="true">
       <div className="-mt-1 mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="inline-flex min-w-0 items-center gap-1.5">
           <div className="h-4 w-4 rounded-full bg-bg-tertiary/70" />
@@ -230,7 +230,7 @@ function WorkoutSessionSkeleton() {
         <div className="h-11 w-32 rounded-full bg-bg-tertiary/70" />
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
+      <div className="workout-session-layout grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
         <aside className="order-3 border-t border-border-primary bg-bg-secondary px-4 pb-5 pt-4 lg:col-span-2 xl:order-1 xl:col-span-1 xl:border-r xl:border-t-0">
           {SkeletonBlock('h-4 w-32')}
           <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
@@ -899,13 +899,13 @@ export default function WorkoutSession() {
         </div>
 
         {isFeedbackModalOpen && (
-          <div className="themed-modal-backdrop fixed inset-0 z-[150] flex items-center justify-center px-4">
-            <div className="w-full max-w-xl rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
+          <div className="themed-modal-backdrop responsive-sheet-backdrop fixed inset-0 z-[150] flex items-center justify-center px-4">
+            <div className="responsive-sheet-panel w-full max-w-xl rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
               <h2 className="text-xl font-black text-text-primary">Buổi tập hôm nay thế nào?</h2>
               <div className="mt-5 space-y-4">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.08em] text-text-tertiary">Độ khó</p>
-                  <div className="mt-2 grid grid-cols-3 gap-2">
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {[
                       { value: 'too_easy', label: 'Quá dễ' },
                       { value: 'just_right', label: 'Vừa sức' },
@@ -976,7 +976,7 @@ export default function WorkoutSession() {
   }
 
   return (
-    <div className="dashboard-page-shell flex flex-col text-sm pb-4 md:pb-6 lg:pb-7">
+    <div className="dashboard-page-shell workout-session-page flex flex-col text-sm pb-4 md:pb-6 lg:pb-7">
       <div className="-mt-1 mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <button
           type="button"
@@ -998,7 +998,7 @@ export default function WorkoutSession() {
         </button>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
+      <div className="workout-session-layout grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
         <aside className="order-3 border-t border-border-primary bg-bg-secondary px-4 pt-4 pb-5 lg:col-span-2 xl:order-1 xl:col-span-1 xl:border-t-0 xl:border-r">
           <p className="text-sm font-black tracking-[0.08em] text-text-tertiary">Danh sách bài tập</p>
           <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
@@ -1335,14 +1335,14 @@ export default function WorkoutSession() {
       </div>
 
       {isFeedbackModalOpen && (
-        <div className="themed-modal-backdrop fixed inset-0 z-[150] flex items-center justify-center px-4">
-          <div className="w-full max-w-xl rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
+        <div className="themed-modal-backdrop responsive-sheet-backdrop fixed inset-0 z-[150] flex items-center justify-center px-4">
+          <div className="responsive-sheet-panel w-full max-w-xl rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
             <h2 className="text-xl font-black text-text-primary">Buổi tập hôm nay thế nào?</h2>
 
             <div className="mt-5 space-y-4">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.08em] text-text-tertiary">Độ khó</p>
-                <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {[
                     { value: 'too_easy', label: 'Quá dễ' },
                     { value: 'just_right', label: 'Vừa sức' },
@@ -1366,7 +1366,7 @@ export default function WorkoutSession() {
 
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.08em] text-text-tertiary">Bạn có đau ở đâu không?</p>
-                <div className="mt-2 grid grid-cols-5 gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {[
                     { value: 'none', label: 'Không' },
                     { value: 'knee', label: 'Gối' },
@@ -1472,8 +1472,8 @@ export default function WorkoutSession() {
       )}
 
       {isEditModalOpen && activeExercise && (
-        <div className="themed-modal-backdrop fixed inset-0 z-[140] flex items-center justify-center px-4">
-          <div className="w-full max-w-md rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
+        <div className="themed-modal-backdrop responsive-sheet-backdrop fixed inset-0 z-[140] flex items-center justify-center px-4">
+          <div className="responsive-sheet-panel w-full max-w-md rounded-3xl border border-border-primary bg-bg-secondary p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-black tracking-[0.08em] text-text-tertiary">Chỉnh thông số</p>

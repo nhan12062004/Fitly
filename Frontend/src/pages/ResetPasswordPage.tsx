@@ -66,10 +66,10 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="landing-page min-h-screen w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
+    <div className="landing-page min-h-[100dvh] w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
       <div className="landing-grid absolute inset-0 opacity-70" />
 
-      <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+      <main className="relative z-10 flex min-h-[100dvh] items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
         <section className="landing-product-card landing-surface w-full max-w-md rounded-lg border border-border-primary p-5 shadow-[0_28px_90px_rgba(0,0,0,0.34)] sm:p-6">
           <div className="flex items-start justify-between gap-4 border-b border-border-primary pb-5">
             <div>

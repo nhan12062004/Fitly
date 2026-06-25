@@ -120,9 +120,9 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
 
   if (isEmailSent) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="responsive-sheet-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
         <div className="themed-modal-backdrop absolute inset-0 backdrop-blur-md" onClick={handleClose} />
-        <div className="relative w-full max-w-md bg-bg-secondary border border-border-primary rounded-[2.5rem] p-10 text-center shadow-2xl animate-in zoom-in slide-in-from-bottom-4 duration-500">
+        <div className="responsive-sheet-panel relative w-full max-w-md bg-bg-secondary border border-border-primary rounded-[2.5rem] p-10 text-center shadow-2xl animate-in zoom-in slide-in-from-bottom-4 duration-500">
           <div className="relative mb-8 flex justify-center">
             <div className="absolute inset-0 bg-black/30 blur-3xl rounded-full scale-125" />
             <div className="relative w-24 h-24 bg-accent rounded-full flex items-center justify-center shadow-[0_18px_36px_rgb(0_0_0_/_0.24)]">
@@ -149,7 +149,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="responsive-sheet-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="themed-modal-backdrop absolute inset-0 backdrop-blur-sm"
@@ -157,7 +157,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
       />
 
       {/* Modal Content */}
-      <div className="relative w-full max-w-md bg-bg-secondary border border-border-primary rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+      <div className="responsive-sheet-panel relative w-full max-w-md bg-bg-secondary border border-border-primary rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
         <button
           onClick={handleClose}
           className="absolute top-4 right-4 text-text-tertiary hover:text-text-primary p-2 transition-colors"

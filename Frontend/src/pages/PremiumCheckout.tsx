@@ -19,9 +19,9 @@ export default function PremiumCheckout({ isOpen, onClose }: PremiumCheckoutProp
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div className="responsive-sheet-backdrop fixed inset-0 z-[120] flex items-center justify-center p-4">
       <div className="themed-modal-backdrop absolute inset-0 backdrop-blur-md" onClick={onClose} />
-      <div className="premium-shell relative max-h-[92vh] w-full max-w-[1200px] overflow-y-auto custom-scrollbar rounded-[28px] border border-border-primary p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] md:p-6">
+      <div className="premium-shell responsive-sheet-panel relative max-h-[92dvh] w-full max-w-[1200px] overflow-y-auto custom-scrollbar rounded-[28px] border border-border-primary p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] md:p-6">
         <button
           type="button"
           onClick={onClose}

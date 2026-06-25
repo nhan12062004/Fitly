@@ -1041,8 +1041,8 @@ function ExerciseFormPanel({
   onChange: (patch: Partial<ExerciseForm>) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-black/50 backdrop-blur-sm">
-      <form onSubmit={onSubmit} className="flex h-full w-full max-w-3xl flex-col border-l border-border-primary bg-bg-secondary shadow-2xl">
+    <div className="admin-drawer-backdrop fixed inset-0 z-[70] flex justify-end bg-black/50 backdrop-blur-sm">
+      <form onSubmit={onSubmit} className="admin-drawer-panel flex h-full w-full max-w-3xl flex-col border-l border-border-primary bg-bg-secondary shadow-2xl">
         <PanelHeader title={isEditing ? 'Sửa bài tập' : 'Thêm bài tập'} saving={saving} onClose={onClose} />
         <div className="custom-scrollbar grid flex-1 gap-4 overflow-y-auto p-4 md:grid-cols-2 md:p-5">
           <Field label="ID" value={form.id} disabled={isEditing} onChange={(value) => onChange({ id: value })} />
@@ -1085,8 +1085,8 @@ function FoodFormPanel({
   onChange: (patch: Partial<FoodForm>) => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-black/50 backdrop-blur-sm">
-      <form onSubmit={onSubmit} className="flex h-full w-full max-w-3xl flex-col border-l border-border-primary bg-bg-secondary shadow-2xl">
+    <div className="admin-drawer-backdrop fixed inset-0 z-[70] flex justify-end bg-black/50 backdrop-blur-sm">
+      <form onSubmit={onSubmit} className="admin-drawer-panel flex h-full w-full max-w-3xl flex-col border-l border-border-primary bg-bg-secondary shadow-2xl">
         <PanelHeader title={isEditing ? 'Sửa món ăn' : 'Thêm món ăn'} saving={saving} onClose={onClose} />
         <div className="custom-scrollbar grid flex-1 gap-4 overflow-y-auto p-4 md:grid-cols-2 md:p-5">
           <Field label="Tên món" value={form.name} onChange={(value) => onChange({ name: value })} />

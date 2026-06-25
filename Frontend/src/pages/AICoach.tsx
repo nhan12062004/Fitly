@@ -785,7 +785,7 @@ function AICoachSkeleton() {
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7" aria-hidden="true">
       <section>
-        <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+        <article className="ai-coach-chat-shell flex h-[calc(100dvh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
           <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-3">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-bg-tertiary/75" />
@@ -1958,7 +1958,7 @@ export default function AICoach() {
     <div className="contents xl:flex xl:flex-col xl:gap-5">
       <div className="-mt-1 w-full space-y-4 text-sm text-text-primary">
         <section>
-            <article className="flex h-[calc(100vh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
+            <article className="ai-coach-chat-shell flex h-[calc(100dvh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
               <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-2">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2.5">
@@ -1999,7 +1999,7 @@ export default function AICoach() {
                           <Bot className="h-3.5 w-3.5" />
                         </div>
                       ) : null}
-                      <div className={message.role === 'user' ? 'max-w-[72%]' : 'max-w-[76%]'}>
+                      <div className={message.role === 'user' ? 'ai-chat-bubble-wrap max-w-[72%]' : 'ai-chat-bubble-wrap max-w-[76%]'}>
                         <div
                           className={`whitespace-pre-line break-words rounded-[18px] border px-4 py-3 text-sm font-normal leading-6 shadow-none ${
                             message.role === 'user'
@@ -2066,7 +2066,7 @@ export default function AICoach() {
                       <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ai/90 text-white shadow-[0_8px_18px_rgb(var(--ai-rgb)_/_0.18)]">
                         <Bot className="h-3.5 w-3.5" />
                       </div>
-                      <div className="max-w-[76%]">
+                      <div className="ai-chat-bubble-wrap max-w-[76%]">
                         <div className="rounded-[18px] border border-border-primary bg-bg-secondary/75 px-4 py-3 text-sm font-normal leading-6 text-text-secondary shadow-none">
                           <p className="mb-1 text-[11px] font-black uppercase tracking-[0.12em] text-ai">
                             AI Coach
@@ -2201,13 +2201,13 @@ export default function AICoach() {
             </article>
           </section>
         {isPlanSettingsOpen ? (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5">
+          <div className="responsive-sheet-backdrop fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5">
             <div
               className="absolute inset-0 bg-black/70 backdrop-blur-sm"
               onClick={() => setIsPlanSettingsOpen(false)}
             />
             <form
-              className="relative flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_28px_90px_rgba(0,0,0,0.42)]"
+              className="responsive-sheet-panel relative flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_28px_90px_rgba(0,0,0,0.42)]"
               onSubmit={(event) => {
                 event.preventDefault();
                 void savePlanSettings('save');

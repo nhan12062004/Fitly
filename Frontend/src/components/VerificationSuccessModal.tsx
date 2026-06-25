@@ -15,13 +15,13 @@ export default function VerificationSuccessModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="responsive-sheet-backdrop fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
         className="themed-modal-backdrop absolute inset-0 backdrop-blur-md animate-in fade-in duration-500"
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-md overflow-hidden rounded-[2.5rem] border border-border-primary bg-bg-secondary shadow-2xl animate-in zoom-in slide-in-from-bottom-8 duration-500">
+      <div className="responsive-sheet-panel relative w-full max-w-md overflow-hidden rounded-[2.5rem] border border-border-primary bg-bg-secondary shadow-2xl animate-in zoom-in slide-in-from-bottom-8 duration-500">
         <div className="p-10 text-center">
           <h2 className="mb-4 text-3xl font-bold tracking-tight text-text-primary">
             {'Xác thực email thành công'}

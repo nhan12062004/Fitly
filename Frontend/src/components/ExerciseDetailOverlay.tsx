@@ -321,7 +321,7 @@ export default function ExerciseDetailOverlay({
 
   return (
     <div className={embedded ? 'h-full w-full overflow-y-auto custom-scrollbar' : 'fixed inset-0 z-[130] overflow-y-auto bg-bg-primary'}>
-      <div className={embedded ? 'mx-auto w-full max-w-[1700px] px-0 py-0' : 'mx-auto min-h-screen w-full max-w-[1700px] px-4 py-4 md:px-6 md:py-6'}>
+      <div className={embedded ? 'mx-auto w-full max-w-[1700px] px-0 py-0' : 'mx-auto min-h-[100dvh] w-full max-w-[1700px] px-4 py-4 md:px-6 md:py-6'}>
         <div className="-mt-1 mb-3 flex items-center gap-2 text-sm text-text-tertiary">
           <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 hover:text-text-primary">
             <ArrowLeft className="h-4 w-4" />

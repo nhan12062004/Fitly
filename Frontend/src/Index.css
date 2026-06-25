@@ -1993,3 +1993,311 @@ html, body, * {
   gap: 0.65rem;
   min-width: 0;
 }
+
+/* App-wide mobile and tablet pass */
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  min-width: 0;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+.dashboard-main {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.topbar-menu-button,
+.topbar-action {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+}
+
+.sidebar-shell {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+.ai-chat-bubble-wrap {
+  min-width: 0;
+}
+
+.ai-chat-composer textarea {
+  min-width: 0;
+}
+
+.responsive-sheet-panel {
+  max-height: min(92dvh, 42rem);
+  overflow-y: auto;
+}
+
+.admin-drawer-panel {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-page-shell {
+    max-width: 100%;
+  }
+
+  .dashboard-main {
+    gap: 1.25rem;
+    padding-inline: 1rem;
+    padding-top: 1.25rem;
+  }
+
+  .workout-session-layout {
+    overflow: visible !important;
+  }
+
+  .workout-session-layout > aside,
+  .workout-session-layout > section {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .ai-coach-chat-shell {
+    height: calc(100dvh - 8rem) !important;
+    min-height: 34rem;
+  }
+
+  .topbar-search-dropdown,
+  .topbar-notification-dropdown {
+    max-height: calc(100dvh - 6rem);
+    overflow-y: auto;
+  }
+
+  .diet-picker-panel {
+    width: min(100%, calc(100vw - 1.5rem));
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --app-radius-card: 18px;
+    --app-radius-panel: 16px;
+  }
+
+  body {
+    font-size: 0.9rem;
+  }
+
+  h1 {
+    font-size: 1.35rem;
+  }
+
+  h2 {
+    font-size: 1.12rem;
+  }
+
+  .dashboard-main {
+    gap: 1rem;
+    padding-inline: 0.75rem;
+    padding-top: 0.85rem;
+    padding-bottom: calc(0.9rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .dashboard-main > div {
+    min-width: 0;
+  }
+
+  .dashboard-page-shell {
+    gap: 1rem !important;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .topbar-shell {
+    height: 4rem !important;
+    padding-inline: 0.75rem !important;
+  }
+
+  .topbar-menu-button,
+  .topbar-action {
+    width: 2.5rem;
+    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+  }
+
+  .topbar-search-dropdown,
+  .topbar-notification-dropdown {
+    border-radius: 20px !important;
+  }
+
+  .sidebar-shell {
+    width: min(19rem, 88vw) !important;
+  }
+
+  .sidebar-brand {
+    height: 4rem !important;
+  }
+
+  .sidebar-footer {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .ai-coach-chat-shell {
+    height: calc(100dvh - 5.85rem) !important;
+    min-height: 30rem;
+    border-radius: 18px !important;
+  }
+
+  .ai-chat-bubble-wrap {
+    max-width: 92% !important;
+  }
+
+  .ai-chat-composer {
+    border-radius: 18px !important;
+    gap: 0.35rem !important;
+    padding-inline: 0.45rem !important;
+  }
+
+  .ai-chat-composer textarea {
+    font-size: 0.84rem;
+  }
+
+  .workout-session-page {
+    gap: 0.75rem !important;
+  }
+
+  .workout-session-layout {
+    margin-inline: -0.25rem;
+    border-radius: 18px !important;
+    box-shadow: none !important;
+  }
+
+  .workout-session-layout > aside,
+  .workout-session-layout > section {
+    padding-inline: 0.9rem !important;
+  }
+
+  .responsive-sheet-backdrop {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .responsive-sheet-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 88dvh;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    border-left: 0 !important;
+    border-radius: 24px 24px 0 0 !important;
+    padding: 1rem !important;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .responsive-sheet-panel .flex.justify-end,
+  .responsive-sheet-panel footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-drawer-backdrop {
+    align-items: flex-end;
+    justify-content: center !important;
+  }
+
+  .admin-drawer-panel {
+    height: 92dvh !important;
+    max-height: 92dvh;
+    max-width: 100% !important;
+    border-left: 0 !important;
+    border-radius: 24px 24px 0 0;
+  }
+
+  .diet-page-shell {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .diet-card {
+    border-radius: 18px !important;
+    padding: 0.85rem !important;
+  }
+
+  .diet-mobile-sticky-actions {
+    margin-inline: -0.75rem !important;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .diet-picker-overlay {
+    align-items: flex-end !important;
+  }
+
+  .diet-picker-panel {
+    width: 100% !important;
+    max-height: 88dvh !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    border-left: 0 !important;
+    border-radius: 24px 24px 0 0 !important;
+  }
+
+  .progress-simple-card,
+  .overview-card,
+  .overview-hero,
+  .landing-product-card {
+    border-radius: 18px !important;
+  }
+
+  .today-workout-stats > div {
+    min-height: 66px;
+    padding: 0.6rem;
+  }
+
+  .today-workout-list-item {
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 420px) {
+  .dashboard-main {
+    padding-inline: 0.65rem;
+  }
+
+  .topbar-user {
+    gap: 0.35rem !important;
+  }
+
+  .topbar-avatar {
+    width: 2.15rem !important;
+    height: 2.15rem !important;
+  }
+
+  .ai-chat-composer button {
+    width: 2rem;
+    min-width: 2rem;
+  }
+
+  .ai-chat-composer button:first-child {
+    width: auto;
+    min-width: 2rem;
+    padding-inline: 0.6rem !important;
+  }
+
+  .responsive-sheet-panel h2 {
+    font-size: 1.05rem !important;
+  }
+}

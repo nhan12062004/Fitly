@@ -169,9 +169,9 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
 
   if (isEmailSent) {
     return (
-      <div className="landing-page min-h-screen w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
+      <div className="landing-page min-h-[100dvh] w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
         <div className="landing-grid absolute inset-0 opacity-70" />
-        <main className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+        <main className="relative z-10 flex min-h-[100dvh] items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
           <div className="landing-product-card landing-surface w-full max-w-md rounded-lg border border-border-primary p-6 text-center sm:p-8">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-lg bg-accent text-text-inverse">
               <Mail className="h-8 w-8" strokeWidth={2.5} />
@@ -205,10 +205,10 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
   const highlights = isLogin ? loginHighlights : signupHighlights;
 
   return (
-    <div className="landing-page min-h-screen w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
+    <div className="landing-page min-h-[100dvh] w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
       <div className="landing-grid absolute inset-0 opacity-70" />
 
-      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
+      <main className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
         <section className="grid flex-1 grid-cols-1 items-start gap-8 md:items-center lg:grid-cols-[minmax(0,0.9fr)_minmax(360px,460px)] lg:gap-10">
           <ScrollReveal className="max-w-3xl lg:pr-4">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-accent">
@@ -408,14 +408,14 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
       </main>
 
       {isForgotPasswordOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+        <div className="responsive-sheet-backdrop fixed inset-0 z-[120] flex items-center justify-center p-4">
           <button
             type="button"
             aria-label="Đóng"
             onClick={() => setIsForgotPasswordOpen(false)}
             className="absolute inset-0 bg-black/65 backdrop-blur-md"
           />
-          <div className="relative w-full max-w-[448px] rounded-lg border border-white/10 bg-[#111111]/95 p-6 shadow-[0_26px_90px_rgba(0,0,0,0.55)]">
+          <div className="responsive-sheet-panel relative w-full max-w-[448px] rounded-lg border border-white/10 bg-[#111111]/95 p-6 shadow-[0_26px_90px_rgba(0,0,0,0.55)]">
             <div>
               <div className="flex items-start justify-between gap-4">
                 <h2 className="text-2xl font-black leading-tight text-white">Quên mật khẩu?</h2>

@@ -83,10 +83,10 @@ const [oldPassword, setOldPassword] = useState('');
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+    <div className="responsive-sheet-backdrop fixed inset-0 z-[110] flex items-center justify-center p-4">
       <div className="absolute inset-0 themed-modal-backdrop backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative w-full max-w-md bg-bg-secondary border border-border-primary rounded-[2rem] shadow-2xl overflow-hidden p-6 md:p-8 animate-in zoom-in duration-300">
+      <div className="responsive-sheet-panel relative w-full max-w-md bg-bg-secondary border border-border-primary rounded-[2rem] shadow-2xl overflow-hidden p-6 md:p-8 animate-in zoom-in duration-300">
         <button onClick={onClose} className="absolute right-4 top-4 p-2 hover:bg-bg-tertiary rounded-xl transition-colors text-text-tertiary hover:text-text-primary">
           <X className="w-5 h-5" />
         </button>

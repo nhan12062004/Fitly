@@ -123,7 +123,7 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="landing-page min-h-screen w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
+    <div className="landing-page min-h-[100dvh] w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
       <header className="sticky top-0 z-40 border-b border-border-primary bg-bg-primary/88 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 py-3 sm:h-20 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-0 lg:px-8">
           <button type="button" onClick={() => navigate('/')} className="min-w-0 text-left">
@@ -155,7 +155,7 @@ export default function LandingPage() {
       <main>
         <section className="relative overflow-hidden border-b border-border-primary">
           <div className="landing-grid absolute inset-0 opacity-70" />
-          <div className="mx-auto grid min-h-[calc(100vh-116px)] w-full max-w-7xl grid-cols-1 items-center gap-10 px-4 py-12 sm:min-h-[calc(100vh-80px)] sm:px-6 md:py-16 lg:grid-cols-[minmax(0,0.92fr)_minmax(420px,0.78fr)] lg:px-8">
+          <div className="mx-auto grid min-h-[calc(100dvh-116px)] w-full max-w-7xl grid-cols-1 items-center gap-10 px-4 py-12 sm:min-h-[calc(100dvh-80px)] sm:px-6 md:py-16 lg:grid-cols-[minmax(0,0.92fr)_minmax(420px,0.78fr)] lg:px-8">
             <ScrollReveal className="relative z-10 max-w-4xl">
               <SectionLabel>AI Fitness Coach</SectionLabel>
               <h1 className="mt-5 max-w-[calc(100vw-2rem)] text-3xl font-black leading-[1.08] tracking-normal text-text-primary sm:max-w-4xl sm:text-5xl md:text-6xl">
