@@ -130,6 +130,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const [recordingWaterId, setRecordingWaterId] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
   const searchRegionRef = useRef<HTMLDivElement>(null);
   const notificationRegionRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -278,7 +279,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     clearTimeout(debounceRef.current);
     if (!val.trim()) {
       setResults([]);
-      setIsOpen(false);
+      setIsOpen(true);
       return;
     }
     debounceRef.current = setTimeout(() => doSearch(val), 280);
@@ -319,7 +320,12 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const openSearchPanel = () => {
     setIsOpen(true);
     setIsNotificationsOpen(false);
-    window.setTimeout(() => inputRef.current?.focus(), 20);
+    window.setTimeout(() => {
+      const target = window.matchMedia('(max-width: 639px)').matches
+        ? mobileInputRef.current
+        : inputRef.current;
+      target?.focus();
+    }, 20);
   };
 
   const toggleNotifications = () => {
@@ -439,27 +445,8 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-text-tertiary">Truy cập nhanh</p>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {quickAccessPages.slice(0, 2).map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => navigateToResult(item)}
-                  className="group rounded-2xl border border-border-primary bg-bg-secondary/80 p-4 text-left transition-all hover:border-accent/30 hover:bg-bg-tertiary"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <ResultIcon type={item.type} pageIcon={item.pageIcon} />
-                    {item.badge && (
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${item.badgeColor || 'bg-orange-500 text-white'}`}>{item.badge}</span>
-                    )}
-                  </div>
-                  <p className="mt-4 text-sm font-semibold text-text-primary group-hover:text-accent transition-colors">{item.title}</p>
-                  <p className="mt-1 text-xs leading-5 text-text-tertiary">{item.subtitle}</p>
-                </button>
-              ))}
-            </div>
-
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {quickAccessPages.slice(2).map((item) => (
+              {quickAccessPages.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => navigateToResult(item)}
@@ -592,12 +579,43 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         </button>
 
         <div ref={searchRegionRef} className="topbar-search-wrap relative flex-1">
-          <button
-            onClick={openSearchPanel}
-            className="topbar-action sm:hidden flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent"
-          >
-            <Search className="w-5 h-5 transition-colors" />
-          </button>
+          {isOpen ? (
+            <div className="relative sm:hidden">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+              <input
+                ref={mobileInputRef}
+                type="text"
+                placeholder="Tìm kiếm..."
+                value={query}
+                onChange={handleInput}
+                onKeyDown={handleKeyDown}
+                className="topbar-search-input h-10 w-full rounded-full border border-accent bg-bg-secondary pl-9 pr-9 text-xs text-text-primary outline-none placeholder:text-text-tertiary"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (query) {
+                    setQuery('');
+                    setResults([]);
+                    mobileInputRef.current?.focus();
+                  } else {
+                    setIsOpen(false);
+                  }
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary transition-colors hover:text-text-primary"
+                aria-label={query ? 'Xóa tìm kiếm' : 'Đóng tìm kiếm'}
+              >
+                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={openSearchPanel}
+              className="topbar-action flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent sm:hidden"
+            >
+              <Search className="h-5 w-5 transition-colors" />
+            </button>
+          )}
 
           <div className="relative hidden sm:block w-full max-w-[30rem] md:max-w-[34rem]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
@@ -634,38 +652,13 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
 
           {isOpen && (
             <div className="fixed left-3 right-3 top-[76px] z-50 sm:hidden">
-              <div className="rounded-[28px] border border-border-primary bg-bg-secondary/96 p-3 shadow-[0_24px_70px_rgba(0,0,0,0.38)] backdrop-blur-xl">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    placeholder="Tìm kiếm nhanh..."
-                    value={query}
-                    onChange={handleInput}
-                    onKeyDown={handleKeyDown}
-                    className="topbar-search-input w-full rounded-full border border-border-primary bg-bg-secondary py-3 pl-12 pr-10 text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent transition-colors"
-                  />
-                  <button
-                    onClick={() => {
-                      if (query) clearSearch();
-                      else setIsOpen(false);
-                    }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary transition-colors"
-                  >
-                    {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
-                  </button>
-                </div>
-                <div className="mt-3">
-                  {searchDropdown}
-                </div>
-              </div>
+              {searchDropdown}
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2 sm:gap-3 md:gap-4">
+      <div className={`shrink-0 items-center gap-2 sm:flex sm:gap-3 md:gap-4 ${isOpen ? 'hidden' : 'flex'}`}>
 
         <button
           onClick={() => setIsLightMode(!isLightMode)}
