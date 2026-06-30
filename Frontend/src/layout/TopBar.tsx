@@ -669,7 +669,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
 
         <button
           onClick={() => setIsLightMode(!isLightMode)}
-          className="topbar-action topbar-action-icon-only hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent lg:flex"
+          className="topbar-action topbar-action-icon-only flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent"
         >
           {isLightMode ? <Sun className="w-5 h-5 transition-colors" /> : <Moon className="w-5 h-5 transition-colors" />}
         </button>
