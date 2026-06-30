@@ -279,7 +279,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-bg-primary">
+    <div className="app-shell flex h-[100dvh] w-full overflow-hidden bg-bg-primary">
       <ProfileSupplementModal
         isOpen={isProfileSupplementOpen}
         onClose={() => setIsProfileSupplementOpen(false)}
@@ -308,10 +308,10 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="flex-1 flex h-full min-w-0 w-full flex-col overflow-y-auto custom-scrollbar">
+      <div className="app-scroll-region flex-1 flex h-full min-w-0 w-full flex-col overflow-y-auto custom-scrollbar">
         <TopBar onMenuClick={() => setIsMobileMenuOpen(true)} />
         <main className="dashboard-main flex min-h-0 flex-1 flex-col gap-6 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 lg:px-7 min-w-0 relative">
-          <div className="mx-auto w-full">
+          <div className="dashboard-content mx-auto w-full min-w-0">
             <ProfileCompletionNudge onOpenProfile={openProfileSupplement} />
             <Suspense fallback={null}>
               <Outlet context={{ onProfileClick: openProfileEditor }} />

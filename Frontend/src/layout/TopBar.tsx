@@ -580,9 +580,14 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   );
 
   return (
-    <header className="topbar-shell h-[72px] md:h-20 px-4 md:px-8 flex items-center justify-between border-b border-border-primary bg-bg-secondary sticky top-0 z-30 shrink-0">
-      <div className="flex items-center gap-4 flex-1">
-        <button className="topbar-menu-button lg:hidden text-text-secondary hover:text-text-primary transition-colors" onClick={onMenuClick}>
+    <header className="topbar-shell sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-3 border-b border-border-primary bg-bg-secondary px-4 md:h-20 md:gap-4 md:px-8">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <button
+          type="button"
+          className="topbar-menu-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary text-text-secondary transition-colors hover:text-text-primary lg:hidden"
+          onClick={onMenuClick}
+          aria-label="Mở menu điều hướng"
+        >
           <Menu className="w-6 h-6" />
         </button>
 
@@ -660,11 +665,11 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3 md:gap-4">
 
         <button
           onClick={() => setIsLightMode(!isLightMode)}
-          className="topbar-action topbar-action-icon-only hidden md:flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent"
+          className="topbar-action topbar-action-icon-only hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent lg:flex"
         >
           {isLightMode ? <Sun className="w-5 h-5 transition-colors" /> : <Moon className="w-5 h-5 transition-colors" />}
         </button>
@@ -691,10 +696,10 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
           )}
         </div>
 
-        <span className="hidden md:block h-8 w-px bg-border-primary"></span>
+        <span className="hidden h-8 w-px shrink-0 bg-border-primary lg:block"></span>
 
-        <div className="topbar-user flex items-center gap-3 rounded-full px-1.5 py-1">
-          <div className="topbar-user-meta hidden md:flex flex-col items-end">
+        <div className="topbar-user flex shrink-0 items-center gap-3 rounded-full px-1.5 py-1">
+          <div className="topbar-user-meta hidden flex-col items-end lg:flex">
             <span className="text-sm font-semibold text-text-primary leading-tight">{userName}</span>
             {isPremium ? (
               <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
@@ -706,7 +711,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
               </span>
             )}
           </div>
-          <div className="topbar-avatar w-9 h-9 rounded-full bg-accent flex items-center justify-center text-text-inverse font-bold text-sm transition-transform">
+          <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-text-inverse transition-transform">
             {userInitial}
           </div>
         </div>

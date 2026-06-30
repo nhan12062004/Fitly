@@ -848,7 +848,6 @@ export default function Exercises() {
 
   const equipmentFilterOptions = [
     { id: 'all', label: 'Tất cả' },
-    { id: 'Phòng Gym', label: 'Phòng Gym' },
     { id: 'Đầy đủ tạ & máy móc', label: 'Đầy đủ tạ & máy móc' },
     { id: 'Tạ đơn & Thảm', label: 'Tạ đơn & Thảm' },
     { id: 'Dây kháng lực', label: 'Dây kháng lực' },

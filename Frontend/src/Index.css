@@ -2301,6 +2301,15 @@ svg {
   min-height: 2.5rem;
 }
 
+.topbar-menu-button {
+  flex: 0 0 2.5rem;
+  border-radius: 999px;
+}
+
+.topbar-search-wrap {
+  min-width: 0;
+}
+
 .sidebar-shell {
   height: 100dvh;
   max-height: 100dvh;
@@ -2701,5 +2710,107 @@ svg {
 
   .responsive-sheet-panel h2 {
     font-size: 1.05rem !important;
+  }
+}
+
+/*
+ * Three fluid viewport ranges
+ * Mobile:  <= 640px
+ * Tablet:  641px - 1023px
+ * Desktop: >= 1024px
+ *
+ * Values inside each range remain fluid so resizing does not create
+ * awkward dead zones between individual device widths.
+ */
+:root {
+  --layout-content-max: 106.25rem;
+  --layout-gutter: clamp(1.5rem, 2vw, 2.25rem);
+  --layout-block-gap: clamp(1.25rem, 1.5vw, 1.75rem);
+  --layout-top-space: clamp(1.4rem, 1.8vw, 2rem);
+  --layout-sidebar-width: clamp(15rem, 17vw, 17rem);
+  --layout-topbar-height: 5rem;
+}
+
+.app-shell,
+.app-scroll-region,
+.dashboard-content,
+.dashboard-main,
+.dashboard-page-shell {
+  min-width: 0;
+}
+
+.app-scroll-region {
+  overscroll-behavior-x: none;
+}
+
+.dashboard-main {
+  gap: var(--layout-block-gap) !important;
+  padding-top: var(--layout-top-space) !important;
+  padding-right: var(--layout-gutter) !important;
+  padding-left: var(--layout-gutter) !important;
+}
+
+.dashboard-content,
+.dashboard-page-shell {
+  width: 100%;
+  max-width: var(--layout-content-max);
+  margin-inline: auto;
+}
+
+.topbar-shell {
+  height: var(--layout-topbar-height) !important;
+  padding-inline: var(--layout-gutter) !important;
+}
+
+@media (min-width: 1024px) {
+  .sidebar-shell {
+    width: var(--layout-sidebar-width) !important;
+  }
+
+  .dashboard-page-shell {
+    gap: var(--layout-block-gap);
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  :root {
+    --layout-gutter: clamp(1rem, 2.6vw, 1.6rem);
+    --layout-block-gap: clamp(1rem, 2vw, 1.35rem);
+    --layout-top-space: clamp(1.1rem, 2.2vw, 1.5rem);
+    --layout-topbar-height: clamp(4.5rem, 8vw, 5rem);
+  }
+
+  .sidebar-shell {
+    width: min(20rem, 82vw) !important;
+  }
+
+  .dashboard-page-shell {
+    gap: var(--layout-block-gap);
+  }
+
+  .topbar-search-wrap {
+    max-width: none;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --layout-gutter: clamp(0.65rem, 3vw, 0.875rem);
+    --layout-block-gap: clamp(0.75rem, 3vw, 1rem);
+    --layout-top-space: clamp(0.75rem, 3vw, 0.95rem);
+    --layout-topbar-height: 4rem;
+  }
+
+  .dashboard-main {
+    padding-bottom: calc(var(--layout-gutter) + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .dashboard-page-shell {
+    gap: var(--layout-block-gap) !important;
+  }
+
+  .topbar-search-wrap {
+    max-width: none;
   }
 }
