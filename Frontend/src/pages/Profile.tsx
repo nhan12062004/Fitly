@@ -5,6 +5,9 @@ import {
   BadgeCheck,
   BriefcaseBusiness,
   CalendarDays,
+  Check,
+  ChevronRight,
+  Crown,
   HeartPulse,
   Loader2,
   Mail,
@@ -15,6 +18,7 @@ import {
   Scale,
   ShieldCheck,
   User,
+  VenusAndMars,
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
@@ -76,7 +80,7 @@ const getBmiStatus = (bmi: number | null) => {
 };
 
 export default function Profile() {
-  const { user, profile, membershipTier, refreshProfile } = useAuth();
+  const { user, profile, membershipTier, openPremiumModal, refreshProfile } = useAuth();
   const toast = useToast();
   const [formData, setFormData] = useState(emptyForm);
   const [latestBodyCreatedAt, setLatestBodyCreatedAt] = useState('');
@@ -242,145 +246,148 @@ export default function Profile() {
   const lastUpdateLabel = latestBodyCreatedAt ? formatDate(latestBodyCreatedAt) : 'Chưa có mốc';
 
   return (
-    <form onSubmit={handleSave} className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="overflow-hidden rounded-xl border border-border-primary bg-bg-secondary shadow-[0_22px_70px_rgba(0,0,0,0.16)]">
-        <div className="border-b border-border-primary bg-bg-tertiary/45 px-5 py-5 md:px-6">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-accent text-3xl font-black text-text-inverse shadow-[0_16px_38px_rgba(0,0,0,0.18)]">
-                {initial}
-              </div>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-black text-text-primary md:text-3xl">{rawName}</h1>
-                  <span className="inline-flex h-7 items-center rounded-full border border-accent/20 bg-accent/10 px-3 text-xs font-black text-accent">
-                    {membershipLabel}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm font-semibold text-text-secondary">{formatValue(formData.email)}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <ProfilePill icon={<BadgeCheck className="h-3.5 w-3.5" />} label={`Hồ sơ ${completion}%`} tone="accent" />
-                  <ProfilePill icon={<CalendarDays className="h-3.5 w-3.5" />} label={`Cập nhật ${lastUpdateLabel}`} tone="neutral" />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex shrink-0 flex-col-reverse gap-2 sm:flex-row">
-              {isEditing ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    disabled={saving}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-secondary px-5 text-sm font-black text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60"
-                  >
-                    <X className="h-4 w-4" />
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
-                  >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Lưu thay đổi
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
-                >
-                  <PencilLine className="h-4 w-4" />
-                  Chỉnh sửa thông tin
-                </button>
-              )}
-            </div>
+    <form onSubmit={handleSave} className="dashboard-page-shell pb-5 md:pb-7">
+      <header className="mb-5 flex flex-col gap-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_20px_60px_rgba(0,0,0,0.12)] sm:flex-row sm:items-center sm:justify-between md:p-7">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-accent text-2xl font-black text-text-inverse shadow-[0_12px_30px_rgba(0,0,0,0.18)] md:h-20 md:w-20 md:text-3xl">
+            {initial}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-accent">Hồ sơ cá nhân</p>
+            <h1 className="mt-1 truncate text-2xl font-black text-text-primary md:text-3xl">{rawName}</h1>
+            <p className="mt-1 truncate text-sm font-semibold text-text-secondary">{formatValue(formData.email)}</p>
           </div>
         </div>
 
-        <div className="grid gap-0 md:grid-cols-4">
+        <div className="flex shrink-0 flex-col-reverse gap-2 sm:flex-row">
+          {isEditing ? (
+            <>
+              <button type="button" onClick={handleCancel} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60">
+                <X className="h-4 w-4" />
+                Hủy
+              </button>
+              <button type="submit" disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Lưu thay đổi
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setIsEditing(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover">
+              <PencilLine className="h-4 w-4" />
+              Chỉnh sửa hồ sơ
+            </button>
+          )}
+        </div>
+      </header>
+
+      <section className="mb-5 overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_16px_45px_rgba(0,0,0,0.08)]">
+        <div className="grid md:grid-cols-4">
+          <div className="border-b border-border-primary px-5 py-4 md:border-b-0 md:border-r">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Hoàn thiện hồ sơ</p>
+                <p className="mt-1 text-xl font-black text-text-primary">{completion}%</p>
+              </div>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/15 bg-accent/10 text-accent">
+                <BadgeCheck className="h-4 w-4" />
+              </span>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg-tertiary">
+              <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${completion}%` }} />
+            </div>
+            <p className="mt-2 truncate text-[11px] font-semibold text-text-secondary">Cập nhật {lastUpdateLabel}</p>
+          </div>
           <ProfileStat icon={<Scale className="h-4 w-4" />} label="Cân nặng" value={formatMetric(formData.weight, 'kg')} tone="accent" />
           <ProfileStat icon={<Ruler className="h-4 w-4" />} label="Chiều cao" value={formatMetric(formData.height, 'cm')} tone="info" />
           <ProfileStat icon={<Activity className="h-4 w-4" />} label="BMI" value={bmiLabel} helper={bmiStatus} tone="warning" />
-          <ProfileStat icon={<HeartPulse className="h-4 w-4" />} label="Sức khỏe" value={formatValue(formData.health_condition || formData.injuries, 'Không có lưu ý')} tone="danger" />
         </div>
       </section>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.72fr)]">
-        <section className="rounded-xl border border-border-primary bg-bg-secondary p-5 shadow-[0_18px_50px_rgba(0,0,0,0.10)] md:p-6">
-          <SectionTitle
-            icon={<User className="h-4 w-4" />}
-            title="Thông Tin Cơ Bản"
-            helper="Dữ liệu nhận diện và liên hệ của tài khoản."
-          />
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <ProfileField label="Họ và tên" name="full_name" value={formData.full_name} onChange={handleChange} editing={isEditing} icon={<User className="h-4 w-4" />} />
-            <ProfileField label="Email" name="email" value={formData.email} onChange={handleChange} editing={false} icon={<Mail className="h-4 w-4" />} />
-            <ProfileField label="Số điện thoại" name="phone" value={formData.phone} onChange={handleChange} editing={isEditing} icon={<Phone className="h-4 w-4" />} />
-            <ProfileSelect label="Giới tính" name="gender" value={formData.gender} onChange={handleChange} editing={isEditing} options={['Nam', 'Nữ', 'Khác']} />
-            <ProfileField label="Ngày sinh" name="birthday" value={formData.birthday} onChange={handleChange} editing={isEditing} type="date" viewValue={formatDate(formData.birthday)} icon={<CalendarDays className="h-4 w-4" />} />
-            <ProfileField label="Nghề nghiệp" name="job" value={formData.job} onChange={handleChange} editing={isEditing} icon={<BriefcaseBusiness className="h-4 w-4" />} />
-          </div>
-        </section>
+      <main className="min-w-0 space-y-5">
+          <section id="thong-tin-ca-nhan" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_16px_45px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<User className="h-4 w-4" />} title="Thông tin cá nhân" helper="Thông tin nhận diện và liên hệ cơ bản của bạn." />
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <ProfileField label="Họ và tên" name="full_name" value={formData.full_name} onChange={handleChange} editing={isEditing} icon={<User className="h-4 w-4" />} />
+              <ProfileField label="Email" name="email" value={formData.email} onChange={handleChange} editing={false} icon={<Mail className="h-4 w-4" />} />
+              <ProfileField label="Số điện thoại" name="phone" value={formData.phone} onChange={handleChange} editing={isEditing} icon={<Phone className="h-4 w-4" />} />
+              <ProfileSelect label="Giới tính" name="gender" value={formData.gender} onChange={handleChange} editing={isEditing} options={['Nam', 'Nữ', 'Khác']} icon={<VenusAndMars className="h-4 w-4" />} />
+              <ProfileField label="Ngày sinh" name="birthday" value={formData.birthday} onChange={handleChange} editing={isEditing} type="date" viewValue={formatDate(formData.birthday)} icon={<CalendarDays className="h-4 w-4" />} />
+              <ProfileField label="Nghề nghiệp" name="job" value={formData.job} onChange={handleChange} editing={isEditing} icon={<BriefcaseBusiness className="h-4 w-4" />} />
+            </div>
+          </section>
 
-        <aside className="rounded-xl border border-border-primary bg-bg-secondary p-5 shadow-[0_18px_50px_rgba(0,0,0,0.10)] md:p-6">
-          <SectionTitle
-            icon={<ShieldCheck className="h-4 w-4" />}
-            title="Trạng Thái"
-            helper="Tổng quan nhanh về hồ sơ nền."
-          />
-          <div className="mt-5 space-y-3">
-            <StatusRow label="Gói tài khoản" value={membershipLabel} tone="accent" />
-            <StatusRow label="Mức hoàn thiện" value={`${completion}%`} tone="info" />
-            <StatusRow label="BMI" value={`${bmiLabel}${bmi ? ` · ${bmiStatus}` : ''}`} tone="warning" />
-            <StatusRow label="Cập nhật cơ thể" value={lastUpdateLabel} tone="neutral" />
-          </div>
-          <div className="mt-5 rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
-            <p className="text-xs font-black uppercase text-text-tertiary">Ghi chú</p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary">
-              Trang này chỉ quản lý thông tin cá nhân nền. Dữ liệu bổ sung cho AI Coach sẽ xuất hiện qua lời nhắc riêng khi cần.
-            </p>
-          </div>
-        </aside>
-      </div>
+          <div className="grid items-start gap-5 lg:grid-cols-2">
+            <section id="chi-so-co-the" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_16px_45px_rgba(0,0,0,0.08)] md:p-6">
+              <SectionTitle icon={<Ruler className="h-4 w-4" />} title="Chỉ số cơ thể" helper="Mỗi lần lưu sẽ tạo một mốc mới để theo dõi tiến độ." />
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <ProfileField label="Chiều cao" name="height" value={formData.height} onChange={handleChange} editing={isEditing} type="number" suffix="cm" viewValue={formatMetric(formData.height, 'cm')} icon={<Ruler className="h-4 w-4" />} />
+                <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing={isEditing} type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
+                <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing={isEditing} type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
+                <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing={isEditing} type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
+              </div>
+            </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-border-primary bg-bg-secondary p-5 shadow-[0_18px_50px_rgba(0,0,0,0.10)] md:p-6">
-          <SectionTitle
-            icon={<Ruler className="h-4 w-4" />}
-            title="Chỉ Số Cơ Thể"
-            helper="Mỗi lần lưu sẽ tạo một mốc cơ thể mới để theo dõi tiến độ."
-          />
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <ProfileField label="Chiều cao" name="height" value={formData.height} onChange={handleChange} editing={isEditing} type="number" suffix="cm" viewValue={formatMetric(formData.height, 'cm')} icon={<Ruler className="h-4 w-4" />} />
-            <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing={isEditing} type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
-            <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing={isEditing} type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
-            <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing={isEditing} type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
+            <section id="suc-khoe" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_16px_45px_rgba(0,0,0,0.08)] md:p-6">
+              <SectionTitle icon={<HeartPulse className="h-4 w-4" />} title="Sức khỏe cơ bản" helper="Các lưu ý giúp Fitly cá nhân hóa kế hoạch an toàn hơn." />
+              <div className="mt-5 grid gap-4">
+                <ProfileTextArea label="Bệnh nền / lưu ý sức khỏe" name="health_condition" value={formData.health_condition} onChange={handleChange} editing={isEditing} icon={<HeartPulse className="h-4 w-4" />} />
+                <ProfileTextArea label="Chấn thương" name="injuries" value={formData.injuries} onChange={handleChange} editing={isEditing} icon={<Activity className="h-4 w-4" />} />
+                <ProfileTextArea label="Dị ứng / thực phẩm cần tránh" name="allergies" value={formData.allergies} onChange={handleChange} editing={isEditing} icon={<AlertCircle className="h-4 w-4" />} />
+                <ProfileField label="Thuốc đang dùng" name="medications" value={formData.medications} onChange={handleChange} editing={isEditing} icon={<ShieldCheck className="h-4 w-4" />} />
+              </div>
+              <div className="mt-5 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/10 px-4 py-3">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+                <p className="text-sm font-semibold leading-6 text-text-secondary">
+                  Thông tin này không thay thế tư vấn y tế. Hãy hỏi chuyên gia trước khi tập cường độ cao nếu bạn có vấn đề sức khỏe đặc biệt.
+                </p>
+              </div>
+            </section>
           </div>
-        </section>
 
-        <section className="rounded-xl border border-border-primary bg-bg-secondary p-5 shadow-[0_18px_50px_rgba(0,0,0,0.10)] md:p-6">
-          <SectionTitle
-            icon={<HeartPulse className="h-4 w-4" />}
-            title="Sức Khỏe Cơ Bản"
-            helper="Các lưu ý an toàn nền, không thay thế tư vấn y tế."
-          />
-          <div className="mt-5 grid gap-4">
-            <ProfileTextArea label="Bệnh nền / lưu ý sức khỏe" name="health_condition" value={formData.health_condition} onChange={handleChange} editing={isEditing} />
-            <ProfileTextArea label="Chấn thương" name="injuries" value={formData.injuries} onChange={handleChange} editing={isEditing} />
-            <ProfileTextArea label="Dị ứng / thực phẩm cần tránh" name="allergies" value={formData.allergies} onChange={handleChange} editing={isEditing} />
-            <ProfileField label="Thuốc đang dùng" name="medications" value={formData.medications} onChange={handleChange} editing={isEditing} icon={<ShieldCheck className="h-4 w-4" />} />
-          </div>
-          <div className="mt-5 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/10 px-4 py-3">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-            <p className="text-sm font-semibold leading-6 text-text-secondary">
-              Nếu bạn có bệnh nền nặng, đau bất thường hoặc đang dùng thuốc đặc trị, hãy tham khảo chuyên gia y tế trước khi tập cường độ cao.
-            </p>
-          </div>
-        </section>
-      </div>
+          <section id="goi-tai-khoan" className="scroll-mt-5 overflow-hidden rounded-2xl border border-amber-300/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.14),rgba(245,158,11,0.04)_48%,rgba(255,255,255,0.02))] shadow-[0_18px_55px_rgba(0,0,0,0.10)]">
+            <div className="grid gap-6 p-5 md:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">
+                    <Crown className="h-5 w-5 fill-current" />
+                  </span>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-300">Gói tài khoản</p>
+                    <h2 className="mt-1 text-xl font-black text-text-primary">Bạn đang dùng gói {membershipLabel}</h2>
+                  </div>
+                </div>
+                <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">
+                  {membershipTier === 'premium'
+                    ? 'Bạn đang có toàn quyền tạo lại kế hoạch tập luyện, dinh dưỡng và Trợ lý cá nhân.'
+                    : 'Gói Free phù hợp để bắt đầu. Nâng cấp Premium để mở khóa các lần tạo và tinh chỉnh kế hoạch không giới hạn.'}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+                  {(membershipTier === 'premium'
+                    ? ['AI Coach không giới hạn', 'Kế hoạch không giới hạn', 'Ưu tiên tính năng mới']
+                    : ['Trải nghiệm tính năng cốt lõi', '01 lần kích hoạt AI Coach', 'Có thể nâng cấp bất cứ lúc nào']
+                  ).map((benefit) => (
+                    <span key={benefit} className="inline-flex items-center gap-2 text-xs font-bold text-text-secondary">
+                      <Check className="h-3.5 w-3.5 text-amber-300" />
+                      {benefit}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {membershipTier === 'premium' ? (
+                <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-5 py-3 text-center">
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-300">Đang hoạt động</p>
+                  <p className="mt-1 text-sm font-black text-text-primary">Premium</p>
+                </div>
+              ) : (
+                <button type="button" onClick={openPremiumModal} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-300 px-6 text-sm font-black text-text-inverse transition-colors hover:bg-amber-200">
+                  Xem gói Premium
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </section>
+      </main>
     </form>
   );
 }
@@ -410,19 +417,6 @@ function SectionTitle({ icon, title, helper }: { icon: ReactNode; title: string;
         <p className="mt-1 text-sm font-semibold leading-6 text-text-secondary">{helper}</p>
       </div>
     </div>
-  );
-}
-
-function ProfilePill({ icon, label, tone }: { icon: ReactNode; label: string; tone: 'accent' | 'neutral' }) {
-  const classes = tone === 'accent'
-    ? 'border-accent/20 bg-accent/10 text-accent'
-    : 'border-border-primary bg-bg-secondary text-text-secondary';
-
-  return (
-    <span className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs font-black ${classes}`}>
-      {icon}
-      {label}
-    </span>
   );
 }
 
@@ -488,13 +482,14 @@ function ProfileField({
       <span className="text-[10px] font-black uppercase text-text-tertiary">{label}</span>
       {editing ? (
         <div className="relative mt-1.5">
+          {icon ? <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-text-tertiary">{icon}</span> : null}
           <input
             name={name}
             type={type}
             value={value}
             onChange={onChange}
             step={type === 'number' ? '0.1' : undefined}
-            className="h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent"
+            className={`h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${icon ? 'pl-10' : 'pl-3'} ${suffix ? 'pr-10' : 'pr-3'}`}
           />
           {suffix ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-text-tertiary">{suffix}</span> : null}
         </div>
@@ -517,6 +512,7 @@ function ProfileSelect({
   onChange,
   editing,
   options,
+  icon,
 }: {
   label: string;
   name: string;
@@ -524,12 +520,14 @@ function ProfileSelect({
   onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
   editing: boolean;
   options: string[];
+  icon?: ReactNode;
 }) {
   if (!editing) {
     return (
       <div>
         <span className="text-[10px] font-black uppercase text-text-tertiary">{label}</span>
-        <div className="mt-1.5 flex min-h-11 items-center rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-2.5">
+        <div className="mt-1.5 flex min-h-11 items-center gap-3 rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-2.5">
+          {icon ? <span className="shrink-0 text-text-tertiary">{icon}</span> : null}
           <p className="truncate text-sm font-black text-text-primary">{formatValue(value)}</p>
         </div>
       </div>
@@ -539,18 +537,21 @@ function ProfileSelect({
   return (
     <label className="block">
       <span className="text-[10px] font-black uppercase text-text-tertiary">{label}</span>
-      <select
-        name={name}
-        value={value}
-        onChange={onChange}
-        className="mt-1.5 h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+      <div className="relative mt-1.5">
+        {icon ? <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-text-tertiary">{icon}</span> : null}
+        <select
+          name={name}
+          value={value}
+          onChange={onChange}
+          className={`h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary pr-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${icon ? 'pl-10' : 'pl-3'}`}
+        >
+          {options.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </div>
     </label>
   );
 }
@@ -561,56 +562,35 @@ function ProfileTextArea({
   value,
   onChange,
   editing,
+  icon,
 }: {
   label: string;
   name: string;
   value: string;
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
   editing: boolean;
+  icon?: ReactNode;
 }) {
   return (
     <label className="block">
       <span className="text-[10px] font-black uppercase text-text-tertiary">{label}</span>
       {editing ? (
-        <textarea
-          name={name}
-          value={value}
-          onChange={onChange}
-          rows={3}
-          className="mt-1.5 w-full resize-none rounded-xl border border-border-primary bg-bg-tertiary px-3 py-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent"
-        />
+        <div className="relative mt-1.5">
+          {icon ? <span className="pointer-events-none absolute left-3 top-3.5 text-text-tertiary">{icon}</span> : null}
+          <textarea
+            name={name}
+            value={value}
+            onChange={onChange}
+            rows={3}
+            className={`w-full resize-none rounded-xl border border-border-primary bg-bg-tertiary py-3 pr-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${icon ? 'pl-10' : 'pl-3'}`}
+          />
+        </div>
       ) : (
-        <p className="mt-1.5 min-h-[4.75rem] whitespace-pre-line rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-3 text-sm font-semibold leading-6 text-text-primary">
-          {formatValue(value)}
-        </p>
+        <div className="mt-1.5 flex min-h-[4.75rem] items-start gap-3 rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-3">
+          {icon ? <span className="mt-1 shrink-0 text-text-tertiary">{icon}</span> : null}
+          <p className="whitespace-pre-line text-sm font-semibold leading-6 text-text-primary">{formatValue(value)}</p>
+        </div>
       )}
     </label>
-  );
-}
-
-function StatusRow({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: 'accent' | 'info' | 'warning' | 'neutral';
-}) {
-  const marker = {
-    accent: 'bg-accent',
-    info: 'bg-info',
-    warning: 'bg-warning',
-    neutral: 'bg-text-tertiary',
-  }[tone];
-
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${marker}`} />
-        <p className="text-sm font-semibold text-text-secondary">{label}</p>
-      </div>
-      <p className="min-w-0 truncate text-right text-sm font-black text-text-primary">{value}</p>
-    </div>
   );
 }
