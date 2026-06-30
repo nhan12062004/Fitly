@@ -214,6 +214,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
             <p className="text-xs font-black uppercase tracking-[0.22em] text-accent">
               {isLogin ? 'Welcome Back' : 'Start Free'}
             </p>
+            <div className="hidden sm:block">
             <h1 className="mt-5 max-w-[calc(100vw-2rem)] text-3xl font-black leading-[1.08] tracking-normal text-text-primary sm:max-w-3xl sm:text-5xl md:text-6xl">
               {isLogin ? (
                 <>
@@ -256,9 +257,10 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                 </div>
               ))}
             </div>
+            </div>
           </ScrollReveal>
 
-          <ScrollReveal className="w-full min-w-0" delayMs={120}>
+          <ScrollReveal className="mx-auto w-full min-w-0 max-w-[460px]" delayMs={120}>
             <div className="landing-product-card landing-surface rounded-lg border border-border-primary p-5 shadow-[0_28px_90px_rgba(0,0,0,0.34)] sm:p-6">
               <div className="flex items-start justify-between gap-4 border-b border-border-primary pb-5">
                 <div>

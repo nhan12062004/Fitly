@@ -573,7 +573,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
   const progressPercent = (currentStep / TOTAL_STEPS) * 100;
   const surveyFooter = (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-      <div className="order-2 min-w-0 flex-1 sm:order-1 sm:pr-4">
+      <div className="order-2 hidden min-w-0 flex-1 sm:order-1 sm:block sm:pr-4">
         <p className="text-sm font-bold leading-6 text-text-secondary">
           Bạn có thể bổ sung thông tin nâng cao sau khi xem kế hoạch đầu tiên. Bước này chỉ hỏi dữ liệu cần thiết.
         </p>
@@ -1079,7 +1079,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
 
         {/* Form Body */}
         <form id="survey-form" onSubmit={handleSubmit} className="custom-scrollbar mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-y-auto px-0 py-4 sm:px-0 md:px-0 md:py-6">
-          <div className="space-y-6 md:space-y-8">
+          <div className="my-auto space-y-6 md:space-y-8">
             <div className="hidden">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">

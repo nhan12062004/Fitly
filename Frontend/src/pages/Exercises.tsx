@@ -97,6 +97,12 @@ type ExercisesPageCache = {
 
 let exercisesPageCache: ExercisesPageCache | null = null;
 const LIBRARY_VISIBLE_BATCH_SIZE = 12;
+const MOBILE_LIBRARY_VISIBLE_BATCH_SIZE = 4;
+
+const getLibraryVisibleBatchSize = () =>
+  typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+    ? MOBILE_LIBRARY_VISIBLE_BATCH_SIZE
+    : LIBRARY_VISIBLE_BATCH_SIZE;
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DAYS = [
@@ -397,7 +403,8 @@ export default function Exercises() {
   const [appliedMuscleFilter, setAppliedMuscleFilter] = useState('all');
   const [appliedEquipmentFilter, setAppliedEquipmentFilter] = useState('all');
   const [draftEquipmentFilter, setDraftEquipmentFilter] = useState('all');
-  const [visibleLibraryCount, setVisibleLibraryCount] = useState(LIBRARY_VISIBLE_BATCH_SIZE);
+  const [libraryBatchSize, setLibraryBatchSize] = useState(getLibraryVisibleBatchSize);
+  const [visibleLibraryCount, setVisibleLibraryCount] = useState(getLibraryVisibleBatchSize);
   const filterPopoverRef = useRef<HTMLDivElement | null>(null);
   const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
   const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
@@ -875,8 +882,22 @@ export default function Exercises() {
   }, [user, selectedDateKey, vnToday, session, library]);
 
   useEffect(() => {
-    setVisibleLibraryCount(LIBRARY_VISIBLE_BATCH_SIZE);
-  }, [appliedMuscleFilter, appliedEquipmentFilter]);
+    const mobileQuery = window.matchMedia('(max-width: 639px)');
+    const updateBatchSize = () => {
+      const nextBatchSize = mobileQuery.matches
+        ? MOBILE_LIBRARY_VISIBLE_BATCH_SIZE
+        : LIBRARY_VISIBLE_BATCH_SIZE;
+      setLibraryBatchSize(nextBatchSize);
+      setVisibleLibraryCount(nextBatchSize);
+    };
+
+    mobileQuery.addEventListener('change', updateBatchSize);
+    return () => mobileQuery.removeEventListener('change', updateBatchSize);
+  }, []);
+
+  useEffect(() => {
+    setVisibleLibraryCount(libraryBatchSize);
+  }, [appliedMuscleFilter, appliedEquipmentFilter, libraryBatchSize]);
 
   useEffect(() => {
     if (!isFilterModalOpen) return;
@@ -905,8 +926,8 @@ export default function Exercises() {
           </div>
         </div>
 
-        <div className="today-workout-day-tabs mb-4 overflow-x-auto rounded-xl border border-border-primary bg-bg-tertiary/40 p-1 custom-scrollbar">
-          <div ref={dayTabContainerRef} className="relative flex min-w-max gap-1 md:grid md:min-w-0 md:grid-cols-7">
+        <div className="today-workout-day-tabs mb-4 overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary/40 p-1">
+          <div ref={dayTabContainerRef} className="relative grid min-w-0 grid-cols-7 gap-0.5 sm:gap-1">
             <span
               className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
               style={{
@@ -929,12 +950,13 @@ export default function Exercises() {
                   }}
                   type="button"
                   onClick={() => setSelectedDayId(day.id)}
-                  className={`inline-flex min-h-[40px] min-w-[4.25rem] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition md:min-w-0 ${
+                  className={`inline-flex min-h-[40px] min-w-0 items-center justify-center whitespace-nowrap rounded-lg px-1 text-[10px] font-black uppercase transition sm:px-2 sm:text-[11px] sm:tracking-[0.08em] ${
                     isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
                   }`}
                   title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
                 >
-                  {label}
+                  <span className="sm:hidden">{isToday ? 'Nay' : day.label}</span>
+                  <span className="hidden sm:inline">{label}</span>
                 </button>
               );
             })}
@@ -1210,7 +1232,7 @@ export default function Exercises() {
           <div className="mt-4 flex justify-center">
             <button
               type="button"
-              onClick={() => setVisibleLibraryCount((count) => count + LIBRARY_VISIBLE_BATCH_SIZE)}
+              onClick={() => setVisibleLibraryCount((count) => count + libraryBatchSize)}
               className="h-10 px-5 rounded-xl border border-border-primary bg-bg-tertiary text-sm font-black text-text-primary transition-colors hover:border-accent/45 hover:text-accent inline-flex items-center gap-2"
             >
               <ChevronDown className="w-4 h-4" />

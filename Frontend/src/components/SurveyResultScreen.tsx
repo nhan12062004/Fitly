@@ -1,15 +1,10 @@
 import {
   ArrowRight,
   CheckCircle2,
-  ClipboardList,
   Clock3,
   Dumbbell,
-  Flame,
   Loader2,
-  MapPin,
-  Target,
   Utensils,
-  Zap
 } from 'lucide-react';
 import type { SurveyPlanSummary } from './SurveyForm';
 
@@ -18,27 +13,14 @@ interface SurveyResultScreenProps {
   isGeneratingPlan?: boolean;
   generationError?: string;
   onStart: () => void;
-  onRefineProfile?: () => void;
 }
-
-const formatCalories = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
 
 export default function SurveyResultScreen({
   summary,
   isGeneratingPlan = false,
   generationError = '',
-  onStart,
-  onRefineProfile
+  onStart
 }: SurveyResultScreenProps) {
-  const planItems = [
-    { label: 'Mục tiêu', value: summary.goal, icon: Target },
-    { label: 'Trình độ', value: summary.experience, icon: Zap },
-    { label: 'Tần suất', value: summary.frequency, icon: Dumbbell },
-    { label: 'Thời lượng', value: summary.duration, icon: Flame },
-    { label: 'Calo mục tiêu', value: `${formatCalories(summary.targetCalories)} kcal / ngày`, icon: Utensils },
-    { label: 'Nơi tập', value: summary.location, icon: MapPin }
-  ];
-
   const exerciseItems = summary.todayExercises?.length
     ? summary.todayExercises
     : [{ name: summary.todayWorkout, detail: summary.todayDuration }];
@@ -49,24 +31,8 @@ export default function SurveyResultScreen({
   return (
     <div className="min-h-[100dvh] w-full bg-bg-primary px-3 py-3 text-text-primary sm:px-5 sm:py-5 lg:px-10">
       <div className="mx-auto flex min-h-[calc(100dvh-24px)] w-full max-w-6xl flex-col justify-center sm:min-h-[calc(100dvh-40px)]">
-        <section className="rounded-[28px] border border-border-primary bg-bg-secondary p-4 shadow-[0_24px_80px_rgba(0,0,0,0.18)] sm:p-5 md:p-7 lg:p-8">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {planItems.map(({ label, value, icon: Icon }) => (
-              <div key={label} className="rounded-2xl border border-border-primary bg-bg-primary/65 p-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/12 text-accent">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-text-tertiary">{label}</p>
-                    <p className="mt-1 text-sm font-black leading-5 text-text-primary">{value}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 rounded-[24px] border border-border-primary bg-bg-primary/45 p-4 sm:p-5 md:p-6">
+        <section>
+          <div className="rounded-[24px] border border-border-primary bg-bg-primary/45 p-4 sm:p-5 md:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-accent">Hôm nay</p>
@@ -109,8 +75,8 @@ export default function SurveyResultScreen({
               <div className="rounded-2xl border border-border-primary bg-bg-secondary/70 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-text-tertiary">Bài tập</p>
-                    <p className="mt-1 text-lg font-black text-text-primary">{summary.todayWorkout}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-text-tertiary">Bài tập hôm nay</p>
+                    <p className="mt-1 text-lg font-black text-text-primary">Gồm {exerciseItems.length} bài tập hôm nay</p>
                   </div>
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/12 text-accent">
                     <Dumbbell className="h-4 w-4" />
@@ -166,22 +132,12 @@ export default function SurveyResultScreen({
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-            {onRefineProfile ? (
-              <button
-                type="button"
-                onClick={onRefineProfile}
-                className="order-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-ai/25 bg-ai/10 px-6 py-3.5 text-sm font-black text-ai transition-colors hover:bg-ai/15 md:order-1 md:w-auto"
-              >
-                <ClipboardList className="h-4 w-4" />
-                Bổ sung hồ sơ AI trước
-              </button>
-            ) : <span />}
+          <div className="mt-5 flex justify-end">
             <button
               type="button"
               onClick={onStart}
               disabled={isGeneratingPlan}
-              className="order-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60 md:order-2 md:w-auto"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
             >
               {isGeneratingPlan ? (
                 <>

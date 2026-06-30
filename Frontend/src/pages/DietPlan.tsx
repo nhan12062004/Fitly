@@ -1235,8 +1235,8 @@ export default function DietPlan() {
 
             </div>
 
-            <div className="diet-day-tabs overflow-x-auto rounded-xl border border-border-primary bg-bg-tertiary/40 p-1 custom-scrollbar">
-              <div ref={dayTabContainerRef} className="relative flex min-w-max gap-1 md:grid md:min-w-0 md:grid-cols-7">
+            <div className="diet-day-tabs overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary/40 p-1">
+              <div ref={dayTabContainerRef} className="relative grid min-w-0 grid-cols-7 gap-0.5 sm:gap-1">
                 <span
                   className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
                   style={{
@@ -1260,12 +1260,13 @@ export default function DietPlan() {
                       }}
                       type="button"
                       onClick={() => setSelectedDayId(day.id)}
-                      className={`inline-flex min-h-[40px] min-w-[4.25rem] items-center justify-center whitespace-nowrap rounded-lg px-3 text-[11px] font-black uppercase tracking-[0.08em] transition md:min-w-0 ${
+                      className={`inline-flex min-h-[40px] min-w-0 items-center justify-center whitespace-nowrap rounded-lg px-1 text-[10px] font-black uppercase transition sm:px-2 sm:text-[11px] sm:tracking-[0.08em] ${
                         isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
                       }`}
                       title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
                     >
-                      {label}
+                      <span className="sm:hidden">{isTodayLabel ? 'Nay' : day.label.replace(' ', '')}</span>
+                      <span className="hidden sm:inline">{label}</span>
                     </button>
                   );
                 })}
@@ -1345,7 +1346,7 @@ export default function DietPlan() {
           </div>
         </section>
 
-        <section className="diet-card diet-meals-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+        <section className="diet-card diet-meals-shell min-w-0 overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="text-xl font-black text-text-primary md:text-2xl">Các bữa trong ngày</h2>
@@ -1384,7 +1385,7 @@ export default function DietPlan() {
             {visibleMealSummaries.map((meal) => (
               <article
                 key={meal.id}
-                className={`diet-meal-summary-card rounded-xl border p-4 transition-colors ${
+                className={`diet-meal-summary-card min-w-0 overflow-hidden rounded-xl border p-4 transition-colors ${
                   meal.isHighlighted ? 'diet-meal-summary-card-active' : ''
                 }`}
               >
@@ -1417,7 +1418,7 @@ export default function DietPlan() {
 
                 <div className="mt-3 grid gap-2 text-xs font-semibold text-text-tertiary">
                   {meal.items.map((item) => (
-                    <div key={item.tempId} className="diet-food-pill flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
+                    <div key={item.tempId} className="diet-food-pill grid min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-xl border px-3 py-2">
                       <span className="min-w-0 flex-1 truncate text-text-secondary">
                         {item.name} <span className="text-text-tertiary">• {formatFoodQuantity(item)}</span>
                       </span>

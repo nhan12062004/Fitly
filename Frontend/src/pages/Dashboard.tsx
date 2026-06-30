@@ -239,13 +239,6 @@ export default function Dashboard() {
     setIsProfileSupplementOpen(true);
   };
 
-  const refineProfileAfterSurvey = () => {
-    setSurveyPlanSummary(null);
-    setSurveyPlanError('');
-    navigate('/overview', { replace: true });
-    openProfileSupplement();
-  };
-
   // 1. Loading state - Chỉ hiện LoadingScreen toàn màn hình nếu đây là lần đầu kiểm tra và chưa có profile
   // Nếu đã có profile (đang refresh) hoặc đã hiện SurveyForm thì giữ nguyên UI để tránh flickering
   if (isCheckingProfile && !hasProfile && !hasShownSurvey) {
@@ -259,7 +252,6 @@ export default function Dashboard() {
         isGeneratingPlan={isGeneratingSurveyPlan}
         generationError={surveyPlanError}
         onStart={startFirstDay}
-        onRefineProfile={refineProfileAfterSurvey}
       />
     );
   }
