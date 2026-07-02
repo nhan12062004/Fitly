@@ -210,6 +210,16 @@ type AICoachPageCache = {
 };
 
 const aiCoachPageCache = new Map<string, AICoachPageCache>();
+const AI_CHAT_DRAFT_STORAGE_PREFIX = 'fitly:ai-coach-draft:';
+
+const readChatDraft = (storageKey: string | null): string => {
+  if (!storageKey || typeof window === 'undefined') return '';
+  try {
+    return window.sessionStorage.getItem(storageKey) || '';
+  } catch {
+    return '';
+  }
+};
 
 type WorkoutProposalPayload = {
   day_of_week: number;
@@ -1168,6 +1178,7 @@ export default function AICoach() {
   const initialTodayDateKey = getVietnamDateKey();
   const initialWeekStartKey = getWeekStartKey(new Date(`${initialTodayDateKey}T00:00:00`));
   const initialCoachCache = user?.id ? aiCoachPageCache.get(`${user.id}:${initialWeekStartKey}:${initialTodayDateKey}`) || null : null;
+  const chatDraftStorageKey = user?.id ? `${AI_CHAT_DRAFT_STORAGE_PREFIX}${user.id}` : null;
   const [loading, setLoading] = useState(() => !initialCoachCache);
   const [, setIsRefreshingPlan] = useState(false);
   const [, setIsRefreshingChat] = useState(false);
@@ -1181,7 +1192,7 @@ export default function AICoach() {
   const [isSavingPlanSettings, setIsSavingPlanSettings] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [chatInput, setChatInput] = useState('');
+  const [chatInput, setChatInput] = useState(() => readChatDraft(chatDraftStorageKey));
   const [isComposerMenuOpen, setIsComposerMenuOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; size: number; type: string } | null>(null);
@@ -1669,6 +1680,19 @@ export default function AICoach() {
       chatMessages
     });
   }, [cacheKey, plan, items, todaySessionItems, foodItems, lifestyle, chatMessages]);
+
+  useEffect(() => {
+    if (!chatDraftStorageKey) return;
+    try {
+      if (chatInput) {
+        window.sessionStorage.setItem(chatDraftStorageKey, chatInput);
+      } else {
+        window.sessionStorage.removeItem(chatDraftStorageKey);
+      }
+    } catch {
+      // The chat still works when browser storage is unavailable.
+    }
+  }, [chatDraftStorageKey, chatInput]);
 
   const handleAdjustmentAction = async (messageId: string, adjustmentId: string, action: 'apply' | 'reject') => {
     if (!user?.id) return;
