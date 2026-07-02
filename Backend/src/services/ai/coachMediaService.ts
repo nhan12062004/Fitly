@@ -141,27 +141,27 @@ export const analyzeMealPhotoCalories = async ({
 }: AnalyzeMealPhotoInput): Promise<string> => {
   const groqKey = ensureGroqKey();
   const systemPrompt = [
-    'Ban la Fitly AI, coach dinh duong tren Telegram.',
-    'Nhiem vu: nhin anh bua an va uoc tinh calories/macros mot cach thuc te.',
-    'Khong dua con so tuyet doi. Luon tra theo khoang kcal va noi ro do tin cay.',
-    'Neu khong nhin ro mon/khau phan, hoi toi da 1 cau lam ro.',
-    'Tuyet doi khong bao nguoi dung tham khao/hoi/gap chuyen gia dinh duong, dietitian, nutritionist hay nutrition expert.',
-    'Khong tu dong khang dinh da ghi vao Fitly. Neu user muon luu, huong dan nhan "ghi 650 kcal" hoac con so ho chon.',
-    'Tra loi bang tieng Viet ngan gon, de doc tren dien thoai, khong dung bang markdown.',
+    'Bạn là Fitly AI, coach dinh dưỡng trên Telegram.',
+    'Nhiệm vụ: nhìn ảnh bữa ăn và ước tính calories/macros một cách thực tế.',
+    'Không đưa con số tuyệt đối. Luôn trả theo khoảng kcal và nói rõ độ tin cậy.',
+    'Nếu không nhìn rõ món/khẩu phần, hỏi tối đa 1 câu làm rõ.',
+    'Tuyệt đối không bảo người dùng tham khảo/hỏi/gặp chuyên gia dinh dưỡng, dietitian, nutritionist hay nutrition expert.',
+    'Không tự động khẳng định đã ghi vào Fitly và không thêm hướng dẫn lưu; hệ thống sẽ tự thêm một câu lưu ngắn.',
+    'Trả lời bằng tiếng Việt đầy đủ dấu, ngắn gọn, dễ đọc trên điện thoại, không dùng bảng markdown.',
   ].join('\n');
 
   const promptText = [
-    `Nguoi dung: ${profileName || 'khach hang'}`,
-    `Caption/cau hoi: ${truncate(userQuestion, 500) || 'Uoc tinh calories cua bua an trong anh.'}`,
+    `Người dùng: ${profileName || 'khách hàng'}`,
+    `Caption/câu hỏi: ${truncate(userQuestion, 500) || 'Ước tính calories của bữa ăn trong ảnh.'}`,
     '',
-    '[DU LIEU FITLY TOM TAT]',
-    truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chua co du lieu Fitly kem theo.',
+    '[DỮ LIỆU FITLY TÓM TẮT]',
+    truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chưa có dữ liệu Fitly kèm theo.',
     '',
-    'Hay tra loi theo format:',
-    '- Mon/co thanh phan minh nhin thay',
-    '- Uoc tinh kcal theo khoang va protein/carbs/fat neu co the',
-    '- Gia dinh quan trong ve khau phan/dau/sot',
-    '- Mot cau de user xac nhan hoac cach ghi vao Fitly',
+    'Hãy trả lời theo format:',
+    '- Món/các thành phần mình nhìn thấy',
+    '- Ước tính kcal theo khoảng và protein/carbs/fat nếu có thể',
+    '- Giả định: tối đa một dòng ngắn về khẩu phần/dầu/sốt',
+    'Kết thúc ngay sau dòng giả định, không thêm câu hỏi hay hướng dẫn lưu.',
   ].join('\n');
 
   const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
@@ -210,23 +210,23 @@ export const answerVoiceCoachQuestion = ({
   temperature = 0.5,
 }: AnswerVoiceCoachQuestionInput): Promise<string> => {
   const systemPrompt = [
-    'Ban la Fitly AI, coach dinh duong va tap luyen tren Telegram.',
-    'Nguoi dung vua gui ghi am; he thong da chuyen thanh text.',
-    'Neu transcript mo ta bua an hoac hoi calories, hay uoc tinh calories/macros theo khoang, neu ro rang thi dua con so de user co the ghi lai.',
-    'Neu transcript la cau hoi fitness/dinh duong khac, tra loi nhu AI Coach binh thuong.',
-    'Khong dua con so tuyet doi khi thieu khau phan. Khong noi da ghi vao Fitly neu user chua xac nhan bang text.',
-    'Tra loi bang tieng Viet ngan gon, de doc tren dien thoai.',
+    'Bạn là Fitly AI, coach dinh dưỡng và tập luyện trên Telegram.',
+    'Người dùng vừa gửi ghi âm; hệ thống đã chuyển thành text.',
+    'Nếu transcript mô tả bữa ăn hoặc hỏi calories, hãy ước tính calories/macros theo khoảng; nếu rõ ràng thì đưa con số để user có thể ghi lại.',
+    'Nếu transcript là câu hỏi fitness/dinh dưỡng khác, trả lời như AI Coach bình thường.',
+    'Không đưa con số tuyệt đối khi thiếu khẩu phần. Không nói đã ghi vào Fitly nếu user chưa xác nhận bằng text.',
+    'Trả lời bằng tiếng Việt đầy đủ dấu, ngắn gọn, dễ đọc trên điện thoại.',
     '',
-    `[NGUOI DUNG] ${profileName || 'khach hang'}`,
-    '[DU LIEU FITLY TOM TAT]',
-    truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chua co du lieu Fitly kem theo.',
+    `[NGƯỜI DÙNG] ${profileName || 'khách hàng'}`,
+    '[DỮ LIỆU FITLY TÓM TẮT]',
+    truncate(coachContext, MAX_MEDIA_CONTEXT_CHARS) || 'Chưa có dữ liệu Fitly kèm theo.',
   ].join('\n');
 
   const userMessage = [
-    userQuestion ? `Caption/cau hoi kem theo: ${truncate(userQuestion, 500)}` : '',
-    `Transcript ghi am: ${truncate(transcript, 2500)}`,
+    userQuestion ? `Caption/câu hỏi kèm theo: ${truncate(userQuestion, 500)}` : '',
+    `Transcript ghi âm: ${truncate(transcript, 2500)}`,
     '',
-    'Hay tra loi truc tiep. Neu day la mo ta bua an, uoc tinh kcal va noi ro cach user co the ghi vao Fitly bang tin nhan "ghi ... kcal".',
+    'Hãy trả lời trực tiếp. Nếu đây là mô tả bữa ăn, ước tính kcal và nói rõ cách user có thể ghi vào Fitly bằng tin nhắn "ghi ... kcal".',
   ].filter(Boolean).join('\n');
 
   return callCoachCompletion({

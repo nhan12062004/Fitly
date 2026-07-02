@@ -1342,7 +1342,7 @@ async function handleTelegramMediaMessage(bot: TelegramBot, msg: TelegramBot.Mes
         reply = [
           reply,
           '',
-          `Nếu muốn lưu chi tiết bữa này, nhắn: "ghi ${pendingEstimate.calories} kcal" hoặc "lưu bữa này".`,
+          `Lưu bữa: nhắn "ghi ${pendingEstimate.calories} kcal".`,
         ].join('\n');
       }
       const userHistoryText = `[Anh bua an] ${media.caption || 'Hoi uoc tinh calories tu anh bua an.'}`;
@@ -1378,7 +1378,7 @@ async function handleTelegramMediaMessage(bot: TelegramBot, msg: TelegramBot.Mes
       reply = [
         reply,
         '',
-        `Nếu muốn lưu chi tiết bữa này, nhắn: "ghi ${pendingEstimate.calories} kcal" hoặc "lưu bữa này".`,
+        `Lưu bữa: nhắn "ghi ${pendingEstimate.calories} kcal".`,
       ].join('\n');
     }
     const responseText = [
