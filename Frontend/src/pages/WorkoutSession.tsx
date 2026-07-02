@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Pause, Play, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,6 +6,7 @@ import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
+import { syncChallengeCheckin } from '../lib/Challenges';
 
 interface SessionExercise {
   id: string;
@@ -392,6 +393,7 @@ export default function WorkoutSession() {
   const [completedIds, setCompletedIds] = useState<string[]>(
     orderedSession.filter((item) => item.is_completed).map((item) => item.id)
   );
+  const hasSyncedChallengeStart = useRef(false);
 
   const activeExercise = orderedSession[activeIndex] || null;
   const activeExerciseSets = getExerciseSets(activeExercise);
@@ -404,6 +406,21 @@ export default function WorkoutSession() {
   const currentSetNumber = activeExercise ? Math.min(activeExerciseSets, completedSetCount + 1) : 1;
   const timerProgress = startingSeconds > 0 ? secondsLeft / startingSeconds : 0;
   const timerAngle = Math.max(0, Math.min(360, timerProgress * 360));
+
+  useEffect(() => {
+    if (!user?.id || orderedSession.length === 0 || hasSyncedChallengeStart.current) return;
+    const todayInVietnam = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    if (state.logDate && state.logDate !== todayInVietnam) return;
+    hasSyncedChallengeStart.current = true;
+    void syncChallengeCheckin(user.id, 'workout').catch((error) => {
+      console.warn('Challenge workout-start sync failed:', error);
+    });
+  }, [orderedSession.length, state.logDate, user?.id]);
 
   useEffect(() => {
     setCompletedSetsByExercise(

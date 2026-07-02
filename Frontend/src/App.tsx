@@ -7,6 +7,8 @@ import AuthPage from './pages/AuthPage';
 import AICoach from './pages/AICoach';
 import AdminPanel from './pages/AdminPanel';
 import CourseDetails from './pages/CourseDetails';
+import Challenges from './pages/Challenges';
+import ChallengeDetails from './pages/ChallengeDetails';
 import Dashboard from './pages/Dashboard';
 import DietPlan from './pages/DietPlan';
 import ExerciseDetails from './pages/ExerciseDetails';
@@ -44,6 +46,8 @@ export default function App() {
                   <Route path="diet-plan" element={<DietPlan />} />
                   <Route path="profile" element={<Profile />} />
                   <Route path="progress" element={<Progress />} />
+                  <Route path="challenges" element={<Challenges />} />
+                  <Route path="challenges/:id" element={<ChallengeDetails />} />
                   <Route path="workout-builder" element={<Navigate to="/exercises" replace />} />
                   <Route path="admin-panel" element={<AdminPanel />} />
                 </Route>

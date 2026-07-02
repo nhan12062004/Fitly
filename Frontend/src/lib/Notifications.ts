@@ -1,4 +1,5 @@
 import { supabase } from './Supabase';
+import { ensureChallengeNotifications, syncChallengeCheckin } from './Challenges';
 
 export type NotificationTone = 'workout' | 'nutrition' | 'coach' | 'progress' | 'system';
 
@@ -199,6 +200,10 @@ export const recordWaterFromNotification = async (userId: string, amountMl = 250
 
   if (error) throw error;
 
+  await syncChallengeCheckin(userId, 'water').catch((challengeError) => {
+    console.warn('Challenge water check-in sync failed:', challengeError);
+  });
+
   window.dispatchEvent(new CustomEvent('fitly:water-updated', {
     detail: { waterIntake: nextMl / 1000 }
   }));
@@ -219,6 +224,9 @@ export const recordSleepFromNotification = async (userId: string, sleepHours: nu
     }, { onConflict: 'user_id,log_date' });
 
   if (error) throw error;
+  await syncChallengeCheckin(userId, 'sleep').catch((challengeError) => {
+    console.warn('Challenge sleep check-in sync failed:', challengeError);
+  });
   return normalizedHours;
 };
 
@@ -446,7 +454,12 @@ export const ensureActionableNotifications = async (userId: string) => {
     }
   }
 
-  if (rows.length === 0) return;
+  if (rows.length === 0) {
+    await ensureChallengeNotifications(userId).catch((challengeError) => {
+      console.warn('Challenge notification sync failed:', challengeError);
+    });
+    return;
+  }
 
   await supabase
     .from('user_notifications')
@@ -459,4 +472,8 @@ export const ensureActionableNotifications = async (userId: string) => {
     .upsert(rows, { onConflict: 'user_id,dedupe_key' });
 
   if (error) throw error;
+
+  await ensureChallengeNotifications(userId).catch((challengeError) => {
+    console.warn('Challenge notification sync failed:', challengeError);
+  });
 };

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { CheckCircle2, ChevronRight, Droplet, Dumbbell, Sparkles, Utensils } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import ActiveChallengeCard from '../components/ActiveChallengeCard';
 import { supabase } from '../lib/Supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -694,6 +695,8 @@ export default function Overview() {
           </span>
         </div>
       </section>
+
+      <ActiveChallengeCard />
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:col-span-2 md:p-6 xl:col-span-1">
