@@ -221,6 +221,19 @@ const readChatDraft = (storageKey: string | null): string => {
   }
 };
 
+const writeChatDraft = (storageKey: string | null, value: string): void => {
+  if (!storageKey || typeof window === 'undefined') return;
+  try {
+    if (value) {
+      window.sessionStorage.setItem(storageKey, value);
+    } else {
+      window.sessionStorage.removeItem(storageKey);
+    }
+  } catch {
+    // The chat still works when browser storage is unavailable.
+  }
+};
+
 type WorkoutProposalPayload = {
   day_of_week: number;
   duration_minutes: number;
@@ -1683,15 +1696,7 @@ export default function AICoach() {
 
   useEffect(() => {
     if (!chatDraftStorageKey) return;
-    try {
-      if (chatInput) {
-        window.sessionStorage.setItem(chatDraftStorageKey, chatInput);
-      } else {
-        window.sessionStorage.removeItem(chatDraftStorageKey);
-      }
-    } catch {
-      // The chat still works when browser storage is unavailable.
-    }
+    writeChatDraft(chatDraftStorageKey, chatInput);
   }, [chatDraftStorageKey, chatInput]);
 
   const handleAdjustmentAction = async (messageId: string, adjustmentId: string, action: 'apply' | 'reject') => {
@@ -2194,7 +2199,17 @@ export default function AICoach() {
                   <textarea
                     ref={chatInputRef}
                     value={chatInput}
-                    onChange={(event) => setChatInput(event.target.value)}
+                    onChange={(event) => {
+                      const nextValue = event.currentTarget.value;
+                      setChatInput(nextValue);
+                      writeChatDraft(chatDraftStorageKey, nextValue);
+                    }}
+                    onCompositionEnd={(event) => {
+                      const finalValue = event.currentTarget.value;
+                      setChatInput(finalValue);
+                      writeChatDraft(chatDraftStorageKey, finalValue);
+                    }}
+                    onBlur={(event) => writeChatDraft(chatDraftStorageKey, event.currentTarget.value)}
                     onKeyDown={handleComposerKeyDown}
                     rows={1}
                     wrap="soft"
