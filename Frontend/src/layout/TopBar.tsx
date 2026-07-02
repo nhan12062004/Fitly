@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/Supabase';
 import {
+  archiveNotification,
   ensureActionableNotifications,
   fetchUserNotifications,
   markAllUserNotificationsRead,
@@ -366,9 +367,10 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const recordWater = async (item: UserNotification) => {
     if (!user?.id || recordingWaterId) return;
     setRecordingWaterId(item.id);
+    setNotifications((items) => items.filter((notification) => notification.id !== item.id));
     try {
       await recordWaterFromNotification(user.id);
-      await loadNotifications(true);
+      await archiveNotification(user.id, item.id);
     } catch (error) {
       console.error('Notification water record error:', error);
       await loadNotifications(false);
@@ -527,7 +529,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
                 </span>
               </button>
 
-              {isWaterNotification(item) && (
+              {isWaterNotification(item) && !isRead && (
                 <button
                   type="button"
                   onClick={() => recordWater(item)}

@@ -170,12 +170,12 @@ export default function Notifications() {
   const recordWater = async (item: UserNotification, amountMl: number) => {
     if (!user?.id || recordingActionId) return;
     setRecordingActionId(`${item.id}:water:${amountMl}`);
+    const readAt = new Date().toISOString();
+    setNotifications((items) => items.map((notification) => (
+      notification.id === item.id ? { ...notification, read_at: notification.read_at || readAt } : notification
+    )));
     try {
       await recordWaterFromNotification(user.id, amountMl);
-      const readAt = new Date().toISOString();
-      setNotifications((items) => items.map((notification) => (
-        notification.id === item.id ? { ...notification, read_at: notification.read_at || readAt } : notification
-      )));
       await markNotificationRead(user.id, item.id);
       await loadNotifications(false);
     } catch (error) {
@@ -189,12 +189,12 @@ export default function Notifications() {
   const recordSleep = async (item: UserNotification, sleepHours: number) => {
     if (!user?.id || recordingActionId) return;
     setRecordingActionId(`${item.id}:sleep:${sleepHours}`);
+    const readAt = new Date().toISOString();
+    setNotifications((items) => items.map((notification) => (
+      notification.id === item.id ? { ...notification, read_at: notification.read_at || readAt } : notification
+    )));
     try {
       await recordSleepFromNotification(user.id, sleepHours);
-      const readAt = new Date().toISOString();
-      setNotifications((items) => items.map((notification) => (
-        notification.id === item.id ? { ...notification, read_at: notification.read_at || readAt } : notification
-      )));
       await markNotificationRead(user.id, item.id);
       await loadNotifications(false);
     } catch (error) {

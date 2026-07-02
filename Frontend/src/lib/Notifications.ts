@@ -155,6 +155,21 @@ export const markNotificationRead = async (userId: string, notificationId: strin
   if (error) throw error;
 };
 
+export const archiveNotification = async (userId: string, notificationId: string) => {
+  const completedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('user_notifications')
+    .update({
+      read_at: completedAt,
+      expires_at: completedAt,
+      updated_at: completedAt,
+    })
+    .eq('id', notificationId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+};
+
 export const markAllUserNotificationsRead = async (userId: string) => {
   const { error } = await supabase
     .from('user_notifications')
