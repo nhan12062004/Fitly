@@ -2126,7 +2126,9 @@ function schedulePremiumMondayAutoPlanner() {
   console.log(`[premium-auto-planner] Scheduled with cron "${PREMIUM_AUTO_PLAN_CRON}" (${VIETNAM_TIMEZONE})`);
 }
 
-const telegramBot = initTelegramBot();
+// Telegram polling và reminder cron chỉ chạy trên môi trường deploy (Render).
+// Backend local không khởi tạo Telegram runtime.
+const telegramBot = IS_PRODUCTION ? initTelegramBot() : null;
 
 const defaultAllowedOrigins = [
   'https://fitly.vercel.app',
@@ -4875,7 +4877,7 @@ schedulePremiumMondayAutoPlanner();
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  if (!telegramBot) {
+  if (IS_PRODUCTION && !telegramBot && process.env.TELEGRAM_BOT_ENABLED !== 'false') {
     console.warn('Telegram bot chua khoi dong; vui long kiem tra TELEGRAM_BOT_TOKEN.');
   }
 });

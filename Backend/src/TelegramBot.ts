@@ -1704,6 +1704,11 @@ const setupCallbackHandlers = (bot: TelegramBot) => {
 };
 
 export const initTelegramBot = () => {
+  if (process.env.TELEGRAM_BOT_ENABLED === 'false') {
+    console.log('ℹ️ Telegram Bot đã tắt trên môi trường này (TELEGRAM_BOT_ENABLED=false).');
+    return null;
+  }
+
   if (!token) {
     console.warn('⚠️ TELEGRAM_BOT_TOKEN không tồn tại. Bot sẽ không được khởi chạy.');
     return null;
