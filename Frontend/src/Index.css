@@ -2321,6 +2321,9 @@ svg {
 
 .ai-chat-composer textarea {
   min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .responsive-sheet-panel {

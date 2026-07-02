@@ -1575,6 +1575,17 @@ export default function AICoach() {
   }, [user?.id, reloadKey, todayDateKey, cacheKey]);
 
   useLayoutEffect(() => {
+    const textarea = chatInputRef.current;
+    if (!textarea) return;
+
+    const maxHeight = 96;
+    textarea.style.height = 'auto';
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }, [chatInput]);
+
+  useLayoutEffect(() => {
     if (loading || !isLoggedIn) return;
 
     const container = chatScrollRef.current;
@@ -2136,7 +2147,7 @@ export default function AICoach() {
                   className="hidden"
                   onChange={handleAttachmentChange}
                 />
-                <div className="ai-chat-composer flex min-h-11 items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)] sm:gap-2">
+                <div className="ai-chat-composer flex min-h-11 items-end gap-1.5 rounded-[22px] border border-border-primary bg-bg-secondary px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)] sm:gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -2162,8 +2173,9 @@ export default function AICoach() {
                     onChange={(event) => setChatInput(event.target.value)}
                     onKeyDown={handleComposerKeyDown}
                     rows={1}
+                    wrap="soft"
                     placeholder="Nhắn tin cho AI Coach hôm nay..."
-                    className="max-h-24 min-h-[24px] flex-1 resize-none bg-transparent py-0.5 text-sm font-semibold text-text-primary outline-none placeholder:text-text-tertiary"
+                    className="max-h-24 min-h-[24px] flex-1 resize-none overflow-x-hidden bg-transparent py-0.5 text-sm font-semibold text-text-primary outline-none placeholder:text-text-tertiary"
                   />
                   <button
                     type="button"
