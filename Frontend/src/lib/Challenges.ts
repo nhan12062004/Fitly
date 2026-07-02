@@ -52,6 +52,16 @@ const assertCurrentUser = async (userId: string) => {
 
 const normalizeSummary = (row: ChallengeSummary): ChallengeSummary => ({
   ...row,
+  title: row.title === '7-Day Check-in Challenge'
+    ? 'Thử thách điểm danh 7 ngày'
+    : row.title === '7-Day Crew Check-in'
+      ? 'Thử thách nhóm 7 ngày'
+      : row.title,
+  description: row.description === 'Complete at least 1 healthy action per day.'
+    ? 'Hoàn thành ít nhất một hành động lành mạnh mỗi ngày.'
+    : row.description === 'Keep the habit going together for 7 days.'
+      ? 'Cùng nhau duy trì thói quen lành mạnh trong 7 ngày.'
+      : row.description,
   max_members: Number(row.max_members || 1),
   participant_count: Number(row.participant_count || 0),
   today_checkin_count: Number(row.today_checkin_count || 0),
@@ -61,7 +71,7 @@ const normalizeSummary = (row: ChallengeSummary): ChallengeSummary => ({
 
 export const createSoloChallenge = async (
   userId: string,
-  title = '7-Day Check-in Challenge',
+  title = 'Thử thách điểm danh 7 ngày',
 ): Promise<string> => {
   await assertCurrentUser(userId);
   const { data, error } = await supabase.rpc('create_solo_challenge', {
@@ -73,7 +83,7 @@ export const createSoloChallenge = async (
 
 export const createCrewChallenge = async (
   userId: string,
-  title = '7-Day Crew Check-in',
+  title = 'Thử thách nhóm 7 ngày',
 ): Promise<string> => {
   await assertCurrentUser(userId);
   const { data, error } = await supabase.rpc('create_crew_challenge', {
@@ -182,19 +192,19 @@ export const ensureChallengeNotifications = async (userId: string): Promise<void
     && status.participantCount > 0
     && status.checkedInCount >= status.participantCount;
   const title = isCrewComplete
-    ? 'Your crew completed today’s challenge'
+    ? 'Cả nhóm đã hoàn thành thử thách hôm nay'
     : status.userCheckedIn
-      ? 'You completed today’s challenge'
-      : 'Keep the habit going';
+      ? 'Bạn đã hoàn thành thử thách hôm nay'
+      : 'Hãy duy trì thói quen';
   const message = isCrewComplete
     ? 'Cả nhóm đã check in hôm nay. Một ngày rất đẹp của sự đều đặn.'
     : status.challenge.mode === 'crew'
       ? status.userCheckedIn
-        ? `Crew của bạn đã có ${status.checkedInCount}/${status.participantCount} check-in hôm nay.`
-        : `Crew đã có ${status.checkedInCount}/${status.participantCount} check-in. Your crew is waiting for your check-in.`
+        ? `Nhóm của bạn đã có ${status.checkedInCount}/${status.participantCount} người điểm danh hôm nay.`
+        : `Nhóm đã có ${status.checkedInCount}/${status.participantCount} người điểm danh và đang chờ bạn.`
       : status.userCheckedIn
         ? 'Bạn đã hoàn thành ít nhất một hành động lành mạnh hôm nay.'
-        : 'Bạn chưa check in cho challenge hôm nay.';
+        : 'Bạn chưa điểm danh cho thử thách hôm nay.';
 
   const now = new Date().toISOString();
   const { error } = await supabase

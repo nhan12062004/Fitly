@@ -77,10 +77,10 @@ function ChallengeCard({ challenge, onOpen }: { challenge: ChallengeSummary; onO
   const isCrew = challenge.mode === 'crew';
   const isDefaultSolo = !isCrew && challenge.target?.is_default === true;
   const progressText = isCrew
-    ? `${challenge.today_checkin_count}/${challenge.participant_count} members checked in today`
+    ? `${challenge.today_checkin_count}/${challenge.participant_count} thành viên đã điểm danh hôm nay`
     : challenge.user_checked_in
-      ? 'You completed today’s challenge'
-      : 'Check in today to keep the habit going';
+      ? 'Bạn đã hoàn thành thử thách hôm nay'
+      : 'Điểm danh hôm nay để giữ vững thói quen';
 
   return (
     <article className="flex min-w-0 flex-col rounded-2xl border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_18px_48px_rgba(0,0,0,0.14)]">
@@ -90,7 +90,7 @@ function ChallengeCard({ challenge, onOpen }: { challenge: ChallengeSummary; onO
             isCrew ? 'bg-ai/10 text-ai' : 'bg-accent/10 text-accent'
           }`}>
             {isCrew ? <Users className="h-3 w-3" /> : <Flame className="h-3 w-3" />}
-            {isCrew ? 'Crew' : isDefaultSolo ? 'Solo · Default' : 'Solo'}
+            {isCrew ? 'Nhóm' : isDefaultSolo ? 'Cá nhân · Mặc định' : 'Cá nhân'}
           </span>
           <h3 className="mt-3 truncate text-lg font-black text-text-primary">{challenge.title}</h3>
         </div>
@@ -121,7 +121,7 @@ function ChallengeCard({ challenge, onOpen }: { challenge: ChallengeSummary; onO
         onClick={onOpen}
         className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary text-sm font-black text-text-primary transition-colors hover:border-accent/35 hover:text-accent"
       >
-        View Challenge
+        Xem thử thách
         <ArrowRight className="h-4 w-4" />
       </button>
     </article>
@@ -136,7 +136,7 @@ export default function Challenges() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialog, setDialog] = useState<'crew' | 'join' | null>(null);
-  const [crewTitle, setCrewTitle] = useState('7-Day Crew Check-in');
+  const [crewTitle, setCrewTitle] = useState('Thử thách nhóm 7 ngày');
   const [inviteCode, setInviteCode] = useState('');
 
   const activeChallenges = useMemo(
@@ -153,7 +153,7 @@ export default function Challenges() {
     try {
       setChallenges(await getUserChallenges(user.id));
     } catch (error) {
-      toast.error(getErrorText(error, 'Không thể tải Challenges.'));
+      toast.error(getErrorText(error, 'Không thể tải danh sách thử thách.'));
     } finally {
       setIsLoading(false);
     }
@@ -170,10 +170,10 @@ export default function Challenges() {
     try {
       const challengeId = await createCrewChallenge(user.id, crewTitle.trim() || undefined);
       setDialog(null);
-      toast.success('Crew Challenge đã sẵn sàng. Hãy gửi mã mời cho bạn bè.');
+      toast.success('Thử thách nhóm đã sẵn sàng. Hãy gửi mã mời cho bạn bè.');
       navigate(`/challenges/${challengeId}`);
     } catch (error) {
-      toast.error(getErrorText(error, 'Không thể tạo Crew Challenge.'));
+      toast.error(getErrorText(error, 'Không thể tạo thử thách nhóm.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -186,10 +186,10 @@ export default function Challenges() {
     try {
       const challengeId = await joinChallengeByInviteCode(user.id, inviteCode);
       setDialog(null);
-      toast.success('Bạn đã tham gia Crew Challenge.');
+      toast.success('Bạn đã tham gia thử thách nhóm.');
       navigate(`/challenges/${challengeId}`);
     } catch (error) {
-      toast.error(getErrorText(error, 'Không thể tham gia Crew Challenge.'));
+      toast.error(getErrorText(error, 'Không thể tham gia thử thách nhóm.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -202,11 +202,11 @@ export default function Challenges() {
           <div className="max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-accent">
               <Trophy className="h-3.5 w-3.5" />
-              Challenges
+              Thử thách
             </div>
-            <h1 className="mt-4 text-2xl font-black text-text-primary md:text-3xl">Consistency beats intensity</h1>
+            <h1 className="mt-4 text-2xl font-black text-text-primary md:text-3xl">Đều đặn quan trọng hơn cường độ</h1>
             <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary md:text-base">
-              Check in with one healthy action each day—on your own or with a small crew.
+              Mỗi ngày hoàn thành một hành động lành mạnh, một mình hoặc cùng nhóm bạn thân.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -216,7 +216,7 @@ export default function Challenges() {
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-border-primary bg-bg-secondary/80 px-4 text-sm font-black text-text-primary hover:border-ai/35"
             >
               <UserPlus className="h-4 w-4" />
-              Join with code
+              Tham gia bằng mã
             </button>
             <button
               type="button"
@@ -224,7 +224,7 @@ export default function Challenges() {
               className="inline-flex h-11 items-center gap-2 rounded-xl bg-ai px-4 text-sm font-black text-white hover:opacity-90"
             >
               <Users className="h-4 w-4" />
-              Create Crew
+              Tạo nhóm thử thách
             </button>
           </div>
         </div>
@@ -239,13 +239,13 @@ export default function Challenges() {
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/10 text-accent">
             <Flame className="h-8 w-8" />
           </div>
-          <h2 className="mt-5 text-xl font-black text-text-primary">Your first streak starts with one action</h2>
+          <h2 className="mt-5 text-xl font-black text-text-primary">Chuỗi ngày đầu tiên bắt đầu từ một hành động nhỏ</h2>
           <p className="mt-2 max-w-md text-sm leading-6 text-text-secondary">
-            Fitly is preparing your default Solo Challenge. Water, a meal, sleep or a workout will count automatically.
+            Fitly đang chuẩn bị thử thách cá nhân mặc định. Uống nước, ghi bữa ăn, giấc ngủ hoặc tập luyện đều được tự động ghi nhận.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             <button type="button" onClick={() => setDialog('crew')} className="rounded-xl border border-border-primary px-5 py-3 text-sm font-black text-text-primary">
-              Create Crew Challenge
+              Tạo thử thách nhóm
             </button>
           </div>
         </section>
@@ -254,8 +254,8 @@ export default function Challenges() {
           <section>
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.15em] text-accent">Keep the habit going</p>
-                <h2 className="mt-1 text-xl font-black text-text-primary">Active challenges</h2>
+                <p className="text-xs font-black uppercase tracking-[0.15em] text-accent">Duy trì thói quen</p>
+                <h2 className="mt-1 text-xl font-black text-text-primary">Thử thách đang diễn ra</h2>
               </div>
               <span className="rounded-full bg-accent/10 px-3 py-1 text-xs font-black text-accent">{activeChallenges.length}</span>
             </div>
@@ -267,7 +267,7 @@ export default function Challenges() {
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-border-primary bg-bg-secondary/50 px-5 py-8 text-center text-sm font-semibold text-text-secondary">
-                Bạn chưa có challenge đang hoạt động.
+                Bạn chưa có thử thách đang hoạt động.
               </div>
             )}
           </section>
@@ -275,7 +275,7 @@ export default function Challenges() {
           {completedChallenges.length > 0 && (
             <section>
               <div className="mb-3 flex items-end justify-between gap-3">
-                <h2 className="text-xl font-black text-text-primary">Completed challenges</h2>
+                <h2 className="text-xl font-black text-text-primary">Thử thách đã hoàn thành</h2>
                 <span className="rounded-full bg-bg-tertiary px-3 py-1 text-xs font-black text-text-secondary">{completedChallenges.length}</span>
               </div>
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -290,13 +290,13 @@ export default function Challenges() {
 
       {dialog === 'crew' && (
         <ChallengeDialog
-          title="Create Crew Challenge"
-          description="A private 7-day challenge for up to 5 people. You will receive an invite code after creating it."
+          title="Tạo thử thách nhóm"
+          description="Thử thách riêng tư kéo dài 7 ngày, tối đa 5 người. Bạn sẽ nhận được mã mời sau khi tạo."
           onClose={() => setDialog(null)}
         >
           <form onSubmit={createCrew} className="mt-5 space-y-4">
             <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">Challenge title</span>
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">Tên thử thách</span>
               <input
                 autoFocus
                 value={crewTitle}
@@ -306,7 +306,7 @@ export default function Challenges() {
               />
             </label>
             <div className="rounded-xl bg-bg-tertiary/60 p-4 text-sm font-semibold leading-6 text-text-secondary">
-              Goal: at least one healthy action per person, every day, for 7 days.
+              Mục tiêu: mỗi người hoàn thành ít nhất một hành động lành mạnh mỗi ngày trong 7 ngày.
             </div>
             <button
               type="submit"
@@ -314,7 +314,7 @@ export default function Challenges() {
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ai text-sm font-black text-white disabled:opacity-50"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
-              Create Crew Challenge
+              Tạo thử thách nhóm
             </button>
           </form>
         </ChallengeDialog>
@@ -322,8 +322,8 @@ export default function Challenges() {
 
       {dialog === 'join' && (
         <ChallengeDialog
-          title="Join Crew Challenge"
-          description="Enter the 8-character invite code shared by a crew member."
+          title="Tham gia thử thách nhóm"
+          description="Nhập mã mời gồm 8 ký tự do một thành viên trong nhóm chia sẻ."
           onClose={() => setDialog(null)}
         >
           <form onSubmit={joinCrew} className="mt-5 space-y-4">
@@ -340,7 +340,7 @@ export default function Challenges() {
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-ai text-sm font-black text-white disabled:opacity-50"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              Join Challenge
+              Tham gia thử thách
             </button>
           </form>
         </ChallengeDialog>

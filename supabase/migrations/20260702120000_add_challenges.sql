@@ -122,7 +122,7 @@ create policy challenge_checkins_self_insert on public.challenge_checkins
   );
 
 create or replace function public.create_solo_challenge(
-  p_title text default '7-Day Check-in Challenge'
+  p_title text default 'Thử thách điểm danh 7 ngày'
 )
 returns uuid
 language plpgsql
@@ -135,7 +135,7 @@ declare
   new_challenge_id uuid;
 begin
   if current_user_id is null then
-    raise exception 'Bạn cần đăng nhập để tạo challenge.';
+    raise exception 'Bạn cần đăng nhập để tạo thử thách.';
   end if;
 
   insert into public.challenges (
@@ -151,8 +151,8 @@ begin
   )
   values (
     current_user_id,
-    left(coalesce(nullif(trim(p_title), ''), '7-Day Check-in Challenge'), 80),
-    'Complete at least 1 healthy action per day.',
+    left(coalesce(nullif(trim(p_title), ''), 'Thử thách điểm danh 7 ngày'), 80),
+    'Hoàn thành ít nhất một hành động lành mạnh mỗi ngày.',
     'solo',
     'daily_checkin',
     today_vn,
@@ -230,8 +230,8 @@ begin
   )
   values (
     p_user_id,
-    '7-Day Check-in Challenge',
-    'Complete at least 1 healthy action per day.',
+    'Thử thách điểm danh 7 ngày',
+    'Hoàn thành ít nhất một hành động lành mạnh mỗi ngày.',
     'solo',
     'daily_checkin',
     today_vn,
@@ -256,7 +256,7 @@ set search_path = public, pg_temp
 as $$
 begin
   if auth.uid() is null then
-    raise exception 'Bạn cần đăng nhập để sử dụng challenge.';
+    raise exception 'Bạn cần đăng nhập để sử dụng thử thách.';
   end if;
 
   return public.ensure_default_solo_challenge_for_user(auth.uid());
@@ -264,7 +264,7 @@ end;
 $$;
 
 create or replace function public.create_crew_challenge(
-  p_title text default '7-Day Crew Check-in'
+  p_title text default 'Thử thách nhóm 7 ngày'
 )
 returns uuid
 language plpgsql
@@ -278,7 +278,7 @@ declare
   new_invite_code text;
 begin
   if current_user_id is null then
-    raise exception 'Bạn cần đăng nhập để tạo challenge.';
+    raise exception 'Bạn cần đăng nhập để tạo thử thách.';
   end if;
 
   loop
@@ -302,8 +302,8 @@ begin
   )
   values (
     current_user_id,
-    left(coalesce(nullif(trim(p_title), ''), '7-Day Crew Check-in'), 80),
-    'Keep the habit going together for 7 days.',
+    left(coalesce(nullif(trim(p_title), ''), 'Thử thách nhóm 7 ngày'), 80),
+    'Cùng nhau duy trì thói quen lành mạnh trong 7 ngày.',
     'crew',
     'daily_checkin',
     today_vn,
@@ -334,7 +334,7 @@ declare
   today_vn date := (timezone('Asia/Ho_Chi_Minh', now()))::date;
 begin
   if current_user_id is null then
-    raise exception 'Bạn cần đăng nhập để tham gia challenge.';
+    raise exception 'Bạn cần đăng nhập để tham gia thử thách.';
   end if;
 
   select *
@@ -348,12 +348,12 @@ begin
   end if;
 
   if selected_challenge.mode <> 'crew' then
-    raise exception 'Mã mời này không thuộc Crew Challenge.';
+    raise exception 'Mã mời này không thuộc thử thách nhóm.';
   end if;
 
   if selected_challenge.status <> 'active'
     or selected_challenge.end_date < today_vn then
-    raise exception 'Challenge đã kết thúc hoặc bị hủy.';
+    raise exception 'Thử thách đã kết thúc hoặc bị hủy.';
   end if;
 
   if exists (
@@ -371,7 +371,7 @@ begin
   where challenge_id = selected_challenge.id;
 
   if participant_count >= selected_challenge.max_members then
-    raise exception 'Crew Challenge đã đủ thành viên.';
+    raise exception 'Thử thách nhóm đã đủ thành viên.';
   end if;
 
   insert into public.challenge_participants (challenge_id, user_id, role)
@@ -443,7 +443,7 @@ set search_path = public, pg_temp
 as $$
 begin
   if auth.uid() is null then
-    raise exception 'Bạn cần đăng nhập để check in.';
+    raise exception 'Bạn cần đăng nhập để điểm danh.';
   end if;
 
   return public.sync_challenge_checkin_for_user(
@@ -467,7 +467,7 @@ declare
   inserted_count integer := 0;
 begin
   if current_user_id is null then
-    raise exception 'Bạn cần đăng nhập để check in.';
+    raise exception 'Bạn cần đăng nhập để điểm danh.';
   end if;
 
   insert into public.challenge_checkins (
@@ -572,7 +572,7 @@ set search_path = public, pg_temp
 as $$
 begin
   if not public.is_challenge_participant(p_challenge_id) then
-    raise exception 'Bạn không có quyền xem challenge này.';
+    raise exception 'Bạn không có quyền xem thử thách này.';
   end if;
 
   return query

@@ -22,7 +22,7 @@ export default function ActiveChallengeCard() {
         const next = await getTodayChallengeStatus(user.id);
         if (!cancelled) setStatus(next);
       } catch (error) {
-        console.error('Active challenge card load error:', error);
+        console.error('Lỗi tải thẻ thử thách đang hoạt động:', error);
         if (!cancelled) setStatus(null);
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -56,19 +56,19 @@ export default function ActiveChallengeCard() {
           </span>
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">
-              {isCrew ? 'Crew Challenge' : 'Solo Challenge'}
+              {isCrew ? 'Thử thách nhóm' : 'Thử thách cá nhân'}
             </p>
             <h2 className="mt-1 truncate text-base font-black text-text-primary">{challenge.title}</h2>
             <p className="mt-1 text-sm font-semibold text-text-secondary">
               {isCrew
-                ? `${status.checkedInCount}/${status.participantCount} members checked in today`
+                ? `${status.checkedInCount}/${status.participantCount} thành viên đã điểm danh hôm nay`
                 : status.userCheckedIn
-                  ? 'You completed today’s challenge'
-                  : 'Keep the habit going with one healthy action'}
+                  ? 'Bạn đã hoàn thành thử thách hôm nay'
+                  : 'Duy trì thói quen bằng một hành động lành mạnh'}
             </p>
             <p className={`mt-1.5 inline-flex items-center gap-1.5 text-xs font-black ${status.userCheckedIn ? 'text-accent' : 'text-warning'}`}>
               {status.userCheckedIn ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Flame className="h-3.5 w-3.5" />}
-              {status.userCheckedIn ? 'Checked in today' : 'You have not checked in today yet'}
+              {status.userCheckedIn ? 'Đã điểm danh hôm nay' : 'Bạn chưa điểm danh hôm nay'}
             </p>
           </div>
         </div>
@@ -77,7 +77,7 @@ export default function ActiveChallengeCard() {
           onClick={() => navigate(`/challenges/${challenge.id}`)}
           className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse"
         >
-          View Challenge
+          Xem thử thách
           <ArrowRight className="h-4 w-4" />
         </button>
       </div>

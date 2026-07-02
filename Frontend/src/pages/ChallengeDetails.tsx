@@ -67,15 +67,15 @@ const getDayState = (dateKey: string, checkedDates: Set<string>): DayState => {
 function StatusMark({ state, compact = false }: { state: DayState; compact?: boolean }) {
   const size = compact ? 'h-8 w-8' : 'h-10 w-10';
   if (state === 'checked') {
-    return <span title="Checked in" className={`inline-flex ${size} items-center justify-center rounded-full bg-accent/15 text-accent`}><Check className="h-4 w-4" /></span>;
+    return <span title="Đã điểm danh" className={`inline-flex ${size} items-center justify-center rounded-full bg-accent/15 text-accent`}><Check className="h-4 w-4" /></span>;
   }
   if (state === 'missed') {
-    return <span title="Missed" className={`inline-flex ${size} items-center justify-center rounded-full bg-danger/10 font-black text-danger`}>×</span>;
+    return <span title="Đã bỏ lỡ" className={`inline-flex ${size} items-center justify-center rounded-full bg-danger/10 font-black text-danger`}>×</span>;
   }
   if (state === 'today') {
-    return <span title="Today" className={`inline-flex ${size} items-center justify-center rounded-full bg-warning/12 text-warning`}><Clock3 className="h-4 w-4" /></span>;
+    return <span title="Hôm nay" className={`inline-flex ${size} items-center justify-center rounded-full bg-warning/12 text-warning`}><Clock3 className="h-4 w-4" /></span>;
   }
-  return <span title="Upcoming" className={`inline-flex ${size} items-center justify-center rounded-full bg-bg-tertiary font-black text-text-tertiary`}>–</span>;
+  return <span title="Sắp tới" className={`inline-flex ${size} items-center justify-center rounded-full bg-bg-tertiary font-black text-text-tertiary`}>–</span>;
 }
 
 export default function ChallengeDetails() {
@@ -94,7 +94,7 @@ export default function ChallengeDetails() {
     try {
       setDetail(await getChallengeDetail(id, user.id));
     } catch (error) {
-      toast.error(getErrorText(error, 'Không thể tải chi tiết challenge.'));
+      toast.error(getErrorText(error, 'Không thể tải chi tiết thử thách.'));
     } finally {
       setIsLoading(false);
     }
@@ -113,7 +113,7 @@ export default function ChallengeDetails() {
     return Array.from({ length: total }, (_, index) => ({
       index,
       dateKey: addDays(detail.challenge.start_date, index),
-      label: `Day ${index + 1}`,
+      label: `Ngày ${index + 1}`,
     }));
   }, [detail]);
 
@@ -134,11 +134,11 @@ export default function ChallengeDetails() {
     setIsCheckingIn(true);
     try {
       const created = await manualCheckin(detail.challenge.id, user.id);
-      if (created) toast.success('You completed today’s challenge.');
-      else toast.info('Hôm nay bạn đã check in hoặc challenge chưa hoạt động.');
+      if (created) toast.success('Bạn đã hoàn thành thử thách hôm nay.');
+      else toast.info('Hôm nay bạn đã điểm danh hoặc thử thách chưa hoạt động.');
       await loadDetail();
     } catch (error) {
-      toast.error(getErrorText(error, 'Không thể check in.'));
+      toast.error(getErrorText(error, 'Không thể điểm danh.'));
     } finally {
       setIsCheckingIn(false);
     }
@@ -169,9 +169,9 @@ export default function ChallengeDetails() {
     return (
       <div className="dashboard-page-shell flex min-h-[60vh] flex-col items-center justify-center text-center">
         <ShieldCheck className="h-12 w-12 text-text-tertiary" />
-        <h1 className="mt-4 text-xl font-black text-text-primary">Challenge không tồn tại hoặc bạn chưa tham gia</h1>
+        <h1 className="mt-4 text-xl font-black text-text-primary">Thử thách không tồn tại hoặc bạn chưa tham gia</h1>
         <button type="button" onClick={() => navigate('/challenges')} className="mt-5 rounded-xl bg-accent px-5 py-3 text-sm font-black text-text-inverse">
-          Quay lại Challenges
+          Quay lại danh sách thử thách
         </button>
       </div>
     );
@@ -188,7 +188,7 @@ export default function ChallengeDetails() {
         className="inline-flex w-fit items-center gap-2 text-sm font-black text-text-secondary hover:text-accent"
       >
         <ArrowLeft className="h-4 w-4" />
-        All Challenges
+        Tất cả thử thách
       </button>
 
       <section className="overflow-hidden rounded-2xl border border-border-primary bg-[radial-gradient(circle_at_top_right,rgba(34,197,94,0.16),transparent_36%),var(--bg-secondary)] p-5 md:p-7">
@@ -198,7 +198,7 @@ export default function ChallengeDetails() {
               isCrew ? 'bg-ai/10 text-ai' : 'bg-accent/10 text-accent'
             }`}>
               {isCrew ? <Users className="h-3 w-3" /> : <Flame className="h-3 w-3" />}
-              {isCrew ? 'Crew Challenge' : 'Solo Challenge'}
+              {isCrew ? 'Thử thách nhóm' : 'Thử thách cá nhân'}
             </span>
             <h1 className="mt-3 text-2xl font-black text-text-primary md:text-3xl">{challenge.title}</h1>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">{challenge.description}</p>
@@ -209,7 +209,7 @@ export default function ChallengeDetails() {
               </span>
               <span className="inline-flex items-center gap-2 rounded-lg bg-bg-tertiary px-3 py-2 text-xs font-bold text-text-secondary">
                 <Users className="h-3.5 w-3.5" />
-                {participants.length}/{challenge.max_members} participant{participants.length === 1 ? '' : 's'}
+                {participants.length}/{challenge.max_members} thành viên
               </span>
             </div>
           </div>
@@ -238,7 +238,7 @@ export default function ChallengeDetails() {
               ) : (
                 <Flame className="h-4 w-4" />
               )}
-              {checkedToday ? 'Checked in today' : challengeIsActive ? 'Check in today' : 'Challenge not active'}
+              {checkedToday ? 'Đã điểm danh hôm nay' : challengeIsActive ? 'Điểm danh hôm nay' : 'Thử thách chưa hoạt động'}
             </button>
           </div>
         </div>
@@ -246,11 +246,11 @@ export default function ChallengeDetails() {
         <div className="mt-6 rounded-xl border border-accent/15 bg-accent/8 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Current progress</p>
-              <p className="mt-1 text-lg font-black text-text-primary">Day {currentDay} of {days.length}</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Tiến độ hiện tại</p>
+              <p className="mt-1 text-lg font-black text-text-primary">Ngày {currentDay}/{days.length}</p>
             </div>
             <p className={`text-sm font-black ${checkedToday ? 'text-accent' : 'text-warning'}`}>
-              {checkedToday ? 'You are checked in' : 'Your check-in is waiting'}
+              {checkedToday ? 'Bạn đã điểm danh' : 'Bạn chưa điểm danh hôm nay'}
             </p>
           </div>
         </div>
@@ -259,15 +259,15 @@ export default function ChallengeDetails() {
       {isCrew ? (
         <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary/80">
           <div className="border-b border-border-primary px-5 py-4 md:px-6">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-ai">Crew progress</p>
-            <h2 className="mt-1 text-xl font-black text-text-primary">Show up together</h2>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-ai">Tiến độ của nhóm</p>
+            <h2 className="mt-1 text-xl font-black text-text-primary">Cùng nhau duy trì đều đặn</h2>
           </div>
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full min-w-[52rem] border-collapse">
               <thead>
                 <tr className="border-b border-border-primary bg-bg-tertiary/45">
                   <th className="sticky left-0 z-10 min-w-48 bg-bg-tertiary px-5 py-3 text-left text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">
-                    User
+                    Thành viên
                   </th>
                   {days.map((day) => (
                     <th key={day.dateKey} className="min-w-20 px-3 py-3 text-center text-xs font-black text-text-tertiary">
@@ -284,9 +284,11 @@ export default function ChallengeDetails() {
                       <td className="sticky left-0 z-10 bg-bg-secondary px-5 py-4">
                         <p className="text-sm font-black text-text-primary">
                           {participant.display_name}
-                          {participant.user_id === user?.id && <span className="ml-1 text-accent">(You)</span>}
+                          {participant.user_id === user?.id && <span className="ml-1 text-accent">(Bạn)</span>}
                         </p>
-                        <p className="mt-0.5 text-[11px] font-bold text-text-tertiary">{participant.role}</p>
+                        <p className="mt-0.5 text-[11px] font-bold text-text-tertiary">
+                          {participant.role === 'owner' ? 'Trưởng nhóm' : 'Thành viên'}
+                        </p>
                       </td>
                       {days.map((day) => (
                         <td key={day.dateKey} className="px-3 py-3 text-center">
@@ -302,8 +304,8 @@ export default function ChallengeDetails() {
         </section>
       ) : (
         <section className="rounded-2xl border border-border-primary bg-bg-secondary/80 p-5 md:p-6">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-accent">Your 7 days</p>
-          <h2 className="mt-1 text-xl font-black text-text-primary">One healthy action is enough</h2>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-accent">Hành trình 7 ngày</p>
+          <h2 className="mt-1 text-xl font-black text-text-primary">Một hành động lành mạnh là đủ</h2>
           <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-7">
             {days.map((day) => {
               const checkedDates = new Set(currentParticipant?.checkin_dates || []);
@@ -325,7 +327,7 @@ export default function ChallengeDetails() {
       <section className="flex items-start gap-3 rounded-2xl border border-border-primary bg-bg-secondary/55 p-4 text-sm font-semibold leading-6 text-text-secondary">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
         <p>
-          Water, meal, sleep and workout logs automatically check you in. Challenge members only see daily check-in status—not private health details.
+          Việc ghi nước, bữa ăn, giấc ngủ và tập luyện sẽ tự động điểm danh. Thành viên chỉ thấy trạng thái theo ngày, không thấy dữ liệu sức khỏe riêng tư.
         </p>
       </section>
     </div>
