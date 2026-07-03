@@ -146,7 +146,7 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
     { icon: Dumbbell, label: "Bài tập", path: '/exercises', iconClass: 'text-accent' },
     { icon: Utensils, label: "Thực đơn", path: '/diet-plan', iconClass: 'text-info' },
     { icon: TrendingUp, label: "Tiến độ", path: '/progress', iconClass: 'text-warning' },
-    { icon: Users, label: "Nhóm thử thách", path: '/challenges', iconClass: 'text-ai' },
+    { icon: Users, label: "Thử thách", path: '/challenges', iconClass: 'text-ai' },
     { icon: Shield, label: "Quản trị viên", path: '/admin-panel', iconClass: 'text-danger', adminOnly: true },
   ];
 
