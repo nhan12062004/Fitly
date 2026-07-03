@@ -2817,3 +2817,330 @@ svg {
     max-width: none;
   }
 }
+
+/* Progress journey: before/after storytelling across all screen sizes. */
+.progress-journey-page,
+.journey-surface,
+.journey-body-compare,
+.journey-period-compare,
+.journey-training-detail,
+.progress-exercise-row {
+  min-width: 0;
+}
+
+.journey-body-compare,
+.journey-period-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, auto) minmax(0, 1fr);
+  align-items: stretch;
+  gap: clamp(1rem, 2.5vw, 2rem);
+}
+
+.journey-body-snapshot,
+.journey-period-snapshot {
+  border-radius: 22px;
+  padding: clamp(1rem, 2vw, 1.4rem);
+}
+
+.journey-body-snapshot--start,
+.journey-period-snapshot {
+  background: color-mix(in srgb, var(--bg-tertiary) 58%, transparent);
+}
+
+.journey-body-snapshot--current,
+.journey-period-snapshot--current {
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--accent-primary) 8%, var(--bg-secondary));
+}
+
+.journey-body-connector,
+.journey-period-connector {
+  display: flex;
+  min-width: 8rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+}
+
+.journey-connector-line {
+  width: 100%;
+  height: 1px;
+  background: var(--border-primary);
+}
+
+.journey-connector-icon {
+  display: flex;
+  width: 2.5rem;
+  height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: -1.25rem;
+  margin-bottom: 0.65rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  color: var(--accent-primary);
+  background: var(--bg-secondary);
+}
+
+.journey-measurement {
+  min-width: 0;
+  padding-inline: clamp(0.8rem, 2vw, 1.25rem);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.journey-measurement:first-child {
+  padding-left: 0;
+}
+
+.journey-measurement:last-child {
+  padding-right: 0;
+  border-bottom: 0;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .journey-measurement {
+    border-bottom: 0;
+  }
+
+  .journey-measurement:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--border-primary);
+  }
+
+  .journey-measurement:nth-child(even) {
+    border-left: 1px solid var(--border-primary);
+  }
+
+  .journey-measurement:nth-child(3) {
+    padding-left: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .journey-measurement {
+    border-bottom: 0;
+  }
+
+  .journey-measurement + .journey-measurement {
+    border-left: 1px solid var(--border-primary);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .journey-training-detail {
+    grid-template-columns: minmax(0, 1.15fr) minmax(15rem, 0.85fr);
+  }
+
+  .journey-training-detail > div:last-child {
+    padding-left: 1.5rem;
+    border-left: 1px solid var(--border-primary);
+  }
+}
+
+@media (max-width: 767px) {
+  .progress-journey-page {
+    gap: 0.875rem !important;
+  }
+
+  .progress-journey-header {
+    gap: 0.6rem !important;
+  }
+
+  .progress-journey-range {
+    padding-block: 0.4rem !important;
+  }
+
+  .journey-surface {
+    border-radius: 18px !important;
+    box-shadow: 0 10px 26px rgb(var(--shadow-rgb) / 0.08) !important;
+  }
+
+  .journey-body-compare,
+  .journey-period-compare {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .journey-body-connector,
+  .journey-period-connector {
+    min-width: 0;
+    min-height: 3.5rem;
+  }
+
+  .journey-body-connector > svg,
+  .journey-period-connector > svg,
+  .journey-connector-icon svg {
+    transform: rotate(90deg);
+  }
+
+  .journey-connector-line {
+    width: 1px;
+    height: 3.25rem;
+  }
+
+  .journey-connector-icon {
+    margin-top: -2.85rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .journey-body-snapshot,
+  .journey-period-snapshot {
+    border-radius: 16px;
+    padding: 0.9rem;
+  }
+
+  .progress-exercise-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 1rem;
+  }
+
+  .progress-exercise-row > div:first-child,
+  .progress-exercise-row > div:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 639px) {
+  .journey-measurement-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .journey-measurement {
+    padding-inline: 0 !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .journey-surface > div {
+    padding: 0.8rem !important;
+  }
+
+  .journey-day-chart {
+    gap: 0.3rem !important;
+  }
+}
+
+/* Progress metric cards: compact on mobile, balanced on tablet, dense on desktop. */
+.progress-index-page,
+.progress-index-grid,
+.progress-index-card,
+.progress-detail-card,
+.progress-detail-layout,
+.progress-exercise-row {
+  min-width: 0;
+}
+
+.progress-index-card {
+  min-height: 11.5rem;
+}
+
+@media (min-width: 768px) and (max-width: 1279px) {
+  .progress-detail-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(14rem, 0.8fr);
+  }
+
+  .progress-detail-layout > div:last-child {
+    padding-left: 1.5rem;
+    border-left: 1px solid var(--border-primary);
+  }
+}
+
+@media (max-width: 767px) {
+  .progress-index-page {
+    gap: 0.875rem !important;
+  }
+
+  .progress-index-header {
+    gap: 0.55rem !important;
+  }
+
+  .progress-index-grid {
+    gap: 0.6rem !important;
+  }
+
+  .progress-index-card {
+    min-height: 10.25rem;
+    padding: 0.75rem !important;
+    border-radius: 16px !important;
+    box-shadow: 0 8px 22px rgb(var(--shadow-rgb) / 0.07) !important;
+  }
+
+  .progress-index-card > div:first-child > span {
+    width: 2rem !important;
+    height: 2rem !important;
+    border-radius: 0.65rem !important;
+  }
+
+  .progress-index-card > p:nth-child(2) {
+    margin-top: 0.55rem !important;
+    font-size: 1.1rem !important;
+    line-height: 1.35rem !important;
+  }
+
+  .progress-detail-card {
+    border-radius: 18px !important;
+    box-shadow: 0 10px 26px rgb(var(--shadow-rgb) / 0.08) !important;
+  }
+
+  .progress-detail-card:not(.progress-detail-card--flush) {
+    padding: 0.9rem !important;
+  }
+
+  .progress-day-chart {
+    height: 9rem !important;
+    gap: 0.35rem !important;
+  }
+
+  .progress-exercise-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 1rem;
+  }
+
+  .progress-exercise-row > div:first-child,
+  .progress-exercise-row > div:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 420px) {
+  .progress-index-grid {
+    gap: 0.5rem !important;
+  }
+
+  .progress-index-card {
+    min-height: 9.75rem;
+    padding: 0.65rem !important;
+  }
+
+  .progress-detail-card:not(.progress-detail-card--flush) {
+    padding: 0.8rem !important;
+  }
+}
+
+/* Progress indicators: continuous rows instead of isolated metric tiles. */
+.progress-bars-panel,
+.progress-indicator-row {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .progress-bars-panel {
+    padding: 0.9rem !important;
+    border-radius: 18px !important;
+    box-shadow: 0 10px 26px rgb(var(--shadow-rgb) / 0.08) !important;
+  }
+
+  .progress-indicator-row {
+    padding-block: 0.8rem !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .progress-bars-panel {
+    padding: 0.8rem !important;
+  }
+
+  .progress-indicator-row > div:first-child {
+    gap: 0.55rem !important;
+  }
+}

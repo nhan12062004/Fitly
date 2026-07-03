@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../contexts/AuthContext';
 import {
+  buildChallengeLeaderboard,
   createCrewChallenge,
   getChallengeDetail,
   getUserChallenges,
@@ -106,24 +107,31 @@ function ChallengeDialog({
 }
 
 function CrewCard({ challenge, onOpen }: { challenge: ChallengeSummary; onOpen: () => void }) {
+  const isCrew = challenge.mode === 'crew';
   const todayRate = Math.min(
     100,
     Math.round((challenge.today_checkin_count / Math.max(1, challenge.participant_count)) * 100),
   );
 
   return (
-    <article className="group rounded-2xl border border-border-primary bg-bg-secondary/80 p-5 transition-colors hover:border-ai/30">
+    <article className={`group rounded-2xl border border-border-primary bg-bg-secondary/80 p-5 transition-colors ${
+      isCrew ? 'hover:border-ai/30' : 'hover:border-accent/30'
+    }`}>
       <div className="flex items-start justify-between gap-4">
-        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-ai/10 text-ai">
-          <Users className="h-5 w-5" />
+        <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${
+          isCrew ? 'bg-ai/10 text-ai' : 'bg-accent/10 text-accent'
+        }`}>
+          {isCrew ? <Users className="h-5 w-5" /> : <Flame className="h-5 w-5" />}
         </span>
         <span className="rounded-full border border-border-primary bg-bg-tertiary px-2.5 py-1 text-[11px] font-black text-text-secondary">
-          {challenge.participant_count}/{challenge.max_members} người
+          {isCrew ? `${challenge.participant_count}/${challenge.max_members} người` : 'Cá nhân'}
         </span>
       </div>
       <h3 className="mt-4 truncate text-lg font-black text-text-primary">{challenge.title}</h3>
       <p className="mt-1 text-sm font-semibold text-text-secondary">
-        {challenge.today_checkin_count}/{challenge.participant_count} thành viên đã điểm danh hôm nay
+        {isCrew
+          ? `${challenge.today_checkin_count}/${challenge.participant_count} thành viên đã điểm danh hôm nay`
+          : challenge.user_checked_in ? 'Bạn đã hoàn thành hôm nay' : 'Bạn chưa điểm danh hôm nay'}
       </p>
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-bg-tertiary">
         <div className="h-full rounded-full bg-ai transition-[width] duration-500" style={{ width: `${todayRate}%` }} />
@@ -133,8 +141,10 @@ function CrewCard({ challenge, onOpen }: { challenge: ChallengeSummary; onOpen: 
           <CalendarDays className="h-3.5 w-3.5" />
           Đến {formatDate(challenge.end_date)}
         </span>
-        <button type="button" onClick={onOpen} className="inline-flex items-center gap-1.5 text-sm font-black text-ai">
-          Xem chi tiết
+        <button type="button" onClick={onOpen} className={`inline-flex items-center gap-1.5 text-sm font-black ${
+          isCrew ? 'text-ai' : 'text-accent'
+        }`}>
+          {isCrew ? 'Mở bảng xếp hạng' : 'Xem tiến độ'}
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </button>
       </div>
@@ -163,7 +173,10 @@ export default function Challenges() {
     [challenges],
   );
   const featuredChallenge = useMemo(
-    () => activeChallenges.find((challenge) => challenge.mode === 'solo') || activeChallenges[0] || null,
+    () => activeChallenges.find((challenge) => challenge.mode === 'crew')
+      || activeChallenges.find((challenge) => challenge.mode === 'solo')
+      || activeChallenges[0]
+      || null,
     [activeChallenges],
   );
   const activeCrewChallenges = useMemo(
@@ -249,6 +262,18 @@ export default function Challenges() {
     ? Array.from({ length: 7 }, (_, index) => addDays(featuredChallenge.start_date, index))
     : [];
   const todayKey = getVietnamDateKey();
+  const featuredLeaderboard = useMemo(
+    () => featuredDetail
+      ? buildChallengeLeaderboard(
+          featuredDetail.participants,
+          7,
+          todayKey,
+          featuredDetail.challenge.end_date,
+        )
+      : [],
+    [featuredDetail, todayKey],
+  );
+  const featuredRanking = featuredLeaderboard.find((participant) => participant.user_id === user?.id);
   const currentDay = featuredChallenge
     ? Math.max(1, Math.min(7, Math.floor((
         new Date(`${todayKey}T00:00:00`).getTime()
@@ -266,7 +291,7 @@ export default function Challenges() {
           </div>
           <h1 className="mt-2 text-2xl font-black text-text-primary md:text-3xl">Mỗi ngày một bước nhỏ</h1>
           <p className="mt-1.5 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">
-            Fitly tự ghi nhận những hành động lành mạnh để bạn duy trì thói quen mà không cần thao tác rườm rà.
+            Biến thói quen lành mạnh thành một cuộc đua vui: giữ chuỗi ngày, tích điểm và vượt lên trên bảng xếp hạng.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -305,7 +330,7 @@ export default function Challenges() {
                 <div className="min-w-0">
                   <span className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-accent">
                     {featuredChallenge.mode === 'solo' ? <Flame className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
-                    {featuredChallenge.mode === 'solo' ? 'Thử thách cá nhân mặc định' : 'Thử thách nhóm'}
+                    {featuredChallenge.mode === 'solo' ? 'Thử thách cá nhân mặc định' : 'Đấu trường nhóm'}
                   </span>
                   <h2 className="mt-4 text-2xl font-black text-text-primary">{featuredChallenge.title}</h2>
                   <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-text-secondary">
@@ -377,7 +402,7 @@ export default function Challenges() {
                   onClick={() => navigate(`/challenges/${featuredChallenge.id}`)}
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse"
                 >
-                  Xem chi tiết
+                  {featuredChallenge.mode === 'crew' ? 'Vào bảng xếp hạng' : 'Xem chi tiết'}
                   <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
@@ -387,23 +412,41 @@ export default function Challenges() {
           <aside className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
             <div className="rounded-2xl border border-border-primary bg-bg-secondary/80 p-5">
               <div className="flex items-center justify-between">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                  <CheckCircle2 className="h-5 w-5" />
+                <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                  featuredChallenge.mode === 'crew' ? 'bg-warning/10 text-warning' : 'bg-accent/10 text-accent'
+                }`}>
+                  {featuredChallenge.mode === 'crew' ? <Trophy className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
                 </span>
-                <span className="text-3xl font-black text-text-primary">{activeChallenges.length}</span>
+                <span className="text-3xl font-black text-text-primary">
+                  {featuredChallenge.mode === 'crew' && featuredRanking ? `#${featuredRanking.rank}` : activeChallenges.length}
+                </span>
               </div>
-              <p className="mt-4 text-sm font-black text-text-primary">Đang tham gia</p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-text-tertiary">Tổng số thử thách đang hoạt động</p>
+              <p className="mt-4 text-sm font-black text-text-primary">
+                {featuredChallenge.mode === 'crew' ? 'Hạng hiện tại của bạn' : 'Đang tham gia'}
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-text-tertiary">
+                {featuredChallenge.mode === 'crew' && featuredRanking
+                  ? `${featuredRanking.score.toLocaleString('vi-VN')} điểm · chuỗi ${featuredRanking.current_streak} ngày`
+                  : 'Tổng số thử thách đang hoạt động'}
+              </p>
             </div>
             <div className="rounded-2xl border border-border-primary bg-bg-secondary/80 p-5">
               <div className="flex items-center justify-between">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/10 text-warning">
                   <Trophy className="h-5 w-5" />
                 </span>
-                <span className="text-3xl font-black text-text-primary">{completedChallenges.length}</span>
+                <span className="text-3xl font-black text-text-primary">
+                  {featuredChallenge.mode === 'crew' ? featuredChallenge.participant_count : completedChallenges.length}
+                </span>
               </div>
-              <p className="mt-4 text-sm font-black text-text-primary">Đã hoàn thành</p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-text-tertiary">Những hành trình bạn đã đi qua</p>
+              <p className="mt-4 text-sm font-black text-text-primary">
+                {featuredChallenge.mode === 'crew' ? 'Tay đua đang tham gia' : 'Đã hoàn thành'}
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-text-tertiary">
+                {featuredChallenge.mode === 'crew'
+                  ? `Tối đa ${featuredChallenge.max_members} người trong bảng xếp hạng`
+                  : 'Những hành trình bạn đã đi qua'}
+              </p>
             </div>
             <div className="rounded-2xl border border-ai/15 bg-ai/8 p-5 sm:col-span-2 xl:col-span-1">
               <div className="flex items-start gap-3">
@@ -411,9 +454,13 @@ export default function Challenges() {
                   <Sparkles className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-sm font-black text-text-primary">Chỉ cần một hành động</p>
+                  <p className="text-sm font-black text-text-primary">
+                    {featuredChallenge.mode === 'crew' ? 'Luật tính điểm rõ ràng' : 'Chỉ cần một hành động'}
+                  </p>
                   <p className="mt-1 text-xs font-semibold leading-5 text-text-secondary">
-                    Uống nước, ghi bữa ăn, giấc ngủ hoặc bắt đầu tập đều được tính.
+                    {featuredChallenge.mode === 'crew'
+                      ? '100 điểm mỗi ngày, thưởng 20 điểm cho từng ngày liên tiếp từ ngày thứ hai.'
+                      : 'Uống nước, ghi bữa ăn, giấc ngủ hoặc bắt đầu tập đều được tính.'}
                   </p>
                 </div>
               </div>

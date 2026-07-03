@@ -1,25 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  Award,
   CalendarDays,
   Check,
   CheckCircle2,
   Clock3,
   Copy,
+  Crown,
   Flame,
   Loader2,
+  Medal,
   ShieldCheck,
+  Trophy,
   Users,
+  Zap,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../contexts/AuthContext';
 import {
+  buildChallengeLeaderboard,
   getChallengeDetail,
   manualCheckin,
   type ChallengeDetail,
-  type ChallengeParticipantProgress,
+  type ChallengeLeaderboardEntry,
 } from '../lib/Challenges';
+import { supabase } from '../lib/Supabase';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DAY_MS = 86_400_000;
@@ -78,6 +85,71 @@ function StatusMark({ state, compact = false }: { state: DayState; compact?: boo
   return <span title="Sắp tới" className={`inline-flex ${size} items-center justify-center rounded-full bg-bg-tertiary font-black text-text-tertiary`}>–</span>;
 }
 
+const getInitials = (name: string): string => name
+  .trim()
+  .split(/\s+/)
+  .slice(-2)
+  .map((part) => part.charAt(0))
+  .join('')
+  .toUpperCase() || 'F';
+
+function RankBadge({ rank }: { rank: number }) {
+  if (rank === 1) {
+    return <span title="Hạng nhất" className="flex h-9 w-9 items-center justify-center rounded-xl bg-warning/15 text-warning"><Crown className="h-4 w-4" /></span>;
+  }
+  if (rank === 2) {
+    return <span title="Hạng nhì" className="flex h-9 w-9 items-center justify-center rounded-xl bg-info/12 text-info"><Medal className="h-4 w-4" /></span>;
+  }
+  if (rank === 3) {
+    return <span title="Hạng ba" className="flex h-9 w-9 items-center justify-center rounded-xl bg-ai/12 text-ai"><Award className="h-4 w-4" /></span>;
+  }
+  return <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-bg-tertiary text-sm font-black text-text-secondary">#{rank}</span>;
+}
+
+function PodiumCard({
+  entry,
+  isCurrentUser,
+}: {
+  entry: ChallengeLeaderboardEntry;
+  isCurrentUser: boolean;
+}) {
+  return (
+    <article className={`relative overflow-hidden rounded-2xl border p-4 ${
+      entry.rank === 1
+        ? 'border-warning/25 bg-warning/8'
+        : isCurrentUser
+          ? 'border-accent/25 bg-accent/8'
+          : 'border-border-primary bg-bg-tertiary/40'
+    }`}>
+      {entry.rank === 1 && <Crown className="absolute right-3 top-3 h-5 w-5 text-warning" />}
+      <div className="flex items-center gap-3">
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black ${
+          entry.rank === 1 ? 'bg-warning text-white' : 'bg-bg-secondary text-text-primary'
+        }`}>
+          {getInitials(entry.display_name)}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-black text-text-primary">
+            {entry.display_name}
+            {isCurrentUser && <span className="ml-1 text-accent">(Bạn)</span>}
+          </p>
+          <p className="mt-0.5 text-xs font-bold text-text-tertiary">Hạng {entry.rank}</p>
+        </div>
+      </div>
+      <div className="mt-4 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-2xl font-black text-text-primary">{entry.score.toLocaleString('vi-VN')}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">điểm</p>
+        </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-bg-secondary px-2.5 py-1 text-xs font-black text-warning">
+          <Flame className="h-3.5 w-3.5" />
+          {entry.current_streak} ngày
+        </span>
+      </div>
+    </article>
+  );
+}
+
 export default function ChallengeDetails() {
   const { id = '' } = useParams();
   const { user } = useAuth();
@@ -88,21 +160,42 @@ export default function ChallengeDetails() {
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const loadDetail = useCallback(async () => {
+  const loadDetail = useCallback(async (showLoading = true) => {
     if (!id || !user?.id) return;
-    setIsLoading(true);
+    if (showLoading) setIsLoading(true);
     try {
       setDetail(await getChallengeDetail(id, user.id));
     } catch (error) {
       toast.error(getErrorText(error, 'Không thể tải chi tiết thử thách.'));
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   }, [id, toast, user?.id]);
 
   useEffect(() => {
     void loadDetail();
   }, [loadDetail]);
+
+  useEffect(() => {
+    if (!id || !user?.id) return undefined;
+    const channel = supabase
+      .channel(`challenge-race-${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'challenge_checkins', filter: `challenge_id=eq.${id}` },
+        () => void loadDetail(false),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'challenge_participants', filter: `challenge_id=eq.${id}` },
+        () => void loadDetail(false),
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [id, loadDetail, user?.id]);
 
   const days = useMemo(() => {
     if (!detail) return [];
@@ -117,14 +210,23 @@ export default function ChallengeDetails() {
     }));
   }, [detail]);
 
+  const todayKey = getVietnamDateKey();
+  const leaderboard = useMemo(
+    () => detail
+      ? buildChallengeLeaderboard(detail.participants, days.length, todayKey, detail.challenge.end_date)
+      : [],
+    [days.length, detail, todayKey],
+  );
   const currentParticipant = detail?.participants.find((participant) => participant.user_id === user?.id);
-  const checkedToday = currentParticipant?.checkin_dates.includes(getVietnamDateKey()) || false;
+  const currentRanking = leaderboard.find((participant) => participant.user_id === user?.id);
+  const leader = leaderboard[0];
+  const checkedToday = currentParticipant?.checkin_dates.includes(todayKey) || false;
   const challengeIsActive = detail?.challenge.status === 'active'
-    && getVietnamDateKey() >= (detail?.challenge.start_date || '')
-    && getVietnamDateKey() <= (detail?.challenge.end_date || '');
+    && todayKey >= (detail?.challenge.start_date || '')
+    && todayKey <= (detail?.challenge.end_date || '');
   const currentDay = detail
     ? Math.max(1, Math.min(days.length, Math.floor((
-        new Date(`${getVietnamDateKey()}T00:00:00`).getTime()
+        new Date(`${todayKey}T00:00:00`).getTime()
         - new Date(`${detail.challenge.start_date}T00:00:00`).getTime()
       ) / DAY_MS) + 1))
     : 1;
@@ -136,7 +238,7 @@ export default function ChallengeDetails() {
       const created = await manualCheckin(detail.challenge.id, user.id);
       if (created) toast.success('Bạn đã hoàn thành thử thách hôm nay.');
       else toast.info('Hôm nay bạn đã điểm danh hoặc thử thách chưa hoạt động.');
-      await loadDetail();
+      await loadDetail(false);
     } catch (error) {
       toast.error(getErrorText(error, 'Không thể điểm danh.'));
     } finally {
@@ -246,62 +348,187 @@ export default function ChallengeDetails() {
         <div className="mt-6 rounded-xl border border-accent/15 bg-accent/8 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Tiến độ hiện tại</p>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">
+                {isCrew
+                  ? challenge.status === 'completed' || todayKey > challenge.end_date
+                    ? 'Kết quả chung cuộc'
+                    : 'Cuộc đua hiện tại'
+                  : 'Tiến độ hiện tại'}
+              </p>
               <p className="mt-1 text-lg font-black text-text-primary">Ngày {currentDay}/{days.length}</p>
             </div>
-            <p className={`text-sm font-black ${checkedToday ? 'text-accent' : 'text-warning'}`}>
-              {checkedToday ? 'Bạn đã điểm danh' : 'Bạn chưa điểm danh hôm nay'}
-            </p>
+            <div className="text-right">
+              {isCrew && currentRanking ? (
+                <>
+                  <p className="text-lg font-black text-text-primary">Hạng #{currentRanking.rank}</p>
+                  <p className="text-xs font-bold text-text-secondary">
+                    {currentRanking.score.toLocaleString('vi-VN')} điểm
+                    {leader && leader.score > currentRanking.score
+                      ? ` · kém ${leader.score - currentRanking.score}`
+                      : ' · đang dẫn đầu'}
+                  </p>
+                </>
+              ) : (
+                <p className={`text-sm font-black ${checkedToday ? 'text-accent' : 'text-warning'}`}>
+                  {checkedToday ? 'Bạn đã điểm danh' : 'Bạn chưa điểm danh hôm nay'}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
       {isCrew ? (
-        <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary/80">
-          <div className="border-b border-border-primary px-5 py-4 md:px-6">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-ai">Tiến độ của nhóm</p>
-            <h2 className="mt-1 text-xl font-black text-text-primary">Cùng nhau duy trì đều đặn</h2>
-          </div>
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full min-w-[52rem] border-collapse">
-              <thead>
-                <tr className="border-b border-border-primary bg-bg-tertiary/45">
-                  <th className="sticky left-0 z-10 min-w-48 bg-bg-tertiary px-5 py-3 text-left text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">
-                    Thành viên
-                  </th>
-                  {days.map((day) => (
-                    <th key={day.dateKey} className="min-w-20 px-3 py-3 text-center text-xs font-black text-text-tertiary">
-                      {day.label}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {participants.map((participant) => {
-                  const checkedDates = new Set(participant.checkin_dates);
+        <>
+          <section className="overflow-hidden rounded-2xl border border-warning/20 bg-bg-secondary/85">
+            <div className="flex flex-col gap-4 border-b border-border-primary bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.14),transparent_38%)] px-5 py-5 md:flex-row md:items-start md:justify-between md:px-6">
+              <div>
+                <p className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.14em] text-warning">
+                  <Trophy className="h-4 w-4" />
+                  {challenge.status === 'completed' || todayKey > challenge.end_date
+                    ? 'Bảng xếp hạng chung cuộc'
+                    : 'Bảng xếp hạng'}
+                </p>
+                <h2 className="mt-1 text-xl font-black text-text-primary">Ai đang giữ nhịp tốt nhất?</h2>
+                <p className="mt-1 max-w-xl text-sm font-semibold leading-6 text-text-secondary">
+                  Thứ hạng cập nhật theo điểm và chuỗi ngày liên tiếp của từng thành viên.
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary px-3 py-1.5 text-xs font-black text-text-secondary">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-accent" />
+                  100 điểm / ngày
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-warning/20 bg-warning/10 px-3 py-1.5 text-xs font-black text-warning">
+                  <Zap className="h-3.5 w-3.5" />
+                  +20 điểm chuỗi
+                </span>
+              </div>
+            </div>
+
+            {leaderboard.length === 1 && (
+              <div className="mx-5 mt-5 flex items-start gap-3 rounded-xl border border-dashed border-ai/30 bg-ai/8 p-4 md:mx-6">
+                <Users className="mt-0.5 h-5 w-5 shrink-0 text-ai" />
+                <div>
+                  <p className="text-sm font-black text-text-primary">Bạn đang một mình trên đường đua</p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-text-secondary">
+                    Sao chép mã mời phía trên và kéo thêm đồng đội vào để bảng xếp hạng bắt đầu nóng lên.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3 md:p-6">
+              {leaderboard.slice(0, 3).map((entry) => (
+                <PodiumCard key={entry.user_id} entry={entry} isCurrentUser={entry.user_id === user?.id} />
+              ))}
+            </div>
+
+            <div className="border-t border-border-primary">
+              <div className="hidden grid-cols-[3rem_minmax(12rem,1fr)_8rem_8rem_8rem] items-center gap-3 bg-bg-tertiary/45 px-6 py-3 text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary lg:grid">
+                <span>Hạng</span>
+                <span>Thành viên</span>
+                <span>Hoàn thành</span>
+                <span>Chuỗi ngày</span>
+                <span className="text-right">Điểm</span>
+              </div>
+              <div className="divide-y divide-border-primary">
+                {leaderboard.map((entry) => {
+                  const isCurrentUser = entry.user_id === user?.id;
                   return (
-                    <tr key={participant.user_id} className="border-b border-border-primary/70 last:border-0">
-                      <td className="sticky left-0 z-10 bg-bg-secondary px-5 py-4">
-                        <p className="text-sm font-black text-text-primary">
-                          {participant.display_name}
-                          {participant.user_id === user?.id && <span className="ml-1 text-accent">(Bạn)</span>}
+                    <div
+                      key={entry.user_id}
+                      className={`grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 px-5 py-4 lg:grid-cols-[3rem_minmax(12rem,1fr)_8rem_8rem_8rem] lg:items-center lg:px-6 ${
+                        isCurrentUser ? 'bg-accent/7' : ''
+                      }`}
+                    >
+                      <RankBadge rank={entry.rank} />
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-tertiary text-xs font-black text-text-primary">
+                          {getInitials(entry.display_name)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-black text-text-primary">
+                            {entry.display_name}
+                            {isCurrentUser && <span className="ml-1 text-accent">(Bạn)</span>}
+                          </p>
+                          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                            <div className="h-full rounded-full bg-accent" style={{ width: `${entry.completion_rate}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="col-start-2 text-sm font-black text-text-primary lg:col-start-auto">
+                        <span className="mr-1 text-[10px] uppercase text-text-tertiary lg:hidden">Hoàn thành</span>
+                        {entry.total_checkins}/{days.length} ngày
+                      </p>
+                      <p className="col-start-2 inline-flex items-center gap-1 text-sm font-black text-warning lg:col-start-auto">
+                        <Flame className="h-4 w-4" />
+                        {entry.current_streak} ngày
+                      </p>
+                      <div className="col-start-2 text-left lg:col-start-auto lg:text-right">
+                        <p className="text-lg font-black text-text-primary">{entry.score.toLocaleString('vi-VN')}</p>
+                        <p className={`text-[10px] font-black uppercase tracking-[0.1em] ${
+                          entry.checked_in_today ? 'text-accent' : 'text-text-tertiary'
+                        }`}>
+                          {challenge.status === 'completed' || todayKey > challenge.end_date
+                            ? 'Đã chốt kết quả'
+                            : entry.checked_in_today ? 'Đã xong hôm nay' : 'Chưa xong hôm nay'}
                         </p>
-                        <p className="mt-0.5 text-[11px] font-bold text-text-tertiary">
-                          {participant.role === 'owner' ? 'Trưởng nhóm' : 'Thành viên'}
-                        </p>
-                      </td>
-                      {days.map((day) => (
-                        <td key={day.dateKey} className="px-3 py-3 text-center">
-                          <StatusMark compact state={getDayState(day.dateKey, checkedDates)} />
-                        </td>
-                      ))}
-                    </tr>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+              </div>
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary/80">
+            <div className="border-b border-border-primary px-5 py-4 md:px-6">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-ai">Đường đua từng ngày</p>
+              <h2 className="mt-1 text-xl font-black text-text-primary">Lịch sử đối đầu</h2>
+            </div>
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full min-w-[52rem] border-collapse">
+                <thead>
+                  <tr className="border-b border-border-primary bg-bg-tertiary/45">
+                    <th className="sticky left-0 z-10 min-w-48 bg-bg-tertiary px-5 py-3 text-left text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">
+                      Thành viên
+                    </th>
+                    {days.map((day) => (
+                      <th key={day.dateKey} className="min-w-20 px-3 py-3 text-center text-xs font-black text-text-tertiary">
+                        {day.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboard.map((participant) => {
+                    const checkedDates = new Set(participant.checkin_dates);
+                    return (
+                      <tr key={participant.user_id} className="border-b border-border-primary/70 last:border-0">
+                        <td className="sticky left-0 z-10 bg-bg-secondary px-5 py-4">
+                          <p className="text-sm font-black text-text-primary">
+                            <span className="mr-2 text-warning">#{participant.rank}</span>
+                            {participant.display_name}
+                            {participant.user_id === user?.id && <span className="ml-1 text-accent">(Bạn)</span>}
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-bold text-text-tertiary">
+                            {participant.score.toLocaleString('vi-VN')} điểm
+                          </p>
+                        </td>
+                        {days.map((day) => (
+                          <td key={day.dateKey} className="px-3 py-3 text-center">
+                            <StatusMark compact state={getDayState(day.dateKey, checkedDates)} />
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
       ) : (
         <section className="rounded-2xl border border-border-primary bg-bg-secondary/80 p-5 md:p-6">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-accent">Hành trình 7 ngày</p>
