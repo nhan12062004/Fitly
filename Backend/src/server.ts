@@ -39,7 +39,8 @@ dotenv.config();
 const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
-const PORT = process.env.PORT || 5000;
+// Port 5000 is commonly occupied by macOS AirPlay Receiver.
+const PORT = process.env.PORT || 5001;
 const AI_COACH_FREE_TRIAL_DAYS = 7;
 const AI_ACTION_FLOW_ENABLED = process.env.AI_ACTION_FLOW_ENABLED !== 'false';
 const PREMIUM_AUTO_PLAN_ENABLED = process.env.PREMIUM_AUTO_PLAN_ENABLED !== 'false';
