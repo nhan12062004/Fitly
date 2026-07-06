@@ -24,6 +24,7 @@ import {
   getChallengeDetail,
   getUserChallenges,
   joinChallengeByInviteCode,
+  selectPrimaryChallenge,
   type ChallengeDetail,
   type ChallengeSummary,
 } from '../lib/Challenges';
@@ -173,10 +174,7 @@ export default function Challenges() {
     [challenges],
   );
   const featuredChallenge = useMemo(
-    () => activeChallenges.find((challenge) => challenge.mode === 'crew')
-      || activeChallenges.find((challenge) => challenge.mode === 'solo')
-      || activeChallenges[0]
-      || null,
+    () => selectPrimaryChallenge(activeChallenges),
     [activeChallenges],
   );
   const activeCrewChallenges = useMemo(

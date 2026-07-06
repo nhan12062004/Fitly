@@ -393,7 +393,7 @@ export default function WorkoutSession() {
   const [completedIds, setCompletedIds] = useState<string[]>(
     orderedSession.filter((item) => item.is_completed).map((item) => item.id)
   );
-  const hasSyncedChallengeStart = useRef(false);
+  const syncedChallengeSessionId = useRef<string | null>(null);
 
   const activeExercise = orderedSession[activeIndex] || null;
   const activeExerciseSets = getExerciseSets(activeExercise);
@@ -406,21 +406,6 @@ export default function WorkoutSession() {
   const currentSetNumber = activeExercise ? Math.min(activeExerciseSets, completedSetCount + 1) : 1;
   const timerProgress = startingSeconds > 0 ? secondsLeft / startingSeconds : 0;
   const timerAngle = Math.max(0, Math.min(360, timerProgress * 360));
-
-  useEffect(() => {
-    if (!user?.id || orderedSession.length === 0 || hasSyncedChallengeStart.current) return;
-    const todayInVietnam = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date());
-    if (state.logDate && state.logDate !== todayInVietnam) return;
-    hasSyncedChallengeStart.current = true;
-    void syncChallengeCheckin(user.id, 'workout').catch((error) => {
-      console.warn('Challenge workout-start sync failed:', error);
-    });
-  }, [orderedSession.length, state.logDate, user?.id]);
 
   useEffect(() => {
     setCompletedSetsByExercise(
@@ -524,6 +509,25 @@ export default function WorkoutSession() {
   const activeExerciseSteps = activeExercise ? getExerciseSteps(activeExercise) : [];
   const totalActualKcal = orderedSession.reduce((sum, item) => sum + getExerciseKcal(item), 0);
   const totalPlannedKcal = orderedSession.reduce((sum, item) => sum + getExercisePlannedKcal(item), 0);
+
+  useEffect(() => {
+    if (!user?.id || !workoutSessionId || !allExercisesCompleted) return;
+    if (syncedChallengeSessionId.current === workoutSessionId) return;
+
+    const todayInVietnam = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    if (state.logDate && state.logDate !== todayInVietnam) return;
+
+    syncedChallengeSessionId.current = workoutSessionId;
+    void syncChallengeCheckin(user.id, 'workout', workoutSessionId).catch((challengeError) => {
+      syncedChallengeSessionId.current = null;
+      console.warn('Challenge workout-completion sync failed:', challengeError);
+    });
+  }, [allExercisesCompleted, state.logDate, user?.id, workoutSessionId]);
 
   const updateEditForm = (exercise: SessionExercise | null) => {
     const setsValue = getExerciseSets(exercise);
@@ -856,6 +860,7 @@ export default function WorkoutSession() {
       };
       const { error } = await supabase.from('workout_session_feedback').insert(feedbackRow);
       if (error) throw error;
+
       setIsFeedbackModalOpen(false);
       navigate('/exercises');
     } catch (error: any) {

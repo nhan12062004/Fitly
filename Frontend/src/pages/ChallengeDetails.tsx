@@ -8,6 +8,7 @@ import {
   Clock3,
   Copy,
   Crown,
+  Dumbbell,
   Flame,
   Loader2,
   Medal,
@@ -219,7 +220,13 @@ export default function ChallengeDetails() {
   );
   const currentParticipant = detail?.participants.find((participant) => participant.user_id === user?.id);
   const currentRanking = leaderboard.find((participant) => participant.user_id === user?.id);
-  const leader = leaderboard[0];
+  const currentRankingIndex = leaderboard.findIndex((participant) => participant.user_id === user?.id);
+  const nextRanking = currentRanking && currentRankingIndex > 0
+    ? leaderboard
+        .slice(0, currentRankingIndex)
+        .reverse()
+        .find((participant) => participant.rank < currentRanking.rank)
+    : undefined;
   const checkedToday = currentParticipant?.checkin_dates.includes(todayKey) || false;
   const challengeIsActive = detail?.challenge.status === 'active'
     && todayKey >= (detail?.challenge.start_date || '')
@@ -231,8 +238,13 @@ export default function ChallengeDetails() {
       ) / DAY_MS) + 1))
     : 1;
 
-  const checkInToday = async () => {
+  const completeToday = async () => {
     if (!user?.id || !detail || checkedToday || isCheckingIn) return;
+    if (detail.challenge.mode === 'crew') {
+      navigate('/exercises');
+      return;
+    }
+
     setIsCheckingIn(true);
     try {
       const created = await manualCheckin(detail.challenge.id, user.id);
@@ -329,7 +341,7 @@ export default function ChallengeDetails() {
             )}
             <button
               type="button"
-              onClick={checkInToday}
+              onClick={completeToday}
               disabled={!challengeIsActive || checkedToday || isCheckingIn}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse disabled:cursor-default disabled:opacity-55"
             >
@@ -337,10 +349,16 @@ export default function ChallengeDetails() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : checkedToday ? (
                 <CheckCircle2 className="h-4 w-4" />
+              ) : isCrew ? (
+                <Dumbbell className="h-4 w-4" />
               ) : (
                 <Flame className="h-4 w-4" />
               )}
-              {checkedToday ? 'Đã điểm danh hôm nay' : challengeIsActive ? 'Điểm danh hôm nay' : 'Thử thách chưa hoạt động'}
+              {checkedToday
+                ? 'Đã hoàn thành hôm nay'
+                : challengeIsActive
+                  ? isCrew ? 'Tập để ghi điểm' : 'Điểm danh hôm nay'
+                  : 'Thử thách chưa hoạt động'}
             </button>
           </div>
         </div>
@@ -363,8 +381,8 @@ export default function ChallengeDetails() {
                   <p className="text-lg font-black text-text-primary">Hạng #{currentRanking.rank}</p>
                   <p className="text-xs font-bold text-text-secondary">
                     {currentRanking.score.toLocaleString('vi-VN')} điểm
-                    {leader && leader.score > currentRanking.score
-                      ? ` · kém ${leader.score - currentRanking.score}`
+                    {nextRanking
+                      ? ` · kém hạng #${nextRanking.rank} ${nextRanking.score - currentRanking.score} điểm`
                       : ' · đang dẫn đầu'}
                   </p>
                 </>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, Flame, Loader2, Users } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Dumbbell, Flame, Loader2, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getTodayChallengeStatus, type TodayChallengeStatus } from '../lib/Challenges';
@@ -66,20 +66,44 @@ export default function ActiveChallengeCard() {
                   ? 'Bạn đã hoàn thành thử thách hôm nay'
                   : 'Duy trì thói quen bằng một hành động lành mạnh'}
             </p>
+            {isCrew && status.rank !== null && (
+              <p className="mt-1.5 text-xs font-bold text-text-secondary">
+                Hạng #{status.rank} · {status.score.toLocaleString('vi-VN')} điểm
+                {status.nextCompetitorName && status.gapToNextRank > 0
+                  ? ` · kém ${status.nextCompetitorName} ${status.gapToNextRank} điểm`
+                  : ' · đang dẫn đầu'}
+              </p>
+            )}
             <p className={`mt-1.5 inline-flex items-center gap-1.5 text-xs font-black ${status.userCheckedIn ? 'text-accent' : 'text-warning'}`}>
               {status.userCheckedIn ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Flame className="h-3.5 w-3.5" />}
               {status.userCheckedIn ? 'Đã điểm danh hôm nay' : 'Bạn chưa điểm danh hôm nay'}
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate(`/challenges/${challenge.id}`)}
-          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse"
-        >
-          Xem thử thách
-          <ArrowRight className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          {!status.userCheckedIn && (
+            <button
+              type="button"
+              onClick={() => navigate('/exercises')}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse"
+            >
+              <Dumbbell className="h-4 w-4" />
+              Tập ngay
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => navigate(`/challenges/${challenge.id}`)}
+            className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black ${
+              status.userCheckedIn
+                ? 'bg-accent text-text-inverse'
+                : 'border border-border-primary bg-bg-tertiary text-text-primary'
+            }`}
+          >
+            Xem thử thách
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </section>
   );

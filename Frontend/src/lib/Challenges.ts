@@ -51,6 +51,10 @@ export type TodayChallengeStatus = {
   userCheckedIn: boolean;
   checkedInCount: number;
   participantCount: number;
+  rank: number | null;
+  score: number;
+  gapToNextRank: number;
+  nextCompetitorName: string | null;
 };
 
 const assertCurrentUser = async (userId: string) => {
@@ -201,6 +205,20 @@ export const getUserChallenges = async (userId: string): Promise<ChallengeSummar
   return ((data || []) as ChallengeSummary[]).map(normalizeSummary);
 };
 
+export const selectPrimaryChallenge = (
+  challenges: ChallengeSummary[],
+): ChallengeSummary | null => {
+  const activeChallenges = challenges
+    .filter((challenge) => challenge.status === 'active')
+    .sort((left, right) => left.end_date.localeCompare(right.end_date));
+
+  return activeChallenges.find((challenge) => challenge.mode === 'crew' && !challenge.user_checked_in)
+    || activeChallenges.find((challenge) => challenge.mode === 'crew')
+    || activeChallenges.find((challenge) => !challenge.user_checked_in)
+    || activeChallenges[0]
+    || null;
+};
+
 export const getChallengeDetail = async (
   challengeId: string,
   userId?: string,
@@ -253,13 +271,62 @@ export const getTodayChallengeStatus = async (
   userId: string,
 ): Promise<TodayChallengeStatus | null> => {
   const challenges = await getUserChallenges(userId);
-  const challenge = challenges.find((item) => item.status === 'active');
+  const challenge = selectPrimaryChallenge(challenges);
   if (!challenge) return null;
+
+  let rank: number | null = null;
+  let score = 0;
+  let gapToNextRank = 0;
+  let nextCompetitorName: string | null = null;
+
+  if (challenge.mode === 'crew') {
+    const { data, error } = await supabase.rpc('get_challenge_participant_progress', {
+      p_challenge_id: challenge.id,
+    });
+    if (error) throw error;
+
+    const participants = ((data || []) as ChallengeParticipantProgress[]).map((participant) => ({
+      ...participant,
+      checkin_dates: (participant.checkin_dates || []).map(String),
+    }));
+    const today = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+    const totalDays = Math.max(
+      1,
+      Math.round((
+        new Date(`${challenge.end_date}T00:00:00Z`).getTime()
+        - new Date(`${challenge.start_date}T00:00:00Z`).getTime()
+      ) / 86_400_000) + 1,
+    );
+    const leaderboard = buildChallengeLeaderboard(participants, totalDays, today, challenge.end_date);
+    const currentIndex = leaderboard.findIndex((entry) => entry.user_id === userId);
+
+    if (currentIndex >= 0) {
+      const current = leaderboard[currentIndex];
+      const nextCompetitor = leaderboard
+        .slice(0, currentIndex)
+        .reverse()
+        .find((entry) => entry.rank < current.rank);
+      rank = current.rank;
+      score = current.score;
+      gapToNextRank = nextCompetitor ? Math.max(0, nextCompetitor.score - current.score) : 0;
+      nextCompetitorName = nextCompetitor?.display_name || null;
+    }
+  }
+
   return {
     challenge,
     userCheckedIn: challenge.user_checked_in,
     checkedInCount: challenge.today_checkin_count,
     participantCount: challenge.participant_count,
+    rank,
+    score,
+    gapToNextRank,
+    nextCompetitorName,
   };
 };
 
@@ -281,13 +348,15 @@ export const ensureChallengeNotifications = async (userId: string): Promise<void
     ? 'Cả nhóm đã hoàn thành thử thách hôm nay'
     : status.userCheckedIn
       ? 'Bạn đã hoàn thành thử thách hôm nay'
+      : status.challenge.mode === 'crew' && status.nextCompetitorName && status.gapToNextRank > 0
+        ? `Còn ${status.gapToNextRank} điểm để vượt ${status.nextCompetitorName}`
       : 'Hãy duy trì thói quen';
   const message = isCrewComplete
     ? 'Cả nhóm đã check in hôm nay. Một ngày rất đẹp của sự đều đặn.'
     : status.challenge.mode === 'crew'
       ? status.userCheckedIn
-        ? `Nhóm của bạn đã có ${status.checkedInCount}/${status.participantCount} người điểm danh hôm nay.`
-        : `Nhóm đã có ${status.checkedInCount}/${status.participantCount} người điểm danh và đang chờ bạn.`
+        ? `Bạn đang hạng #${status.rank || 1}. Nhóm đã có ${status.checkedInCount}/${status.participantCount} người hoàn thành hôm nay.`
+        : `Nhóm đã có ${status.checkedInCount}/${status.participantCount} người hoàn thành và đang chờ bạn. Tập hôm nay để cải thiện thứ hạng.`
       : status.userCheckedIn
         ? 'Bạn đã hoàn thành ít nhất một hành động lành mạnh hôm nay.'
         : 'Bạn chưa điểm danh cho thử thách hôm nay.';
@@ -309,6 +378,9 @@ export const ensureChallengeNotifications = async (userId: string): Promise<void
         mode: status.challenge.mode,
         checked_in_count: status.checkedInCount,
         participant_count: status.participantCount,
+        rank: status.rank,
+        score: status.score,
+        gap_to_next_rank: status.gapToNextRank,
       },
       updated_at: now,
     }, { onConflict: 'user_id,dedupe_key' });
