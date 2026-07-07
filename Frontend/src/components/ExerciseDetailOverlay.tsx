@@ -9,7 +9,7 @@ export interface ExerciseDetailItem {
   target_muscle: string;
   gif_url: string;
   equipment?: string;
-  instructions?: string[] | string;
+  instructions?: string[] | string | Record<string, unknown>;
   technique_notes?: string[] | string;
   description?: string;
   secondary_muscles?: string[] | string;
@@ -107,6 +107,15 @@ const toTextList = (value: unknown): string[] => {
     return value.map((item) => String(item || '').trim()).filter(Boolean);
   }
 
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    for (const key of ['steps', 'instructions', 'instruction', 'technique_notes']) {
+      const nested = toTextList(record[key]);
+      if (nested.length > 0) return nested;
+    }
+    return [];
+  }
+
   const raw = String(value || '').trim();
   if (!raw) return [];
 
@@ -114,6 +123,9 @@ const toTextList = (value: unknown): string[] => {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       return parsed.map((item) => String(item || '').trim()).filter(Boolean);
+    }
+    if (parsed && typeof parsed === 'object') {
+      return toTextList(parsed);
     }
   } catch {
     // ignore malformed JSON values from the database

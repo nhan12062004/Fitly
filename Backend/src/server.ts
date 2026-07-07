@@ -1292,8 +1292,8 @@ const suggestManualStartingWeightKg = ({
   const isLargeUpper = includesAnyKeyword(descriptor, ['chest', 'nguc', 'back', 'lung', 'lat', 'row', 'press']);
   const isSmallUpper = includesAnyKeyword(descriptor, ['shoulder', 'vai', 'arm', 'tay', 'bicep', 'tricep', 'forearm']);
   const isCore = includesAnyKeyword(descriptor, ['abs', 'core', 'bung', 'oblique']);
-  const isBarbellOrMachine = includesAnyKeyword(equipment, ['barbell', 'ta don lon', 'machine', 'may', 'smith']);
-  const isDumbbellOrKettlebell = includesAnyKeyword(equipment, ['dumbbell', 'ta don', 'kettlebell']);
+  const isBarbellOrMachine = includesAnyKeyword(equipment, ['barbell', 'thanh don', 'ta don lon', 'machine', 'may', 'smith']);
+  const isDumbbellOrKettlebell = includesAnyKeyword(equipment, ['dumbbell', 'ta don', 'kettlebell', 'ta chuong']);
   const isCable = includesAnyKeyword(equipment, ['cable', 'cap']);
   const difficulty = normalizeKeywordText(exercise?.difficulty);
 

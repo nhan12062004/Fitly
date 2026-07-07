@@ -7,11 +7,7 @@
         "start": "npx tsx src/server.ts",
         "db:migration:list": "npx supabase migration list --workdir ..",
         "db:migration:repair:normalize-rls": "npx supabase migration repair 20260602110000 --status applied --linked --workdir ..",
-        "db:push": "npx supabase db push --linked --include-all --workdir ..",
-        "cleanup:daily-history": "npx tsx src/scripts/cleanupDailyHistory.ts",
-        "import:sourced-vietnamese-foods": "npx tsx src/scripts/importSourcedVietnameseFoods.ts",
-        "seed:vietnamese-foods": "npx tsx src/scripts/seedVietnameseFoods.ts",
-        "update:schema-doc": "npx tsx src/scripts/updateSchemaDoc.ts"
+        "db:push": "npx supabase db push --linked --include-all --workdir .."
     },
     "keywords": [],
     "author": "",

@@ -127,7 +127,6 @@ npm run dev
 npm run start
 npm run db:migration:list
 npm run db:push
-npm run update:schema-doc
 ```
 
 </details>

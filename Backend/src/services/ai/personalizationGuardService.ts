@@ -251,6 +251,7 @@ const HEAVY_OR_COMPLEX_TERMS = [
   'snatch',
   'jerk',
   'barbell',
+  'thanh don',
   'ta don lon',
   'smith',
   'heavy',

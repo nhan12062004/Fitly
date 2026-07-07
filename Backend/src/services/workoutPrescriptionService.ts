@@ -174,7 +174,7 @@ const intensityForReps = (averageReps: number): number => {
 
 const roundLoad = (weightKg: number, exercise?: any): number => {
   const equipment = normalizeText(exercise?.equipment);
-  const increment = includesAny(equipment, ['barbell', 'smith', 'machine', 'may']) ? 2.5 : 1;
+  const increment = includesAny(equipment, ['barbell', 'thanh don', 'smith', 'machine', 'may']) ? 2.5 : 1;
   return Math.max(0, Math.round(weightKg / increment) * increment);
 };
 
@@ -188,8 +188,8 @@ const suggestStartingWeightKg = ({ exercise, bodyWeightKg }: { exercise?: any; b
   const isLargeUpper = includesAny(descriptor, ['chest', 'nguc', 'back', 'lung', 'lat', 'row', 'press']);
   const isSmallUpper = includesAny(descriptor, ['shoulder', 'vai', 'arm', 'tay', 'bicep', 'tricep', 'forearm']);
   const isCore = includesAny(descriptor, ['abs', 'core', 'bung', 'oblique']);
-  const isBarbellOrMachine = includesAny(equipment, ['barbell', 'ta don lon', 'machine', 'may', 'smith']);
-  const isDumbbellOrKettlebell = includesAny(equipment, ['dumbbell', 'ta don', 'kettlebell']);
+  const isBarbellOrMachine = includesAny(equipment, ['barbell', 'thanh don', 'ta don lon', 'machine', 'may', 'smith']);
+  const isDumbbellOrKettlebell = includesAny(equipment, ['dumbbell', 'ta don', 'kettlebell', 'ta chuong']);
   const isCable = includesAny(equipment, ['cable', 'cap']);
   const difficulty = normalizeText(exercise?.difficulty);
 
