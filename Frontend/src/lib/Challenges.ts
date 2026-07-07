@@ -3,6 +3,20 @@ import { supabase } from './Supabase';
 export type ChallengeMode = 'solo' | 'crew';
 export type ChallengeStatus = 'active' | 'completed' | 'cancelled';
 export type ChallengeSourceType = 'water' | 'meal' | 'workout' | 'sleep' | 'manual';
+export type ChallengeDifficulty = 'easy' | 'medium' | 'hard';
+
+export type ChallengeTemplate = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  goal: string;
+  duration_days: number | null;
+  difficulty: ChallengeDifficulty;
+  reward_badge: string | null;
+  mode: ChallengeMode;
+  is_active: boolean;
+};
 
 export type ChallengeSummary = {
   id: string;
@@ -12,7 +26,7 @@ export type ChallengeSummary = {
   mode: ChallengeMode;
   challenge_type: 'daily_checkin';
   start_date: string;
-  end_date: string;
+  end_date: string | null;
   status: ChallengeStatus;
   target: Record<string, unknown>;
   invite_code: string | null;
@@ -20,6 +34,7 @@ export type ChallengeSummary = {
   created_at: string;
   participant_count: number;
   today_checkin_count: number;
+  user_checkin_count: number;
   user_checked_in: boolean;
 };
 
@@ -79,6 +94,7 @@ const normalizeSummary = (row: ChallengeSummary): ChallengeSummary => ({
   max_members: Number(row.max_members || 1),
   participant_count: Number(row.participant_count || 0),
   today_checkin_count: Number(row.today_checkin_count || 0),
+  user_checkin_count: Number(row.user_checkin_count || 0),
   user_checked_in: Boolean(row.user_checked_in),
   target: row.target || {},
 });
@@ -119,20 +135,21 @@ export const buildChallengeLeaderboard = (
   participants: ChallengeParticipantProgress[],
   totalDays: number,
   today: string,
-  endDate: string,
+  endDate: string | null,
 ): ChallengeLeaderboardEntry[] => {
-  const referenceDate = today > endDate ? endDate : today;
+  const referenceDate = endDate && today > endDate ? endDate : today;
   const entries = participants.map((participant) => {
     const checkinDates = [...new Set(participant.checkin_dates)].sort();
     const { currentStreak, longestStreak } = getStreaks(checkinDates, referenceDate);
     const totalCheckins = checkinDates.length;
     const streakBonus = Math.max(0, longestStreak - 1) * 20;
+    const fullCompletionBonus = endDate && totalCheckins >= totalDays ? 200 : 0;
 
     return {
       ...participant,
       checkin_dates: checkinDates,
       rank: 0,
-      score: totalCheckins * 100 + streakBonus,
+      score: totalCheckins * 100 + streakBonus + fullCompletionBonus,
       total_checkins: totalCheckins,
       current_streak: currentStreak,
       longest_streak: longestStreak,
@@ -183,6 +200,60 @@ export const createCrewChallenge = async (
   return String(data);
 };
 
+export const createCustomChallenge = async (
+  userId: string,
+  input: {
+    title: string;
+    description?: string;
+    mode: ChallengeMode;
+    durationDays: number | null;
+  },
+): Promise<string> => {
+  await assertCurrentUser(userId);
+  const { data, error } = await supabase.rpc('create_custom_challenge', {
+    p_title: input.title,
+    p_description: input.description || null,
+    p_mode: input.mode,
+    p_duration_days: input.durationDays,
+  });
+  if (error) throw error;
+  return String(data);
+};
+
+export const getChallengeTemplates = async (): Promise<ChallengeTemplate[]> => {
+  const { data, error } = await supabase
+    .from('challenge_templates')
+    .select('id, slug, title, description, goal, duration_days, difficulty, reward_badge, mode, is_active')
+    .eq('is_active', true)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return (data || []) as ChallengeTemplate[];
+};
+
+export const startChallengeTemplate = async (
+  userId: string,
+  templateId: string,
+): Promise<string> => {
+  await assertCurrentUser(userId);
+  const { data, error } = await supabase.rpc('start_challenge_template', {
+    p_template_id: templateId,
+  });
+  if (error) throw error;
+  return String(data);
+};
+
+export const leaveChallenge = async (
+  userId: string,
+  challengeId: string,
+): Promise<boolean> => {
+  await assertCurrentUser(userId);
+  const { data, error } = await supabase.rpc('leave_challenge', {
+    p_challenge_id: challengeId,
+  });
+  if (error) throw error;
+  return Boolean(data);
+};
+
 export const joinChallengeByInviteCode = async (
   userId: string,
   inviteCode: string,
@@ -210,7 +281,12 @@ export const selectPrimaryChallenge = (
 ): ChallengeSummary | null => {
   const activeChallenges = challenges
     .filter((challenge) => challenge.status === 'active')
-    .sort((left, right) => left.end_date.localeCompare(right.end_date));
+    .sort((left, right) => {
+      if (left.end_date === right.end_date) return 0;
+      if (left.end_date === null) return 1;
+      if (right.end_date === null) return -1;
+      return left.end_date.localeCompare(right.end_date);
+    });
 
   return activeChallenges.find((challenge) => challenge.mode === 'crew' && !challenge.user_checked_in)
     || activeChallenges.find((challenge) => challenge.mode === 'crew')
@@ -295,13 +371,21 @@ export const getTodayChallengeStatus = async (
       month: '2-digit',
       day: '2-digit',
     }).format(new Date());
-    const totalDays = Math.max(
-      1,
-      Math.round((
-        new Date(`${challenge.end_date}T00:00:00Z`).getTime()
-        - new Date(`${challenge.start_date}T00:00:00Z`).getTime()
-      ) / 86_400_000) + 1,
-    );
+    const totalDays = challenge.end_date
+      ? Math.max(
+          1,
+          Math.round((
+            new Date(`${challenge.end_date}T00:00:00Z`).getTime()
+            - new Date(`${challenge.start_date}T00:00:00Z`).getTime()
+          ) / 86_400_000) + 1,
+        )
+      : Math.max(
+          1,
+          Math.round((
+            new Date(`${today}T00:00:00Z`).getTime()
+            - new Date(`${challenge.start_date}T00:00:00Z`).getTime()
+          ) / 86_400_000) + 1,
+        );
     const leaderboard = buildChallengeLeaderboard(participants, totalDays, today, challenge.end_date);
     const currentIndex = leaderboard.findIndex((entry) => entry.user_id === userId);
 

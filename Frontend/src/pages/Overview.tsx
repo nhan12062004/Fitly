@@ -1,7 +1,17 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
-import { CheckCircle2, ChevronRight, Droplet, Dumbbell, Sparkles, Utensils } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Droplet, Dumbbell, Flame, Sparkles, Utensils } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import ActiveChallengeCard from '../components/ActiveChallengeCard';
+import {
+  calculateDailyStreak,
+  completeDailyStreakToday,
+  getStreakHistoryStartKey,
+  initialDailyStreak,
+  type DailyStreakState,
+  type StreakMealRow,
+  type StreakProgressRow,
+  type StreakWorkoutRow,
+} from '../lib/DailyStreak';
 import { supabase } from '../lib/Supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -59,7 +69,7 @@ const initialStats = {
   workout_duration: 0,
   calories_burned: 0,
   remaining_workouts: 0,
-  streak_days: 1
+  streak_days: 0
 };
 
 const initialDailyProgress = {
@@ -104,6 +114,12 @@ const formatWholeNumber = (value: number) => Math.round(Number(value) || 0).toLo
 const formatProgressNumber = (value: number) => {
   const nextValue = Number(value) || 0;
   return Number.isInteger(nextValue) ? String(nextValue) : nextValue.toFixed(1);
+};
+
+const normalizeWaterGoalMl = (value: unknown): number | null => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return numeric > 20 ? numeric : numeric * 1000;
 };
 
 const normalizeTextKey = (value: string) =>
@@ -252,6 +268,7 @@ let overviewCache: {
   todayMeals: OverviewMeal[];
   dailyNutrition: typeof initialDailyNutrition;
   dailyProgress: typeof initialDailyProgress;
+  dailyStreak: DailyStreakState;
   mealsPerDay: number;
 } | null = null;
 
@@ -267,7 +284,9 @@ export default function Overview() {
   const [todayMeals, setTodayMeals] = useState<OverviewMeal[]>(() => overviewCache?.todayMeals || createDefaultMeals(overviewCache?.mealsPerDay || 3));
   const [dailyNutrition, setDailyNutrition] = useState(() => overviewCache?.dailyNutrition || initialDailyNutrition);
   const [dailyProgress, setDailyProgress] = useState(() => overviewCache?.dailyProgress || initialDailyProgress);
+  const [dailyStreak, setDailyStreak] = useState<DailyStreakState>(() => overviewCache?.dailyStreak || initialDailyStreak);
   const [progressBarsActive, setProgressBarsActive] = useState(false);
+  const dailyStreakRef = useRef(dailyStreak);
   const refreshTickRef = useRef(refreshTick);
   const prevRefreshTickRef = useRef(refreshTick);
   const skipRefreshTickRef = useRef<number | null>(null);
@@ -313,6 +332,10 @@ export default function Overview() {
   }, [refreshTick]);
 
   useEffect(() => {
+    dailyStreakRef.current = dailyStreak;
+  }, [dailyStreak]);
+
+  useEffect(() => {
     const handleWaterUpdated = (event: Event) => {
       const waterIntake = Number((event as CustomEvent<{ waterIntake?: number }>).detail?.waterIntake);
       if (!Number.isFinite(waterIntake)) return;
@@ -320,10 +343,24 @@ export default function Overview() {
 
       setDailyProgress((prev) => {
         const next = { ...prev, waterIntake };
+        const waterGoalMl = normalizeWaterGoalMl(next.waterGoal);
+        const reachedWaterGoal = waterGoalMl !== null && waterIntake * 1000 >= waterGoalMl;
+        const nextStreak = reachedWaterGoal
+          ? completeDailyStreakToday(dailyStreakRef.current, 'Uống đủ nước')
+          : dailyStreakRef.current;
+        if (reachedWaterGoal) {
+          dailyStreakRef.current = nextStreak;
+          setDailyStreak(nextStreak);
+          setStats((previousStats) => ({ ...previousStats, streak_days: nextStreak.count }));
+        }
         if (overviewCache) {
           overviewCache = {
             ...overviewCache,
-            dailyProgress: next
+            dailyProgress: next,
+            dailyStreak: nextStreak,
+            stats: reachedWaterGoal
+              ? { ...overviewCache.stats, streak_days: nextStreak.count }
+              : overviewCache.stats
           };
         }
         return next;
@@ -353,6 +390,7 @@ export default function Overview() {
       try {
         const today = new Date();
         const todayStr = getVietnamDateKey(today);
+        const streakHistoryStart = getStreakHistoryStartKey(todayStr);
         const { weekStartKey } = getVietnamWeekRange(today);
         const [
           lifestyleRes,
@@ -360,18 +398,57 @@ export default function Overview() {
           todaySessionsRes,
           dailyMealLogsRes,
           healthRes,
-          plansRes
+          plansRes,
+          streakWorkoutsRes,
+          streakMealsRes,
+          streakProgressRes
         ] = await Promise.all([
           supabase.from('lifestyle_settings').select('workout_duration, daily_water_goal, target_calories, meals_per_day').eq('user_id', user.id).maybeSingle(),
           supabase.from('daily_progress_logs').select('water_intake_ml, sleep_hours').eq('user_id', user.id).eq('log_date', todayStr).maybeSingle(),
           supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, gif_url, image_url, instructions, target_muscle, body_part, difficulty)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
           supabase.from('daily_meal_logs').select('calories, protein, carbs, fat, quantity, is_completed').eq('user_id', user.id).eq('log_date', todayStr).eq('is_completed', true),
           supabase.from('health_conditions').select('sleep_hours').eq('user_id', user.id).maybeSingle(),
-          supabase.from('weekly_food_plans').select('id').eq('user_id', user.id).eq('week_start_date', weekStartKey).order('updated_at', { ascending: false }).limit(1)
+          supabase.from('weekly_food_plans').select('id').eq('user_id', user.id).eq('week_start_date', weekStartKey).order('updated_at', { ascending: false }).limit(1),
+          supabase.from('daily_exercise_sessions').select('log_date, is_completed').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr),
+          supabase.from('daily_meal_logs').select('log_date, is_completed').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr),
+          supabase.from('daily_progress_logs').select('log_date, water_intake_ml, sleep_hours').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr)
         ]);
 
         const todaySessions = todaySessionsRes.data || [];
         const completedSessions = todaySessions.filter((session: any) => !!session.is_completed);
+        const streakWorkouts: StreakWorkoutRow[] = [
+          ...((streakWorkoutsRes.data || []) as StreakWorkoutRow[]),
+          ...todaySessions.map((session: any) => ({
+            log_date: todayStr,
+            is_completed: Boolean(session.is_completed)
+          }))
+        ];
+        const streakMeals: StreakMealRow[] = [
+          ...((streakMealsRes.data || []) as StreakMealRow[]),
+          ...(dailyMealLogsRes.data || []).map((meal: any) => ({
+            log_date: todayStr,
+            is_completed: meal.is_completed !== false
+          }))
+        ];
+        const streakProgress: StreakProgressRow[] = [
+          ...((streakProgressRes.data || []) as StreakProgressRow[]),
+          ...(progressLogRes.data
+            ? [{
+                log_date: todayStr,
+                water_intake_ml: Number(progressLogRes.data.water_intake_ml || 0),
+                sleep_hours: Number(progressLogRes.data.sleep_hours || 0)
+              }]
+            : [])
+        ];
+        const nextDailyStreak = calculateDailyStreak({
+          todayKey: todayStr,
+          waterGoalMl: normalizeWaterGoalMl(lifestyleRes.data?.daily_water_goal),
+          workouts: streakWorkouts,
+          meals: streakMeals,
+          progressLogs: streakProgress
+        });
+        dailyStreakRef.current = nextDailyStreak;
+        setDailyStreak(nextDailyStreak);
         const estimatedCaloriesFromSessions = completedSessions.reduce(
           (sum: number, item: any) => {
             const actualKcal = Number(item.actual_kcal_estimated);
@@ -388,7 +465,7 @@ export default function Overview() {
           workout_duration: Math.round(completedSessions.length * ESTIMATED_MINUTES_PER_EXERCISE),
           calories_burned: estimatedCaloriesFromSessions,
           remaining_workouts: remainingWorkoutCount,
-          streak_days: stats.streak_days
+          streak_days: nextDailyStreak.count
         };
         setStats(nextStats);
 
@@ -563,6 +640,7 @@ export default function Overview() {
           todayMeals: mealsList,
           dailyNutrition: nextDailyNutrition,
           dailyProgress: nextDailyProgressWithMeals,
+          dailyStreak: nextDailyStreak,
           mealsPerDay: resolvedMealsPerDay
         };
       } catch (e) {
@@ -586,6 +664,8 @@ export default function Overview() {
       setTodayMeals(createDefaultMeals(3));
       setDailyNutrition(initialDailyNutrition);
       setDailyProgress(initialDailyProgress);
+      dailyStreakRef.current = initialDailyStreak;
+      setDailyStreak(initialDailyStreak);
     }
   }, [user, isLoggedIn, profile, refreshTick]);
 
@@ -664,7 +744,19 @@ export default function Overview() {
     ? (workoutCompleted ? 'Đã xong buổi tập hôm nay' : `${plannedWorkoutMinutes} phút tập cần hoàn thành`)
     : 'Chưa có buổi tập hôm nay';
   const mealHeroLabel = `${todayMeals.length} bữa ăn · ${mealProtein}g protein`;
-  const streakHeroLabel = `Streak ${formatWholeNumber(stats.streak_days)} ngày`;
+  const streakHeroLabel = `Streak ${formatWholeNumber(dailyStreak.count)} ngày · ${
+    dailyStreak.isTodayCompleted ? 'đã tính hôm nay' : 'chưa tính hôm nay'
+  }`;
+  const streakStatusText = dailyStreak.status === 'completed'
+    ? 'Bạn đã giữ streak hôm nay.'
+    : dailyStreak.status === 'pending'
+      ? 'Chưa tính streak hôm nay'
+      : 'Bắt đầu streak đầu tiên';
+  const streakSupportingText = dailyStreak.status === 'completed'
+    ? 'Tốt lắm, ngày mai chỉ cần thêm một hành động lành mạnh nữa để nối chuỗi.'
+    : dailyStreak.status === 'pending'
+      ? 'Hoàn thành một buổi tập, ghi bữa ăn, uống đủ nước hoặc ghi nhận giấc ngủ để giữ streak.'
+      : 'Chỉ cần hoàn thành một hành động lành mạnh hôm nay là bạn có streak 1 ngày.';
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
@@ -690,9 +782,53 @@ export default function Overview() {
             {mealHeroLabel}
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-warning/15 bg-warning/10 px-3 py-2 text-warning">
-            <Sparkles className="h-3.5 w-3.5" />
+            <Flame className="h-3.5 w-3.5" />
             {streakHeroLabel}
           </span>
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="today-streak-title"
+        className={`overflow-hidden rounded-xl border p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] md:p-5 ${
+          dailyStreak.isTodayCompleted
+            ? 'border-warning/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.13),transparent_48%),var(--bg-secondary)]'
+            : 'border-border-primary bg-bg-secondary/80'
+        }`}
+      >
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-start gap-3.5">
+            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+              dailyStreak.isTodayCompleted ? 'bg-warning/15 text-warning' : 'bg-bg-tertiary text-text-tertiary'
+            }`}>
+              <Flame className="h-6 w-6" />
+            </span>
+            <div className="min-w-0">
+              <p id="today-streak-title" className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Streak hôm nay</p>
+              <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <p className="text-2xl font-black text-text-primary">{formatWholeNumber(dailyStreak.count)} ngày</p>
+                <p className={`text-sm font-black ${dailyStreak.isTodayCompleted ? 'text-warning' : 'text-text-secondary'}`}>
+                  {streakStatusText}
+                </p>
+              </div>
+              <p className="mt-1.5 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">{streakSupportingText}</p>
+              {dailyStreak.completedTodayReasons.length > 0 && (
+                <p className="mt-2 text-xs font-bold text-accent">
+                  Đã tính từ: {dailyStreak.completedTodayReasons.join(', ')}
+                </p>
+              )}
+            </div>
+          </div>
+          {!dailyStreak.isTodayCompleted && (
+            <button
+              type="button"
+              onClick={() => navigate('/exercises')}
+              className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover md:w-auto"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Hoàn thành hôm nay
+            </button>
+          )}
         </div>
       </section>
 
@@ -896,6 +1032,15 @@ function OverviewSkeleton() {
                 className="h-10 w-[11rem] rounded-full border border-border-primary bg-bg-tertiary/40 md:w-[12.5rem]"
               />
             ))}
+          </div>
+        </section>
+
+        <section className="flex min-h-32 items-center gap-4 rounded-xl border border-border-primary bg-bg-secondary/60 p-4 md:p-5">
+          <div className="h-12 w-12 shrink-0 rounded-xl bg-bg-tertiary/60" />
+          <div className="min-w-0 flex-1">
+            {block('h-3 w-24')}
+            {block('mt-3 h-6 w-36 rounded-xl')}
+            {block('mt-3 h-3 w-[82%] rounded-lg')}
           </div>
         </section>
 
