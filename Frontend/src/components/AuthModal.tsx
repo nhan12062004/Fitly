@@ -125,7 +125,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
         <div className="relative w-full max-w-[21rem] max-h-[88dvh] overflow-y-auto bg-bg-secondary border border-border-primary rounded-[22px] p-4 text-center shadow-2xl animate-in zoom-in slide-in-from-bottom-4 duration-500 sm:max-w-md sm:rounded-[2rem] sm:p-6 md:p-8">
           <div className="relative mb-5 flex justify-center sm:mb-8">
             <div className="absolute inset-0 bg-black/30 blur-3xl rounded-full scale-125" />
-            <div className="relative w-16 h-16 bg-accent rounded-full flex items-center justify-center shadow-[0_18px_36px_rgb(0_0_0_/_0.24)] sm:w-24 sm:h-24">
+            <div className="relative flex h-16 w-16 items-center justify-center rounded-xl bg-accent shadow-[0_18px_36px_rgb(0_0_0_/_0.18)] sm:h-24 sm:w-24 sm:rounded-2xl">
               <Mail className="w-8 h-8 text-text-inverse sm:w-12 sm:h-12" strokeWidth={2.5} />
             </div>
           </div>
@@ -139,7 +139,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
 
           <button
             onClick={resetFields}
-            className="w-full bg-accent text-text-inverse font-bold py-3 rounded-xl text-sm hover:bg-accent-hover transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-[0_18px_36px_rgb(0_0_0_/_0.22)] sm:rounded-2xl sm:py-4 sm:text-base"
+            className="w-full rounded-xl bg-accent py-3 text-sm font-bold text-text-inverse transition-colors hover:bg-accent-hover sm:py-4 sm:text-base"
           >
             Quay lại Đăng nhập
           </button>
@@ -256,7 +256,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
 
             <button
               disabled={loading}
-              className="w-full bg-accent text-text-inverse font-bold py-3 rounded-xl hover:bg-accent-hover transition-colors flex items-center justify-center gap-2 group"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 font-bold text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

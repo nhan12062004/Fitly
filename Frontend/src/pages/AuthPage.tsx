@@ -172,8 +172,8 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
       <div className="landing-page min-h-[100dvh] w-full min-w-0 max-w-[100vw] flex-1 basis-0 overflow-x-hidden bg-bg-primary text-text-primary">
         <div className="landing-grid absolute inset-0 opacity-70" />
         <main className="relative z-10 flex min-h-[100dvh] items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
-          <div className="landing-product-card landing-surface w-full max-w-md rounded-lg border border-border-primary p-6 text-center sm:p-8">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-lg bg-accent text-text-inverse">
+          <div className="landing-product-card landing-surface w-full max-w-md rounded-xl border border-border-primary p-6 text-center sm:p-8">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl bg-accent text-text-inverse">
               <Mail className="h-8 w-8" strokeWidth={2.5} />
             </div>
             <h1 className="mt-6 text-2xl font-black text-text-primary">Kiểm tra email của bạn</h1>
@@ -185,13 +185,13 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
               <button
                 type="button"
                 onClick={() => navigate('/login', { replace: true })}
-                className="landing-action inline-flex h-12 items-center justify-center rounded-lg bg-accent px-6 text-sm font-black text-text-inverse transition-all hover:bg-accent-hover"
+                className="inline-flex h-12 items-center justify-center rounded-xl bg-accent px-6 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
               >
                 Đi tới đăng nhập
               </button>
               <Link
                 to="/"
-                className="inline-flex h-12 items-center justify-center rounded-lg border border-border-primary bg-bg-secondary px-6 text-sm font-black text-text-primary transition-colors hover:border-accent/40 hover:text-accent"
+                className="inline-flex h-12 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary/45 px-6 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
               >
                 Quay lại trang chủ
               </Link>
@@ -261,7 +261,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
           </ScrollReveal>
 
           <ScrollReveal className="mx-auto w-full min-w-0 max-w-[460px]" delayMs={120}>
-            <div className="landing-product-card landing-surface rounded-lg border border-border-primary p-5 shadow-[0_28px_90px_rgba(0,0,0,0.34)] sm:p-6">
+            <div className="landing-product-card landing-surface rounded-xl border border-border-primary p-5 shadow-[0_28px_90px_rgba(0,0,0,0.34)] sm:p-6">
               <div className="flex items-start justify-between gap-4 border-b border-border-primary pb-5">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.2em] text-accent">
@@ -274,7 +274,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                     {isLogin ? 'Vào lại dashboard của bạn.' : 'Tạo tài khoản để bắt đầu survey cá nhân.'}
                   </p>
                 </div>
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-text-inverse">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-text-inverse">
                   {isLogin ? <ShieldCheck className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
                 </div>
               </div>
@@ -374,7 +374,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="landing-action flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent font-black text-text-inverse transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
+                  className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {loading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -417,28 +417,28 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
             onClick={() => setIsForgotPasswordOpen(false)}
             className="absolute inset-0 bg-black/65 backdrop-blur-md"
           />
-          <div className="responsive-sheet-panel relative w-full max-w-[448px] rounded-lg border border-white/10 bg-[#111111]/95 p-6 shadow-[0_26px_90px_rgba(0,0,0,0.55)]">
+          <div className="responsive-sheet-panel relative w-full max-w-[448px] rounded-xl border border-border-primary bg-bg-secondary/95 p-6 shadow-[0_26px_90px_rgba(0,0,0,0.42)]">
             <div>
               <div className="flex items-start justify-between gap-4">
-                <h2 className="text-2xl font-black leading-tight text-white">Quên mật khẩu?</h2>
+                <h2 className="text-2xl font-black leading-tight text-text-primary">Quên mật khẩu?</h2>
                 <button
                   type="button"
                   aria-label="Đóng modal quên mật khẩu"
                   onClick={() => setIsForgotPasswordOpen(false)}
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <p className="mt-3 max-w-[360px] text-sm font-semibold leading-6 text-zinc-400">
+              <p className="mt-3 max-w-[360px] text-sm font-semibold leading-6 text-text-secondary">
                 Nhập email tài khoản của bạn, Supabase sẽ gửi link đặt lại mật khẩu.
               </p>
             </div>
 
             <div className="mt-6 space-y-2">
-              <label className="text-xs font-bold text-zinc-400">Email nhận link đặt lại mật khẩu</label>
+              <label className="text-xs font-bold text-text-secondary">Email nhận link đặt lại mật khẩu</label>
               <div className="relative">
-                <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+                <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
                 <input
                   type="email"
                   value={resetEmail}
@@ -450,7 +450,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                     }
                   }}
                   placeholder="email@vidu.com"
-                  className="h-12 w-full rounded-lg border border-accent bg-black/25 pl-11 pr-4 text-sm font-semibold text-white outline-none transition-colors placeholder:text-zinc-500 focus:border-accent focus:ring-1 focus:ring-accent"
+                  className="landing-input h-12 w-full rounded-xl border border-border-primary pl-11 pr-4 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-accent"
                   autoFocus
                 />
               </div>
@@ -460,7 +460,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
               <button
                 type="button"
                 onClick={() => setIsForgotPasswordOpen(false)}
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-white/10 bg-transparent px-6 text-sm font-black text-zinc-200 transition-colors hover:border-white/20 hover:bg-white/5"
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary/45 px-6 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
               >
                 Hủy
               </button>
@@ -468,7 +468,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                 type="button"
                 onClick={handleSendPasswordReset}
                 disabled={resetLoading}
-                className="landing-action inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-accent px-6 text-sm font-black text-text-inverse transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-6 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {resetLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 Gửi link

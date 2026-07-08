@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
       <div className="landing-grid absolute inset-0 opacity-70" />
 
       <main className="relative z-10 flex min-h-[100dvh] items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
-        <section className="landing-product-card landing-surface w-full max-w-md rounded-lg border border-border-primary p-5 shadow-[0_28px_90px_rgba(0,0,0,0.34)] sm:p-6">
+        <section className="landing-product-card landing-surface w-full max-w-md rounded-xl border border-border-primary p-5 shadow-[0_28px_90px_rgba(0,0,0,0.34)] sm:p-6">
           <div className="flex items-start justify-between gap-4 border-b border-border-primary pb-5">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.2em] text-accent">Bảo mật</p>
@@ -79,7 +79,7 @@ export default function ResetPasswordPage() {
                 Nhập mật khẩu mới cho tài khoản Fitly của bạn.
               </p>
             </div>
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent text-text-inverse">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-text-inverse">
               <KeyRound className="h-5 w-5" />
             </div>
           </div>
@@ -101,7 +101,7 @@ export default function ResetPasswordPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Ít nhất 6 ký tự"
-                    className="landing-input h-12 w-full rounded-lg border border-border-primary pl-11 pr-12 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-accent"
+                    className="landing-input h-12 w-full rounded-xl border border-border-primary pl-11 pr-12 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-accent"
                   />
                   <button
                     type="button"
@@ -124,7 +124,7 @@ export default function ResetPasswordPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Nhập lại mật khẩu mới"
-                    className="landing-input h-12 w-full rounded-lg border border-border-primary pl-11 pr-4 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-accent"
+                    className="landing-input h-12 w-full rounded-xl border border-border-primary pl-11 pr-4 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-accent"
                   />
                 </div>
               </div>
@@ -132,7 +132,7 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="landing-action flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-accent font-black text-text-inverse transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {loading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
@@ -151,7 +151,7 @@ export default function ResetPasswordPage() {
               </p>
               <Link
                 to="/login"
-                className="landing-action inline-flex h-12 w-full items-center justify-center rounded-lg bg-accent px-6 text-sm font-black text-text-inverse transition-all hover:bg-accent-hover"
+                className="inline-flex h-12 w-full items-center justify-center rounded-xl bg-accent px-6 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
               >
                 Quay lại đăng nhập
               </Link>
