@@ -6,7 +6,6 @@ import {
   HeartPulse,
   Info,
   Loader2,
-  Scale,
   Target,
 } from 'lucide-react';
 import type { SurveyPlanSummary } from './SurveyForm';
