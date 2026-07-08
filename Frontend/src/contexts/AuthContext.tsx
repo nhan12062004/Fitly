@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { supabase } from '../lib/Supabase';
 import { User } from '@supabase/supabase-js';
 import AuthModal from '../components/AuthModal';
-import VerificationSuccessModal from '../components/VerificationSuccessModal';
 import LoadingScreen from '../components/LoadingScreen';
 import PremiumCheckout from '../pages/PremiumCheckout';
 
@@ -45,6 +44,20 @@ const moveRecoveryLinkToResetPage = () => {
   return true;
 };
 
+const normalizeVerifiedEmailRedirect = () => {
+  const verifiedLoginPath = '/login?verified=1';
+
+  if (
+    window.location.pathname === '/login' &&
+    window.location.search === '?verified=1' &&
+    !window.location.hash
+  ) {
+    return;
+  }
+
+  window.history.replaceState(null, '', verifiedLoginPath);
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
@@ -56,7 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
   const checkProfile = async (userId: string) => {
@@ -92,39 +104,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Kiểm tra URL hash để nhận diện xác thực email thành công
-    const handleInitialHash = () => {
-      const hash = window.location.hash;
+    const handleInitialAuthUrl = async () => {
       const searchParams = new URLSearchParams(window.location.search);
       const authType = getSupabaseAuthType();
 
       if (authType === 'recovery') {
-        setIsVerifying(false);
-        if (moveRecoveryLinkToResetPage()) return;
+        return moveRecoveryLinkToResetPage() ? 'redirected' : 'default';
       }
 
       if (window.location.pathname === '/reset-password') {
-        setIsVerifying(false);
-        return;
+        return 'default';
       }
 
-      // Supabase thường gửi kèm access_token trong hash sau khi verify email
-      if (hash.includes('access_token=') && authType === 'signup') {
-        setIsVerifying(true);
-        // Xóa hash để URL sạch hơn
-        window.history.replaceState(null, '', window.location.pathname);
+      if (searchParams.get('verified') === '1' || authType === 'signup') {
+        normalizeVerifiedEmailRedirect();
+        await supabase.auth.signOut();
+        return 'signed-out';
       }
 
-      // Hoặc kiểm tra qua query params nếu có cấu hình khác
-      if (searchParams.get('verified') === 'true' && authType !== 'recovery') {
-        setIsVerifying(true);
-      }
+      return 'default';
     };
 
-    handleInitialHash();
+    let mounted = true;
 
-    // Check current session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const initializeAuth = async () => {
+      const initialAction = await handleInitialAuthUrl();
+      if (initialAction === 'redirected') return;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
@@ -133,12 +142,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         setIsCheckingProfile(false);
       }
-    });
+    };
+
+    void initializeAuth();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        setIsVerifying(false);
         moveRecoveryLinkToResetPage();
       }
 
@@ -192,6 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setupRealtime();
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
       if (realtimeChannel) supabase.removeChannel(realtimeChannel);
     };
@@ -258,20 +269,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {loading ? <LoadingScreen fullScreen /> : children}
       <AuthModal isOpen={isAuthModalOpen} initialMode={authMode} onClose={closeAuthModal} />
       <PremiumCheckout isOpen={isPremiumModalOpen} onClose={closePremiumModal} />
-      <VerificationSuccessModal
-        isOpen={isVerifying}
-        onClose={() => setIsVerifying(false)}
-        onLoginClick={() => {
-          setIsVerifying(false);
-          // User thường đã được tự động đăng nhập bởi Supabase sau khi click email
-          // Nếu chưa, ta mở modal login
-          if (user) {
-            window.location.assign('/overview');
-            return;
-          }
-          openAuthModal();
-        }}
-      />
     </AuthContext.Provider>
   );
 }

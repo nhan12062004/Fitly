@@ -1788,15 +1788,14 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
 
             <div className="mt-9">
               <h3 className="text-2xl font-black leading-tight text-text-primary sm:text-3xl">
-                Nhịp vận động hiện tại
+                Mức độ vận động của bạn là gì?
               </h3>
               <p className="mt-3 text-sm font-medium leading-6 text-text-secondary">
                 Chọn mức gần nhất với nhịp sống của bạn để Fitly xếp lịch vừa sức và dễ duy trì.
               </p>
             </div>
 
-            <div className="mt-8 space-y-3">
-              <label className="block text-xs font-black text-text-primary">Mức độ vận động <span className="text-red-500">*</span></label>
+            <div className="mt-8">
               <ActivityChoiceList name="activity_level" value={formData.activity_level} options={ACTIVITY_LEVEL_OPTIONS} onChange={handleInputChange} />
             </div>
 
@@ -1846,14 +1845,12 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
             </div>
 
             <div className="mt-8 space-y-5">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{"Trình độ tập luyện"} <span className="text-red-500">*</span></label>
+              <div>
                 <ChoiceGrid name="experience_level" value={formData.experience_level} options={EXPERIENCE_OPTIONS} onChange={handleInputChange} columns="md:grid-cols-2" />
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{"Bạn tập ở đâu?"} <span className="text-red-500">*</span></label>
+                <div>
                   <ChoiceGrid name="workout_location" value={formData.workout_location} options={LOCATION_OPTIONS} onChange={handleInputChange} columns="grid-cols-1" />
                 </div>
                 <div className="space-y-1.5">

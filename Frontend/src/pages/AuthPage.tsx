@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
   Check,
+  CheckCircle2,
   Eye,
   EyeOff,
   KeyRound,
@@ -38,6 +39,7 @@ const signupHighlights = [
 
 export default function AuthPage({ initialMode }: AuthPageProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isLoggedIn } = useAuth();
   const toast = useToast();
   const [isLogin, setIsLogin] = useState(initialMode === 'login');
@@ -73,7 +75,9 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
     if (error) toast.error(error);
   }, [error, toast]);
 
-  if (isLoggedIn) {
+  const isVerifiedEmail = isLogin && searchParams.get('verified') === '1';
+
+  if (isLoggedIn && !isVerifiedEmail) {
     return <Navigate to="/overview" replace />;
   }
 
@@ -109,7 +113,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/login?verified=1`,
         },
       });
 
@@ -120,10 +124,10 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
       }
 
       if (data.session) {
-        navigate('/overview', { replace: true });
-      } else {
-        setIsEmailSent(true);
+        await supabase.auth.signOut();
       }
+
+      setIsEmailSent(true);
     } catch (err: any) {
       let errorMessage = err.message;
       if (errorMessage === 'Invalid login credentials') {
@@ -185,8 +189,9 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
             </div>
             <h1 className="mt-6 text-2xl font-black text-text-primary">Kiểm tra email của bạn</h1>
             <p className="mt-4 text-sm font-semibold leading-7 text-text-secondary">
-              Chúng tôi đã gửi liên kết xác minh đến <span className="text-accent">{email}</span>.
-              Vui lòng kích hoạt tài khoản rồi quay lại đăng nhập.
+              Đăng ký thành công! Vui lòng kiểm tra Gmail để xác thực tài khoản trước khi đăng nhập.
+              <br />
+              Email đăng ký: <span className="text-accent">{email}</span>
             </p>
             <div className="mt-8 grid gap-3">
               <button
@@ -293,6 +298,13 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
               </div>
 
               <form onSubmit={handleAuth} className="mt-6 space-y-4">
+                {isVerifiedEmail && (
+                  <div className="flex items-start gap-3 rounded-lg border border-accent/35 bg-accent/10 p-4 text-sm font-semibold leading-6 text-text-secondary">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+                    <p>Email đã được xác thực thành công. Vui lòng đăng nhập để tiếp tục.</p>
+                  </div>
+                )}
+
                 {!isLogin && (
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-text-secondary">Họ và tên</label>

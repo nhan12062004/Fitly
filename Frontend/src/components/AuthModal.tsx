@@ -67,7 +67,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
             data: {
               full_name: fullName,
             },
-            emailRedirectTo: window.location.origin, // Đảm bảo redirect về đúng domain hiện tại
+            emailRedirectTo: `${window.location.origin}/login?verified=1`,
           },
         });
 
@@ -79,12 +79,10 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
         }
 
         if (data.session) {
-          // Signup thành công và email confirmation đang tắt
-          onClose();
-        } else {
-          // Thành công và đang đợi xác thực email
-          setIsEmailSent(true);
+          await supabase.auth.signOut();
         }
+
+        setIsEmailSent(true);
       }
     } catch (err: any) {
       let errorMessage = err.message;
@@ -132,16 +130,16 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
 
           <h2 className="text-lg font-bold text-text-primary mb-2 tracking-tight sm:mb-4 sm:text-3xl">Kiểm tra email của bạn!</h2>
           <p className="text-sm text-text-secondary mb-5 leading-6 sm:mb-10 sm:text-base sm:leading-relaxed">
-            Chúng tôi đã gửi một liên kết xác minh đến<br />
-            <span className="text-accent font-semibold">{email}</span>.<br />
-            Vui lòng kiểm tra hộp thư đến để kích hoạt tài khoản.
+            Đăng ký thành công! Vui lòng kiểm tra Gmail để xác thực tài khoản trước khi đăng nhập.
+            <br />
+            Email đăng ký: <span className="text-accent font-semibold">{email}</span>
           </p>
 
           <button
-            onClick={resetFields}
+            onClick={() => window.location.assign('/login')}
             className="w-full rounded-xl bg-accent py-3 text-sm font-bold text-text-inverse transition-colors hover:bg-accent-hover sm:py-4 sm:text-base"
           >
-            Quay lại Đăng nhập
+            Đi tới đăng nhập
           </button>
         </div>
       </div>
