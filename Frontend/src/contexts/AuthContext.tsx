@@ -265,7 +265,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsVerifying(false);
           // User thường đã được tự động đăng nhập bởi Supabase sau khi click email
           // Nếu chưa, ta mở modal login
-          if (!user) openAuthModal();
+          if (user) {
+            window.location.assign('/overview');
+            return;
+          }
+          openAuthModal();
         }}
       />
     </AuthContext.Provider>

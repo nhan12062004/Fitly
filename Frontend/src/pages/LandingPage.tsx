@@ -1,19 +1,16 @@
 import {
   ArrowRight,
-  BarChart3,
   Bot,
-  CalendarCheck,
   Check,
   ChevronDown,
-  Clock3,
   Dumbbell,
-  MessageSquareText,
   Sparkles,
+  Star,
   Utensils,
   Zap,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ScrollReveal from '../components/ScrollReveal';
 
@@ -24,20 +21,49 @@ const todayExercises = [
   'Plank - 3 hiệp x 30 giây',
 ];
 
-const todayMeals = [
-  ['Sáng', 'Yến mạch, trứng, chuối'],
-  ['Trưa', 'Cơm gạo lứt, ức gà, rau xanh'],
-  ['Xế', 'Sữa chua Hy Lạp, hạnh nhân'],
-  ['Tối', 'Cá hồi, khoai lang, salad'],
+const featureShowcase = [
+  {
+    icon: Dumbbell,
+    title: 'Lịch tập hiện ngay khi mở app',
+    text: 'Fitly chọn bài theo mục tiêu, thời gian rảnh và thiết bị bạn có trong ngày.',
+    iconClass: 'text-accent',
+  },
+  {
+    icon: Utensils,
+    title: 'Thực đơn bám sát calories và protein',
+    text: 'Bữa ăn được gợi ý theo mục tiêu, ngân sách, nguyên liệu và món bạn dễ theo.',
+    iconClass: 'text-info',
+  },
+  {
+    icon: Bot,
+    title: 'AI Coach chỉnh kế hoạch khi dữ liệu thay đổi',
+    text: 'Khi bạn cập nhật tiến độ, AI gợi ý đổi bài, đổi món hoặc giảm tải đúng lúc.',
+    iconClass: 'text-ai',
+  },
 ];
 
-const features = [
-  'Lịch tập cá nhân hóa',
-  'Thực đơn theo calories và protein',
-  'AI Coach điều chỉnh bài tập, món ăn',
-  'Theo dõi calories, protein, nước, giấc ngủ',
-  'Báo cáo tiến độ tuần',
-  'Nhắc nhở duy trì thói quen',
+const testimonials = [
+  {
+    quote: 'Trước đây tôi hay bỏ buổi vì không biết nên tập gì. Fitly gom sẵn bài tập ngắn và thực đơn vừa sức nên tôi theo được đều hơn.',
+    name: 'Mai Anh',
+    role: 'Nhân viên văn phòng · Hà Nội',
+    initials: 'MA',
+    result: 'Tập đều',
+  },
+  {
+    quote: 'Tôi chỉ cần ghi món ăn và lịch tập. AI gợi ý chỉnh phần protein với calories rõ ràng, không phải tự tính từng thứ như trước.',
+    name: 'Quốc Huy',
+    role: 'Designer · TP.HCM',
+    initials: 'QH',
+    result: 'Ăn gọn',
+  },
+  {
+    quote: 'Phần theo dõi tiến độ giúp tôi nhận ra ngày nào đang quá tải. Kế hoạch linh hoạt nên vẫn giữ được nhịp dù lịch bận.',
+    name: 'Thanh Trúc',
+    role: 'Sinh viên · Đà Nẵng',
+    initials: 'TT',
+    result: 'Giữ nhịp',
+  },
 ];
 
 const faqs = [
@@ -51,6 +77,32 @@ const faqs = [
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return <p className="text-xs font-black uppercase tracking-[0.22em] text-text-tertiary">{children}</p>;
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+  className = '',
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`mx-auto max-w-5xl text-center ${className}`}>
+      <p className="text-[11px] font-black uppercase leading-none tracking-[0.32em] text-accent">{eyebrow}</p>
+      <h2 className="landing-section-title mx-auto mt-5 max-w-5xl font-black tracking-normal text-text-primary">
+        {title}
+      </h2>
+      {description ? (
+        <p className="mx-auto mt-5 max-w-2xl text-base font-semibold leading-8 text-text-secondary">
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 function PrimaryButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
@@ -78,15 +130,6 @@ function SecondaryButton({ children, onClick }: { children: React.ReactNode; onC
   );
 }
 
-function ProductMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-l border-border-primary pl-4">
-      <p className="text-xs font-semibold text-text-tertiary">{label}</p>
-      <p className="mt-1 text-lg font-black text-text-primary">{value}</p>
-    </div>
-  );
-}
-
 export default function LandingPage() {
   const { isLoggedIn } = useAuth();
   const navigate = useNavigate();
@@ -97,6 +140,16 @@ export default function LandingPage() {
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.add('landing-scrollbar-visible');
+    document.body.classList.add('landing-scrollbar-visible');
+
+    return () => {
+      document.documentElement.classList.remove('landing-scrollbar-visible');
+      document.body.classList.remove('landing-scrollbar-visible');
+    };
   }, []);
 
   if (isLoggedIn) {
@@ -112,14 +165,11 @@ export default function LandingPage() {
             : 'border-transparent bg-transparent'
         }`}
       >
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 py-4 sm:h-24 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-0 lg:px-8">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 py-4 sm:h-20 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-0 lg:px-8">
           <button type="button" onClick={() => navigate('/')} className="flex min-w-0 items-center gap-3 text-left">
             <img src="/logo.svg" alt="Fitly" className="h-10 w-10 shrink-0 object-contain sm:h-11 sm:w-11" />
             <div className="min-w-0">
               <p className="truncate text-base font-black text-text-primary sm:text-lg">Fitly - Trợ lý cá nhân</p>
-              <p className="hidden text-xs font-semibold text-text-tertiary sm:block">
-                Mở app là biết hôm nay tập gì và ăn gì.
-              </p>
             </div>
           </button>
           <nav className="hidden min-w-0 flex-1 items-center justify-center gap-8 lg:flex">
@@ -159,7 +209,7 @@ export default function LandingPage() {
       </header>
 
       <main>
-        <section className="relative overflow-hidden border-b border-border-primary">
+        <section className="landing-hero-section relative overflow-hidden">
           <div className="landing-grid absolute inset-0 opacity-70" />
           <div className="mx-auto grid min-h-[100dvh] w-full max-w-7xl grid-cols-1 items-center gap-10 px-4 pb-12 pt-32 sm:px-6 sm:pt-36 md:pb-16 lg:grid-cols-[minmax(0,0.92fr)_minmax(420px,0.78fr)] lg:px-8">
             <ScrollReveal className="relative z-10 max-w-4xl">
@@ -174,8 +224,8 @@ export default function LandingPage() {
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <PrimaryButton onClick={() => navigate('/signup')}>Bắt đầu miễn phí</PrimaryButton>
-                <SecondaryButton onClick={() => document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth' })}>
-                  Xem demo
+                <SecondaryButton onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>
+                  Xem tính năng
                 </SecondaryButton>
               </div>
               <p className="mt-4 text-sm font-semibold text-text-tertiary">
@@ -187,255 +237,305 @@ export default function LandingPage() {
               <div className="landing-product-card landing-surface rounded-lg border border-border-primary p-4 shadow-[0_28px_90px_rgba(0,0,0,0.36)] sm:p-5">
                 <div className="flex items-center justify-between gap-4 border-b border-border-primary pb-4">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-accent">Hôm nay</p>
-                    <p className="mt-1 text-sm font-semibold text-text-secondary">Kế hoạch mẫu cho người mới</p>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-accent">Thiết lập cá nhân</p>
+                    <p className="mt-1 text-sm font-semibold text-text-secondary">AI bắt đầu từ hồ sơ và lịch sống của bạn</p>
                   </div>
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-ai/12 text-ai">
                     <Sparkles className="h-5 w-5" />
                   </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-3 gap-3">
-                  <ProductMetric label="Tập luyện" value="25 phút" />
-                  <ProductMetric label="Calories" value="1.650" />
-                  <ProductMetric label="Protein" value="120g" />
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[
+                    ['Mục tiêu', 'Giảm mỡ bền vững'],
+                    ['Thời gian', '20-30 phút/ngày'],
+                    ['Dụng cụ', 'Tạ tay + thảm'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-lg border border-border-primary bg-bg-secondary/65 p-3">
+                      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">{label}</p>
+                      <p className="mt-1 text-sm font-black text-text-primary">{value}</p>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="mt-6 space-y-4">
-                  <div className="landing-soft-card rounded-lg border border-border-primary p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-black text-text-primary">Push nhẹ cho người mới</p>
-                        <p className="mt-1 text-xs font-bold text-text-tertiary">4 bài · Mức độ dễ</p>
-                      </div>
-                      <Dumbbell className="h-5 w-5 text-accent" />
-                    </div>
-                    <div className="mt-4 space-y-2">
-                      {todayExercises.slice(0, 3).map((item, index) => (
-                        <div key={item} className="flex items-center gap-3 text-xs font-semibold text-text-secondary">
-                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-secondary text-[10px] font-black text-accent">
-                            {index + 1}
-                          </span>
-                          <span className="min-w-0 truncate">{item}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="landing-soft-card rounded-lg border border-border-primary p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-black text-text-primary">Thực đơn giảm cân đơn giản</p>
-                        <p className="mt-1 text-xs font-bold text-text-tertiary">4 bữa · Dễ chuẩn bị</p>
-                      </div>
-                      <Utensils className="h-5 w-5 text-info" />
-                    </div>
-                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {todayMeals.map(([meal, food]) => (
-                        <div key={meal} className="text-xs font-semibold text-text-secondary">
-                          <span className="font-black text-info">{meal}:</span> {food}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="landing-coach-strip ai-surface rounded-lg border p-4">
-                    <div className="flex items-start gap-3">
-                      <Bot className="mt-0.5 h-5 w-5 shrink-0 text-ai" />
-                      <p className="text-xs font-semibold leading-6 text-text-secondary">
-                        Tôi có thể tạo bài tập 10-25 phút và thực đơn dễ nấu để bạn bắt đầu mà không bị quá tải.
+                <div className="mt-5 rounded-lg border border-border-primary bg-bg-secondary/65 p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-ai/12 text-ai">
+                      <Bot className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-text-primary">AI đang ghép kế hoạch phù hợp</p>
+                      <p className="mt-1 text-xs font-semibold leading-6 text-text-secondary">
+                        Kết hợp mục tiêu, kinh nghiệm tập, lịch rảnh và thói quen ăn uống để tạo điểm bắt đầu vừa sức.
                       </p>
                     </div>
                   </div>
+
+                  <div className="mt-5 space-y-3">
+                    {[
+                      ['Hồ sơ thể trạng', 'w-[86%]', 'bg-accent'],
+                      ['Lịch sinh hoạt', 'w-[72%]', 'bg-info'],
+                      ['Ngân sách bữa ăn', 'w-[64%]', 'bg-ai'],
+                    ].map(([label, width, color]) => (
+                      <div key={label}>
+                        <div className="mb-2 flex items-center justify-between text-xs font-bold text-text-secondary">
+                          <span>{label}</span>
+                          <Check className="h-3.5 w-3.5 text-accent" />
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                          <div className={`h-full rounded-full ${width} ${color}`} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {[
+                    [Dumbbell, '4 buổi tập', 'text-accent'],
+                    [Utensils, '3 bữa/ngày', 'text-info'],
+                    [Zap, 'Nhắc thói quen', 'text-warning'],
+                  ].map(([Icon, label, color]) => (
+                    <div key={label as string} className="flex items-center gap-2 rounded-lg border border-border-primary bg-bg-secondary/55 p-3">
+                      <Icon className={`h-4 w-4 shrink-0 ${color}`} />
+                      <span className="min-w-0 truncate text-xs font-black text-text-secondary">{label as string}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </ScrollReveal>
           </div>
         </section>
 
-        <section id="demo" className="border-b border-border-primary bg-bg-secondary py-16 md:py-20">
+        <section id="features" className="landing-lower-section scroll-mt-24 py-16 md:py-20">
           <ScrollReveal className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-            <SectionLabel>Preview hôm nay</SectionLabel>
-            <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="landing-card landing-soft-card rounded-lg border border-border-primary p-5">
-                <Dumbbell className="h-6 w-6 text-accent" />
-                <h2 className="mt-5 text-xl font-black text-text-primary">Bài tập hôm nay</h2>
-                <p className="mt-2 text-sm font-bold text-text-secondary">Push nhẹ cho người mới</p>
-                <p className="mt-1 text-xs font-semibold text-text-tertiary">~25 phút · 4 bài · Mức độ dễ</p>
-                <ol className="mt-5 space-y-3">
-                  {todayExercises.map((item, index) => (
-                    <li key={item} className="flex gap-3 text-sm font-semibold text-text-secondary">
-                      <span className="text-accent">{index + 1}.</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ol>
-                <button type="button" onClick={() => navigate('/signup')} className="mt-6 h-11 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover">
-                  Bắt đầu tập
-                </button>
-              </div>
+            <SectionHeading
+              eyebrow="Tính năng"
+              title="Một ngày trong Fitly, nhìn là biết việc cần làm"
+              description="Lịch tập, thực đơn và AI Coach được đặt trong cùng một luồng để bạn mở app lên là theo được ngay."
+            />
 
-              <div className="landing-card landing-soft-card rounded-lg border border-border-primary p-5">
-                <Utensils className="h-6 w-6 text-info" />
-                <h2 className="mt-5 text-xl font-black text-text-primary">Ăn gì hôm nay</h2>
-                <p className="mt-2 text-sm font-bold text-text-secondary">Thực đơn giảm cân đơn giản</p>
-                <p className="mt-1 text-xs font-semibold text-text-tertiary">~1.650 kcal · 120g protein</p>
-                <div className="mt-5 space-y-3">
-                  {todayMeals.map(([meal, food]) => (
-                    <p key={meal} className="text-sm font-semibold leading-6 text-text-secondary">
-                      <span className="font-black text-info">{meal}:</span> {food}
-                    </p>
-                  ))}
-                </div>
-                <button type="button" onClick={() => navigate('/signup')} className="mt-6 h-11 rounded-xl border border-border-primary bg-bg-tertiary/45 px-5 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary">
-                  Xem thực đơn mẫu
-                </button>
-              </div>
-
-              <div className="landing-card ai-surface rounded-lg border p-5">
-                <Bot className="h-6 w-6 text-ai" />
-                <h2 className="mt-5 text-xl font-black text-text-primary">Gợi ý từ AI Coach</h2>
-                <p className="mt-5 text-sm font-semibold leading-7 text-text-secondary">
-                  Bạn là người mới? Tôi có thể tạo bài tập 10-25 phút và thực đơn dễ nấu để bạn bắt đầu mà không bị quá tải.
-                </p>
-                <button type="button" onClick={() => navigate('/signup')} className="mt-6 h-11 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover">
-                  Nhờ AI tạo kế hoạch
-                </button>
-              </div>
-            </div>
-          </ScrollReveal>
-        </section>
-
-        <section id="features" className="scroll-mt-24 border-b border-border-primary bg-bg-primary py-16 md:py-20">
-          <ScrollReveal className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-            <SectionLabel>Tính năng</SectionLabel>
-            <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="text-3xl font-black tracking-normal text-text-primary md:text-4xl">
-                  Những gì Fitly làm cho bạn mỗi ngày
-                </h2>
-                <p className="mt-4 max-w-2xl text-base font-semibold leading-8 text-text-secondary">
-                  Một nơi để xem bài tập, thực đơn, tiến độ và hỏi AI Coach khi cần chỉnh kế hoạch.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/signup')}
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
-              >
-                Bắt đầu miễn phí
-              </button>
-            </div>
-
-            <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {features.map((item, index) => {
-                const featureIcons = [Dumbbell, Utensils, Bot, BarChart3, CalendarCheck, Zap];
-                const featureTones = ['text-accent bg-accent/10', 'text-info bg-info/10', 'text-ai bg-ai/10', 'text-warning bg-warning/10', 'text-accent bg-accent/10', 'text-ai bg-ai/10'];
-                const Icon = featureIcons[index] || Zap;
-                return (
-                  <div key={item} className="landing-card landing-soft-card rounded-lg border border-border-primary p-5">
-                    <span className={`flex h-11 w-11 items-center justify-center rounded-lg ${featureTones[index] || featureTones[0]}`}>
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <h3 className="mt-5 text-lg font-black text-text-primary">{item}</h3>
-                    <p className="mt-3 text-sm font-semibold leading-7 text-text-secondary">
-                      Thiết kế để bạn biết việc cần làm tiếp theo mà không phải tự ghép nhiều công cụ.
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollReveal>
-        </section>
-
-        <section id="analysis" className="scroll-mt-24 border-b border-border-primary bg-bg-secondary py-16 md:py-20">
-          <ScrollReveal className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-            <SectionLabel>Phân tích</SectionLabel>
-            <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
-              <div>
-                <h2 className="text-3xl font-black tracking-normal text-text-primary md:text-4xl">
-                  Theo dõi tiến độ mà không bị ngợp số liệu
-                </h2>
-                <p className="mt-4 text-base font-semibold leading-8 text-text-secondary">
-                  Fitly gom tập luyện, dinh dưỡng, nước và thói quen thành những chỉ số dễ đọc để AI đề xuất điều chỉnh đúng lúc.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <article className="landing-card landing-soft-card rounded-lg border border-border-primary p-5 md:col-span-2">
-                  <div className="flex items-center justify-between gap-4">
+            <div className="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center">
+              <div className="landing-product-card landing-surface relative overflow-hidden rounded-lg border border-border-primary p-4 sm:p-5">
+                <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] [background-size:42px_42px]" />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between gap-4 border-b border-border-primary pb-4">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.16em] text-accent">Tuần này</p>
-                      <h3 className="mt-2 text-xl font-black text-text-primary">Điểm duy trì kế hoạch</h3>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-accent">Kế hoạch hôm nay</p>
+                      <p className="mt-1 text-sm font-semibold text-text-secondary">Đã cá nhân hóa từ dữ liệu mới nhất</p>
                     </div>
-                    <BarChart3 className="h-7 w-7 text-accent" />
+                    <Sparkles className="h-6 w-6 text-accent" />
                   </div>
-                  <div className="mt-6 space-y-4">
+
+                  <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-[1fr_0.9fr]">
+                    <div className="rounded-lg border border-border-primary bg-bg-secondary/70 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-black text-text-primary">Push nhẹ cho người mới</p>
+                          <p className="mt-1 text-xs font-bold text-text-tertiary">25 phút · 4 bài · Không quá tải</p>
+                        </div>
+                        <Dumbbell className="h-5 w-5 text-accent" />
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {todayExercises.slice(0, 3).map((item, index) => (
+                          <div key={item} className="flex items-center gap-3 text-xs font-semibold text-text-secondary">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-bg-tertiary text-[10px] font-black text-accent">
+                              {index + 1}
+                            </span>
+                            <span className="min-w-0 truncate">{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4">
+                      <div className="rounded-lg border border-border-primary bg-bg-secondary/70 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-black text-text-primary">Thực đơn</p>
+                          <Utensils className="h-5 w-5 text-info" />
+                        </div>
+                        <div className="mt-4 space-y-3">
+                          {[
+                            ['Calories', '1.650', 'w-[74%]', 'bg-info'],
+                            ['Protein', '120g', 'w-[68%]', 'bg-accent'],
+                          ].map(([label, value, width, color]) => (
+                            <div key={label}>
+                              <div className="flex items-center justify-between text-xs font-bold text-text-secondary">
+                                <span>{label}</span>
+                                <span>{value}</span>
+                              </div>
+                              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                                <div className={`h-full rounded-full ${width} ${color}`} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="ai-surface rounded-lg border p-4">
+                        <div className="flex items-start gap-3">
+                          <Bot className="mt-0.5 h-5 w-5 shrink-0 text-ai" />
+                          <p className="text-xs font-semibold leading-6 text-text-secondary">
+                            Hôm nay bạn chỉ rảnh 20 phút, tôi sẽ rút bài tập và giữ đủ nhóm cơ chính.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-3">
                     {[
-                      ['Tập luyện', '4/5 buổi', '80%', 'bg-accent'],
-                      ['Protein', '120g / ngày', '74%', 'bg-info'],
-                      ['Giấc ngủ', '6.8h / đêm', '68%', 'bg-warning'],
-                    ].map(([label, value, width, color]) => (
-                      <div key={label}>
-                        <div className="mb-2 flex items-center justify-between gap-3">
-                          <span className="text-sm font-black text-text-primary">{label}</span>
-                          <span className="text-sm font-bold text-text-secondary">{value}</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-bg-tertiary">
-                          <div className={`h-full rounded-full ${color}`} style={{ width }} />
-                        </div>
+                      ['4/5', 'buổi tập'],
+                      ['82%', 'đúng mục tiêu'],
+                      ['3', 'gợi ý mới'],
+                    ].map(([value, label]) => (
+                      <div key={label} className="rounded-lg border border-border-primary bg-bg-secondary/55 p-3">
+                        <p className="text-lg font-black text-text-primary">{value}</p>
+                        <p className="mt-1 truncate text-[11px] font-semibold text-text-tertiary">{label}</p>
                       </div>
                     ))}
                   </div>
-                </article>
+                </div>
+              </div>
 
-                <article className="landing-card landing-soft-card rounded-lg border border-border-primary p-5">
-                  <Clock3 className="h-6 w-6 text-warning" />
-                  <h3 className="mt-5 text-lg font-black text-text-primary">Nhịp sinh hoạt</h3>
-                  <p className="mt-3 text-sm font-semibold leading-7 text-text-secondary">
-                    Theo dõi streak, thời lượng tập, nước và giấc ngủ để giữ thói quen ổn định.
-                  </p>
-                </article>
-
-                <article className="landing-card ai-surface rounded-lg border p-5">
-                  <MessageSquareText className="h-6 w-6 text-ai" />
-                  <h3 className="mt-5 text-lg font-black text-text-primary">Gợi ý điều chỉnh</h3>
-                  <p className="mt-3 text-sm font-semibold leading-7 text-text-secondary">
-                    AI phát hiện ngày quá tải, thiếu protein hoặc lệch mục tiêu và gợi ý chỉnh nhẹ.
-                  </p>
-                </article>
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-text-tertiary">Tập trung vào hành động</p>
+                <h3 className="mt-4 text-3xl font-black leading-tight text-text-primary">
+                  Không cần tự ghép bài tập, món ăn và ghi chú ở nhiều nơi
+                </h3>
+                <p className="mt-5 text-sm font-semibold leading-7 text-text-secondary">
+                  Fitly biến dữ liệu mỗi ngày thành một kế hoạch dễ theo: hôm nay tập gì, ăn gì, cần chỉnh gì và vì sao nên chỉnh.
+                </p>
+                <div className="mt-8 divide-y divide-border-primary">
+                  {featureShowcase.map(({ icon: Icon, title, text, iconClass }) => (
+                    <div key={title} className="flex gap-4 py-5 first:pt-0 last:pb-0">
+                      <span className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border-primary bg-bg-tertiary/70 ${iconClass}`}>
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <h4 className="text-base font-black text-text-primary">{title}</h4>
+                        <p className="mt-2 text-sm font-semibold leading-7 text-text-secondary">{text}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </ScrollReveal>
         </section>
 
-        <section id="pricing" className="scroll-mt-24 border-b border-border-primary bg-bg-primary py-16 md:py-24">
-          <ScrollReveal className="mx-auto w-full max-w-6xl px-4 text-center sm:px-6 lg:px-8">
-            <SectionLabel>Bảng giá</SectionLabel>
-            <h2 className="mx-auto mt-4 max-w-4xl text-3xl font-black tracking-normal text-text-primary md:text-5xl">
-              Bắt đầu đơn giản, nâng cấp khi cần
-            </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-base font-semibold leading-8 text-text-secondary">
-              Chọn gói phù hợp với mức độ sử dụng AI. Bạn có thể bắt đầu với tracking cơ bản và mở rộng sang meal planner, phân tích nâng cao khi cần.
-            </p>
-            <div className="mt-7 inline-flex max-w-full items-center gap-2 rounded-full border border-accent/35 bg-accent/10 px-4 py-2 text-xs font-black text-accent">
-              <Zap className="h-4 w-4 fill-current" />
-              <span>Bắt đầu miễn phí ngay hôm nay — không cần thẻ</span>
+        <section id="analysis" className="landing-lower-section scroll-mt-24 py-16 md:py-20">
+          <ScrollReveal className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              eyebrow="Phân tích"
+              title="AI hiểu cơ thể, lịch tập và bữa ăn của riêng bạn"
+              description="Fitly đọc mục tiêu, thể trạng, thời gian rảnh, dữ liệu tập luyện và nhật ký ăn uống để đề xuất kế hoạch vừa sức hơn cho từng người."
+            />
+
+            <div className="mt-12 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center">
+              <div className="relative min-h-[24rem] overflow-hidden rounded-lg border border-border-primary bg-bg-secondary">
+                <img
+                  src="https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1000&q=82"
+                  alt="Người tập luyện với tạ trong phòng gym"
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              </div>
+
+              <div>
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-border-primary bg-bg-tertiary/70 text-accent">
+                  <Dumbbell className="h-5 w-5" />
+                </span>
+                <h3 className="mt-5 text-2xl font-black leading-tight text-text-primary">
+                  Không dùng một giáo án chung cho mọi người
+                </h3>
+                <p className="mt-4 text-sm font-semibold leading-7 text-text-secondary">
+                  AI xem mục tiêu, kinh nghiệm tập, thiết bị bạn có, nhóm cơ đã tập và cảm giác sau buổi tập để điều chỉnh kế hoạch tiếp theo.
+                </p>
+                <div className="mt-6 grid gap-3">
+                  {[
+                    'Giảm độ khó khi bạn mệt, đau nhẹ hoặc thiếu thời gian.',
+                    'Tăng số hiệp, thời lượng hoặc bài bổ trợ khi tiến độ đang ổn.',
+                    'Gợi ý ngày nghỉ và nhóm cơ cần ưu tiên để tránh tập lệch.',
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-3 text-sm font-semibold leading-7 text-text-secondary">
+                      <Check className="mt-1 h-4 w-4 shrink-0 text-accent" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            <div className="mt-12 grid grid-cols-1 gap-5 text-left lg:grid-cols-3">
-              <article className="landing-card landing-soft-card flex min-h-[28rem] flex-col rounded-lg border border-border-primary p-6">
+            <div className="mt-16 grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center">
+              <div className="order-2 lg:order-1">
+                <span className="flex h-11 w-11 items-center justify-center rounded-lg border border-border-primary bg-bg-tertiary/70 text-info">
+                  <Utensils className="h-5 w-5" />
+                </span>
+                <h3 className="mt-5 text-2xl font-black leading-tight text-text-primary">
+                  Thực đơn dựa trên món bạn thật sự có thể ăn
+                </h3>
+                <p className="mt-4 text-sm font-semibold leading-7 text-text-secondary">
+                  Fitly kết hợp calories, protein, ngân sách, nguyên liệu và thói quen ăn uống để đề xuất bữa dễ theo hơn trong đời sống hằng ngày.
+                </p>
+                <div className="mt-6 grid gap-3">
+                  {[
+                    'Đổi món theo sở thích, dị ứng, nguyên liệu còn lại hoặc thời gian nấu.',
+                    'Nhắc phần còn thiếu như protein, rau, nước hoặc calories trong ngày.',
+                    'Chia bữa theo lịch sinh hoạt thay vì ép bạn theo một khung cứng.',
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-3 text-sm font-semibold leading-7 text-text-secondary">
+                      <Check className="mt-1 h-4 w-4 shrink-0 text-info" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="relative order-1 min-h-[24rem] overflow-hidden rounded-lg border border-border-primary bg-bg-secondary lg:order-2">
+                <img
+                  src="https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1000&q=82"
+                  alt="Bữa ăn lành mạnh với rau, trứng và bơ"
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              </div>
+            </div>
+
+            <div className="mx-auto mt-14 max-w-4xl border-t border-white/[0.07] pt-8 text-center">
+              <Bot className="mx-auto h-6 w-6 text-ai" />
+              <p className="mx-auto mt-4 max-w-3xl text-sm font-semibold leading-7 text-text-secondary">
+                Khi bạn cập nhật cân nặng, buổi tập đã hoàn thành hoặc bữa ăn đã dùng, Fitly dùng dữ liệu đó để tinh chỉnh lần gợi ý tiếp theo.
+              </p>
+            </div>
+          </ScrollReveal>
+        </section>
+
+        <section id="pricing" className="landing-lower-section scroll-mt-24 py-16 md:py-24">
+          <ScrollReveal className="mx-auto w-full max-w-6xl px-4 text-center sm:px-6 lg:px-8">
+            <SectionHeading
+              eyebrow="Bảng giá"
+              title="Chọn gói theo nhịp tập của bạn"
+              description="Dùng miễn phí để làm quen với lịch tập, thực đơn và theo dõi tiến độ. Khi cần nhiều lượt AI hơn, bạn có thể nâng cấp sau."
+            />
+            <div className="mt-7 inline-flex max-w-full items-center gap-2 rounded-full border border-accent/35 bg-accent/10 px-4 py-2 text-xs font-black text-accent">
+              <Zap className="h-4 w-4 fill-current" />
+              <span>Dùng thử miễn phí trước khi nâng cấp</span>
+            </div>
+
+            <div className="mt-10 grid grid-cols-1 gap-4 text-left md:grid-cols-2 lg:grid-cols-3 lg:gap-5">
+              <article className="landing-card landing-soft-card flex min-h-[27.5rem] flex-col rounded-lg border border-border-primary p-5 sm:p-6 lg:min-h-[28.5rem]">
                 <div>
                   <h3 className="text-xl font-black text-text-primary">Free</h3>
-                  <p className="mt-3 min-h-14 text-sm font-semibold leading-7 text-text-secondary">
+                  <p className="mt-3 min-h-12 text-sm font-semibold leading-6 text-text-secondary">
                     Trải nghiệm đầy đủ tính năng cốt lõi — không cần thẻ.
                   </p>
                 </div>
-                <div className="mt-7">
-                  <p className="text-4xl font-black text-accent">0đ</p>
+                <div className="mt-6">
+                  <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">0đ</p>
                   <p className="mt-1 text-xs font-black text-text-tertiary">25 credit AI / tháng</p>
                 </div>
-                <div className="mt-7 space-y-4">
+                <div className="mt-6 grid gap-3.5">
                   {[
                     'Kế hoạch ăn & tập AI cá nhân hóa',
                     'Quét món ăn bằng AI',
@@ -448,34 +548,33 @@ export default function LandingPage() {
                     </div>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => navigate('/signup')}
-                  className="mt-auto inline-flex h-12 w-full items-center justify-center rounded-xl border border-border-primary bg-transparent px-5 text-sm font-black text-text-primary transition-colors hover:border-accent/35 hover:bg-bg-tertiary"
-                >
-                  Bắt đầu miễn phí
-                </button>
+                <div className="mt-auto pt-7">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/signup')}
+                    className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-border-primary bg-transparent px-5 text-sm font-black text-text-primary transition-colors hover:border-accent/35 hover:bg-bg-tertiary"
+                  >
+                    Bắt đầu miễn phí
+                  </button>
+                </div>
               </article>
 
-              <article className="landing-card flex min-h-[28rem] flex-col rounded-lg border border-accent/45 bg-accent/5 p-6 shadow-[0_24px_70px_rgba(0,0,0,0.24)]">
-                <div className="flex items-start justify-between gap-4">
+              <article className="landing-card flex min-h-[27.5rem] flex-col rounded-lg border border-accent/45 bg-accent/5 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:p-6 lg:min-h-[28.5rem]">
+                <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-xl font-black text-text-primary">Plus</h3>
-                    <p className="mt-3 min-h-14 text-sm font-semibold leading-7 text-text-secondary">
+                    <p className="mt-3 min-h-12 text-sm font-semibold leading-6 text-text-secondary">
                       Cho người tập nghiêm túc, dùng AI hằng ngày.
                     </p>
                   </div>
-                  <span className="rounded-full border border-border-primary bg-bg-tertiary/70 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">
-                    Sắp có
-                  </span>
                 </div>
-                <div className="mt-7">
-                  <p className="text-4xl font-black text-accent">
+                <div className="mt-6">
+                  <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">
                     49.000đ <span className="text-sm font-bold text-text-tertiary">/tháng</span>
                   </p>
                   <p className="mt-1 text-xs font-black text-text-tertiary">200 credit AI / tháng</p>
                 </div>
-                <div className="mt-7 space-y-4">
+                <div className="mt-6 grid gap-3.5">
                   {[
                     'Mọi tính năng của Free',
                     'Gấp 8 lần lượt AI mỗi tháng',
@@ -488,34 +587,33 @@ export default function LandingPage() {
                     </div>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  disabled
-                  className="mt-auto inline-flex h-12 w-full cursor-not-allowed items-center justify-center rounded-xl border border-border-primary bg-transparent px-5 text-sm font-black uppercase tracking-[0.14em] text-text-tertiary opacity-70"
-                >
-                  Sắp ra mắt
-                </button>
+                <div className="mt-auto pt-7">
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-11 w-full cursor-not-allowed items-center justify-center rounded-lg border border-border-primary bg-transparent px-5 text-sm font-black uppercase tracking-[0.14em] text-text-tertiary opacity-70"
+                  >
+                    Sắp ra mắt
+                  </button>
+                </div>
               </article>
 
-              <article className="landing-card landing-soft-card flex min-h-[28rem] flex-col rounded-lg border border-border-primary p-6">
-                <div className="flex items-start justify-between gap-4">
+              <article className="landing-card landing-soft-card flex min-h-[27.5rem] flex-col rounded-lg border border-border-primary p-5 sm:p-6 md:col-span-2 md:mx-auto md:w-full md:max-w-[22rem] lg:col-span-1 lg:max-w-none lg:min-h-[28.5rem]">
+                <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-xl font-black text-text-primary">Pro</h3>
-                    <p className="mt-3 min-h-14 text-sm font-semibold leading-7 text-text-secondary">
+                    <p className="mt-3 min-h-12 text-sm font-semibold leading-6 text-text-secondary">
                       Dùng AI không cần đếm lượt — tối ưu tối đa.
                     </p>
                   </div>
-                  <span className="rounded-full border border-border-primary bg-bg-tertiary/70 px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">
-                    Sắp có
-                  </span>
                 </div>
-                <div className="mt-7">
-                  <p className="text-4xl font-black text-accent">
+                <div className="mt-6">
+                  <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">
                     99.000đ <span className="text-sm font-bold text-text-tertiary">/tháng</span>
                   </p>
                   <p className="mt-1 text-xs font-black text-text-tertiary">Credit AI không giới hạn</p>
                 </div>
-                <div className="mt-7 space-y-4">
+                <div className="mt-6 grid gap-3.5">
                   {[
                     'Mọi tính năng của Plus',
                     'Không giới hạn phiên AI',
@@ -527,61 +625,133 @@ export default function LandingPage() {
                     </div>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  disabled
-                  className="mt-auto inline-flex h-12 w-full cursor-not-allowed items-center justify-center rounded-xl border border-border-primary bg-transparent px-5 text-sm font-black uppercase tracking-[0.14em] text-text-tertiary opacity-70"
-                >
-                  Sắp ra mắt
-                </button>
+                <div className="mt-auto pt-7">
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-11 w-full cursor-not-allowed items-center justify-center rounded-lg border border-border-primary bg-transparent px-5 text-sm font-black uppercase tracking-[0.14em] text-text-tertiary opacity-70"
+                  >
+                    Sắp ra mắt
+                  </button>
+                </div>
               </article>
             </div>
           </ScrollReveal>
         </section>
 
-        <section className="border-b border-border-primary bg-bg-secondary py-16 md:py-20">
-          <ScrollReveal className="mx-auto w-full max-w-4xl px-4 sm:px-6 lg:px-8">
-            <SectionLabel>FAQ</SectionLabel>
-            <div className="landing-surface mt-8 divide-y divide-border-primary rounded-lg border border-border-primary">
+        <section className="landing-lower-section py-20 md:py-28">
+          <ScrollReveal className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+            <SectionHeading
+              eyebrow="Người dùng nói gì"
+              title="Thói quen nhỏ, kết quả rõ hơn"
+              description="Một vài phản hồi tiêu biểu từ những người dùng Fitly để giữ nhịp tập luyện và ăn uống mỗi ngày."
+            />
+            <div className="mt-11 grid grid-cols-1 gap-4 md:grid-cols-3">
+              {testimonials.map((testimonial) => (
+                <article key={testimonial.name} className="landing-card landing-soft-card flex min-h-[13rem] flex-col rounded-lg border border-border-primary p-5 sm:p-6">
+                  <div className="flex items-center gap-1 text-accent" aria-label="5 sao">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <Star key={index} className="h-4 w-4 fill-current" />
+                    ))}
+                  </div>
+                  <p className="mt-5 text-sm font-semibold leading-7 text-text-secondary">
+                    “{testimonial.quote}”
+                  </p>
+                  <div className="mt-auto border-t border-border-primary pt-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-accent/35 bg-accent/10 text-xs font-black text-accent">
+                          {testimonial.initials}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-text-primary">{testimonial.name}</p>
+                          <p className="mt-0.5 truncate text-[11px] font-semibold text-text-tertiary">{testimonial.role}</p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-accent">
+                        {testimonial.result}
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </ScrollReveal>
+        </section>
+
+        <section id="faq" className="landing-lower-section scroll-mt-24 py-20 md:py-28">
+          <ScrollReveal className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
+            <SectionHeading eyebrow="Câu hỏi thường gặp" title="Bạn muốn biết thêm?" />
+            <div className="mx-auto mt-10 grid max-w-3xl gap-2.5 text-left sm:gap-3">
               {faqs.map(([question, answer]) => (
-                <details key={question} className="group p-5">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-base font-black text-text-primary">
-                    {question}
-                    <ChevronDown className="h-5 w-5 shrink-0 text-text-tertiary transition-transform group-open:rotate-180" />
+                <details
+                  key={question}
+                  className="group overflow-hidden rounded-[18px] border border-border-primary bg-bg-secondary/55 transition-colors hover:border-border-secondary open:bg-bg-secondary"
+                >
+                  <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-black text-text-primary marker:hidden sm:px-6 [&::-webkit-details-marker]:hidden">
+                    <span>{question}</span>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-text-tertiary transition-transform group-open:rotate-180" />
                   </summary>
-                  <p className="mt-3 text-sm font-semibold leading-7 text-text-secondary">{answer}</p>
+                  <p className="border-t border-border-primary px-5 pb-5 pt-4 text-sm font-semibold leading-7 text-text-secondary sm:px-6">
+                    {answer}
+                  </p>
                 </details>
               ))}
             </div>
           </ScrollReveal>
         </section>
+
+        <section className="landing-lower-section py-20 md:py-24">
+          <ScrollReveal className="mx-auto w-full max-w-5xl px-4 text-center sm:px-6 lg:px-8">
+            <h2 className="landing-section-title mx-auto max-w-4xl font-black tracking-normal text-text-primary">
+              Sẵn sàng bắt đầu?
+            </h2>
+            <p className="mx-auto mt-5 max-w-2xl text-base font-semibold leading-8 text-text-secondary">
+              Tạo tài khoản miễn phí và để Fitly chuẩn bị kế hoạch tập luyện, ăn uống phù hợp với mục tiêu của bạn.
+            </p>
+            <div className="mt-8">
+              <PrimaryButton onClick={() => navigate('/signup')}>Bắt đầu miễn phí</PrimaryButton>
+            </div>
+          </ScrollReveal>
+        </section>
       </main>
 
-      <footer className="bg-bg-primary py-12">
+      <footer className="landing-footer-section py-12">
         <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 px-4 sm:px-6 md:grid-cols-[1fr_0.8fr_0.8fr_0.8fr] lg:px-8">
           <div>
-            <p className="text-xl font-black text-text-primary">Fitly - Trợ lý cá nhân</p>
-            <p className="mt-3 max-w-sm text-sm font-semibold leading-7 text-text-secondary">
-              Mở app là biết hôm nay tập gì và ăn gì.
-            </p>
+            <div className="flex items-center gap-3">
+              <img src="/logo.svg" alt="Fitly" className="h-10 w-10 shrink-0 object-contain" />
+              <p className="text-xl font-black text-text-primary">Fitly - Trợ lý cá nhân</p>
+            </div>
           </div>
           <div>
             <p className="text-sm font-black text-text-primary">Sản phẩm</p>
             <div className="mt-4 space-y-2 text-sm font-semibold text-text-tertiary">
               <p>Hôm nay</p>
-              <p>Tính năng</p>
-              <p>Phân tích</p>
-              <p>Bảng giá</p>
               <p>AI Coach</p>
+              <p>Bài tập</p>
+              <p>Thực đơn</p>
+              <p>Tiến độ</p>
+              <p>Thử thách</p>
             </div>
           </div>
           <div>
             <p className="text-sm font-black text-text-primary">Hỗ trợ</p>
             <div className="mt-4 space-y-2 text-sm font-semibold text-text-tertiary">
-              <p>Câu hỏi thường gặp</p>
+              <button
+                type="button"
+                onClick={() => document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth' })}
+                className="block text-left transition-colors hover:text-accent"
+              >
+                Câu hỏi thường gặp
+              </button>
               <p>Liên hệ</p>
-              <p>Chính sách bảo mật</p>
-              <p>Điều khoản sử dụng</p>
+              <Link to="/privacy" className="block transition-colors hover:text-accent">
+                Chính sách bảo mật
+              </Link>
+              <Link to="/terms" className="block transition-colors hover:text-accent">
+                Điều khoản dịch vụ
+              </Link>
             </div>
           </div>
           <div>

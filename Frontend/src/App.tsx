@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import LoadingScreen from './components/LoadingScreen';
 import { ToastProvider } from './components/ToastProvider';
 import { AuthProvider } from './contexts/AuthContext';
@@ -16,22 +16,39 @@ import Exercises from './pages/Exercises';
 import LandingPage from './pages/LandingPage';
 import Notifications from './pages/Notifications';
 import Overview from './pages/Overview';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Profile from './pages/Profile';
 import Progress from './pages/Progress';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import TermsOfServicePage from './pages/TermsOfServicePage';
 import WorkoutSession from './pages/WorkoutSession';
 
 const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'));
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [pathname]);
+
+  return null;
+}
 
 export default function App() {
   return (
     <ToastProvider>
       <AuthProvider>
         <BrowserRouter>
+          <ScrollToTop />
           <div className="flex min-h-screen w-full bg-bg-primary font-sans text-text-primary selection:bg-accent selection:text-text-inverse">
             <Suspense fallback={<LoadingScreen />}>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/terms" element={<TermsOfServicePage />} />
+                <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/dieu-khoan" element={<Navigate to="/terms" replace />} />
+                <Route path="/chinh-sach-bao-mat" element={<Navigate to="/privacy" replace />} />
                 <Route path="/login" element={<AuthPage initialMode="login" />} />
                 <Route path="/signup" element={<AuthPage initialMode="signup" />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />

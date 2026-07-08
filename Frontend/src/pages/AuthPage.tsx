@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   Eye,
@@ -52,6 +53,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
 
   useEffect(() => {
     setIsLogin(initialMode === 'login');
@@ -64,6 +66,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
     setShowConfirmPassword(false);
     setIsForgotPasswordOpen(false);
     setError(null);
+    setHasAcceptedTerms(false);
   }, [isLogin]);
 
   useEffect(() => {
@@ -93,6 +96,10 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
 
       if (password !== confirmPassword) {
         throw new Error('Mật khẩu không khớp');
+      }
+
+      if (!hasAcceptedTerms) {
+        throw new Error('Vui lòng đồng ý với Điều khoản dịch vụ và Chính sách bảo mật');
       }
 
       const { data, error: signUpError } = await supabase.auth.signUp({
@@ -209,6 +216,15 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
       <div className="landing-grid absolute inset-0 opacity-70" />
 
       <main className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col justify-center px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 flex">
+          <Link
+            to="/"
+            className="inline-flex h-11 items-center justify-center gap-2 px-1 text-sm font-black text-text-secondary transition-colors hover:text-accent"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Quay về trang chủ
+          </Link>
+        </div>
         <section className="grid flex-1 grid-cols-1 items-start gap-8 md:items-center lg:grid-cols-[minmax(0,0.9fr)_minmax(360px,460px)] lg:gap-10">
           <ScrollReveal className="max-w-3xl lg:pr-4">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-accent">
@@ -270,9 +286,6 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                   <h2 className="mt-2 text-2xl font-black text-text-primary">
                     {isLogin ? 'Chào mừng trở lại' : 'Bắt đầu miễn phí'}
                   </h2>
-                  <p className="mt-2 text-sm font-semibold text-text-secondary">
-                    {isLogin ? 'Vào lại dashboard của bạn.' : 'Tạo tài khoản để bắt đầu survey cá nhân.'}
-                  </p>
                 </div>
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-text-inverse">
                   {isLogin ? <ShieldCheck className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
@@ -371,9 +384,30 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                   </div>
                 )}
 
+                {!isLogin && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent px-0 py-1 text-sm font-semibold leading-6 text-text-tertiary">
+                    <input
+                      type="checkbox"
+                      checked={hasAcceptedTerms}
+                      onChange={(event) => setHasAcceptedTerms(event.target.checked)}
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-border-primary bg-bg-tertiary accent-accent"
+                    />
+                    <span>
+                      Tôi đồng ý với{' '}
+                      <Link to="/terms" className="font-black text-accent underline-offset-4 hover:underline">
+                        Điều khoản dịch vụ
+                      </Link>{' '}
+                      và{' '}
+                      <Link to="/privacy" className="font-black text-accent underline-offset-4 hover:underline">
+                        Chính sách bảo mật
+                      </Link>
+                    </span>
+                  </label>
+                )}
+
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || (!isLogin && !hasAcceptedTerms)}
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {loading ? (

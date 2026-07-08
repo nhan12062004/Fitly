@@ -1,10 +1,28 @@
 import React, { useState } from 'react';
 import {
+  Activity,
+  Bike,
+  Calendar,
+  Check,
+  EyeOff,
   User,
   Dumbbell,
+  Flame,
+  Footprints,
+  HeartPulse,
   Home,
+  Sofa,
   Stethoscope,
+  Target,
   Loader2,
+  Mars,
+  Minus,
+  MoveVertical,
+  Plus,
+  Venus,
+  VenusAndMars,
+  Weight,
+  Wind,
   Zap,
   X,
   ChevronLeft,
@@ -37,6 +55,13 @@ export type SurveyPlanSummary = {
   frequency: string;
   duration: string;
   targetCalories: number;
+  gender: string;
+  age: number;
+  heightCm: number;
+  weightKg: number;
+  weeklyWorkouts: number;
+  mealsPerDay: number;
+  dailyWaterGoalLiters: number;
   location: string;
   todayWorkout: string;
   todayDuration: string;
@@ -58,33 +83,127 @@ interface SurveyFormProps {
   onClose?: () => void;
 }
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
 /** Nhãn ngắn trên thanh bước (theo mockup) */
 const STEP_NAV_LABELS = [
-  'Mục tiêu & cơ thể',
-  'Tập luyện',
-  'An toàn & ăn uống'
+  'Cơ thể',
+  'Mục tiêu',
+  'Vận động',
+  'Tập luyện'
 ];
 
-type StepIcon = React.ComponentType<{ className?: string }>;
+type StepIcon = React.ComponentType<{ className?: string; strokeWidth?: number }>;
 
 type ChoiceOption = {
   value: string;
   label: string;
   description?: string;
   icon?: StepIcon;
+  iconWrapClass?: string;
+  iconClass?: string;
 };
 
 const GOAL_OPTIONS: ChoiceOption[] = [
-  { value: 'Giảm cân', label: 'Giảm cân', description: 'Ưu tiên giảm mỡ và kiểm soát calories' },
-  { value: 'Tăng cơ', label: 'Tăng cơ', description: 'Tập kháng lực và tăng protein' },
-  { value: 'Giữ dáng', label: 'Giữ dáng', description: 'Duy trì vóc dáng, sức khỏe và năng lượng' }
+  {
+    value: 'Giảm mỡ',
+    label: 'Giảm mỡ',
+    description: 'Đốt mỡ thừa, lấy lại vóc dáng tự tin.',
+    icon: Flame,
+    iconWrapClass: 'bg-orange-500/12 text-orange-400 ring-orange-400/35',
+  },
+  {
+    value: 'Tăng cơ',
+    label: 'Tăng cơ',
+    description: 'Cơ rắn chắc, thân hình thon gọn hơn mỗi tuần.',
+    icon: Dumbbell,
+    iconWrapClass: 'bg-lime-500/12 text-lime-300 ring-lime-300/35',
+  },
+  {
+    value: 'Sức mạnh',
+    label: 'Sức mạnh',
+    description: 'Nâng nặng hơn mỗi tuần, cảm giác mạnh mẽ thật sự.',
+    icon: Zap,
+    iconWrapClass: 'bg-cyan-500/12 text-cyan-300 ring-cyan-300/35',
+  },
+  {
+    value: 'Sức bền',
+    label: 'Sức bền',
+    description: 'Tim khỏe hơn, vận động lâu mà ít mệt.',
+    icon: HeartPulse,
+    iconWrapClass: 'bg-red-500/12 text-red-300 ring-red-300/35',
+  },
+  {
+    value: 'Dẻo dai',
+    label: 'Dẻo dai',
+    description: 'Khớp linh hoạt, giảm đau lưng và nguy cơ chấn thương.',
+    icon: Wind,
+    iconWrapClass: 'bg-purple-500/12 text-purple-300 ring-purple-300/35',
+  },
+  {
+    value: 'Phục hồi & Tái tạo',
+    label: 'Phục hồi & Tái tạo',
+    description: 'Lấy lại năng lượng, giảm căng thẳng và phục hồi tốt hơn.',
+    icon: Target,
+    iconWrapClass: 'bg-slate-500/12 text-slate-300 ring-slate-300/35',
+  }
+];
+
+const ACTIVITY_LEVEL_OPTIONS: ChoiceOption[] = [
+  {
+    value: '2 ngày/tuần',
+    label: 'Ít vận động',
+    description: 'Công việc văn phòng, ít đi lại trong ngày.',
+    icon: Sofa,
+    iconWrapClass: 'bg-slate-500/12 text-slate-300 ring-slate-300/30',
+  },
+  {
+    value: '3 ngày/tuần',
+    label: 'Vận động nhẹ',
+    description: 'Đi bộ hoặc tập nhẹ vài buổi mỗi tuần.',
+    icon: Footprints,
+    iconWrapClass: 'bg-lime-500/12 text-lime-300 ring-lime-300/35',
+  },
+  {
+    value: '4 ngày/tuần',
+    label: 'Vận động đều',
+    description: 'Tập 3-5 ngày/tuần, giữ sức khỏe ổn định.',
+    icon: Bike,
+    iconWrapClass: 'bg-sky-500/12 text-sky-300 ring-sky-300/35',
+  },
+  {
+    value: '5 ngày/tuần',
+    label: 'Vận động nhiều',
+    description: 'Cường độ cao gần như mỗi ngày - bạn nghiêm túc.',
+    icon: Zap,
+    iconWrapClass: 'bg-purple-500/12 text-purple-300 ring-purple-300/35',
+  }
 ];
 
 const GENDER_OPTIONS: ChoiceOption[] = [
-  { value: 'Nam', label: 'Nam' },
-  { value: 'Nữ', label: 'Nữ' },
-  { value: 'Khác', label: 'Khác' }
+  {
+    value: 'Nam',
+    label: 'Nam',
+    icon: Mars,
+    iconWrapClass: 'text-text-primary',
+  },
+  {
+    value: 'Nữ',
+    label: 'Nữ',
+    icon: Venus,
+    iconWrapClass: 'text-text-primary',
+  },
+  {
+    value: 'Khác',
+    label: 'Khác',
+    icon: VenusAndMars,
+    iconWrapClass: 'text-text-primary',
+  },
+  {
+    value: 'Ẩn',
+    label: 'Ẩn',
+    icon: EyeOff,
+    iconWrapClass: 'text-text-primary',
+  }
 ];
 
 const EXPERIENCE_OPTIONS: ChoiceOption[] = [
@@ -211,6 +330,296 @@ function ChoiceGrid({
   );
 }
 
+function GenderChoiceList({
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  name: string;
+  value: string;
+  options: ChoiceOption[];
+  onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {options.map((option) => {
+        const active = value === option.value;
+        const Icon = option.icon || User;
+        return (
+          <label
+            key={option.value}
+            className={`flex min-h-[78px] cursor-pointer flex-col items-center justify-center rounded-md border px-3 py-3 text-center transition-colors ${
+              active
+                ? 'border-accent bg-accent/10 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                : 'border-border-primary bg-bg-secondary text-text-primary hover:border-accent/45 hover:bg-bg-tertiary'
+            }`}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={active}
+              onChange={onChange}
+              className="sr-only"
+            />
+            <span className={`flex h-8 w-8 items-center justify-center ${active ? 'text-accent' : option.iconWrapClass || 'text-text-primary'}`}>
+              <Icon className="h-6 w-6" strokeWidth={2.4} />
+            </span>
+            <span className={`mt-2 block text-xs font-bold ${active ? 'text-accent' : 'text-text-primary'}`}>{option.label}</span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+function GoalChoiceGrid({
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  name: string;
+  value: string;
+  options: ChoiceOption[];
+  onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {options.map((option) => {
+        const active = value === option.value;
+        const Icon = option.icon || Target;
+        return (
+          <label
+            key={option.value}
+            className={`relative flex min-h-[132px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border px-4 py-5 text-center transition-colors ${
+              active
+                ? 'border-accent bg-accent/10 text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                : 'border-border-primary bg-bg-secondary text-text-secondary hover:border-accent/35 hover:bg-bg-tertiary'
+            }`}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={active}
+              onChange={onChange}
+              className="sr-only"
+            />
+            {active ? (
+              <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-text-inverse">
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+              </span>
+            ) : null}
+            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ring-1 ${option.iconWrapClass || 'bg-accent/12 text-accent ring-accent/30'}`}>
+              <Icon className={`h-6 w-6 ${option.iconClass || ''}`} strokeWidth={2.4} />
+            </span>
+            <span className="mt-3 min-w-0">
+              <span className={`block text-base font-black leading-tight ${active ? 'text-accent' : 'text-text-primary'}`}>{option.label}</span>
+              {option.description ? (
+                <span className="mt-1.5 block text-xs font-semibold leading-5 text-text-secondary">
+                  {option.description}
+                </span>
+              ) : null}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+function NumberStepper({
+  name,
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  unit,
+  fallback,
+  onChange,
+  invalid,
+  error,
+}: {
+  name: 'age' | 'height' | 'weight';
+  label: string;
+  value: string;
+  min: number;
+  max: number;
+  step?: number;
+  unit: string;
+  fallback: number;
+  onChange: (name: 'age' | 'height' | 'weight', value: string) => void;
+  invalid?: boolean;
+  error: string;
+}) {
+  const parsed = Number(value);
+  const current = Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  const clampValue = (nextValue: number) => Math.min(max, Math.max(min, Math.round(nextValue / step) * step));
+  const emit = (nextValue: number) => onChange(name, String(clampValue(nextValue)));
+
+  return (
+    <div className={`rounded-lg border bg-bg-primary/65 p-4 transition-colors ${
+      invalid ? 'border-red-500' : 'border-border-primary hover:border-accent/30'
+    }`}>
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor={`survey-${name}`} className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">
+          {label} <span className="text-red-500">*</span>
+        </label>
+        <span className="text-xs font-bold text-text-tertiary">{unit}</span>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => emit(current - step)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border-primary bg-bg-secondary text-text-primary transition-colors hover:border-accent/40 hover:text-accent"
+          aria-label={`Giảm ${label.toLowerCase()}`}
+        >
+          <Minus className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 text-center">
+          <p className="text-3xl font-black leading-none text-text-primary">
+            {current}
+          </p>
+          <p className="mt-1 text-xs font-semibold text-text-tertiary">{unit}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => emit(current + step)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border-primary bg-bg-secondary text-text-primary transition-colors hover:border-accent/40 hover:text-accent"
+          aria-label={`Tăng ${label.toLowerCase()}`}
+        >
+          <Plus className="h-4 w-4" />
+        </button>
+      </div>
+      <input
+        id={`survey-${name}`}
+        name={name}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={current}
+        onChange={(event) => onChange(name, event.target.value)}
+        className="mt-4 h-2 w-full cursor-pointer rounded-full"
+        style={{ accentColor: 'var(--accent-primary)' }}
+      />
+      {invalid ? (
+        <p className="mt-2 text-[10px] font-medium text-red-500">{error}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function CompactMetricInput({
+  name,
+  label,
+  value,
+  placeholder,
+  min,
+  max,
+  icon: Icon,
+  onChange,
+  invalid,
+  error,
+}: {
+  name: 'age' | 'height' | 'weight';
+  label: string;
+  value: string;
+  placeholder: string;
+  min: number;
+  max: number;
+  icon: StepIcon;
+  onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+  invalid?: boolean;
+  error: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={`survey-compact-${name}`} className="block text-xs font-black text-text-primary">
+        {label}
+      </label>
+      <div className={`flex h-9 items-center gap-2 rounded-md border bg-bg-secondary px-3 transition-colors ${
+        invalid ? 'border-red-500' : 'border-border-primary focus-within:border-accent'
+      }`}>
+        <Icon className="h-4 w-4 shrink-0 text-text-secondary" strokeWidth={2.2} />
+        <input
+          id={`survey-compact-${name}`}
+          name={name}
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-text-primary outline-none placeholder:text-text-tertiary"
+        />
+      </div>
+      {invalid ? (
+        <p className="text-[10px] font-medium text-red-500">{error}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function ActivityChoiceList({
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  name: string;
+  value: string;
+  options: ChoiceOption[];
+  onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+}) {
+  return (
+    <div className="space-y-2.5">
+      {options.map((option) => {
+        const active = normalizeWorkoutFrequency(value) === option.value;
+        const Icon = option.icon || Activity;
+        return (
+          <label
+            key={option.value}
+            className={`flex min-h-[76px] cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors ${
+              active
+                ? 'border-accent bg-accent/10 text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+                : 'border-border-primary bg-bg-primary/65 text-text-secondary hover:border-accent/35 hover:bg-bg-primary'
+            }`}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={active}
+              onChange={onChange}
+              className="sr-only"
+            />
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ${option.iconWrapClass || 'bg-accent/12 text-accent ring-accent/30'}`}>
+              <Icon className="h-5 w-5" strokeWidth={2.4} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className={`block text-base font-black ${active ? 'text-accent' : 'text-text-primary'}`}>{option.label}</span>
+              {option.description ? (
+                <span className="mt-0.5 block text-xs font-semibold leading-5 text-text-tertiary">
+                  {option.description}
+                </span>
+              ) : null}
+            </span>
+            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+              active ? 'border-accent bg-accent text-text-inverse' : 'border-border-primary text-transparent'
+            }`}>
+              <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 const birthdayToAge = (birthday: string | null | undefined) => {
   if (!birthday) return '';
   const date = new Date(birthday);
@@ -232,6 +641,9 @@ const hasPositiveNumber = (value: string) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0;
 };
+
+const normalizeGender = (value: string | null | undefined) =>
+  GENDER_OPTIONS.some((option) => option.value === value) ? String(value) : 'Nam';
 
 const normalizePlainText = (value: string) =>
   value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -281,7 +693,47 @@ const buildTodayExercises = ({
     ];
   }
 
-  if (normalizedGoal.includes('giam can')) {
+  if (normalizedGoal.includes('suc manh')) {
+    return [
+      { name: 'Squat hoặc leg press', detail: '4 hiệp x 5-6 lần' },
+      { name: 'Bench press hoặc chest press', detail: '4 hiệp x 5-6 lần' },
+      { name: 'Seated row', detail: '4 hiệp x 6-8 lần' },
+      { name: 'Romanian deadlift', detail: '3 hiệp x 6-8 lần' },
+      { name: 'Farmer carry', detail: '3 lượt x 30-40 mét' }
+    ];
+  }
+
+  if (normalizedGoal.includes('suc ben')) {
+    return [
+      { name: 'Đi bộ nhanh hoặc đạp xe', detail: '12 phút nhịp đều' },
+      { name: 'Bodyweight squat', detail: '3 hiệp x 15 lần' },
+      { name: 'Incline push-up', detail: '3 hiệp x 12-15 lần' },
+      { name: 'Step-up', detail: '3 hiệp x 12 lần mỗi bên' },
+      { name: 'Plank shoulder tap', detail: '3 hiệp x 30 giây' }
+    ];
+  }
+
+  if (normalizedGoal.includes('deo dai')) {
+    return [
+      { name: 'World greatest stretch', detail: '2 hiệp x 5 lần mỗi bên' },
+      { name: 'Hip flexor stretch', detail: '2 hiệp x 40 giây mỗi bên' },
+      { name: 'Thoracic rotation', detail: '3 hiệp x 8 lần mỗi bên' },
+      { name: 'Cossack squat nhẹ', detail: '3 hiệp x 6-8 lần mỗi bên' },
+      { name: 'Breathing cooldown', detail: '4 phút cuối buổi' }
+    ];
+  }
+
+  if (normalizedGoal.includes('phuc hoi') || normalizedGoal.includes('tai tao')) {
+    return [
+      { name: 'Đi bộ nhẹ', detail: '8-10 phút khởi động' },
+      { name: 'Cat-cow', detail: '2 hiệp x 8-10 lần' },
+      { name: 'Glute bridge', detail: '3 hiệp x 10-12 lần' },
+      { name: 'Band pull-apart hoặc row nhẹ', detail: '3 hiệp x 12 lần' },
+      { name: 'Giãn cơ hông và lưng', detail: '5 phút cuối buổi' }
+    ];
+  }
+
+  if (normalizedGoal.includes('giam mo') || normalizedGoal.includes('giam can')) {
     return [
       { name: 'Đi bộ dốc trên máy', detail: '8 phút khởi động' },
       { name: 'Goblet squat', detail: '3 hiệp x 12 lần' },
@@ -395,7 +847,16 @@ const estimateTargetCalories = ({
   const bmr = 10 * parsedWeight + 6.25 * parsedHeight - 5 * parsedAge + genderOffset;
   const weeklyWorkouts = workoutFrequencyToWeeklyWorkouts(frequency);
   const activityMultiplier = 1.2 + Math.min(Math.max(weeklyWorkouts, 0), 6) * 0.05;
-  const goalAdjustment = goal === 'Giảm cân' ? -350 : goal === 'Tăng cơ' ? 250 : 0;
+  const normalizedGoal = normalizePlainText(goal);
+  const goalAdjustment = normalizedGoal.includes('giam')
+    ? -350
+    : normalizedGoal.includes('tang co')
+      ? 250
+      : normalizedGoal.includes('suc manh')
+        ? 150
+        : normalizedGoal.includes('phuc hoi')
+          ? -100
+          : 0;
   return Math.max(1200, Math.round((bmr * activityMultiplier + goalAdjustment) / 50) * 50);
 };
 
@@ -415,12 +876,12 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     phone: '',
     gender: 'Nam',
     birthday: '',
-    age: '',
+    age: '28',
     job: '',
 
     // Giá trị nâng cao vẫn giữ mặc định để không làm thiếu payload backend
-    height: '',
-    weight: '',
+    height: '170',
+    weight: '68',
     target_weight: '',
     body_fat: '',
     neck: '',
@@ -429,7 +890,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     hips: '',
     // BMI sẽ được tính tự động, không cần trong state input
     activity_level: DEFAULT_WORKOUT_FREQUENCY,
-    fitness_goal: 'Giảm cân',
+    fitness_goal: 'Giảm mỡ',
     workout_time: 'Sáng sớm',
     workout_duration: DEFAULT_WORKOUT_DURATION,
     experience_level: 'Người mới',
@@ -499,7 +960,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
             ...prev,
             full_name: p.data.full_name || prev.full_name,
             phone: p.data.phone || '',
-            gender: p.data.gender || 'Nam',
+            gender: normalizeGender(p.data.gender),
             birthday: p.data.birthday || '',
             age: birthdayToAge(p.data.birthday) || prev.age,
             job: p.data.job || '',
@@ -584,7 +1045,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
             type="button"
             onClick={goPrev}
             disabled={loading}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-primary px-5 py-2.5 text-sm font-bold text-text-primary transition-all hover:bg-bg-secondary/80 disabled:opacity-50 sm:w-auto"
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-primary px-5 py-2.5 text-sm font-bold text-accent transition-all hover:border-accent/45 hover:bg-bg-secondary/80 disabled:opacity-50 sm:w-auto"
           >
             <ChevronLeft className="w-4 h-4" />
             Quay lại
@@ -627,7 +1088,6 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
 
   const getFirstInvalidStep = (): number | null => {
     if (
-      !formData.fitness_goal ||
       !formData.gender ||
       !hasPositiveNumber(formData.age) ||
       !hasPositiveNumber(formData.height) ||
@@ -635,13 +1095,18 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     ) {
       return 1;
     }
+    if (!formData.fitness_goal) {
+      return 2;
+    }
+    if (!formData.activity_level) {
+      return 3;
+    }
     if (
       !formData.experience_level ||
       !formData.workout_location ||
-      !formData.activity_level ||
       !formData.workout_duration
     ) {
-      return 2;
+      return 4;
     }
     return null;
   };
@@ -650,7 +1115,6 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     setIsSubmitted(true);
     if (currentStep === 1) {
       if (
-        !formData.fitness_goal ||
         !formData.gender ||
         !hasPositiveNumber(formData.age) ||
         !hasPositiveNumber(formData.height) ||
@@ -660,10 +1124,19 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
       }
     }
     if (currentStep === 2) {
+      if (!formData.fitness_goal) {
+        return;
+      }
+    }
+    if (currentStep === 3) {
+      if (!formData.activity_level) {
+        return;
+      }
+    }
+    if (currentStep === 4) {
       if (
         !formData.experience_level ||
         !formData.workout_location ||
-        !formData.activity_level ||
         !formData.workout_duration
       ) {
         return;
@@ -698,6 +1171,10 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     });
   };
 
+  const handleNumberChange = (name: 'age' | 'height' | 'weight', value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError('');
@@ -725,6 +1202,21 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
       const resolvedFullName = formData.full_name.trim() || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Thành viên';
       const resolvedTargetWeight = parseFloat(formData.target_weight) || parseFloat(formData.weight) || 0;
       const resolvedEquipment = formData.workout_location === 'Phòng Gym' ? 'Đầy đủ tạ & máy móc' : 'Không dụng cụ';
+      const normalizedActivityLevel = normalizeWorkoutFrequency(formData.activity_level);
+      const weeklyWorkouts = workoutFrequencyToWeeklyWorkouts(normalizedActivityLevel);
+      const ageYears = Number(formData.age) || 28;
+      const heightCm = Number(formData.height) || 170;
+      const weightKg = Number(formData.weight) || 68;
+      const mealsPerDay = parseInt(formData.meals_per_day, 10) || 3;
+      const dailyWaterGoalLiters = parseFloat(formData.daily_water_goal) || 2.0;
+      const estimatedTargetCalories = estimateTargetCalories({
+        gender: formData.gender,
+        age: formData.age,
+        height: formData.height,
+        weight: formData.weight,
+        goal: formData.fitness_goal,
+        frequency: normalizedActivityLevel
+      });
 
       // 1. Cập nhật hoặc Tạo mới Profile (Thông tin cơ bản)
       const profilePromise = supabase
@@ -760,8 +1252,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
         .from('lifestyle_settings')
         .upsert({
           user_id: user.id,
-          activity_level: normalizeWorkoutFrequency(formData.activity_level),
-          weekly_workouts: workoutFrequencyToWeeklyWorkouts(formData.activity_level),
+          activity_level: normalizedActivityLevel,
+          weekly_workouts: weeklyWorkouts,
           fitness_goal: formData.fitness_goal,
           diet_preference: formData.diet_preference,
           cooking_ability: formData.cooking_ability,
@@ -772,8 +1264,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           workout_duration: parseInt(normalizeWorkoutDurationTag(formData.workout_duration), 10),
           equipment_available: resolvedEquipment,
           experience_level: formData.experience_level,
-          meals_per_day: parseInt(formData.meals_per_day, 10) || 3,
-          daily_water_goal: parseFloat(formData.daily_water_goal) || 2.0,
+          meals_per_day: mealsPerDay,
+          daily_water_goal: dailyWaterGoalLiters,
+          target_calories: estimatedTargetCalories,
           motivation: formData.motivation,
           expectations: formData.expectations,
           updated_at: new Date().toISOString()
@@ -828,8 +1321,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
 
       const durationMinutes = Number(normalizeWorkoutDurationTag(formData.workout_duration)) || Number(DEFAULT_WORKOUT_DURATION) || 30;
       const selectedMeals = MEAL_OPTIONS.find(option => option.value === formData.meals_per_day);
+      const selectedActivity = ACTIVITY_LEVEL_OPTIONS.find(option => option.value === normalizedActivityLevel);
       const selectedFrequency = WORKOUT_FREQUENCY_OPTIONS.find(
-        option => option.value === normalizeWorkoutFrequency(formData.activity_level)
+        option => option.value === normalizedActivityLevel
       );
       const todayExercises = buildTodayExercises({
         experience: formData.experience_level,
@@ -840,16 +1334,18 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
       const summary: SurveyPlanSummary = {
         goal: formData.fitness_goal,
         experience: formData.experience_level,
-        frequency: selectedFrequency?.label || `${workoutFrequencyToWeeklyWorkouts(formData.activity_level)} buổi / tuần`,
+        frequency: selectedActivity
+          ? `${selectedActivity.label} · ${selectedFrequency?.label || selectedActivity.value}`
+          : selectedFrequency?.label || `${workoutFrequencyToWeeklyWorkouts(normalizedActivityLevel)} buổi / tuần`,
         duration: `${durationMinutes}-${durationMinutes + 10} phút / buổi`,
-        targetCalories: estimateTargetCalories({
-          gender: formData.gender,
-          age: formData.age,
-          height: formData.height,
-          weight: formData.weight,
-          goal: formData.fitness_goal,
-          frequency: formData.activity_level
-        }),
+        targetCalories: estimatedTargetCalories,
+        gender: formData.gender,
+        age: ageYears,
+        heightCm,
+        weightKg,
+        weeklyWorkouts,
+        mealsPerDay,
+        dailyWaterGoalLiters,
         location: formData.workout_location === 'Tập tại nhà (Home Workout)' ? 'Tại nhà' : 'Phòng gym',
         todayWorkout: formData.experience_level === 'Người mới' ? 'Full Body Beginner' : 'Full Body Strength',
         todayDuration: `${durationMinutes} phút`,
@@ -878,8 +1374,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
       {/* Modal Content */}
       <div className={`relative flex w-full flex-col overflow-hidden bg-transparent ${
         modalMode
-          ? 'max-h-[100dvh] max-w-5xl rounded-none animate-in zoom-in duration-300 sm:max-h-[92dvh]'
-          : 'mx-auto min-h-[calc(100dvh-1.5rem)] max-w-5xl sm:min-h-[calc(100dvh-2.5rem)]'
+          ? 'max-h-[100dvh] max-w-3xl rounded-none animate-in zoom-in duration-300 sm:max-h-[92dvh]'
+          : 'mx-auto min-h-[calc(100dvh-1.5rem)] max-w-3xl sm:min-h-[calc(100dvh-2.5rem)]'
       }`}>
 
         {/* Close Button (Only for Profile Editing) */}
@@ -910,7 +1406,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 : "Trả lời nhanh vài thông tin chính. Trợ lý cá nhân sẽ chuẩn bị khung bắt đầu phù hợp với bạn."}
             </p>
 
-            <div className="mt-5 grid grid-cols-3 gap-2 xl:hidden">
+            <div className="mt-5 grid grid-cols-5 gap-2 xl:hidden">
               {STEP_NAV_LABELS.map((_, idx) => {
                 const n = idx + 1;
                 const active = n === currentStep;
@@ -1022,7 +1518,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
               />
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-5">
               {STEP_NAV_LABELS.map((label, idx) => {
                 const n = idx + 1;
                 const active = n === currentStep;
@@ -1078,7 +1574,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           </div>
 
         {/* Form Body */}
-        <form id="survey-form" onSubmit={handleSubmit} className="custom-scrollbar mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-y-auto px-0 py-4 sm:px-0 md:px-0 md:py-6">
+        <form id="survey-form" onSubmit={handleSubmit} className="custom-scrollbar mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-y-auto px-0 py-4 sm:px-0 md:px-0 md:py-6">
           <div className="my-auto space-y-6 md:space-y-8">
             <div className="hidden">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -1111,7 +1607,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-5">
                 {STEP_NAV_LABELS.map((label, idx) => {
                   const n = idx + 1;
                   const active = n === currentStep;
@@ -1147,114 +1643,259 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
             </div>
 
           {currentStep === 1 && (
-          <StepSurveyCard
-            icon={User}
-            iconWrapClass="bg-accent/15 ring-1 ring-accent/25"
-            iconClass="h-5 w-5 text-accent"
-            title={"1. Mục tiêu & cơ thể"}
-            subtitle={"Chỉ nhập các thông tin cần thiết để Trợ lý cá nhân tạo kế hoạch đầu tiên nhanh nhất."}
-            footer={surveyFooter}
-          >
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Mục tiêu"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="fitness_goal" value={formData.fitness_goal} options={GOAL_OPTIONS} onChange={handleInputChange} compact />
+          <section className="rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:px-9 sm:py-9">
+            <div className="flex items-center justify-between gap-4 text-xs font-semibold">
+              <p className="text-accent">Bước 1: Chỉ số cơ thể</p>
+              <p className="text-text-secondary">1 / {TOTAL_STEPS}</p>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Giới tính"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="gender" value={formData.gender} options={GENDER_OPTIONS} onChange={handleInputChange} compact />
+            <div className="mt-9">
+              <h3 className="text-2xl font-black leading-tight text-text-primary sm:text-3xl">
+                Cho chúng tôi biết về bạn
+              </h3>
+              <p className="mt-3 text-sm font-medium leading-6 text-text-secondary">
+                Những thông tin này giúp cá nhân hóa mục tiêu và gợi ý phù hợp hơn.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Tuổi"} <span className="text-red-500">*</span></label>
-                <input required type="number" min="1" name="age" value={formData.age} onChange={handleInputChange} className={`h-11 w-full rounded-xl border bg-bg-primary/70 px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${isSubmitted && !hasPositiveNumber(formData.age) ? 'border-red-500 animate-pulse' : 'border-border-primary'}`} placeholder="28" />
-                {isSubmitted && !hasPositiveNumber(formData.age) && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng nhập tuổi</p>}
+            <div className="mt-8 space-y-5">
+              <div className="space-y-3">
+                <label className="block text-xs font-black text-text-primary">Giới tính</label>
+                <GenderChoiceList name="gender" value={formData.gender} options={GENDER_OPTIONS} onChange={handleInputChange} />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Chiều cao (cm)"} <span className="text-red-500">*</span></label>
-                <input required type="number" min="1" name="height" value={formData.height} onChange={handleInputChange} className={`h-11 w-full rounded-xl border bg-bg-primary/70 px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${isSubmitted && !hasPositiveNumber(formData.height) ? 'border-red-500 animate-pulse' : 'border-border-primary'}`} placeholder="170" />
-                {isSubmitted && !hasPositiveNumber(formData.height) && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng nhập chiều cao</p>}
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Cân nặng (kg)"} <span className="text-red-500">*</span></label>
-                <input required type="number" min="1" name="weight" value={formData.weight} onChange={handleInputChange} className={`h-11 w-full rounded-xl border bg-bg-primary/70 px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${isSubmitted && !hasPositiveNumber(formData.weight) ? 'border-red-500 animate-pulse' : 'border-border-primary'}`} placeholder="68" />
-                {isSubmitted && !hasPositiveNumber(formData.weight) && <p className="text-red-500 text-[10px] mt-1 font-medium">Vui lòng nhập cân nặng</p>}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <CompactMetricInput
+                  name="age"
+                  label="Tuổi"
+                  value={formData.age}
+                  placeholder="VD: 25"
+                  min={13}
+                  max={80}
+                  icon={Calendar}
+                  onChange={handleInputChange}
+                  invalid={isSubmitted && !hasPositiveNumber(formData.age)}
+                  error="Vui lòng nhập tuổi"
+                />
+                <CompactMetricInput
+                  name="height"
+                  label="Chiều cao (cm)"
+                  value={formData.height}
+                  placeholder="VD: 170"
+                  min={130}
+                  max={220}
+                  icon={MoveVertical}
+                  onChange={handleInputChange}
+                  invalid={isSubmitted && !hasPositiveNumber(formData.height)}
+                  error="Vui lòng nhập chiều cao"
+                />
+                <CompactMetricInput
+                  name="weight"
+                  label="Cân nặng (kg)"
+                  value={formData.weight}
+                  placeholder="VD: 65"
+                  min={35}
+                  max={180}
+                  icon={Weight}
+                  onChange={handleInputChange}
+                  invalid={isSubmitted && !hasPositiveNumber(formData.weight)}
+                  error="Vui lòng nhập cân nặng"
+                />
               </div>
             </div>
-          </StepSurveyCard>
+
+            <div className="mt-5 border-t border-border-primary pt-5 sm:mt-6 sm:flex sm:justify-end">
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={loading}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60 sm:w-auto"
+              >
+                Tiếp tục
+                <ChevronRight className="h-4 w-4 text-text-inverse" strokeWidth={3} />
+              </button>
+            </div>
+          </section>
           )}
 
           {currentStep === 2 && (
-          <StepSurveyCard
-            icon={Zap}
-            iconWrapClass="bg-accent/15 ring-1 ring-accent/25"
-            iconClass="h-5 w-5 text-accent"
-            title={"2. Khả năng tập luyện"}
-            subtitle={"Trợ lý cá nhân dùng các thông tin này để chọn bài tập, lịch tuần và cường độ phù hợp."}
-            footer={surveyFooter}
-          >
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Trình độ tập luyện"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="experience_level" value={formData.experience_level} options={EXPERIENCE_OPTIONS} onChange={handleInputChange} columns="md:grid-cols-2" />
+          <section className="rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:px-9 sm:py-9">
+            <div className="flex items-center justify-between gap-4 text-xs font-semibold">
+              <p className="text-accent">Bước 2: Mục tiêu</p>
+              <p className="text-text-secondary">2 / {TOTAL_STEPS}</p>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Bạn tập ở đâu?"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="workout_location" value={formData.workout_location} options={LOCATION_OPTIONS} onChange={handleInputChange} columns="md:grid-cols-2" />
+            <div className="mt-9">
+              <h3 className="text-2xl font-black leading-tight text-text-primary sm:text-3xl">
+                Mục tiêu của bạn là gì?
+              </h3>
+              <p className="mt-3 text-sm font-medium leading-6 text-text-secondary">
+                Chọn một mục tiêu chính để Fitly cá nhân hóa bài tập, dinh dưỡng và nhịp phục hồi.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Số buổi có thể tập mỗi tuần"} <span className="text-red-500">*</span></label>
-                <select name="activity_level" value={normalizeWorkoutFrequency(formData.activity_level)} onChange={handleInputChange} className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary/70 px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent">
-                  {WORKOUT_FREQUENCY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Thời lượng mỗi buổi"} <span className="text-red-500">*</span></label>
-                <select name="workout_duration" value={normalizeWorkoutDurationTag(formData.workout_duration)} onChange={handleInputChange} className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary/70 px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent">
-                  {WORKOUT_DURATION_TAGS.map((minutes) => (
-                    <option key={minutes} value={String(minutes)}>{`${minutes} phút`}</option>
-                  ))}
-                </select>
-              </div>
+            <div className="mt-8">
+              <GoalChoiceGrid name="fitness_goal" value={formData.fitness_goal} options={GOAL_OPTIONS} onChange={handleInputChange} />
             </div>
-          </StepSurveyCard>
+
+            <div className="mt-3 flex flex-col-reverse gap-3 sm:mt-4 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={goPrev}
+                disabled={loading}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border-primary px-7 text-sm font-black text-accent transition-colors hover:border-accent/45 hover:bg-bg-secondary disabled:opacity-60 sm:w-auto"
+              >
+                <ChevronLeft className="h-4 w-4" strokeWidth={3} />
+                Quay lại
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={loading}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60 sm:w-auto"
+              >
+                Tiếp tục
+                <ChevronRight className="h-4 w-4 text-text-inverse" strokeWidth={3} />
+              </button>
+            </div>
+          </section>
           )}
 
           {currentStep === 3 && (
-          <StepSurveyCard
-            icon={Stethoscope}
-            iconWrapClass="bg-accent/15 ring-1 ring-accent/25"
-            iconClass="h-5 w-5 text-accent"
-            title={"3. An toàn & ăn uống"}
-            subtitle={"Thông tin này giúp Trợ lý cá nhân tránh bài tập, món ăn không phù hợp và chia thực đơn đúng nhịp sinh hoạt."}
-            footer={surveyFooter}
-          >
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Chế độ ăn ưu tiên"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="diet_preference" value={formData.diet_preference} options={DIET_OPTIONS} onChange={handleInputChange} columns="sm:grid-cols-2 lg:grid-cols-5" compact />
+          <section className="rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:px-9 sm:py-9">
+            <div className="flex items-center justify-between gap-4 text-xs font-semibold">
+              <p className="text-accent">Bước 3: Mức độ vận động</p>
+              <p className="text-text-secondary">3 / {TOTAL_STEPS}</p>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Số bữa/ngày"} <span className="text-red-500">*</span></label>
-              <ChoiceGrid name="meals_per_day" value={formData.meals_per_day} options={MEAL_OPTIONS} onChange={handleInputChange} columns="sm:grid-cols-2 lg:grid-cols-4" compact />
+            <div className="mt-9">
+              <h3 className="text-2xl font-black leading-tight text-text-primary sm:text-3xl">
+                Nhịp vận động hiện tại
+              </h3>
+              <p className="mt-3 text-sm font-medium leading-6 text-text-secondary">
+                Chọn mức gần nhất với nhịp sống của bạn để Fitly xếp lịch vừa sức và dễ duy trì.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Có chấn thương không?"}</label>
-                <textarea name="injuries" value={formData.injuries} onChange={handleInputChange} className="h-28 w-full resize-none rounded-2xl border border-border-primary bg-bg-primary/70 px-4 py-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent" placeholder={"Không, hoặc ghi: đau gối, đau lưng, cổ tay yếu..."} />
+            <div className="mt-8 space-y-3">
+              <label className="block text-xs font-black text-text-primary">Mức độ vận động <span className="text-red-500">*</span></label>
+              <ActivityChoiceList name="activity_level" value={formData.activity_level} options={ACTIVITY_LEVEL_OPTIONS} onChange={handleInputChange} />
+            </div>
+
+            <div className="mt-3 flex flex-col-reverse gap-3 sm:mt-4 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={goPrev}
+                disabled={loading}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border-primary px-7 text-sm font-black text-accent transition-colors hover:border-accent/45 hover:bg-bg-secondary disabled:opacity-60 sm:w-auto"
+              >
+                <ChevronLeft className="h-4 w-4" strokeWidth={3} />
+                Quay lại
+              </button>
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={loading}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60 sm:w-auto"
+              >
+                Tiếp tục
+                <ChevronRight className="h-4 w-4 text-text-inverse" strokeWidth={3} />
+              </button>
+            </div>
+          </section>
+          )}
+
+          {currentStep === 4 && (
+          <section className="rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:px-9 sm:py-9">
+            <div className="flex items-center justify-between gap-4 text-xs font-semibold">
+              <p className="text-accent">Bước 4: Thiết lập tập luyện</p>
+              <p className="text-text-secondary">4 / {TOTAL_STEPS}</p>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+
+            <div className="mt-9">
+              <h3 className="text-2xl font-black leading-tight text-text-primary sm:text-3xl">
+                Bạn muốn tập như thế nào?
+              </h3>
+              <p className="mt-3 text-sm font-medium leading-6 text-text-secondary">
+                Cho Fitly biết trình độ, nơi tập và thời lượng để chọn bài phù hợp với điều kiện thực tế của bạn.
+              </p>
+            </div>
+
+            <div className="mt-8 space-y-5">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{"Trình độ tập luyện"} <span className="text-red-500">*</span></label>
+                <ChoiceGrid name="experience_level" value={formData.experience_level} options={EXPERIENCE_OPTIONS} onChange={handleInputChange} columns="md:grid-cols-2" />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{"Có dị ứng hoặc món không ăn được không?"}</label>
-                <textarea name="allergies" value={formData.allergies} onChange={handleInputChange} className="h-28 w-full resize-none rounded-2xl border border-border-primary bg-bg-primary/70 px-4 py-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent" placeholder={"Không, hoặc ghi: hải sản, sữa, đậu phộng, thịt bò..."} />
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{"Bạn tập ở đâu?"} <span className="text-red-500">*</span></label>
+                  <ChoiceGrid name="workout_location" value={formData.workout_location} options={LOCATION_OPTIONS} onChange={handleInputChange} columns="grid-cols-1" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{"Thời lượng mỗi buổi"} <span className="text-red-500">*</span></label>
+                  <select name="workout_duration" value={normalizeWorkoutDurationTag(formData.workout_duration)} onChange={handleInputChange} className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary/70 px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent">
+                    {WORKOUT_DURATION_TAGS.map((minutes) => (
+                      <option key={minutes} value={String(minutes)}>{`${minutes} phút`}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
-          </StepSurveyCard>
+
+            <div className="mt-3 flex flex-col-reverse gap-3 sm:mt-4 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={goPrev}
+                disabled={loading}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border-primary px-7 text-sm font-black text-accent transition-colors hover:border-accent/45 hover:bg-bg-secondary disabled:opacity-60 sm:w-auto"
+              >
+                <ChevronLeft className="h-4 w-4" strokeWidth={3} />
+                Quay lại
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60 sm:w-auto"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang tạo kế hoạch...
+                  </>
+                ) : (
+                  <>
+                    {isOpen ? 'CẬP NHẬT HỒ SƠ' : 'TẠO KẾ HOẠCH'}
+                    <Zap className="h-4 w-4 text-text-inverse" strokeWidth={3} />
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
           )}
 
           <div className="hidden">
@@ -1269,7 +1910,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                   type="button"
                   onClick={goPrev}
                   disabled={loading}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-primary px-5 py-2.5 text-sm font-bold text-text-primary transition-all hover:bg-bg-secondary/80 disabled:opacity-50 sm:w-auto"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-border-primary px-5 py-2.5 text-sm font-bold text-accent transition-all hover:border-accent/45 hover:bg-bg-secondary/80 disabled:opacity-50 sm:w-auto"
                 >
                   <ChevronLeft className="w-4 h-4" />
                   Quay lại
@@ -1329,7 +1970,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 type="button"
                 onClick={goPrev}
                 disabled={loading}
-                className="w-full sm:w-auto py-2.5 px-5 rounded-xl border border-border-primary text-text-primary font-bold text-sm hover:bg-bg-tertiary/70 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="w-full sm:w-auto py-2.5 px-5 rounded-xl border border-border-primary text-accent font-bold text-sm hover:border-accent/45 hover:bg-bg-tertiary/70 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Quay lại
