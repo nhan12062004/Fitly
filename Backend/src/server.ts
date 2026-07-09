@@ -85,14 +85,6 @@ const getWeekStartKey = (baseDate: Date): string => {
 };
 
 const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
-const getVietnamDayBoundsUtc = (dateKey = getVietnamDateKey()) => {
-  const start = new Date(`${dateKey}T00:00:00+07:00`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  return {
-    startIso: start.toISOString(),
-    endIso: end.toISOString(),
-  };
-};
 const getDateKeyFromWeekStartAndDayIndex = (weekStartKey: string, dayIndex: number): string => {
   const safeDayIndex = Math.max(0, Math.min(6, Number(dayIndex) || 0));
   const baseDate = new Date(`${weekStartKey}T00:00:00`);
@@ -3270,7 +3262,6 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     }
 
     incrementMetric('totalChatRequests');
-    const chatDayBounds = getVietnamDayBoundsUtc();
     const weeklyPlanQuery = requestedWeekStartDate
       ? supabase
           .from('weekly_plans')
@@ -3353,8 +3344,6 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .from('ai_chat_messages')
         .select('role, content, created_at')
         .eq('user_id', authUserId)
-        .gte('created_at', chatDayBounds.startIso)
-        .lt('created_at', chatDayBounds.endIso)
         .order('created_at', { ascending: false })
         .limit(8),
       supabase
@@ -3714,6 +3703,26 @@ app.post('/api/ai/coach-command', aiLimiter, async (req, res) => {
   } catch (error: any) {
     console.error('[ai-coach-command] failed:', error?.message || error);
     return res.status(500).json({ error: error?.message || 'Failed to process coach command' });
+  }
+});
+
+app.post('/api/ai/chat/clear', aiLimiter, async (req, res) => {
+  try {
+    const authUserId = await getAuthUserId(req);
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { error } = await supabase
+      .from('ai_chat_messages')
+      .delete()
+      .eq('user_id', authUserId);
+
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error('[ai-chat-clear] failed:', error?.message || error);
+    return res.status(500).json({ error: error?.message || 'Failed to clear chat history' });
   }
 });
 

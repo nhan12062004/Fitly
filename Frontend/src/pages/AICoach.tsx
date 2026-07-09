@@ -1,16 +1,14 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   Bot,
-  Dumbbell,
   Loader2,
-  Menu,
   Mic,
   Paperclip,
   RefreshCw,
   Save,
   Send,
   Settings2,
-  Utensils,
+  Trash2,
   X,
 } from 'lucide-react';
 import { API_BASE_URL } from '../lib/Api';
@@ -33,53 +31,6 @@ import {
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const RECENT_CHAT_LIMIT = 80;
-const COACH_MENU_COMMANDS = [
-  {
-    command: 'menu',
-    label: '/menu',
-    description: 'Mở bảng điều khiển Fitly',
-  },
-  {
-    command: 'today',
-    label: '/today',
-    description: 'Xem tiến độ hôm nay',
-  },
-  {
-    command: 'workout',
-    label: '/workout',
-    description: 'Xem bài tập gần đây và hôm nay',
-  },
-  {
-    command: 'meals',
-    label: '/meals',
-    description: 'Xem thực đơn hôm nay',
-  },
-  {
-    command: 'health',
-    label: '/health',
-    description: 'Xem báo cáo sức khỏe nhỏ',
-  },
-  {
-    command: 'water',
-    label: '/water',
-    description: 'Ghi nhanh lượng nước',
-  },
-  {
-    command: 'sleep',
-    label: '/sleep',
-    description: 'Ghi nhanh giấc ngủ',
-  },
-  {
-    command: 'help',
-    label: '/help',
-    description: 'Xem hướng dẫn sử dụng',
-  },
-  {
-    command: 'clear',
-    label: '/clear',
-    description: 'Xoá ngữ cảnh trò chuyện',
-  },
-];
 const DAY_LABELS = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 
 type WeeklyPlan = {
@@ -189,6 +140,7 @@ type ChatMessage = {
   id: string;
   role: 'assistant' | 'user' | 'system';
   content: string;
+  createdAt?: string | null;
   intent?: string | null;
   responseMode?: 'plan_edit' | 'coach_advice' | 'support' | 'safety' | 'redirect';
   actionRequired?: boolean;
@@ -319,13 +271,17 @@ const getVietnamDateKey = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const getVietnamDayBoundsUtc = (dateKey = getVietnamDateKey()) => {
-  const start = new Date(`${dateKey}T00:00:00+07:00`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  return {
-    startIso: start.toISOString(),
-    endIso: end.toISOString(),
-  };
+const getVietnamTimeLabel = (date = new Date()) =>
+  new Intl.DateTimeFormat('vi-VN', {
+    timeZone: VIETNAM_TIMEZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+
+const getChatTimeLabel = (value?: string | null) => {
+  const date = value ? new Date(value) : new Date();
+  return Number.isNaN(date.getTime()) ? getVietnamTimeLabel() : getVietnamTimeLabel(date);
 };
 
 const getWeekStartKey = (baseDate: Date) => {
@@ -353,6 +309,20 @@ const normalizeVietnameseClient = (value: string) =>
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+const getCoachDisplayName = (profile: any | null, user: any | null) => {
+  const rawName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'bạn';
+  const name = String(rawName || '').trim();
+  return name || 'bạn';
+};
+
+const getCoachGoalLabel = (lifestyle?: LifestyleSummary | null) => {
+  const goal = String(lifestyle?.fitness_goal || DEFAULT_PLAN_SETTINGS.fitness_goal || '').trim();
+  return goal || 'mục tiêu cá nhân';
+};
+
+const buildCoachWelcomeText = (userName: string, lifestyle?: LifestyleSummary | null) =>
+  `Chào ${userName}, mình là huấn luyện viên AI của bạn. Mục tiêu hiện tại của bạn là ${getCoachGoalLabel(lifestyle)}. Bạn muốn mình tư vấn gì hôm nay: bài tập, dinh dưỡng hay điều chỉnh kế hoạch?`;
 
 const inferChatTopic = (value: string): 'meal' | 'workout' | null => {
   const normalized = normalizeVietnameseClient(value);
@@ -1062,28 +1032,6 @@ function WorkoutProposalCard({ payload }: { payload: WorkoutProposalPayload }) {
   );
 }
 
-function SummaryBubble({
-  icon,
-  title,
-  children,
-}: {
-  icon: ReactNode;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-ai text-white shadow-[0_10px_24px_rgb(var(--ai-rgb)_/_0.22)]">
-        {icon}
-      </div>
-      <div className="max-w-[88%] rounded-xl border border-border-primary bg-bg-secondary px-4 py-4 text-[15px] leading-7 text-text-primary shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
-        <p className="text-xs font-black uppercase tracking-[0.12em] text-ai">{title}</p>
-        <div className="mt-2">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 function ExerciseThumb({ src, alt }: { src?: string; alt: string }) {
   const candidates = useMemo(() => {
     const primary = normalizeMediaUrl(src);
@@ -1124,69 +1072,31 @@ function ExerciseThumb({ src, alt }: { src?: string; alt: string }) {
   );
 }
 
-function TodayDigestBubble({ day }: { day: DayPlan }) {
-  const totalSets = day.exercises.reduce((sum, item) => sum + Number(item.sets || 0), 0);
-  const mealDigest = buildMealDigest(day);
+function TodayDigestBubble({
+  userName,
+  lifestyle,
+}: {
+  userName: string;
+  lifestyle?: LifestyleSummary | null;
+}) {
+  const timeLabel = useMemo(() => getVietnamTimeLabel(), []);
 
   return (
-    <SummaryBubble icon={<Bot className="h-4 w-4" />} title="Hôm nay">
-      <div className="space-y-3">
-        <p className="font-semibold">{buildCoachOpening(day)}</p>
-
-        <div className="space-y-2">
-          {day.exercises.length === 0 ? (
-            <p className="flex items-start gap-2 text-sm font-semibold text-text-secondary">
-              <Dumbbell className="mt-0.5 h-4 w-4 shrink-0 text-ai" />
-              <span>Hôm nay chưa có bài tập nào.</span>
-            </p>
-          ) : (
-            <>
-              <p className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
-                <Dumbbell className="h-4 w-4 text-ai" />
-                {day.exercises.length} bài tập{totalSets > 0 ? `, ${totalSets} sets` : ''}
-              </p>
-              <div className="space-y-2">
-                {day.exercises.slice(0, 4).map((item, index) => {
-                  const imageUrl = item.exercises?.image_url || item.exercises?.gif_url || '';
-                  return (
-                    <div key={item.id} className="flex items-center gap-3 rounded-lg border border-border-primary/80 bg-bg-primary/35 px-3 py-3">
-                      <div className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary">
-                        <ExerciseThumb src={imageUrl} alt={item.exercises?.name || 'Bài tập'} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-black text-text-primary">
-                          {index + 1}. {item.exercises?.name || 'Bài tập'}
-                        </p>
-                        <p className="text-sm font-semibold text-text-secondary">
-                          {item.sets || 3} hiệp × {item.reps || '8-12'}
-                        </p>
-                        <p className="text-xs font-semibold text-text-tertiary">
-                          {item.exercises?.body_part || item.exercises?.target_muscle || 'Strength'}
-                          {item.rest_seconds ? ` • Nghỉ ${item.rest_seconds}s` : ''}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {day.exercises.length > 4 ? (
-                <p className="text-sm font-semibold text-text-secondary">+{day.exercises.length - 4} bài nữa trong buổi hôm nay.</p>
-              ) : null}
-            </>
-          )}
+    <div className="flex justify-start">
+      <div className="ai-chat-bubble-wrap max-w-[86%] sm:max-w-[78%]">
+        <div className="rounded-[18px] border border-border-primary bg-bg-secondary/75 px-5 py-4 text-[15px] font-semibold leading-7 text-text-secondary shadow-none">
+          <p className="whitespace-pre-line break-words">
+            {buildCoachWelcomeText(userName, lifestyle)}
+          </p>
         </div>
-
-        <p className="flex items-start gap-2 whitespace-pre-line text-sm font-semibold text-text-secondary">
-          <Utensils className="mt-1 h-4 w-4 shrink-0 text-ai" />
-          <span>{mealDigest}</span>
-        </p>
+        <p className="mt-1 px-1 text-left text-[11px] font-bold text-text-tertiary">{timeLabel}</p>
       </div>
-    </SummaryBubble>
+    </div>
   );
 }
 
 export default function AICoach() {
-  const { user, isLoggedIn, refreshTick, refreshProfile, openPremiumModal } = useAuth();
+  const { user, isLoggedIn, profile, refreshTick, refreshProfile, openPremiumModal } = useAuth();
   const toast = useToast();
   const initialTodayDateKey = getVietnamDateKey();
   const initialWeekStartKey = getWeekStartKey(new Date(`${initialTodayDateKey}T00:00:00`));
@@ -1206,15 +1116,14 @@ export default function AICoach() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [chatInput, setChatInput] = useState(() => readChatDraft(chatDraftStorageKey));
-  const [isComposerMenuOpen, setIsComposerMenuOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; size: number; type: string } | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => initialCoachCache?.chatMessages || []);
   const [isSendingChat, setIsSendingChat] = useState(false);
+  const [isClearingChat, setIsClearingChat] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   const chatContentRef = useRef<HTMLDivElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
-  const composerRootRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const voiceRecognitionRef = useRef<any>(null);
@@ -1229,6 +1138,7 @@ export default function AICoach() {
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${todayDateKey}T00:00:00`)), [todayDateKey]);
   const cacheKey = user?.id ? `${user.id}:${weekStartKey}:${todayDateKey}` : null;
+  const coachDisplayName = useMemo(() => getCoachDisplayName(profile, user), [profile, user]);
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -1525,14 +1435,10 @@ export default function AICoach() {
         setChatMessages(cached.chatMessages);
         setIsRefreshingChat(true);
       }
-      const chatDayBounds = getVietnamDayBoundsUtc(todayDateKey);
-
       const chatRes = await supabase
         .from('ai_chat_messages')
         .select('*')
         .eq('user_id', user.id)
-        .gte('created_at', chatDayBounds.startIso)
-        .lt('created_at', chatDayBounds.endIso)
         .order('created_at', { ascending: false })
         .limit(RECENT_CHAT_LIMIT);
 
@@ -1574,6 +1480,7 @@ export default function AICoach() {
           id: String(item.id || ''),
           role,
           content,
+          createdAt: item.created_at || null,
           intent: item.intent || null,
           responseMode: inferResponseMode(item.intent, item.action_type),
           actionRequired: !!item.action_type,
@@ -1590,7 +1497,7 @@ export default function AICoach() {
     };
 
     void fetchChat();
-  }, [user?.id, reloadKey, todayDateKey, cacheKey]);
+  }, [user?.id, reloadKey, cacheKey]);
 
   useLayoutEffect(() => {
     const textarea = chatInputRef.current;
@@ -1664,19 +1571,6 @@ export default function AICoach() {
   }, [chatMessages]);
 
   useEffect(() => {
-    if (!isComposerMenuOpen) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null;
-      if (target && composerRootRef.current?.contains(target)) return;
-      setIsComposerMenuOpen(false);
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [isComposerMenuOpen]);
-
-  useEffect(() => {
     if (!cacheKey) return;
     aiCoachPageCache.set(cacheKey, {
       plan,
@@ -1734,17 +1628,10 @@ export default function AICoach() {
     return `${Math.max(1, Math.round(size / 1024))} KB`;
   };
 
-  const applyQuickPrompt = (prompt: string) => {
-    setChatInput(prompt);
-    setIsComposerMenuOpen(false);
-    window.requestAnimationFrame(() => chatInputRef.current?.focus());
-  };
-
   const handleAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     setSelectedAttachment({ name: file.name, size: file.size, type: file.type || 'file' });
-    setIsComposerMenuOpen(false);
     event.target.value = '';
   };
 
@@ -1794,6 +1681,39 @@ export default function AICoach() {
     }
   };
 
+  const handleClearConversation = async () => {
+    if (!user?.id || isClearingChat) return;
+    setIsClearingChat(true);
+    try {
+      const sessionRes = await supabase.auth.getSession();
+      const accessToken = sessionRes.data.session?.access_token;
+      if (!accessToken) throw new Error('Missing access token');
+
+      const response = await fetch(`${API_BASE_URL}/api/ai/chat/clear`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Không thể xoá cuộc hội thoại.');
+      }
+
+      if (cacheKey) {
+        aiCoachPageCache.delete(cacheKey);
+      }
+      shouldJumpToLatestRef.current = true;
+      hasAutoScrolledChatRef.current = false;
+      setChatMessages([]);
+      toast.success('Đã xoá cuộc hội thoại AI Coach.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể xoá cuộc hội thoại.');
+    } finally {
+      setIsClearingChat(false);
+    }
+  };
+
   const submitCoachCommand = async (
     command: string,
     options?: { amountMl?: number; sleepHours?: number },
@@ -1812,13 +1732,13 @@ export default function AICoach() {
       id: `user-command-${Date.now()}`,
       role: 'user',
       content: visibleCommand,
+      createdAt: new Date().toISOString(),
       responseMode: 'coach_advice',
       optimistic: true,
     };
 
     setChatInput('');
     setSelectedAttachment(null);
-    setIsComposerMenuOpen(false);
     setIsSendingChat(true);
     shouldJumpToLatestRef.current = true;
     setChatMessages((current) => [...current, userMessage]);
@@ -1850,6 +1770,7 @@ export default function AICoach() {
         id: `assistant-command-${Date.now() + 1}`,
         role: 'assistant',
         content: String(payload.reply || '').trim() || 'Mình đã xử lý lệnh này.',
+        createdAt: new Date().toISOString(),
         intent: `coach_command:${payload.command || normalizedCommand}`,
         responseMode: payload.responseMode || 'coach_advice',
         quickActions: payload.quickActions || [],
@@ -1868,6 +1789,7 @@ export default function AICoach() {
         id: `assistant-command-${Date.now() + 1}`,
         role: 'assistant',
         content: 'Mình chưa chạy được lệnh này. Bạn thử lại sau một chút.',
+        createdAt: new Date().toISOString(),
         responseMode: 'coach_advice',
         optimistic: true,
       };
@@ -1900,13 +1822,13 @@ export default function AICoach() {
     lastSubmitRef.current = { message, at: now };
     setChatInput('');
     setSelectedAttachment(null);
-    setIsComposerMenuOpen(false);
     setIsSendingChat(true);
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: message,
+      createdAt: new Date().toISOString(),
       responseMode: 'coach_advice',
       optimistic: true,
     };
@@ -1957,6 +1879,7 @@ export default function AICoach() {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
         content: replyContent,
+        createdAt: new Date().toISOString(),
         intent: payload.intent || null,
         responseMode: payload.responseMode || inferResponseMode(payload.intent, payload.actionType),
         actionRequired: !!payload.actionRequired,
@@ -1974,6 +1897,7 @@ export default function AICoach() {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
         content: buildCoachReply(selectedDay, message, previousTopic, lifestyle),
+        createdAt: new Date().toISOString(),
         responseMode: 'coach_advice',
         optimistic: true,
       };
@@ -2013,32 +1937,30 @@ export default function AICoach() {
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsPlanSettingsOpen(true)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-xs font-black text-text-primary transition-colors hover:border-ai/40 hover:text-ai sm:w-auto sm:gap-2 sm:px-3"
-                    aria-label="Cài đặt kế hoạch"
-                  >
-                    <Settings2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Cài đặt kế hoạch</span>
-                  </button>
+                  {chatMessages.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleClearConversation()}
+                      disabled={isSendingChat || isClearingChat}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-xs font-black text-text-primary transition-colors hover:border-danger/40 hover:text-danger disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:gap-2 sm:px-3"
+                      aria-label="Xoá cuộc hội thoại"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="hidden sm:inline">{isClearingChat ? 'Đang xoá' : 'Xoá hội thoại'}</span>
+                    </button>
+                  ) : null}
                 </div>
               </div>
 
               <div ref={chatScrollRef} className="min-h-0 flex-1 overflow-y-auto bg-bg-tertiary px-5 py-5">
                 <div ref={chatContentRef} className="space-y-4">
-                  <TodayDigestBubble day={selectedDay} />
+                  <TodayDigestBubble userName={coachDisplayName} lifestyle={lifestyle} />
 
                   {chatMessages.map((message) => (
                     <div
                       key={message.id}
                       className={`flex items-start gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      {message.role === 'assistant' ? (
-                        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ai/90 text-white shadow-[0_8px_18px_rgb(var(--ai-rgb)_/_0.18)]">
-                          <Bot className="h-3.5 w-3.5" />
-                        </div>
-                      ) : null}
                       <div className={message.role === 'user' ? 'ai-chat-bubble-wrap max-w-[72%]' : 'ai-chat-bubble-wrap max-w-[76%]'}>
                         <div
                           className={`whitespace-pre-line break-words rounded-[18px] border px-4 py-3 text-sm font-normal leading-6 shadow-none ${
@@ -2054,6 +1976,9 @@ export default function AICoach() {
                           ) : null}
                           {message.content}
                         </div>
+                        <p className={`mt-1 px-1 text-[11px] font-bold text-text-tertiary ${message.role === 'user' ? 'text-right' : 'text-left'}`}>
+                          {getChatTimeLabel(message.createdAt)}
+                        </p>
                         {message.role === 'assistant' && message.actionRequired ? (
                           <ActionProposalCard actionType={message.actionType} actionPayload={message.actionPayload} />
                         ) : null}
@@ -2103,9 +2028,6 @@ export default function AICoach() {
 
                   {isSendingChat ? (
                     <div className="flex items-start gap-3 justify-start">
-                      <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ai/90 text-white shadow-[0_8px_18px_rgb(var(--ai-rgb)_/_0.18)]">
-                        <Bot className="h-3.5 w-3.5" />
-                      </div>
                       <div className="ai-chat-bubble-wrap max-w-[76%]">
                         <div className="rounded-[18px] border border-border-primary bg-bg-secondary/75 px-4 py-3 text-sm font-normal leading-6 text-text-secondary shadow-none">
                           <p className="mb-1 text-[11px] font-black uppercase tracking-[0.12em] text-ai">
@@ -2125,35 +2047,7 @@ export default function AICoach() {
                 </div>
               </div>
 
-              <div ref={composerRootRef} className="relative shrink-0 border-t border-border-primary bg-bg-tertiary px-3 pb-2 pt-2 sm:px-5">
-                {isComposerMenuOpen ? (
-                  <div className="absolute inset-x-0 bottom-full z-20 max-h-56 overflow-y-auto border-t border-border-primary bg-bg-secondary shadow-[0_-18px_42px_rgba(0,0,0,0.10)]">
-                    <div className="py-1">
-                      {COACH_MENU_COMMANDS.map((item) => (
-                        <button
-                          key={item.command}
-                          type="button"
-                          onClick={() => {
-                            setIsComposerMenuOpen(false);
-                            void submitCoachCommand(item.command);
-                          }}
-                          className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-bg-tertiary"
-                        >
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-primary ring-1 ring-border-primary">
-                            <img src="/logo.png" alt="" className="h-5 w-5 object-contain" />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="font-mono text-sm font-black text-text-primary">{item.label}</span>
-                            <span className="ml-2 text-sm font-semibold text-text-tertiary group-hover:text-text-secondary">
-                              {item.description}
-                            </span>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
+              <div className="relative shrink-0 border-t border-border-primary bg-bg-tertiary px-3 pb-2 pt-2 sm:px-5">
                 {selectedAttachment ? (
                   <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl border border-border-primary bg-bg-secondary px-3 py-2 text-xs font-semibold text-text-secondary">
                     <span className="min-w-0 truncate">
@@ -2177,17 +2071,6 @@ export default function AICoach() {
                   onChange={handleAttachmentChange}
                 />
                 <div className="ai-chat-composer flex min-h-11 items-end gap-1.5 rounded-[22px] border border-border-primary bg-bg-secondary px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)] sm:gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsComposerMenuOpen((value) => !value);
-                    }}
-                    className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full bg-info px-2.5 text-[11px] font-black text-white transition-colors hover:bg-info/90 sm:px-3"
-                    aria-label="Mở menu AI Coach"
-                  >
-                    <Menu className="h-3.5 w-3.5 sm:hidden" />
-                    <span className="hidden sm:inline">Menu</span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}

@@ -87,12 +87,6 @@ const getProfile = async (userId: string): Promise<ProfileLike> => {
   return { id: userId, full_name: data?.full_name || null };
 };
 
-export const getVietnamDayBoundsUtc = (dateKey = getVietnamDateKey()) => {
-  const startLocal = new Date(`${dateKey}T00:00:00+07:00`);
-  const endLocal = new Date(startLocal.getTime() + 24 * 60 * 60 * 1000);
-  return { startIso: startLocal.toISOString(), endIso: endLocal.toISOString() };
-};
-
 export const updateDailyProgress = async (userId: string, updates: Record<string, number | string>) => {
   const today = getVietnamDateKey();
   const { data: existingLog, error: existingLogError } = await supabase
@@ -671,16 +665,13 @@ export const executeCoachCommand = async ({
   }
 
   if (normalizedCommand === 'clear') {
-    const bounds = getVietnamDayBoundsUtc();
     await supabase
       .from('ai_chat_messages')
       .delete()
-      .eq('user_id', userId)
-      .gte('created_at', bounds.startIso)
-      .lt('created_at', bounds.endIso);
+      .eq('user_id', userId);
     return {
       command: 'clear',
-      reply: 'Đã xoá ngữ cảnh trò chuyện AI Coach hôm nay. Mình sẽ bắt đầu lại từ dữ liệu Fitly hiện tại.',
+      reply: 'Đã xoá cuộc hội thoại AI Coach. Mình sẽ bắt đầu lại từ dữ liệu Fitly hiện tại.',
       clearHistory: true,
     };
   }
