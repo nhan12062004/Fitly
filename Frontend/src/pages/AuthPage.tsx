@@ -63,6 +63,14 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
     setIsEmailSent(false);
   }, [initialMode]);
 
+  // Lưu ref code từ URL vào localStorage để dùng sau khi xác thực email
+  useEffect(() => {
+    const refCode = searchParams.get('ref');
+    if (refCode) {
+      localStorage.setItem('fitly_ref', refCode);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -113,7 +121,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: `${window.location.origin}/login?verified=1`,
+          emailRedirectTo: `${import.meta.env.VITE_APP_URL || window.location.origin}/login?verified=1`,
         },
       });
 
@@ -121,6 +129,17 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
 
       if (data.user && data.user.identities && data.user.identities.length === 0) {
         throw new Error('User already registered');
+      }
+
+      // Ghi referred_by nếu có ref code trong localStorage
+      if (data.user) {
+        const savedRef = localStorage.getItem('fitly_ref');
+        if (savedRef) {
+          await supabase
+            .from('profiles')
+            .upsert({ id: data.user.id, referred_by: savedRef, updated_at: new Date().toISOString() });
+          localStorage.removeItem('fitly_ref');
+        }
       }
 
       if (data.session) {
@@ -163,7 +182,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
     setResetLoading(true);
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${import.meta.env.VITE_APP_URL || window.location.origin}/reset-password`,
       });
 
       if (resetError) throw resetError;

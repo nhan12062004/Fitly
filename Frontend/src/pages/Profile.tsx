@@ -1,13 +1,23 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import {
   Activity,
   AlertCircle,
   BadgeCheck,
   BriefcaseBusiness,
   CalendarDays,
+  Camera,
   Check,
   ChevronRight,
-  Crown,
+  Copy,
+  Flame,
   HeartPulse,
   Loader2,
   Mail,
@@ -16,15 +26,22 @@ import {
   Ruler,
   Save,
   Scale,
+  Settings,
   ShieldCheck,
+  Trophy,
+  TrendingUp,
   User,
+  Users,
   VenusAndMars,
   X,
+  Zap,
+  Apple,
 } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
+import { getUserChallenges, type ChallengeSummary } from '../lib/Challenges';
 
 const emptyForm = {
   full_name: '',
@@ -71,6 +88,13 @@ const formatDate = (value: string) => {
   return date.toLocaleDateString('vi-VN');
 };
 
+const formatJoinMonth = (isoString: string) => {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' });
+};
+
 const getBmiStatus = (bmi: number | null) => {
   if (!bmi) return 'Chưa đủ dữ liệu';
   if (bmi < 18.5) return 'Thiếu cân';
@@ -79,23 +103,10 @@ const getBmiStatus = (bmi: number | null) => {
   return 'Cao';
 };
 
-const membershipLabels = {
-  free: 'Free',
-  plus: 'Plus',
-  pro: 'Pro',
-};
+const membershipLabels = { free: 'Free', plus: 'Plus', pro: 'Pro' };
 
-const membershipCopy = {
-  free: 'Gói Free có 4 lượt đổi AI để bạn bắt đầu tinh chỉnh kế hoạch.',
-  plus: 'Gói Plus có 8 lượt đổi AI cho các lần chỉnh kế hoạch thường xuyên hơn.',
-  pro: 'Gói Pro mở khóa lượt đổi AI không giới hạn cho workout, meal plan và đề xuất trong AI Coach.',
-};
-
-const membershipBenefits = {
-  free: ['4 lượt đổi AI', 'Trải nghiệm tính năng cốt lõi', 'Có thể nâng cấp bất cứ lúc nào'],
-  plus: ['8 lượt đổi AI', 'Mọi tính năng của Free', 'Tối ưu kế hoạch theo phản hồi'],
-  pro: ['AI Coach không giới hạn', 'Kế hoạch không giới hạn', 'Ưu tiên tính năng mới'],
-};
+const AI_LIMIT = { free: 25, plus: 50, pro: Infinity };
+const AI_SWAP_LIMIT = { free: 5, plus: 8, pro: Infinity };
 
 export default function Profile() {
   const { user, profile, membershipTier, openPremiumModal, refreshProfile } = useAuth();
@@ -107,10 +118,25 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [fitnessGoal, setFitnessGoal] = useState('');
+  const [streakCount, setStreakCount] = useState(0);
+  const [totalActiveDays, setTotalActiveDays] = useState(0);
+  const [totalExp, setTotalExp] = useState(0);
+  const [dbLevel, setDbLevel] = useState(1);
+  const [refCode, setRefCode] = useState('');
+  const [referralCount, setReferralCount] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [completedChallenges, setCompletedChallenges] = useState<ChallengeSummary[]>([]);
+  const [aiUsed, setAiUsed] = useState(0);
+  const [aiSwapWorkout, setAiSwapWorkout] = useState(0);
+  const [aiSwapMeal, setAiSwapMeal] = useState(0);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Load profile data ────────────────────────────────────────────────────
   useEffect(() => {
     if (!user?.id) return;
-
     const userId = user.id;
     const userEmail = user.email || '';
     const metadataFullName = user.user_metadata?.full_name || '';
@@ -120,7 +146,7 @@ export default function Profile() {
       setLoading(true);
       setError('');
       try {
-        const [profileRes, bodyRes, healthRes] = await Promise.all([
+        const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, aiRes] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
           supabase
             .from('body_metrics')
@@ -130,7 +156,25 @@ export default function Profile() {
             .limit(1)
             .maybeSingle(),
           supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
+          supabase.from('lifestyle_settings').select('fitness_goal').eq('user_id', userId).maybeSingle(),
+          supabase
+            .from('daily_progress_logs')
+            .select('log_date', { count: 'exact', head: false })
+            .eq('user_id', userId),
+          supabase.from('ai_usage').select('*').eq('user_id', userId).maybeSingle(),
         ]);
+
+        // Load challenges đã hoàn thành riêng — bỏ qua nếu lỗi
+        try {
+          const allChallenges = await getUserChallenges(userId);
+          const done = allChallenges
+            .filter((c) => c.status === 'completed')
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 4);
+          if (!cancelled) setCompletedChallenges(done);
+        } catch {
+          // bỏ qua nếu chưa có dữ liệu challenge
+        }
 
         const firstError = [profileRes.error, bodyRes.error, healthRes.error].find(Boolean);
         if (firstError) throw firstError;
@@ -157,23 +201,94 @@ export default function Profile() {
           medications: h.medications || 'Không sử dụng thuốc',
         });
         setLatestBodyCreatedAt(b.created_at || '');
+        setAvatarUrl(p.avatar_url || null);
+        setFitnessGoal(lifestyleRes.data?.fitness_goal || '');
+        setTotalExp(p.exp ?? 0);
+        setDbLevel(p.level ?? 1);
+        setRefCode(p.ref_code || '');
+        setReferralCount(p.referral_count ?? 0);
+
+
+        const totalDays = streakRes.data?.length ?? 0;
+        setTotalActiveDays(totalDays);
+
+        if (streakRes.data && streakRes.data.length > 0) {
+          const logDates = new Set(streakRes.data.map((r: any) => r.log_date as string));
+          let streak = 0;
+          const today = new Date();
+          for (let i = 0; i < 365; i++) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const key = d.toISOString().slice(0, 10);
+            if (logDates.has(key)) streak++;
+            else if (i > 0) break;
+          }
+          setStreakCount(streak);
+        }
+
+        if (aiRes.data) {
+          setAiUsed(aiRes.data.total_used ?? 0);
+          setAiSwapWorkout(aiRes.data.swap_workout ?? 0);
+          setAiSwapMeal(aiRes.data.swap_meal ?? 0);
+        }
       } catch (err: any) {
-        setError(err?.message || 'Không thể tải thông tin cá nhân.');
+        if (!cancelled) setError(err?.message || 'Không thể tải thông tin cá nhân.');
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
     void loadProfile();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [reloadKey, user?.id]);
 
   useEffect(() => {
     if (error) toast.error(error);
   }, [error, toast]);
 
+  // ── Avatar upload ────────────────────────────────────────────────────────
+  const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+
+    const maxMb = 5;
+    if (file.size > maxMb * 1024 * 1024) {
+      toast.error(`Ảnh quá lớn. Vui lòng chọn ảnh dưới ${maxMb}MB.`);
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${user.id}/avatar.${ext}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true, contentType: file.type });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const publicUrl = `${publicData.publicUrl}?t=${Date.now()}`;
+
+      const { error: updateErr } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, avatar_url: publicUrl, updated_at: new Date().toISOString() });
+
+      if (updateErr) throw updateErr;
+
+      setAvatarUrl(publicUrl);
+      await refreshProfile();
+      toast.success('Đã cập nhật ảnh đại diện!');
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể tải ảnh lên. Vui lòng thử lại.');
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  // ── BMI + completion ─────────────────────────────────────────────────────
   const bmi = useMemo(() => {
     const height = Number(formData.height);
     const weight = Number(formData.weight);
@@ -181,35 +296,19 @@ export default function Profile() {
     return weight / ((height / 100) ** 2);
   }, [formData.height, formData.weight]);
 
-  const completion = useMemo(() => {
-    const checks = [
-      formData.full_name,
-      formData.email,
-      formData.phone,
-      formData.gender,
-      formData.birthday,
-      formData.height,
-      formData.weight,
-      formData.health_condition || formData.injuries,
-    ];
-    const done = checks.filter((item) => String(item || '').trim()).length;
-    return Math.round((done / checks.length) * 100);
-  }, [formData]);
-
-  const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = event.target;
+  const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setReloadKey((value) => value + 1);
+    setReloadKey((v) => v + 1);
   };
 
-  const handleSave = async (event: FormEvent) => {
-    event.preventDefault();
+  const handleSave = async (e: FormEvent) => {
+    e.preventDefault();
     if (!user?.id) return;
-
     setSaving(true);
     setError('');
     try {
@@ -247,6 +346,7 @@ export default function Profile() {
       await refreshProfile();
       setLatestBodyCreatedAt(new Date().toISOString());
       setIsEditing(false);
+      toast.success('Đã lưu thông tin hồ sơ!');
     } catch (err: any) {
       setError(err?.message || 'Không thể lưu thông tin cá nhân.');
     } finally {
@@ -259,161 +359,547 @@ export default function Profile() {
   const rawName = formData.full_name || profile?.full_name || user?.email?.split('@')[0] || 'Thành viên';
   const initial = rawName.trim().charAt(0).toUpperCase() || '?';
   const membershipLabel = membershipLabels[membershipTier] || 'Free';
-  const bmiLabel = bmi ? bmi.toFixed(1) : 'Chưa có';
+  const bmiLabel = bmi ? bmi.toFixed(1) : '--';
   const bmiStatus = getBmiStatus(bmi);
-  const lastUpdateLabel = latestBodyCreatedAt ? formatDate(latestBodyCreatedAt) : 'Chưa có mốc';
+  const joinedLabel = profile?.created_at ? `Thành viên từ tháng ${formatJoinMonth(profile.created_at)}` : '';
+  const goalLabel = fitnessGoal || 'Chưa đặt mục tiêu';
+  const aiLimit = AI_LIMIT[membershipTier] ?? 25;
+  const aiSwapLimit = AI_SWAP_LIMIT[membershipTier] ?? 5;
+
+  const level = dbLevel;
+  const expInLevel = totalExp % 100;
+
+  const CHALLENGE_ICONS: Record<string, ReactNode> = {
+    workout: <Flame className="h-5 w-5" />,
+    meal:    <Apple className="h-5 w-5" />,
+    sleep:   <Zap className="h-5 w-5" />,
+    water:   <Zap className="h-5 w-5" />,
+    manual:  <Trophy className="h-5 w-5" />,
+  };
+  const CHALLENGE_COLORS = [
+    'text-orange-400 bg-orange-400/15 border-orange-400/25',
+    'text-yellow-400 bg-yellow-400/15 border-yellow-400/25',
+    'text-accent bg-accent/15 border-accent/25',
+    'text-emerald-400 bg-emerald-400/15 border-emerald-400/25',
+  ];
 
   return (
-    <form onSubmit={handleSave} className="dashboard-page-shell pb-5 md:pb-7">
-      <header className="mb-5 flex flex-col gap-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_20px_60px_rgba(0,0,0,0.12)] sm:flex-row sm:items-center sm:justify-between md:p-7">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-accent text-2xl font-black text-text-inverse shadow-[0_12px_30px_rgba(0,0,0,0.18)] md:h-20 md:w-20 md:text-3xl">
-            {initial}
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-accent">Hồ sơ cá nhân</p>
-            <h1 className="mt-1 truncate text-2xl font-black text-text-primary md:text-3xl">{rawName}</h1>
-            <p className="mt-1 truncate text-sm font-semibold text-text-secondary">{formatValue(formData.email)}</p>
-          </div>
-        </div>
+    <form onSubmit={handleSave} className="dashboard-page-shell pb-5 md:pb-7 space-y-4">
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarChange}
+      />
 
-        <div className="flex shrink-0 flex-col-reverse gap-2 sm:flex-row">
-          {isEditing ? (
-            <>
-              <button type="button" onClick={handleCancel} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60">
-                <X className="h-4 w-4" />
-                Hủy
-              </button>
-              <button type="submit" disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Lưu thay đổi
-              </button>
-            </>
-          ) : (
-            <button type="button" onClick={() => setIsEditing(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover">
-              <PencilLine className="h-4 w-4" />
-              Chỉnh sửa hồ sơ
+      <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
+        <div className="p-5 md:p-6">
+          <div className="mb-4 flex items-start justify-between">
+            <h1 className="text-xl font-black text-text-primary">Hồ sơ</h1>
+            <button
+              type="button"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition-colors hover:text-text-primary"
+            >
+              <Settings className="h-4 w-4" />
             </button>
-          )}
-        </div>
-      </header>
+          </div>
 
-      <section className="mb-5 overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_16px_45px_rgba(0,0,0,0.08)]">
-        <div className="grid md:grid-cols-4">
-          <div className="border-b border-border-primary px-5 py-4 md:border-b-0 md:border-r">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Hoàn thiện hồ sơ</p>
-                <p className="mt-1 text-xl font-black text-text-primary">{completion}%</p>
-              </div>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/15 bg-accent/10 text-accent">
-                <BadgeCheck className="h-4 w-4" />
+          <div className="flex items-start gap-4">
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                disabled={avatarUploading}
+                onClick={() => avatarInputRef.current?.click()}
+                className="group relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent md:h-20 md:w-20"
+                title="Đổi ảnh đại diện"
+              >
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={rawName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-accent to-accent/60 text-2xl font-black text-text-inverse md:text-3xl">
+                    {initial}
+                  </div>
+                )}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/55 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                  {avatarUploading ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  ) : (
+                    <Camera className="h-5 w-5 text-white" />
+                  )}
+                </div>
+              </button>
+              <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-bg-secondary bg-accent">
+                <Zap className="h-2.5 w-2.5 fill-current text-text-inverse" />
               </span>
             </div>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-bg-tertiary">
-              <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${completion}%` }} />
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-lg font-black text-text-primary leading-tight">{rawName}</span>
+                <span className="inline-flex items-center rounded-full bg-accent/20 px-2 py-0.5 text-[11px] font-black text-accent border border-accent/30">
+                  Lv.{level}
+                </span>
+              </div>
+              <p className="mt-0.5 text-sm font-semibold text-text-secondary">
+                Mục tiêu: <span className="text-accent">{goalLabel}</span>
+                {' · '}
+                <span className="text-text-tertiary">Người mới</span>
+              </p>
+              {joinedLabel && (
+                <p className="mt-0.5 text-xs text-text-tertiary font-medium">{joinedLabel}</p>
+              )}
             </div>
-            <p className="mt-2 truncate text-[11px] font-semibold text-text-secondary">Cập nhật {lastUpdateLabel}</p>
+
+            <button
+              type="button"
+              className="hidden shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2 text-xs font-black text-accent transition-colors hover:bg-accent/20 sm:flex"
+            >
+              <Users className="h-4 w-4" />
+              Mời bạn
+            </button>
           </div>
-          <ProfileStat icon={<Scale className="h-4 w-4" />} label="Cân nặng" value={formatMetric(formData.weight, 'kg')} tone="accent" />
-          <ProfileStat icon={<Ruler className="h-4 w-4" />} label="Chiều cao" value={formatMetric(formData.height, 'cm')} tone="info" />
-          <ProfileStat icon={<Activity className="h-4 w-4" />} label="BMI" value={bmiLabel} helper={bmiStatus} tone="warning" />
+
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">EXP</span>
+              <span className="text-[10px] font-black text-text-tertiary">{expInLevel} / 100</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width] duration-700"
+                style={{ width: `${Math.min(100, expInLevel)}%` }}
+              />
+            </div>
+          </div>
         </div>
       </section>
 
-      <main className="min-w-0 space-y-5">
-          <section id="thong-tin-ca-nhan" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_16px_45px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<User className="h-4 w-4" />} title="Thông tin cá nhân" helper="Thông tin nhận diện và liên hệ cơ bản của bạn." />
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <ProfileField label="Họ và tên" name="full_name" value={formData.full_name} onChange={handleChange} editing={isEditing} icon={<User className="h-4 w-4" />} />
-              <ProfileField label="Email" name="email" value={formData.email} onChange={handleChange} editing={false} icon={<Mail className="h-4 w-4" />} />
-              <ProfileField label="Số điện thoại" name="phone" value={formData.phone} onChange={handleChange} editing={isEditing} icon={<Phone className="h-4 w-4" />} />
-              <ProfileSelect label="Giới tính" name="gender" value={formData.gender} onChange={handleChange} editing={isEditing} options={['Nam', 'Nữ', 'Khác']} icon={<VenusAndMars className="h-4 w-4" />} />
-              <ProfileField label="Ngày sinh" name="birthday" value={formData.birthday} onChange={handleChange} editing={isEditing} type="date" viewValue={formatDate(formData.birthday)} icon={<CalendarDays className="h-4 w-4" />} />
-              <ProfileField label="Nghề nghiệp" name="job" value={formData.job} onChange={handleChange} editing={isEditing} icon={<BriefcaseBusiness className="h-4 w-4" />} />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex items-center gap-3 rounded-2xl border border-border-primary bg-bg-secondary px-4 py-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-400/15 text-orange-400 border border-orange-400/20">
+            <Flame className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-2xl font-black text-text-primary leading-none">{streakCount}</p>
+            <p className="mt-1 text-xs font-semibold text-text-secondary">Chuỗi duy trì · ngày</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-border-primary bg-bg-secondary px-4 py-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent border border-accent/20">
+            <CalendarDays className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-2xl font-black text-text-primary leading-none">{totalActiveDays}</p>
+            <p className="mt-1 text-xs font-semibold text-text-secondary">Tổng ngày hoạt động</p>
+          </div>
+        </div>
+      </div>
+
+      <section className="rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center justify-between px-4 pt-4 pb-3">
+          <h2 className="text-base font-black text-text-primary">Chỉ số cơ thể</h2>
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-1.5 text-xs font-bold text-accent hover:text-accent/80 transition-colors"
+          >
+            <PencilLine className="h-3.5 w-3.5" />
+            Cập nhật
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-3 px-4 pb-4 md:grid-cols-4">
+          <BodyStatCard
+            icon={<Scale className="h-4 w-4" />}
+            value={formData.weight ? `${formData.weight}` : '--'}
+            label="Cân nặng"
+            color="text-accent bg-accent/15 border-accent/20"
+          />
+          <BodyStatCard
+            icon={<Ruler className="h-4 w-4" />}
+            value={formData.height ? `${formData.height}` : '--'}
+            label="Chiều cao"
+            color="text-sky-400 bg-sky-400/15 border-sky-400/20"
+          />
+          <BodyStatCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            value={formData.body_fat ? `${formData.body_fat}%` : '0%'}
+            label="Tỷ lệ mỡ"
+            color="text-violet-400 bg-violet-400/15 border-violet-400/20"
+          />
+          <BodyStatCard
+            icon={<Activity className="h-4 w-4" />}
+            value={bmiLabel}
+            label="BMI"
+            helper={bmiStatus}
+            color="text-amber-400 bg-amber-400/15 border-amber-400/20"
+          />
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border-primary bg-bg-secondary p-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent border border-accent/20">
+            <Trophy className="h-4 w-4" />
+          </span>
+          <h2 className="text-base font-black text-text-primary">Mục tiêu hiện tại</h2>
+        </div>
+        <p className="text-lg font-black text-text-primary mb-1">{goalLabel}</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-text-secondary">Tiến độ EXP cấp độ</p>
+          <span className="text-xs font-black text-accent">Lv.{level} → {level + 1}</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width] duration-700"
+            style={{ width: `${Math.min(100, expInLevel)}%` }}
+          />
+        </div>
+      </section>
+
+      {/* ── THÀNH TỰU ─────────────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-border-primary bg-bg-secondary p-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-black text-text-primary">Thành tựu</h2>
+          <button type="button" className="flex items-center gap-1 text-xs font-bold text-text-secondary hover:text-text-primary transition-colors">
+            Xem tất cả <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {completedChallenges.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-4 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border-primary bg-bg-tertiary text-text-tertiary">
+              <Trophy className="h-5 w-5" />
+            </span>
+            <p className="text-xs font-semibold text-text-tertiary">Hoàn thành các thử thách để mở khóa thành tựu!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-4 gap-2">
+            {completedChallenges.map((c, i) => (
+              <div key={c.id} className="flex flex-col items-center gap-2">
+                <span className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${CHALLENGE_COLORS[i % 4]}`}>
+                  {CHALLENGE_ICONS[(c.target as any)?.source_type] ?? <Trophy className="h-5 w-5" />}
+                </span>
+                <div className="text-center">
+                  <p className="text-[11px] font-black text-text-primary leading-none line-clamp-2">{c.title}</p>
+                  <p className="mt-0.5 text-[10px] font-semibold text-text-tertiary">{c.user_checkin_count} ngày</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+
+      {/* ── CHỈNH SỬA HỒ SƠ BUTTON ──────────────────────────────────── */}
+      {isEditing ? (
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={saving}
+            className="inline-flex flex-1 h-12 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary text-sm font-black text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60"
+          >
+            <X className="h-4 w-4" /> Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Lưu thay đổi
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsEditing(true)}
+          className="inline-flex w-full h-12 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover shadow-[0_8px_24px_rgba(var(--color-accent-rgb,99,234,190),0.25)]"
+        >
+          <PencilLine className="h-4 w-4" />
+          Chỉnh sửa hồ sơ
+        </button>
+      )}
+
+      {/* ── GÓI AI ───────────────────────────────────────────────────── */}
+      <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+        <div className="p-4 md:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent border border-accent/20">
+                <Zap className="h-4 w-4" />
+              </span>
+              <h2 className="text-base font-black text-text-primary">Gói AI</h2>
             </div>
-          </section>
-
-          <div className="grid items-start gap-5 lg:grid-cols-2">
-            <section id="chi-so-co-the" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_16px_45px_rgba(0,0,0,0.08)] md:p-6">
-              <SectionTitle icon={<Ruler className="h-4 w-4" />} title="Chỉ số cơ thể" helper="Mỗi lần lưu sẽ tạo một mốc mới để theo dõi tiến độ." />
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <ProfileField label="Chiều cao" name="height" value={formData.height} onChange={handleChange} editing={isEditing} type="number" suffix="cm" viewValue={formatMetric(formData.height, 'cm')} icon={<Ruler className="h-4 w-4" />} />
-                <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing={isEditing} type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
-                <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing={isEditing} type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
-                <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing={isEditing} type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
-              </div>
-            </section>
-
-            <section id="suc-khoe" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_16px_45px_rgba(0,0,0,0.08)] md:p-6">
-              <SectionTitle icon={<HeartPulse className="h-4 w-4" />} title="Sức khỏe cơ bản" helper="Các lưu ý giúp Fitly cá nhân hóa kế hoạch an toàn hơn." />
-              <div className="mt-5 grid gap-4">
-                <ProfileTextArea label="Bệnh nền / lưu ý sức khỏe" name="health_condition" value={formData.health_condition} onChange={handleChange} editing={isEditing} icon={<HeartPulse className="h-4 w-4" />} />
-                <ProfileTextArea label="Chấn thương" name="injuries" value={formData.injuries} onChange={handleChange} editing={isEditing} icon={<Activity className="h-4 w-4" />} />
-                <ProfileTextArea label="Dị ứng / thực phẩm cần tránh" name="allergies" value={formData.allergies} onChange={handleChange} editing={isEditing} icon={<AlertCircle className="h-4 w-4" />} />
-                <ProfileField label="Thuốc đang dùng" name="medications" value={formData.medications} onChange={handleChange} editing={isEditing} icon={<ShieldCheck className="h-4 w-4" />} />
-              </div>
-              <div className="mt-5 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/10 px-4 py-3">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-                <p className="text-sm font-semibold leading-6 text-text-secondary">
-                  Thông tin này không thay thế tư vấn y tế. Hãy hỏi chuyên gia trước khi tập cường độ cao nếu bạn có vấn đề sức khỏe đặc biệt.
-                </p>
-              </div>
-            </section>
+            {membershipTier !== 'pro' && (
+              <button type="button" onClick={openPremiumModal} className="flex items-center gap-1 text-xs font-bold text-accent hover:text-accent/80 transition-colors">
+                <TrendingUp className="h-3.5 w-3.5" /> Nâng cấp
+              </button>
+            )}
           </div>
 
-          <section id="goi-tai-khoan" className="scroll-mt-5 overflow-hidden rounded-2xl border border-amber-300/25 bg-[linear-gradient(135deg,rgba(245,158,11,0.14),rgba(245,158,11,0.04)_48%,rgba(255,255,255,0.02))] shadow-[0_18px_55px_rgba(0,0,0,0.10)]">
-            <div className="grid gap-6 p-5 md:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-              <div>
-                <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-400/15 text-amber-300">
-                    <Crown className="h-5 w-5 fill-current" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-300">Gói tài khoản</p>
-                    <h2 className="mt-1 text-xl font-black text-text-primary">Bạn đang dùng gói {membershipLabel}</h2>
-                  </div>
-                </div>
-                <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">
-                  {membershipCopy[membershipTier]}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-                  {membershipBenefits[membershipTier].map((benefit) => (
-                    <span key={benefit} className="inline-flex items-center gap-2 text-xs font-bold text-text-secondary">
-                      <Check className="h-3.5 w-3.5 text-amber-300" />
-                      {benefit}
-                    </span>
-                  ))}
-                </div>
-              </div>
+          {/* Badge */}
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-tertiary px-3 py-1 text-xs font-black text-text-secondary">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            {membershipLabel.toUpperCase()}
+          </span>
 
-              {membershipTier === 'pro' ? (
-                <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-5 py-3 text-center">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-300">Đang hoạt động</p>
-                  <p className="mt-1 text-sm font-black text-text-primary">Pro</p>
+          {/* Total AI usage bar */}
+          {aiLimit !== Infinity && (
+            <div className="mt-3">
+              <div className="flex justify-between mb-1.5">
+                <p className="text-xs font-semibold text-text-secondary">Lượt AI đã dùng</p>
+                <p className="text-xs font-black text-text-primary">{aiUsed} / {aiLimit}</p>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width]"
+                  style={{ width: `${Math.min(100, (aiUsed / aiLimit) * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Swap limits */}
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-border-primary bg-bg-tertiary/50 p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Activity className="h-3.5 w-3.5 text-accent" />
+                <p className="text-xs font-semibold text-text-secondary">Đổi bài tập</p>
+              </div>
+              <p className="text-lg font-black text-text-primary">{aiSwapWorkout}</p>
+              <p className="text-[10px] text-text-tertiary font-semibold">/ {aiSwapLimit === Infinity ? '∞' : aiSwapLimit} lượt</p>
+              {aiSwapLimit !== Infinity && (
+                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-bg-secondary">
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (aiSwapWorkout / aiSwapLimit) * 100)}%` }} />
                 </div>
-              ) : (
-                <button type="button" onClick={openPremiumModal} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-300 px-6 text-sm font-black text-text-inverse transition-colors hover:bg-amber-200">
-                  Xem gói Plus / Pro
-                  <ChevronRight className="h-4 w-4" />
-                </button>
               )}
             </div>
+            <div className="rounded-xl border border-border-primary bg-bg-tertiary/50 p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Apple className="h-3.5 w-3.5 text-emerald-400" />
+                <p className="text-xs font-semibold text-text-secondary">Đổi món ăn</p>
+              </div>
+              <p className="text-lg font-black text-text-primary">{aiSwapMeal}</p>
+              <p className="text-[10px] text-text-tertiary font-semibold">/ {aiSwapLimit === Infinity ? '∞' : aiSwapLimit} lượt</p>
+              {aiSwapLimit !== Infinity && (
+                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-bg-secondary">
+                  <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, (aiSwapMeal / aiSwapLimit) * 100)}%` }} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Upgrade buttons */}
+          {membershipTier !== 'pro' && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={openPremiumModal}
+                className="inline-flex w-full h-10 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-black text-text-inverse transition-colors hover:bg-accent-hover"
+              >
+                <Zap className="h-3.5 w-3.5" /> Mua gói PLUS / PRO
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── MỜI BẠN BẾ ─────────────────────────────────── */}
+      <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+        <div className="p-4 md:p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent border border-accent/20">
+              <Users className="h-4 w-4" />
+            </span>
+            <h2 className="text-base font-black text-text-primary">Mời bạn bè — nhận gói miễn phí</h2>
+          </div>
+
+          <p className="text-xs font-semibold text-text-secondary mb-3">
+            Bạn bè đăng ký qua link của bạn → họ nhận ưu đãi, bạn được nâng cấp gói.
+          </p>
+
+          {/* Ref link + copy */}
+          {refCode ? (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary px-3 py-2.5">
+                <p className="truncate text-xs font-semibold text-text-secondary font-mono">
+                  {`${import.meta.env.VITE_APP_URL || window.location.origin}/register?ref=${refCode}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${import.meta.env.VITE_APP_URL || window.location.origin}/register?ref=${refCode}`);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition-colors hover:border-accent hover:text-accent"
+                title="Sao chép link"
+              >
+                {copied ? <Check className="h-4 w-4 text-accent" /> : <Copy className="h-4 w-4" />}
+              </button>
+            </div>
+          ) : (
+            <div className="h-10 animate-pulse rounded-xl bg-bg-tertiary" />
+          )}
+
+          {/* Số người đã mời */}
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-border-primary bg-bg-tertiary/50 p-3 text-center">
+              <p className="text-2xl font-black text-text-primary">{referralCount}</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-text-secondary">Đã mời</p>
+            </div>
+            <div className="rounded-xl border border-border-primary bg-bg-tertiary/50 p-3 text-center">
+              <p className="text-2xl font-black text-text-primary">
+                {referralCount < 5 ? 5 - referralCount : referralCount < 20 ? 20 - referralCount : 0}
+              </p>
+              <p className="mt-0.5 text-[11px] font-semibold text-text-secondary">
+                {referralCount < 5 ? 'Còn đến PLUS' : referralCount < 20 ? 'Còn đến PRO' : 'Đã đạt PRO 🎉'}
+              </p>
+            </div>
+          </div>
+
+          {/* Progress PLUS */}
+          {membershipTier !== 'pro' && (
+            <div className="mt-3 space-y-2.5">
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-[11px] font-bold text-text-secondary">
+                    <span className="text-accent font-black">PLUS</span> — 200 credit/tháng
+                  </span>
+                  <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 5)}/5</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width] duration-500"
+                    style={{ width: `${Math.min(100, (referralCount / 5) * 100)}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] font-semibold text-text-tertiary">
+                  Còn {Math.max(0, 5 - referralCount)} người nữa
+                </p>
+              </div>
+
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-[11px] font-bold text-text-secondary">
+                    <span className="text-amber-400 font-black">PRO</span> — Không giới hạn
+                  </span>
+                  <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 20)}/20</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-300 transition-[width] duration-500"
+                    style={{ width: `${Math.min(100, (referralCount / 20) * 100)}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-[10px] font-semibold text-text-tertiary">
+                  Còn {Math.max(0, 20 - referralCount)} người nữa
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── THÔNG TIN CÁ NHÂN (Edit form) ────────────────────────────── */}
+      {isEditing && (
+        <section id="thong-tin-ca-nhan" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+          <SectionTitle icon={<User className="h-4 w-4" />} title="Thông tin cá nhân" helper="Thông tin nhận diện và liên hệ cơ bản của bạn." />
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <ProfileField label="Họ và tên" name="full_name" value={formData.full_name} onChange={handleChange} editing icon={<User className="h-4 w-4" />} />
+            <ProfileField label="Email" name="email" value={formData.email} onChange={handleChange} editing={false} icon={<Mail className="h-4 w-4" />} />
+            <ProfileField label="Số điện thoại" name="phone" value={formData.phone} onChange={handleChange} editing icon={<Phone className="h-4 w-4" />} />
+            <ProfileSelect label="Giới tính" name="gender" value={formData.gender} onChange={handleChange} editing options={['Nam', 'Nữ', 'Khác']} icon={<VenusAndMars className="h-4 w-4" />} />
+            <ProfileField label="Ngày sinh" name="birthday" value={formData.birthday} onChange={handleChange} editing type="date" viewValue={formatDate(formData.birthday)} icon={<CalendarDays className="h-4 w-4" />} />
+            <ProfileField label="Nghề nghiệp" name="job" value={formData.job} onChange={handleChange} editing icon={<BriefcaseBusiness className="h-4 w-4" />} />
+          </div>
+        </section>
+      )}
+
+      {/* ── CHỈ SỐ CƠ THỂ (Edit form) ────────────────────────────────── */}
+      {isEditing && (
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <section id="chi-so-co-the" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<Ruler className="h-4 w-4" />} title="Chỉ số cơ thể" helper="Mỗi lần lưu sẽ tạo một mốc mới để theo dõi tiến độ." />
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <ProfileField label="Chiều cao" name="height" value={formData.height} onChange={handleChange} editing type="number" suffix="cm" viewValue={formatMetric(formData.height, 'cm')} icon={<Ruler className="h-4 w-4" />} />
+              <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
+              <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
+              <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
+            </div>
           </section>
-      </main>
+
+          <section id="suc-khoe" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<HeartPulse className="h-4 w-4" />} title="Sức khỏe cơ bản" helper="Các lưu ý giúp Fitly cá nhân hóa kế hoạch an toàn hơn." />
+            <div className="mt-5 grid gap-4">
+              <ProfileTextArea label="Bệnh nền / lưu ý sức khỏe" name="health_condition" value={formData.health_condition} onChange={handleChange} editing icon={<HeartPulse className="h-4 w-4" />} />
+              <ProfileTextArea label="Chấn thương" name="injuries" value={formData.injuries} onChange={handleChange} editing icon={<Activity className="h-4 w-4" />} />
+              <ProfileTextArea label="Dị ứng / thực phẩm cần tránh" name="allergies" value={formData.allergies} onChange={handleChange} editing icon={<AlertCircle className="h-4 w-4" />} />
+              <ProfileField label="Thuốc đang dùng" name="medications" value={formData.medications} onChange={handleChange} editing icon={<ShieldCheck className="h-4 w-4" />} />
+            </div>
+            <div className="mt-5 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/10 px-4 py-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p className="text-sm font-semibold leading-6 text-text-secondary">
+                Thông tin này không thay thế tư vấn y tế. Hãy hỏi chuyên gia trước khi tập cường độ cao nếu bạn có vấn đề sức khỏe đặc biệt.
+              </p>
+            </div>
+          </section>
+        </div>
+      )}
+
+
+
     </form>
   );
 }
 
+// ── Sub-components ───────────────────────────────────────────────────────────
+
 function ProfileSkeleton() {
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="rounded-xl border border-border-primary bg-bg-secondary p-6">
-        {SkeletonBlock('h-20 w-full rounded-xl')}
+      <section className="rounded-2xl border border-border-primary bg-bg-secondary p-6">
+        {SkeletonBlock('h-32 w-full rounded-xl')}
       </section>
-      <div className="grid gap-4 lg:grid-cols-2">
-        {SkeletonBlock('h-80 rounded-xl')}
-        {SkeletonBlock('h-80 rounded-xl')}
+      <div className="grid grid-cols-2 gap-3">
+        {SkeletonBlock('h-20 rounded-xl')}
+        {SkeletonBlock('h-20 rounded-xl')}
+      </div>
+      {SkeletonBlock('h-40 rounded-xl')}
+      {SkeletonBlock('h-32 rounded-xl')}
+    </div>
+  );
+}
+
+function BodyStatCard({
+  icon,
+  value,
+  label,
+  helper,
+  color,
+}: {
+  icon: ReactNode;
+  value: string;
+  label: string;
+  helper?: string;
+  color: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-border-primary bg-bg-tertiary/40 p-3">
+      <span className={`flex h-9 w-9 items-center justify-center rounded-xl border ${color}`}>
+        {icon}
+      </span>
+      <div>
+        <p className="text-xl font-black text-text-primary leading-none">{value}</p>
+        <p className="mt-1 text-[11px] font-semibold text-text-secondary">{label}</p>
+        {helper && <p className="text-[10px] font-semibold text-text-tertiary">{helper}</p>}
       </div>
     </div>
   );
@@ -433,62 +919,12 @@ function SectionTitle({ icon, title, helper }: { icon: ReactNode; title: string;
   );
 }
 
-function ProfileStat({
-  icon,
-  label,
-  value,
-  helper,
-  tone,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  helper?: string;
-  tone: 'accent' | 'info' | 'warning' | 'danger';
-}) {
-  const toneClasses = {
-    accent: 'text-accent bg-accent/10 border-accent/15',
-    info: 'text-info bg-info/10 border-info/15',
-    warning: 'text-warning bg-warning/10 border-warning/15',
-    danger: 'text-danger bg-danger/10 border-danger/15',
-  }[tone];
-
-  return (
-    <div className="min-w-0 border-b border-border-primary px-5 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-      <div className="flex items-center gap-3">
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${toneClasses}`}>
-          {icon}
-        </span>
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase text-text-tertiary">{label}</p>
-          <p className="mt-0.5 truncate text-base font-black text-text-primary">{value}</p>
-          {helper ? <p className="mt-0.5 truncate text-xs font-semibold text-text-secondary">{helper}</p> : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function ProfileField({
-  label,
-  name,
-  value,
-  onChange,
-  editing,
-  icon,
-  type = 'text',
-  suffix,
-  viewValue,
+  label, name, value, onChange, editing, icon, type = 'text', suffix, viewValue,
 }: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  editing: boolean;
-  icon?: ReactNode;
-  type?: string;
-  suffix?: string;
-  viewValue?: string;
+  label: string; name: string; value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  editing: boolean; icon?: ReactNode; type?: string; suffix?: string; viewValue?: string;
 }) {
   return (
     <label className="block min-w-0">
@@ -497,10 +933,7 @@ function ProfileField({
         <div className="relative mt-1.5">
           {icon ? <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-text-tertiary">{icon}</span> : null}
           <input
-            name={name}
-            type={type}
-            value={value}
-            onChange={onChange}
+            name={name} type={type} value={value} onChange={onChange}
             step={type === 'number' ? '0.1' : undefined}
             className={`h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${icon ? 'pl-10' : 'pl-3'} ${suffix ? 'pr-10' : 'pr-3'}`}
           />
@@ -509,9 +942,7 @@ function ProfileField({
       ) : (
         <div className="mt-1.5 flex min-h-11 items-center gap-3 rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-2.5">
           {icon ? <span className="shrink-0 text-text-tertiary">{icon}</span> : null}
-          <p className="min-w-0 truncate text-sm font-black text-text-primary">
-            {viewValue || formatValue(value)}
-          </p>
+          <p className="min-w-0 truncate text-sm font-black text-text-primary">{viewValue || formatValue(value)}</p>
         </div>
       )}
     </label>
@@ -519,21 +950,11 @@ function ProfileField({
 }
 
 function ProfileSelect({
-  label,
-  name,
-  value,
-  onChange,
-  editing,
-  options,
-  icon,
+  label, name, value, onChange, editing, options, icon,
 }: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
-  editing: boolean;
-  options: string[];
-  icon?: ReactNode;
+  label: string; name: string; value: string;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  editing: boolean; options: string[]; icon?: ReactNode;
 }) {
   if (!editing) {
     return (
@@ -546,23 +967,16 @@ function ProfileSelect({
       </div>
     );
   }
-
   return (
     <label className="block">
       <span className="text-[10px] font-black uppercase text-text-tertiary">{label}</span>
       <div className="relative mt-1.5">
         {icon ? <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-text-tertiary">{icon}</span> : null}
         <select
-          name={name}
-          value={value}
-          onChange={onChange}
+          name={name} value={value} onChange={onChange}
           className={`h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary pr-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${icon ? 'pl-10' : 'pl-3'}`}
         >
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
+          {options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       </div>
     </label>
@@ -570,19 +984,11 @@ function ProfileSelect({
 }
 
 function ProfileTextArea({
-  label,
-  name,
-  value,
-  onChange,
-  editing,
-  icon,
+  label, name, value, onChange, editing, icon,
 }: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
-  editing: boolean;
-  icon?: ReactNode;
+  label: string; name: string; value: string;
+  onChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
+  editing: boolean; icon?: ReactNode;
 }) {
   return (
     <label className="block">
@@ -591,10 +997,7 @@ function ProfileTextArea({
         <div className="relative mt-1.5">
           {icon ? <span className="pointer-events-none absolute left-3 top-3.5 text-text-tertiary">{icon}</span> : null}
           <textarea
-            name={name}
-            value={value}
-            onChange={onChange}
-            rows={3}
+            name={name} value={value} onChange={onChange} rows={3}
             className={`w-full resize-none rounded-xl border border-border-primary bg-bg-tertiary py-3 pr-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${icon ? 'pl-10' : 'pl-3'}`}
           />
         </div>
