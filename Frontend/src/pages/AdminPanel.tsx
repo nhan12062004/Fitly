@@ -709,7 +709,7 @@ function AdminTabSkeleton({ activeTab }: { activeTab: AdminTab }) {
 function OverviewTab({ overview }: { overview: OverviewStats | null }) {
   const stats = [
     { label: 'Người dùng', value: overview?.users || 0, icon: Users, tone: 'text-info' },
-    { label: 'Premium', value: overview?.premiumUsers || 0, icon: Crown, tone: 'text-warning' },
+    { label: 'Plus / Pro', value: overview?.premiumUsers || 0, icon: Crown, tone: 'text-warning' },
     { label: 'User mới 7 ngày', value: overview?.newUsers7d || 0, icon: Activity, tone: 'text-accent' },
     { label: 'Telegram', value: overview?.telegramLinkedUsers || 0, icon: Send, tone: 'text-info' },
     { label: 'Bài tập', value: overview?.exercises || 0, icon: Dumbbell, tone: 'text-accent' },
@@ -774,7 +774,7 @@ function UsersTab({ users }: { users: AdminUser[] }) {
                   <p className="text-xs text-text-tertiary">{user.email || user.phone || user.id}</p>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-black ${user.membership_tier === 'premium' ? 'bg-warning/10 text-warning' : 'bg-bg-tertiary text-text-secondary'}`}>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-black ${['plus', 'pro', 'premium'].includes(String(user.membership_tier || '')) ? 'bg-warning/10 text-warning' : 'bg-bg-tertiary text-text-secondary'}`}>
                     {user.membership_tier || 'free'}
                   </span>
                 </td>

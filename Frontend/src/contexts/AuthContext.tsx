@@ -5,6 +5,8 @@ import AuthModal from '../components/AuthModal';
 import LoadingScreen from '../components/LoadingScreen';
 import PremiumCheckout from '../pages/PremiumCheckout';
 
+export type MembershipTier = 'free' | 'plus' | 'pro';
+
 interface AuthContextType {
   isLoggedIn: boolean;
   user: User | null;
@@ -12,7 +14,7 @@ interface AuthContextType {
   hasProfile: boolean;
   isCheckingProfile: boolean;
   userRole: string | null;
-  membershipTier: 'free' | 'premium';
+  membershipTier: MembershipTier;
   isPremium: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -26,8 +28,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const normalizeMembershipTier = (value: unknown): 'free' | 'premium' => {
-  return value === 'premium' ? 'premium' : 'free';
+const normalizeMembershipTier = (value: unknown): MembershipTier => {
+  const tier = String(value || '').trim().toLowerCase();
+  if (tier === 'pro' || tier === 'premium') return 'pro';
+  if (tier === 'plus') return 'plus';
+  return 'free';
 };
 
 const getSupabaseAuthType = () => {
@@ -64,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hasProfile, setHasProfile] = useState(false);
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [membershipTier, setMembershipTier] = useState<'free' | 'premium'>('free');
+  const [membershipTier, setMembershipTier] = useState<MembershipTier>('free');
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -256,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isCheckingProfile,
       userRole,
       membershipTier,
-      isPremium: membershipTier === 'premium',
+      isPremium: membershipTier === 'pro',
       isAdmin: userRole === 'admin',
       signOut,
       openAuthModal,

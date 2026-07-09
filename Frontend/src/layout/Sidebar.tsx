@@ -237,11 +237,11 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
               <div className="flex items-center gap-2">
                 <Crown className="sidebar-premium-icon h-5 w-5 shrink-0 text-amber-300 fill-amber-300/25" />
                 <p className="sidebar-premium-title text-sm font-bold text-amber-100">
-                  Nâng cấp Premium
+                  Nâng cấp Plus / Pro
                 </p>
               </div>
               <p className="sidebar-premium-copy mt-2 text-xs leading-relaxed text-amber-100/65">
-                Mở khóa Trợ lý cá nhân không giới hạn và các tính năng nâng cao.
+                Thêm lượt đổi AI hoặc mở khóa Pro không giới hạn.
               </p>
               <span className="sidebar-premium-cta mt-3 inline-flex rounded-md border border-amber-200/35 bg-amber-400/15 px-3 py-1.5 text-[11px] font-black uppercase tracking-wide text-amber-50 transition-colors hover:border-amber-200 hover:bg-amber-400 hover:text-text-inverse">
                 Đăng ký ngay

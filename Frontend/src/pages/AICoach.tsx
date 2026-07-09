@@ -1186,7 +1186,7 @@ function TodayDigestBubble({ day }: { day: DayPlan }) {
 }
 
 export default function AICoach() {
-  const { user, isLoggedIn, refreshTick, profile, isPremium, refreshProfile, openPremiumModal } = useAuth();
+  const { user, isLoggedIn, refreshTick, refreshProfile, openPremiumModal } = useAuth();
   const toast = useToast();
   const initialTodayDateKey = getVietnamDateKey();
   const initialWeekStartKey = getWeekStartKey(new Date(`${initialTodayDateKey}T00:00:00`));
@@ -1229,11 +1229,6 @@ export default function AICoach() {
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${todayDateKey}T00:00:00`)), [todayDateKey]);
   const cacheKey = user?.id ? `${user.id}:${weekStartKey}:${todayDateKey}` : null;
-  const profileCreatedAt = profile?.created_at ? new Date(profile.created_at) : null;
-  const freeUsedAt = profile?.ai_coach_free_used_at ? new Date(profile.ai_coach_free_used_at) : null;
-  const trialEndsAt = profileCreatedAt ? new Date(profileCreatedAt.getTime() + 7 * 24 * 60 * 60 * 1000) : null;
-  const isTrialActive = !!trialEndsAt && trialEndsAt.getTime() >= Date.now();
-  const canGenerateCoachPlan = isPremium || (!!profileCreatedAt && !freeUsedAt && isTrialActive);
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -1428,6 +1423,9 @@ export default function AICoach() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
+        if (payload?.code === 'AI_CHANGE_LIMIT_REACHED' || payload?.code === 'PREMIUM_REQUIRED') {
+          openPremiumModal();
+        }
         throw new Error(payload?.error || 'Không thể tạo kế hoạch từ AI Coach.');
       }
       await refreshProfile();
@@ -1479,11 +1477,7 @@ export default function AICoach() {
       setReloadKey((value) => value + 1);
 
       if (mode === 'regenerate') {
-        if (canGenerateCoachPlan) {
-          await generateCoachPlan();
-        } else {
-          openPremiumModal();
-        }
+        await generateCoachPlan();
       }
       setIsPlanSettingsOpen(false);
     } catch (err: any) {
@@ -1715,7 +1709,13 @@ export default function AICoach() {
         },
         body: JSON.stringify({ adjustmentId }),
       });
-      if (!response.ok) throw new Error('Action failed');
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (payload?.code === 'AI_CHANGE_LIMIT_REACHED' || payload?.code === 'PREMIUM_REQUIRED') {
+          openPremiumModal();
+        }
+        throw new Error(payload?.error || 'Action failed');
+      }
 
       setChatMessages((current) =>
         current.map((item) =>
@@ -1946,7 +1946,7 @@ export default function AICoach() {
 
       const payload = (await response.json().catch(() => ({}))) as Partial<AIChatApiResponse>;
       if (!response.ok) {
-        if (payload?.code === 'PREMIUM_REQUIRED') {
+        if (payload?.code === 'AI_CHANGE_LIMIT_REACHED' || payload?.code === 'PREMIUM_REQUIRED') {
           openPremiumModal();
         }
         throw new Error(payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');

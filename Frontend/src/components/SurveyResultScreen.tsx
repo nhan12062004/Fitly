@@ -1,7 +1,9 @@
 import {
   Activity,
   ArrowRight,
+  CalendarDays,
   Droplets,
+  Dumbbell,
   Flame,
   HeartPulse,
   Info,
@@ -168,37 +170,6 @@ function MetricCard({
   );
 }
 
-function MacroRow({
-  label,
-  helper,
-  grams,
-  percent,
-  color,
-}: {
-  label: string;
-  helper: string;
-  grams: number;
-  percent: number;
-  color: string;
-}) {
-  return (
-    <div>
-      <div className="mb-2 flex items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-black text-white">{label}</p>
-          <p className="mt-0.5 truncate text-[10px] font-semibold text-[#8490a3]">{helper}</p>
-        </div>
-        <p className="shrink-0 text-xs font-black" style={{ color }}>
-          {formatNumber(grams)}g <span className="text-[10px] text-[#7b8798]">{formatNumber(percent)}%</span>
-        </p>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[#0a0f16]">
-        <div className="h-full rounded-full" style={{ width: `${clamp(percent, 0, 100)}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
-}
-
 export default function SurveyResultScreen({
   summary,
   isGeneratingPlan = false,
@@ -214,13 +185,6 @@ export default function SurveyResultScreen({
   const bmr = Math.round(10 * weightKg + 6.25 * (summary.heightCm || 170) - 5 * age + normalizeGenderOffset(summary.gender));
   const activityMultiplier = 1.2 + clamp(summary.weeklyWorkouts || 3, 0, 6) * 0.05;
   const tdee = Math.round(bmr * activityMultiplier);
-  const targetCalories = Math.max(1200, summary.targetCalories || tdee);
-  const proteinG = Math.round(weightKg * 1.8);
-  const fatG = Math.round((targetCalories * 0.28) / 9);
-  const carbsG = Math.max(0, Math.round((targetCalories - proteinG * 4 - fatG * 9) / 4));
-  const proteinPercent = Math.round(((proteinG * 4) / targetCalories) * 100);
-  const carbsPercent = Math.round(((carbsG * 4) / targetCalories) * 100);
-  const fatPercent = Math.max(0, 100 - proteinPercent - carbsPercent);
   const estimatedBodyFat = clamp(1.2 * bmi + 0.23 * age - 10.8 * normalizeBodyFatSex(summary.gender) - 5.4, 8, 45);
   const fatMass = (weightKg * estimatedBodyFat) / 100;
   const leanMass = weightKg - fatMass;
@@ -228,7 +192,9 @@ export default function SurveyResultScreen({
   const waterBlocks = 10;
   const activeWaterBlocks = clamp(Math.round(waterLiters * 4), 1, waterBlocks);
   const bodyFatBar = clamp((leanMass / weightKg) * 100, 0, 100);
-  const macroGradient = `conic-gradient(#60a5fa 0 ${proteinPercent}%, #a3ff32 ${proteinPercent}% ${proteinPercent + carbsPercent}%, #fb923c ${proteinPercent + carbsPercent}% 100%)`;
+  const workoutItems = summary.todayExercises.length > 0
+    ? summary.todayExercises
+    : [{ name: 'Lịch tập đang được cá nhân hóa', detail: 'AI sẽ cập nhật bài tập phù hợp với hồ sơ của bạn.' }];
 
   return (
     <div className="relative min-h-[100dvh] w-full bg-[#090d13] px-4 py-10 text-white sm:px-5">
@@ -246,18 +212,56 @@ export default function SurveyResultScreen({
 
           <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#0c766d] bg-[#062b2d] px-4 py-1.5 text-[10px] font-black uppercase text-[#5eead4] shadow-[0_0_22px_rgba(20,184,166,0.15)]">
             <HeartPulse className="h-3.5 w-3.5" strokeWidth={2.5} />
-            Đánh giá thể trạng
+            Phân tích bài tập
           </div>
 
           <h1 className="mt-3 text-[28px] font-black leading-tight tracking-tight text-white sm:text-[32px]">
-            Kết quả phân tích
+            Lịch tập AI đã sẵn sàng
           </h1>
           <p className="mt-1 text-xs font-semibold text-[#8390a3] sm:text-sm">
-            AI dùng các chỉ số này để cá nhân hóa kế hoạch ăn & tập của bạn.
+            Xem nhanh bài tập hôm nay, sau đó chuyển sang bước lên thực đơn.
           </p>
         </header>
 
         <main className="mt-6 space-y-4">
+          <Panel className="overflow-hidden">
+            <div className="border-b border-[#273140] p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-[10px] font-black uppercase text-[#8c98aa]">Lịch tập hôm nay</p>
+                  <h2 className="mt-1 text-xl font-black text-white">{summary.todayWorkout}</h2>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-[#9ca8ba]">
+                    {summary.goal} · {summary.experience} · {summary.location}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-black text-[#cbd5e1] sm:min-w-[190px]">
+                  <span className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0b1119] px-3 py-2">
+                    <CalendarDays className="h-3.5 w-3.5 text-[#c8ff19]" />
+                    {summary.weeklyWorkouts} buổi/tuần
+                  </span>
+                  <span className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0b1119] px-3 py-2">
+                    <Activity className="h-3.5 w-3.5 text-[#60a5fa]" />
+                    {summary.todayDuration || summary.duration}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="divide-y divide-[#273140]">
+              {workoutItems.map((exercise, index) => (
+                <div key={`${exercise.name}-${index}`} className="grid grid-cols-[36px_minmax(0,1fr)] gap-3 p-4 sm:p-5">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#c8ff19]/12 text-[#c8ff19]">
+                    <Dumbbell className="h-4 w-4" strokeWidth={2.4} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-white">{exercise.name}</p>
+                    <p className="mt-1 text-xs font-semibold leading-5 text-[#9ca8ba]">{exercise.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Panel>
+
           <Panel className="p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase text-[#8c98aa]">
               <span>BMI - Chuẩn WHO Á Đông</span>
@@ -288,30 +292,32 @@ export default function SurveyResultScreen({
             />
             <MetricCard
               icon={Target}
-              value={formatNumber(targetCalories)}
-              label="ăn/ngày"
-              caption="Mục tiêu"
+              value={formatNumber(summary.weeklyWorkouts || 3)}
+              label="buổi/tuần"
+              caption="Tần suất"
               color="#2dd4bf"
               background="rgba(45,212,191,0.13)"
             />
           </div>
 
           <Panel className="p-4 sm:p-5">
-            <h2 className="text-base font-black text-white">Phân bổ dinh dưỡng</h2>
-            <p className="mt-1 text-[11px] font-semibold text-[#8c98aa]">Duy trì cân nặng</p>
+            <h2 className="text-base font-black text-white">Nhịp tập đề xuất</h2>
+            <p className="mt-1 text-[11px] font-semibold text-[#8c98aa]">
+              Ưu tiên đúng kỹ thuật trong tuần đầu, tăng tải khi hoàn thành đủ số hiệp.
+            </p>
 
-            <div className="mt-5 grid gap-5 sm:grid-cols-[128px_1fr] sm:items-center">
-              <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full" style={{ background: macroGradient }}>
-                <div className="flex h-[78px] w-[78px] flex-col items-center justify-center rounded-full bg-[#090d13]">
-                  <span className="text-lg font-black text-white">{formatNumber(targetCalories)}</span>
-                  <span className="text-[10px] font-bold text-[#7b8798]">kcal/ngày</span>
-                </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <div className="rounded-xl bg-[#0b1119] p-3">
+                <p className="text-[10px] font-black uppercase text-[#7b8798]">Mục tiêu</p>
+                <p className="mt-1 text-sm font-black text-white">{summary.goal}</p>
               </div>
-
-              <div className="space-y-4">
-                <MacroRow label="Protein" helper="Xây cơ & phục hồi" grams={proteinG} percent={proteinPercent} color="#60a5fa" />
-                <MacroRow label="Carbs" helper="Năng lượng tập" grams={carbsG} percent={carbsPercent} color="#a3ff32" />
-                <MacroRow label="Chất béo" helper="Hormone & vitamin" grams={fatG} percent={fatPercent} color="#fb923c" />
+              <div className="rounded-xl bg-[#0b1119] p-3">
+                <p className="text-[10px] font-black uppercase text-[#7b8798]">Địa điểm</p>
+                <p className="mt-1 text-sm font-black text-white">{summary.location}</p>
+              </div>
+              <div className="rounded-xl bg-[#0b1119] p-3">
+                <p className="text-[10px] font-black uppercase text-[#7b8798]">Thời lượng</p>
+                <p className="mt-1 text-sm font-black text-white">{summary.duration}</p>
               </div>
             </div>
           </Panel>
@@ -369,10 +375,10 @@ export default function SurveyResultScreen({
               <div>
                 <h2 className="text-sm font-black text-white">Lộ trình ước tính</h2>
                 <p className="mt-1 text-xs font-semibold leading-5 text-[#a2adbd]">
-                  Duy trì cân nặng - tập trung cải thiện thành phần cơ thể theo thời gian.
+                  Tập {summary.weeklyWorkouts} buổi/tuần, xen kẽ ngày nghỉ để cơ thể kịp phục hồi.
                 </p>
                 <p className="mt-1 text-[11px] font-semibold leading-5 text-[#7d8899]">
-                  Duy trì cân nặng. Kết quả phụ thuộc vào sự đều đặn và giấc ngủ.
+                  Sau khi xem lịch tập, bước kế tiếp là lên thực đơn để khớp năng lượng và protein.
                 </p>
               </div>
             </div>
@@ -388,10 +394,10 @@ export default function SurveyResultScreen({
                 )}
                 <div>
                   <p className={`text-sm font-black ${generationError ? 'text-red-300' : 'text-[#c8ff19]'}`}>
-                    {generationError ? 'Chưa tạo được lịch AI 7 ngày' : 'AI đang tạo lịch 7 ngày'}
+                    {generationError ? 'Chưa tạo được lịch tập AI 7 ngày' : 'AI đang tạo lịch tập 7 ngày'}
                   </p>
                   <p className="mt-1 text-xs font-semibold leading-5 text-[#9ca8ba]">
-                    {generationError || 'Lịch tập và thực đơn sẽ được lưu tự động vào hồ sơ của bạn.'}
+                    {generationError || 'Chỉ lịch tập được lưu ở bước này. Thực đơn sẽ làm ở bước tiếp theo.'}
                   </p>
                 </div>
               </div>
@@ -411,18 +417,18 @@ export default function SurveyResultScreen({
             {isGeneratingPlan ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Đang tạo lịch 7 ngày
+                Đang tạo lịch tập
               </>
             ) : (
               <>
-                Bắt đầu sử dụng
+                Tiếp tục lên thực đơn
                 <ArrowRight className="h-4 w-4" strokeWidth={3} />
               </>
             )}
           </button>
 
           <p className="pb-6 text-center text-xs font-semibold text-[#7b8798]">
-            Tiếp theo: thiết lập ngân sách & kho thực phẩm để AI lên thực đơn cá nhân hóa.
+            Tiếp theo: chọn món và tạo thực đơn phù hợp với lịch tập vừa tạo.
           </p>
         </main>
       </div>

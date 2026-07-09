@@ -41,13 +41,18 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 // Port 5000 is commonly occupied by macOS AirPlay Receiver.
 const PORT = process.env.PORT || 5001;
-const AI_COACH_FREE_TRIAL_DAYS = 7;
 const AI_ACTION_FLOW_ENABLED = process.env.AI_ACTION_FLOW_ENABLED !== 'false';
 const PREMIUM_AUTO_PLAN_ENABLED = process.env.PREMIUM_AUTO_PLAN_ENABLED !== 'false';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const AI_EXERCISE_CATALOG_LIMIT = 48;
 const AI_FOOD_CATALOG_LIMIT = 72;
 const AI_FOOD_CATALOG_FETCH_LIMIT = 320;
+type MembershipTier = 'free' | 'plus' | 'pro';
+const AI_CHANGE_LIMIT_BY_TIER: Record<MembershipTier, number | null> = {
+  free: 4,
+  plus: 8,
+  pro: null
+};
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -789,23 +794,63 @@ const normalizeDayMeals = (rawMeals: any[], mealsPerDay: number, foodById: Map<s
   }));
 };
 
-const getAiCoachAccessState = (profile: any) => {
-  const membershipTier = profile?.membership_tier === 'premium' ? 'premium' : 'free';
-  const createdAt = profile?.created_at ? new Date(profile.created_at) : null;
-  const freeUsedAt = profile?.ai_coach_free_used_at ? new Date(profile.ai_coach_free_used_at) : null;
-  const trialEndsAt = createdAt ? addDays(createdAt, AI_COACH_FREE_TRIAL_DAYS) : null;
-  const isTrialActive = !!trialEndsAt && trialEndsAt.getTime() >= Date.now();
-  const canGenerate = membershipTier === 'premium' || (!!createdAt && !freeUsedAt && isTrialActive);
+const normalizeMembershipTier = (value: unknown): MembershipTier => {
+  const tier = String(value || '').trim().toLowerCase();
+  if (tier === 'pro' || tier === 'premium') return 'pro';
+  if (tier === 'plus') return 'plus';
+  return 'free';
+};
+
+const getAiChangeUsageCount = async (userId: string): Promise<number> => {
+  const [generatedChangesRes, appliedChatChangesRes] = await Promise.all([
+    supabase
+      .from('ai_plan_adjustments')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('source_type', 'ai_coach_generate'),
+    supabase
+      .from('ai_plan_adjustments')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('source_type', 'chat')
+      .eq('status', 'applied')
+  ]);
+
+  const firstError = generatedChangesRes.error || appliedChatChangesRes.error;
+  if (firstError) throw firstError;
+
+  return (generatedChangesRes.count || 0) + (appliedChatChangesRes.count || 0);
+};
+
+const getAiCoachAccessState = async (profile: any, userId: string) => {
+  const membershipTier = normalizeMembershipTier(profile?.membership_tier);
+  const aiChangeLimit = AI_CHANGE_LIMIT_BY_TIER[membershipTier];
+  const aiChangeUsage = aiChangeLimit === null ? 0 : await getAiChangeUsageCount(userId);
+  const aiChangesRemaining = aiChangeLimit === null ? null : Math.max(0, aiChangeLimit - aiChangeUsage);
+  const canUseAiChange = aiChangeLimit === null || aiChangeUsage < aiChangeLimit;
 
   return {
     membershipTier,
-    createdAt,
-    freeUsedAt,
-    trialEndsAt,
-    isTrialActive,
-    canGenerate
+    aiChangeLimit,
+    aiChangeUsage,
+    aiChangesRemaining,
+    canGenerate: canUseAiChange,
+    canUseAiChange,
+    isUnlimited: aiChangeLimit === null
   };
 };
+
+const buildAiChangeLimitError = (accessState: Awaited<ReturnType<typeof getAiCoachAccessState>>) => ({
+  code: 'AI_CHANGE_LIMIT_REACHED',
+  error:
+    accessState.membershipTier === 'plus'
+      ? 'Goi Plus da dung het 8 luot doi AI. Vui long nang cap Pro de doi khong gioi han.'
+      : 'Goi Free da dung het 4 luot doi AI. Vui long nang cap Plus hoac Pro de tiep tuc.',
+  membershipTier: accessState.membershipTier,
+  aiChangeLimit: accessState.aiChangeLimit,
+  aiChangeUsage: accessState.aiChangeUsage,
+  aiChangesRemaining: accessState.aiChangesRemaining
+});
 
 const parseJsonFromAiText = (text: string) => {
   const cleaned = String(text || '')
@@ -997,7 +1042,8 @@ const toDayOfWeekIndex = (value: unknown): number => {
   return 0;
 };
 
-const normalizeAiPlanPayload = (raw: any): NormalizedAiPlan => {
+const normalizeAiPlanPayload = (raw: any, options: { requireMealPlan?: boolean } = {}): NormalizedAiPlan => {
+  const requireMealPlan = options.requireMealPlan ?? true;
   const workout = raw?.workout_plan || {};
   const meal = raw?.meal_plan || {};
   const workoutDays = Array.isArray(workout.days) ? workout.days : [];
@@ -1045,8 +1091,8 @@ const normalizeAiPlanPayload = (raw: any): NormalizedAiPlan => {
     };
   });
 
-  if (normalizedWorkoutDays.length === 0 || normalizedMealDays.length === 0) {
-    throw new Error('AI JSON missing workout_plan.days or meal_plan.days');
+  if (normalizedWorkoutDays.length === 0 || (requireMealPlan && normalizedMealDays.length === 0)) {
+    throw new Error(requireMealPlan ? 'AI JSON missing workout_plan.days or meal_plan.days' : 'AI JSON missing workout_plan.days');
   }
 
   return {
@@ -1508,9 +1554,8 @@ async function generateWeeklyCoachPlanForUser(params: {
   userId: string;
   weekStartKey: string;
   premiumOnly?: boolean;
-  markFreeUsage?: boolean;
 }) {
-  const { userId, weekStartKey, premiumOnly = false, markFreeUsage = true } = params;
+  const { userId, weekStartKey, premiumOnly = false } = params;
 
   const [
     profileRes,
@@ -1594,7 +1639,7 @@ async function generateWeeklyCoachPlanForUser(params: {
   const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
   const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
   const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
-  const accessState = getAiCoachAccessState(profile);
+  const accessState = await getAiCoachAccessState(profile, userId);
 
   if (!profileRes.data?.id) {
     throw new ApiRequestError(403, {
@@ -1604,26 +1649,15 @@ async function generateWeeklyCoachPlanForUser(params: {
   }
 
   if (premiumOnly) {
-    if (accessState.membershipTier !== 'premium') {
+    if (accessState.membershipTier !== 'pro') {
       throw new ApiRequestError(403, {
         code: 'PREMIUM_REQUIRED',
-        error: 'Premium membership required for automatic weekly generation.',
+        error: 'Pro membership required for automatic weekly generation.',
         membershipTier: accessState.membershipTier,
       });
     }
   } else if (!accessState.canGenerate) {
-    const error =
-      accessState.freeUsedAt
-        ? 'Ban Free da dung luot kich hoat AI Coach. Vui long nang cap Premium de tao lai khong gioi han.'
-        : 'Thoi gian dung thu AI Coach mien phi da het. Vui long nang cap Premium de tiep tuc tao lo trinh.';
-
-    throw new ApiRequestError(403, {
-      code: 'PREMIUM_REQUIRED',
-      error,
-      membershipTier: accessState.membershipTier,
-      trialEndsAt: accessState.trialEndsAt?.toISOString() || null,
-      freeUsedAt: accessState.freeUsedAt?.toISOString() || null
-    });
+    throw new ApiRequestError(403, buildAiChangeLimitError(accessState));
   }
 
   const exerciseCatalog = exercises
@@ -1977,47 +2011,36 @@ JSON schema (fixed):
   });
   if (recommendation.error) console.warn('Failed to store ai_recommendations:', recommendation.error.message);
 
-  if (previousWorkoutPlanId || previousFoodPlanId) {
-    const planType = previousWorkoutPlanId && previousFoodPlanId ? 'both'
-      : previousWorkoutPlanId ? 'workout' : 'meal';
-    const adjustment = await supabase.from('ai_plan_adjustments').insert({
-      user_id: userId,
-      plan_type: planType,
-      source_type: 'ai_coach_generate',
-      old_plan_id: previousWorkoutPlanId || previousFoodPlanId,
-      new_plan_id: weeklyPlanId,
-      old_data: {
-        workout_plan_id: previousWorkoutPlanId,
-        food_plan_id: previousFoodPlanId
-      },
-      new_data: {
-        workout_plan_id: weeklyPlanId,
-        food_plan_id: foodPlanId,
-        workout_plan_name: normalizedPlan.workoutPlan.plan_name,
-        target_calories: normalizedPlan.mealPlan.target_calories
-      },
-      reason: truncateText(
-        normalizedPlan.workoutPlan.explanation || normalizedPlan.mealPlan.explanation || 'AI regenerated plan.',
-        300
-      ),
-      created_by: 'ai'
-    });
-    if (adjustment.error) {
-      console.warn('Failed to store ai_plan_adjustments:', adjustment.error.message);
-    }
-  }
-
-  if (markFreeUsage && accessState.membershipTier !== 'premium' && !accessState.freeUsedAt) {
-    const freeUsageUpdate = await supabase
-      .from('profiles')
-      .update({
-        ai_coach_free_used_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId);
-    if (freeUsageUpdate.error) {
-      console.warn('Failed to mark AI Coach free usage:', freeUsageUpdate.error.message);
-    }
+  const planType = previousWorkoutPlanId && previousFoodPlanId ? 'both'
+    : previousWorkoutPlanId ? 'workout'
+      : previousFoodPlanId ? 'meal'
+        : 'both';
+  const adjustment = await supabase.from('ai_plan_adjustments').insert({
+    user_id: userId,
+    plan_type: planType,
+    source_type: 'ai_coach_generate',
+    old_plan_id: previousWorkoutPlanId || previousFoodPlanId,
+    new_plan_id: weeklyPlanId,
+    old_data: {
+      workout_plan_id: previousWorkoutPlanId,
+      food_plan_id: previousFoodPlanId
+    },
+    new_data: {
+      workout_plan_id: weeklyPlanId,
+      food_plan_id: foodPlanId,
+      workout_plan_name: normalizedPlan.workoutPlan.plan_name,
+      target_calories: normalizedPlan.mealPlan.target_calories
+    },
+    reason: truncateText(
+      normalizedPlan.workoutPlan.explanation || normalizedPlan.mealPlan.explanation || 'AI regenerated plan.',
+      300
+    ),
+    created_by: 'ai',
+    status: 'applied',
+    applied_at: new Date().toISOString()
+  });
+  if (adjustment.error) {
+    console.warn('Failed to store ai_plan_adjustments:', adjustment.error.message);
   }
 
   return {
@@ -2027,6 +2050,12 @@ JSON schema (fixed):
     mealItems: mealRows.length,
     weekStartDate: weekStartKey,
     membershipTier: accessState.membershipTier,
+    aiQuota: {
+      limit: accessState.aiChangeLimit,
+      used: accessState.aiChangeLimit === null ? null : accessState.aiChangeUsage + 1,
+      remaining: accessState.aiChangeLimit === null ? null : Math.max(0, (accessState.aiChangesRemaining || 0) - 1),
+      unlimited: accessState.isUnlimited
+    },
     ai_json: {
       workout_plan: normalizedPlan.workoutPlan,
       meal_plan: normalizedPlan.mealPlan
@@ -2039,7 +2068,7 @@ async function runPremiumMondayAutoPlanner(trigger: 'cron' | 'manual' = 'cron') 
   const premiumProfilesRes = await supabase
     .from('profiles')
     .select('id, full_name')
-    .eq('membership_tier', 'premium');
+    .in('membership_tier', ['pro', 'premium']);
 
   if (premiumProfilesRes.error) throw premiumProfilesRes.error;
 
@@ -2070,7 +2099,6 @@ async function runPremiumMondayAutoPlanner(trigger: 'cron' | 'manual' = 'cron') 
         userId,
         weekStartKey,
         premiumOnly: true,
-        markFreeUsage: false,
       });
       result.generated += 1;
     } catch (error: any) {
@@ -2388,7 +2416,7 @@ app.get('/api/admin/overview', async (req, res) => {
       mealsDoneRes
     ] = await Promise.all([
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('membership_tier', 'premium'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).in('membership_tier', ['plus', 'pro', 'premium']),
       supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
       supabase.from('profiles').select('id', { count: 'exact', head: true }).not('telegram_chat_id', 'is', null),
       supabase.from('exercises').select('id', { count: 'exact', head: true }),
@@ -3733,7 +3761,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
     }
     const dayOfWeek = Number(newData.day_of_week);
     const [applyProfileRes, applyLifestyleRes, applyHealthRes] = await Promise.all([
-      supabase.from('profiles').select('id, gender, birthday, job').eq('id', authUserId).maybeSingle(),
+      supabase.from('profiles').select('id, gender, birthday, job, membership_tier').eq('id', authUserId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle()
     ]);
@@ -3744,6 +3772,10 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       lifestyle: applyLifestyleRes.data || null,
       health: applyHealthRes.data || null
     };
+    const applyAccessState = await getAiCoachAccessState(applyProfileRes.data || {}, authUserId);
+    if (!applyAccessState.canUseAiChange) {
+      return res.status(403).json(buildAiChangeLimitError(applyAccessState));
+    }
 
     if (adjustmentRes.data.plan_type === 'workout') {
       const requestedWorkoutPlanId = String((oldData as any).weekly_plan_id || '').trim();
@@ -4032,7 +4064,16 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
     }
 
     success = true;
-    return res.json({ success: true, adjustmentId });
+    return res.json({
+      success: true,
+      adjustmentId,
+      aiQuota: {
+        limit: applyAccessState.aiChangeLimit,
+        used: applyAccessState.aiChangeLimit === null ? null : applyAccessState.aiChangeUsage + 1,
+        remaining: applyAccessState.aiChangeLimit === null ? null : Math.max(0, (applyAccessState.aiChangesRemaining || 0) - 1),
+        unlimited: applyAccessState.isUnlimited
+      }
+    });
   } catch (error: any) {
     incrementMetric('errorCount');
     logAIEvent({
@@ -4215,7 +4256,8 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     if (!authUserId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const { weekStartDate } = req.body || {};
+    const { weekStartDate, planScope } = req.body || {};
+    const workoutOnly = ['workout', 'workout_only'].includes(String(planScope || '').toLowerCase());
     const userId = authUserId;
     if (!process.env.GROQ_API_KEY) {
       return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
@@ -4305,7 +4347,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
     const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
     const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
-    const accessState = getAiCoachAccessState(profile);
+    const accessState = await getAiCoachAccessState(profile, userId);
 
     if (!profileRes.data?.id) {
       return res.status(403).json({
@@ -4315,18 +4357,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     }
 
     if (!accessState.canGenerate) {
-      const error =
-        accessState.freeUsedAt
-          ? 'Ban Free da dung luot kich hoat AI Coach. Vui long nang cap Premium de tao lai khong gioi han.'
-          : 'Thoi gian dung thu AI Coach mien phi da het. Vui long nang cap Premium de tiep tuc tao lo trinh.';
-
-      return res.status(403).json({
-        code: 'PREMIUM_REQUIRED',
-        error,
-        membershipTier: accessState.membershipTier,
-        trialEndsAt: accessState.trialEndsAt?.toISOString() || null,
-        freeUsedAt: accessState.freeUsedAt?.toISOString() || null
-      });
+      return res.status(403).json(buildAiChangeLimitError(accessState));
     }
 
     const exerciseCatalog = exercises
@@ -4345,55 +4376,28 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       .map((item: any) => `d=${item.day_of_week || item.log_date || ''}|${item.meal_type}|${truncateText(item.foods?.name || item.custom_food_name || item.food_id, 28)}|qty=${item.quantity}`)
       .join('\n') || 'No recent meal plan history.';
 
-    const prompt = `
-Generate one personalized 7-day workout plan and 7-day meal plan.
-Use only ids from EXERCISE_CATALOG and FOOD_CATALOG. Return valid JSON only.
-
-USER_PROFILE:
-name=${truncateText(profile.full_name, 40)}
-gender=${truncateText(profile.gender, 12)}
-birthday=${truncateText(profile.birthday, 20)}
-job=${truncateText(profile.job, 30)}
-weight_kg=${bodyMetrics.weight || ''}
-height_cm=${bodyMetrics.height || ''}
-target_weight_kg=${bodyMetrics.target_weight || ''}
-body_fat=${bodyMetrics.body_fat || bodyMetrics.body_fat_percentage || ''}
-fitness_goal=${truncateText(lifestyle.fitness_goal, 40)}
-experience_level=${truncateText(lifestyle.experience_level, 20)}
-activity_level=${truncateText(lifestyle.activity_level, 20)}
-weekly_workouts=${weeklyWorkoutDays}
-workout_duration_minutes=${lifestyle.workout_duration || ''}
-workout_location=${truncateText(lifestyle.workout_location, 24)}
-equipment_available=${truncateText(lifestyle.equipment_available, 60)}
-diet_preference=${truncateText(lifestyle.diet_preference, 24)}
-current_diet=${truncateText(lifestyle.current_diet, 24)}
-cooking_ability=${truncateText(lifestyle.cooking_ability, 16)}
-budget_level=${truncateText(lifestyle.budget_level, 16)}
-meals_per_day=${mealsPerDay}
-target_calories=${lifestyle.target_calories || ''}
-water_goal_liters=${lifestyle.daily_water_goal || ''}
-health_condition=${truncateText(health.health_condition, 80)}
-injuries=${truncateText(health.injuries, 80)}
-medications=${truncateText(health.medications, 60)}
-sleep_hours=${health.sleep_hours || ''}
-sleep_quality=${truncateText(health.sleep_quality, 20)}
-stress_level=${truncateText(health.stress_level, 20)}
-allergies_or_medical_history=${truncateText(health.medical_history || health.allergies, 120)}
-
-RECENT_TRAINING:
-${recentTraining}
-
+    const promptHeader = workoutOnly
+      ? 'Generate one personalized 7-day workout plan only.\nUse only ids from EXERCISE_CATALOG. Return valid JSON only.'
+      : 'Generate one personalized 7-day workout plan and 7-day meal plan.\nUse only ids from EXERCISE_CATALOG and FOOD_CATALOG. Return valid JSON only.';
+    const foodPromptSection = workoutOnly ? '' : `
 RECENT_MEAL_PLAN:
 ${recentEating}
 
-${buildSafetyPromptAddendum(safetyContext)}
-
-EXERCISE_CATALOG:
-${exerciseCatalog || 'No safe exercise ids available after hard safety filtering. Use rest/recovery days only.'}
-
 FOOD_CATALOG:
 ${foodCatalog}
-
+`;
+    const rulesPrompt = workoutOnly ? `
+Rules:
+- Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
+- Exactly 7 days, day_of_week 0..6 where 0 is Monday.
+- Never create new exercises. Pick only exercise_id values from EXERCISE_CATALOG.
+- Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
+- Avoid exercises whose contraindications conflict with injuries or health conditions.
+- Training days should match weekly_workouts. Rest days: is_rest_day=true and no exercises.
+- Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
+- weight_kg should be conservative. Use 0 for bodyweight.
+- Do not include meal_plan. The app will handle meals in the next onboarding step.
+` : `
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
 - Exactly 7 days, day_of_week 0..6 where 0 is Monday.
@@ -4420,7 +4424,36 @@ Rules:
 - Snack can have 1-2 food_ids.
 - Use reasonable quantity multipliers in "quantities". If serving_unit is 100g, vegetables should usually be 2-3 (200-300g), protein 1.2-2 (120-200g), carb 1-2 servings.
 - The length of quantities must match food_ids. Do not make lunch or dinner with only one food_id.
-
+`;
+    const jsonSchemaPrompt = workoutOnly ? `
+JSON schema (fixed):
+{
+  "workout_plan": {
+    "plan_name": "Beginner Fat Loss - Week 1",
+    "goal": "fat_loss",
+    "days": [
+      {
+        "day": "Monday",
+        "type": "workout",
+        "duration_minutes": 25,
+        "exercises": [
+           {
+             "exercise_id": "exact id from catalog",
+             "sets": 3,
+             "reps": 12,
+             "weight_kg": 12.5,
+             "rest_seconds": 60,
+             "target_rpe": 7,
+             "load_instruction": "chon muc ta con du 2 reps",
+             "note": "short coaching note"
+           }
+        ]
+      }
+    ],
+    "explanation": "short explanation in Vietnamese"
+  }
+}
+` : `
 JSON schema (fixed):
 {
   "workout_plan": {
@@ -4467,6 +4500,54 @@ JSON schema (fixed):
 }
 `;
 
+    const prompt = `
+${promptHeader}
+
+USER_PROFILE:
+name=${truncateText(profile.full_name, 40)}
+gender=${truncateText(profile.gender, 12)}
+birthday=${truncateText(profile.birthday, 20)}
+job=${truncateText(profile.job, 30)}
+weight_kg=${bodyMetrics.weight || ''}
+height_cm=${bodyMetrics.height || ''}
+target_weight_kg=${bodyMetrics.target_weight || ''}
+body_fat=${bodyMetrics.body_fat || bodyMetrics.body_fat_percentage || ''}
+fitness_goal=${truncateText(lifestyle.fitness_goal, 40)}
+experience_level=${truncateText(lifestyle.experience_level, 20)}
+activity_level=${truncateText(lifestyle.activity_level, 20)}
+weekly_workouts=${weeklyWorkoutDays}
+workout_duration_minutes=${lifestyle.workout_duration || ''}
+workout_location=${truncateText(lifestyle.workout_location, 24)}
+equipment_available=${truncateText(lifestyle.equipment_available, 60)}
+diet_preference=${truncateText(lifestyle.diet_preference, 24)}
+current_diet=${truncateText(lifestyle.current_diet, 24)}
+cooking_ability=${truncateText(lifestyle.cooking_ability, 16)}
+budget_level=${truncateText(lifestyle.budget_level, 16)}
+meals_per_day=${mealsPerDay}
+target_calories=${lifestyle.target_calories || ''}
+water_goal_liters=${lifestyle.daily_water_goal || ''}
+health_condition=${truncateText(health.health_condition, 80)}
+injuries=${truncateText(health.injuries, 80)}
+medications=${truncateText(health.medications, 60)}
+sleep_hours=${health.sleep_hours || ''}
+sleep_quality=${truncateText(health.sleep_quality, 20)}
+stress_level=${truncateText(health.stress_level, 20)}
+allergies_or_medical_history=${truncateText(health.medical_history || health.allergies, 120)}
+
+RECENT_TRAINING:
+${recentTraining}
+
+${foodPromptSection}
+
+${buildSafetyPromptAddendum(safetyContext)}
+
+EXERCISE_CATALOG:
+${exerciseCatalog || 'No safe exercise ids available after hard safety filtering. Use rest/recovery days only.'}
+
+${rulesPrompt}
+${jsonSchemaPrompt}
+`;
+
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -4496,7 +4577,7 @@ JSON schema (fixed):
     }
 
     const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
-    const normalizedPlan = normalizeAiPlanPayload(parsed);
+    const normalizedPlan = normalizeAiPlanPayload(parsed, { requireMealPlan: !workoutOnly });
     const guardedWorkout = sanitizeWorkoutPlanForUser(
       normalizedPlan.workoutPlan,
       safetyContext,
@@ -4596,131 +4677,125 @@ JSON schema (fixed):
       if (insertedWorkout.error) throw insertedWorkout.error;
     }
 
-    const existingFoodPlans = await supabase
-      .from('weekly_food_plans')
-      .select('id, created_at, updated_at')
-      .eq('user_id', userId)
-      .eq('week_start_date', weekStartKey)
-      .limit(20);
-    if (existingFoodPlans.error) throw existingFoodPlans.error;
-
-    const previousFoodPlanId = pickLatestByUpdatedAt(existingFoodPlans.data as any[])?.id || null;
-    const createdFoodPlan = await supabase
-      .from('weekly_food_plans')
-      .insert({
-        user_id: userId,
-        name: 'AI Coach Meal Plan',
-        week_start_date: weekStartKey,
-        plan_status: 'active',
-        generated_by: 'ai',
-        ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500)
-      })
-      .select('id')
-      .single();
-    if (createdFoodPlan.error) throw createdFoodPlan.error;
-    const foodPlanId = createdFoodPlan.data.id;
-
-    if (previousFoodPlanId) {
-      const markOldFoodPlan = await supabase
-        .from('weekly_food_plans')
-        .update({ plan_status: 'adjusted', updated_at: new Date().toISOString() })
-        .eq('id', previousFoodPlanId);
-      if (markOldFoodPlan.error) throw markOldFoodPlan.error;
-    }
-
+    let previousFoodPlanId: string | null = null;
+    let foodPlanId: string | null = null;
     const mealRows: any[] = [];
-    const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
-    for (const day of normalizedPlan.mealPlan.days || []) {
-      const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
-      if (day.is_rest_day && (!Array.isArray(day.meals) || day.meals.length === 0)) {
-        mealRows.push({
-          food_plan_id: foodPlanId,
-          day_of_week: dayIndex,
-          meal_type: 'breakfast',
-          is_rest_day: true,
-          order_index: 0
-        });
-        continue;
+
+    if (!workoutOnly) {
+      const existingFoodPlans = await supabase
+        .from('weekly_food_plans')
+        .select('id, created_at, updated_at')
+        .eq('user_id', userId)
+        .eq('week_start_date', weekStartKey)
+        .limit(20);
+      if (existingFoodPlans.error) throw existingFoodPlans.error;
+
+      previousFoodPlanId = pickLatestByUpdatedAt(existingFoodPlans.data as any[])?.id || null;
+      const createdFoodPlan = await supabase
+        .from('weekly_food_plans')
+        .insert({
+          user_id: userId,
+          name: 'AI Coach Meal Plan',
+          week_start_date: weekStartKey,
+          plan_status: 'active',
+          generated_by: 'ai',
+          ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500)
+        })
+        .select('id')
+        .single();
+      if (createdFoodPlan.error) throw createdFoodPlan.error;
+      foodPlanId = createdFoodPlan.data.id;
+
+      if (previousFoodPlanId) {
+        const markOldFoodPlan = await supabase
+          .from('weekly_food_plans')
+          .update({ plan_status: 'adjusted', updated_at: new Date().toISOString() })
+          .eq('id', previousFoodPlanId);
+        if (markOldFoodPlan.error) throw markOldFoodPlan.error;
       }
 
-      const expandedMeals = expandAiMealItems(day.meals || [], foodById);
-      const enrichedMeals = enrichMealComponents(expandedMeals, mealsPerDay, foodById, foods);
-      const normalizedMeals = normalizeDayMeals(enrichedMeals, mealsPerDay, foodById);
-      normalizedMeals.forEach((item: any, index: number) => {
-        const foodId = String(item.food_id || '');
-        const food = foodById.get(foodId);
-        if (!food) return;
-        const quantity = Math.max(0.25, Math.min(6, Number(item.quantity) || 1));
-        const mealType = allowedMealTypes.has(String(item.meal_type)) ? String(item.meal_type) : 'lunch';
-        mealRows.push({
-          food_plan_id: foodPlanId,
-          day_of_week: dayIndex,
-          meal_type: mealType,
-          food_id: foodId,
-          quantity,
-          calories: Number(food.calories || 0),
-          protein: Number(food.protein || 0),
-          carbs: Number(food.carbs || 0),
-          fat: Number(food.fat || 0),
-          order_index: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : index,
-          is_rest_day: false
+      const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
+      for (const day of normalizedPlan.mealPlan.days || []) {
+        const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
+        if (day.is_rest_day && (!Array.isArray(day.meals) || day.meals.length === 0)) {
+          mealRows.push({
+            food_plan_id: foodPlanId,
+            day_of_week: dayIndex,
+            meal_type: 'breakfast',
+            is_rest_day: true,
+            order_index: 0
+          });
+          continue;
+        }
+
+        const expandedMeals = expandAiMealItems(day.meals || [], foodById);
+        const enrichedMeals = enrichMealComponents(expandedMeals, mealsPerDay, foodById, foods);
+        const normalizedMeals = normalizeDayMeals(enrichedMeals, mealsPerDay, foodById);
+        normalizedMeals.forEach((item: any, index: number) => {
+          const foodId = String(item.food_id || '');
+          const food = foodById.get(foodId);
+          if (!food) return;
+          const quantity = Math.max(0.25, Math.min(6, Number(item.quantity) || 1));
+          const mealType = allowedMealTypes.has(String(item.meal_type)) ? String(item.meal_type) : 'lunch';
+          mealRows.push({
+            food_plan_id: foodPlanId,
+            day_of_week: dayIndex,
+            meal_type: mealType,
+            food_id: foodId,
+            quantity,
+            calories: Number(food.calories || 0),
+            protein: Number(food.protein || 0),
+            carbs: Number(food.carbs || 0),
+            fat: Number(food.fat || 0),
+            order_index: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : index,
+            is_rest_day: false
+          });
         });
-      });
-    }
-    if (mealRows.length > 0) {
-      const insertedMeals = await supabase.from('weekly_food_items').insert(mealRows);
-      if (insertedMeals.error) throw insertedMeals.error;
+      }
+      if (mealRows.length > 0) {
+        const insertedMeals = await supabase.from('weekly_food_items').insert(mealRows);
+        if (insertedMeals.error) throw insertedMeals.error;
+      }
     }
 
     const recommendation = await supabase.from('ai_recommendations').insert({
       user_id: userId,
-      plan_type: 'weekly_coach_plan',
-      recommendation_content: normalizedPlan,
+      plan_type: workoutOnly ? 'weekly_workout_plan' : 'weekly_coach_plan',
+      recommendation_content: workoutOnly ? { workout_plan: normalizedPlan.workoutPlan } : normalizedPlan,
       status: 'active'
     });
     if (recommendation.error) console.warn('Failed to store ai_recommendations:', recommendation.error.message);
 
-    if (previousWorkoutPlanId || previousFoodPlanId) {
-      const planType = previousWorkoutPlanId && previousFoodPlanId ? 'both'
-        : previousWorkoutPlanId ? 'workout' : 'meal';
-      const adjustment = await supabase.from('ai_plan_adjustments').insert({
-        user_id: userId,
-        plan_type: planType,
-        source_type: 'ai_coach_generate',
-        old_plan_id: previousWorkoutPlanId || previousFoodPlanId,
-        new_plan_id: weeklyPlanId,
-        old_data: {
-          workout_plan_id: previousWorkoutPlanId,
-          food_plan_id: previousFoodPlanId
-        },
-        new_data: {
-          workout_plan_id: weeklyPlanId,
-          food_plan_id: foodPlanId,
-          workout_plan_name: normalizedPlan.workoutPlan.plan_name,
-          target_calories: normalizedPlan.mealPlan.target_calories
-        },
-        reason: truncateText(
-          normalizedPlan.workoutPlan.explanation || normalizedPlan.mealPlan.explanation || 'AI regenerated plan.',
-          300
-        ),
-        created_by: 'ai'
-      });
-      if (adjustment.error) {
-        console.warn('Failed to store ai_plan_adjustments:', adjustment.error.message);
-      }
-    }
-
-    if (accessState.membershipTier !== 'premium' && !accessState.freeUsedAt) {
-      const freeUsageUpdate = await supabase
-        .from('profiles')
-        .update({
-          ai_coach_free_used_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
-      if (freeUsageUpdate.error) {
-        console.warn('Failed to mark AI Coach free usage:', freeUsageUpdate.error.message);
-      }
+    const planType = previousWorkoutPlanId && previousFoodPlanId ? 'both'
+      : previousWorkoutPlanId ? 'workout'
+        : previousFoodPlanId ? 'meal'
+          : workoutOnly ? 'workout' : 'both';
+    const adjustment = await supabase.from('ai_plan_adjustments').insert({
+      user_id: userId,
+      plan_type: planType,
+      source_type: 'ai_coach_generate',
+      old_plan_id: previousWorkoutPlanId || previousFoodPlanId,
+      new_plan_id: weeklyPlanId,
+      old_data: {
+        workout_plan_id: previousWorkoutPlanId,
+        food_plan_id: previousFoodPlanId
+      },
+      new_data: {
+        workout_plan_id: weeklyPlanId,
+        food_plan_id: foodPlanId,
+        workout_plan_name: normalizedPlan.workoutPlan.plan_name,
+        target_calories: workoutOnly ? null : normalizedPlan.mealPlan.target_calories
+      },
+      reason: truncateText(
+        normalizedPlan.workoutPlan.explanation || (workoutOnly ? 'AI regenerated workout plan.' : normalizedPlan.mealPlan.explanation) || 'AI regenerated plan.',
+        300
+      ),
+      created_by: 'ai',
+      status: 'applied',
+      applied_at: new Date().toISOString()
+    });
+    if (adjustment.error) {
+      console.warn('Failed to store ai_plan_adjustments:', adjustment.error.message);
     }
 
     return res.json({
@@ -4732,9 +4807,15 @@ JSON schema (fixed):
         mealItems: mealRows.length,
         weekStartDate: weekStartKey,
         membershipTier: accessState.membershipTier,
+        aiQuota: {
+          limit: accessState.aiChangeLimit,
+          used: accessState.aiChangeLimit === null ? null : accessState.aiChangeUsage + 1,
+          remaining: accessState.aiChangeLimit === null ? null : Math.max(0, (accessState.aiChangesRemaining || 0) - 1),
+          unlimited: accessState.isUnlimited
+        },
         ai_json: {
           workout_plan: normalizedPlan.workoutPlan,
-          meal_plan: normalizedPlan.mealPlan
+          meal_plan: workoutOnly ? null : normalizedPlan.mealPlan
         }
       }
     });

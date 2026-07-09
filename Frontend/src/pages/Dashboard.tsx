@@ -41,20 +41,6 @@ const getVietnamDayIndex = () => {
   return day === 0 ? 6 : day - 1;
 };
 
-const mealLabelMap: Record<string, string> = {
-  breakfast: 'Bữa sáng',
-  lunch: 'Bữa trưa',
-  snack: 'Bữa phụ',
-  dinner: 'Bữa tối',
-};
-
-const mealOrder: Record<string, number> = {
-  breakfast: 0,
-  lunch: 1,
-  snack: 2,
-  dinner: 3,
-};
-
 const formatNumber = (value: number) =>
   Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
 
@@ -70,37 +56,6 @@ const formatExerciseDetail = (item: any) => {
   if (restSeconds > 0) parts.push(`nghỉ ${restSeconds}s`);
 
   return parts.join(' · ') || 'Theo hướng dẫn AI';
-};
-
-const buildMealPreview = (items: any[]): SurveyPlanSummary['todayMeals'] => {
-  const groups = new Map<string, any[]>();
-
-  items
-    .filter((item) => !item.is_rest_day && item.food_id)
-    .forEach((item) => {
-      const mealType = String(item.meal_type || 'lunch');
-      groups.set(mealType, [...(groups.get(mealType) || []), item]);
-    });
-
-  return [...groups.entries()]
-    .sort(([a], [b]) => (mealOrder[a] ?? 99) - (mealOrder[b] ?? 99))
-    .map(([mealType, rows]) => {
-      const dish = rows
-        .map((row) => {
-          const name = row.foods?.name || 'Món ăn';
-          const quantity = Number(row.quantity || 1);
-          return quantity && quantity !== 1 ? `${name} x${formatNumber(quantity)}` : name;
-        })
-        .join(' + ');
-      const calories = rows.reduce((sum, row) => sum + Number(row.calories || 0) * Number(row.quantity || 1), 0);
-      const protein = rows.reduce((sum, row) => sum + Number(row.protein || 0) * Number(row.quantity || 1), 0);
-
-      return {
-        label: mealLabelMap[mealType] || mealType,
-        dish,
-        detail: `${Math.round(calories)} kcal · ${Math.round(protein)}g protein`,
-      };
-    });
 };
 
 export default function Dashboard() {
@@ -128,7 +83,7 @@ export default function Dashboard() {
     }
   }, [isLoggedIn, hasProfile, isCheckingProfile]);
 
-  const generateSevenDayPlanPreview = async (summary: SurveyPlanSummary) => {
+  const generateSevenDayWorkoutPreview = async (summary: SurveyPlanSummary) => {
     const todayKey = getVietnamDateKey();
     const weekStartKey = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
     const todayDayIndex = getVietnamDayIndex();
@@ -136,57 +91,47 @@ export default function Dashboard() {
     const response = await fetchWithAuth('/api/ai-coach/generate-weekly-plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weekStartDate: weekStartKey }),
+      body: JSON.stringify({ weekStartDate: weekStartKey, planScope: 'workout_only' }),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(getApiErrorMessage({
         status: response.status,
         payload,
-        fallbackMessage: 'Không thể tạo lịch AI 7 ngày. Vui lòng thử lại sau.',
+        fallbackMessage: 'Không thể tạo lịch tập AI 7 ngày. Vui lòng thử lại sau.',
         fallbackByStatus: {
-          503: 'AI đang quá tải khi tạo lịch 7 ngày. Vui lòng thử lại sau ít phút.'
+          503: 'AI đang quá tải khi tạo lịch tập 7 ngày. Vui lòng thử lại sau ít phút.'
         }
       }));
     }
 
     const weeklyPlanId = payload?.data?.weeklyPlanId;
-    const foodPlanId = payload?.data?.foodPlanId;
-    if (!weeklyPlanId || !foodPlanId) {
+    if (!weeklyPlanId) {
       throw new Error('AI đã tạo lịch nhưng thiếu mã kế hoạch để tải preview.');
     }
 
-    const [workoutRes, foodRes] = await Promise.all([
-      supabase
-        .from('weekly_plan_exercises')
-        .select(`
-          day_of_week,
-          exercise_id,
-          sets,
-          reps,
-          weight_kg,
-          rest_seconds,
-          planned_sets,
-          planned_reps,
-          planned_weight_kg,
-          planned_rest_seconds,
-          order_index,
-          is_rest_day,
-          exercises:exercise_id (name, body_part, target_muscle)
-        `)
-        .eq('weekly_plan_id', weeklyPlanId)
-        .eq('day_of_week', todayDayIndex)
-        .order('order_index', { ascending: true }),
-      supabase
-        .from('weekly_food_items')
-        .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, order_index, is_rest_day, foods:food_id (name, category, serving_unit)')
-        .eq('food_plan_id', foodPlanId)
-        .eq('day_of_week', todayDayIndex)
-        .order('order_index', { ascending: true }),
-    ]);
+    const workoutRes = await supabase
+      .from('weekly_plan_exercises')
+      .select(`
+        day_of_week,
+        exercise_id,
+        sets,
+        reps,
+        weight_kg,
+        rest_seconds,
+        planned_sets,
+        planned_reps,
+        planned_weight_kg,
+        planned_rest_seconds,
+        order_index,
+        is_rest_day,
+        exercises:exercise_id (name, body_part, target_muscle)
+      `)
+      .eq('weekly_plan_id', weeklyPlanId)
+      .eq('day_of_week', todayDayIndex)
+      .order('order_index', { ascending: true });
 
     if (workoutRes.error) throw workoutRes.error;
-    if (foodRes.error) throw foodRes.error;
 
     const workoutRows = ((workoutRes.data || []) as any[]).filter((item) => !item.is_rest_day && item.exercise_id);
     const todayExercises = workoutRows.length > 0
@@ -195,14 +140,12 @@ export default function Dashboard() {
           detail: formatExerciseDetail(item),
         }))
       : [{ name: 'Ngày nghỉ phục hồi', detail: 'AI xếp hôm nay là ngày nghỉ trong lịch 7 ngày.' }];
-    const todayMeals = buildMealPreview((foodRes.data || []) as any[]);
 
     setSurveyPlanSummary({
       ...summary,
       todayWorkout: workoutRows.length > 0 ? 'Lịch tập hôm nay' : 'Ngày nghỉ phục hồi',
-      meals: todayMeals.length > 0 ? `${todayMeals.length} bữa hôm nay` : summary.meals,
       todayExercises,
-      todayMeals: todayMeals.length > 0 ? todayMeals : summary.todayMeals,
+      todayMeals: [],
     });
   };
 
@@ -216,19 +159,19 @@ export default function Dashboard() {
     if (!summary) return;
 
     try {
-      await generateSevenDayPlanPreview(summary);
+      await generateSevenDayWorkoutPreview(summary);
       await refreshProfile();
     } catch (err: any) {
-      setSurveyPlanError(err?.message || 'Không thể tạo lịch AI 7 ngày.');
+      setSurveyPlanError(err?.message || 'Không thể tạo lịch tập AI 7 ngày.');
     } finally {
       setIsGeneratingSurveyPlan(false);
     }
   };
 
-  const startFirstDay = () => {
+  const continueToMealPlan = () => {
     setSurveyPlanSummary(null);
     setSurveyPlanError('');
-    navigate('/overview', { replace: true });
+    navigate('/diet-plan', { replace: true });
   };
 
   const openProfileEditor = () => {
@@ -251,7 +194,7 @@ export default function Dashboard() {
         summary={surveyPlanSummary}
         isGeneratingPlan={isGeneratingSurveyPlan}
         generationError={surveyPlanError}
-        onStart={startFirstDay}
+        onStart={continueToMealPlan}
       />
     );
   }

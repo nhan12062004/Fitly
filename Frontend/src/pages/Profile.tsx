@@ -79,6 +79,24 @@ const getBmiStatus = (bmi: number | null) => {
   return 'Cao';
 };
 
+const membershipLabels = {
+  free: 'Free',
+  plus: 'Plus',
+  pro: 'Pro',
+};
+
+const membershipCopy = {
+  free: 'Gói Free có 4 lượt đổi AI để bạn bắt đầu tinh chỉnh kế hoạch.',
+  plus: 'Gói Plus có 8 lượt đổi AI cho các lần chỉnh kế hoạch thường xuyên hơn.',
+  pro: 'Gói Pro mở khóa lượt đổi AI không giới hạn cho workout, meal plan và đề xuất trong AI Coach.',
+};
+
+const membershipBenefits = {
+  free: ['4 lượt đổi AI', 'Trải nghiệm tính năng cốt lõi', 'Có thể nâng cấp bất cứ lúc nào'],
+  plus: ['8 lượt đổi AI', 'Mọi tính năng của Free', 'Tối ưu kế hoạch theo phản hồi'],
+  pro: ['AI Coach không giới hạn', 'Kế hoạch không giới hạn', 'Ưu tiên tính năng mới'],
+};
+
 export default function Profile() {
   const { user, profile, membershipTier, openPremiumModal, refreshProfile } = useAuth();
   const toast = useToast();
@@ -240,7 +258,7 @@ export default function Profile() {
 
   const rawName = formData.full_name || profile?.full_name || user?.email?.split('@')[0] || 'Thành viên';
   const initial = rawName.trim().charAt(0).toUpperCase() || '?';
-  const membershipLabel = membershipTier === 'premium' ? 'Premium' : 'Free';
+  const membershipLabel = membershipLabels[membershipTier] || 'Free';
   const bmiLabel = bmi ? bmi.toFixed(1) : 'Chưa có';
   const bmiStatus = getBmiStatus(bmi);
   const lastUpdateLabel = latestBodyCreatedAt ? formatDate(latestBodyCreatedAt) : 'Chưa có mốc';
@@ -357,15 +375,10 @@ export default function Profile() {
                   </div>
                 </div>
                 <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">
-                  {membershipTier === 'premium'
-                    ? 'Bạn đang có toàn quyền tạo lại kế hoạch tập luyện, dinh dưỡng và Trợ lý cá nhân.'
-                    : 'Gói Free phù hợp để bắt đầu. Nâng cấp Premium để mở khóa các lần tạo và tinh chỉnh kế hoạch không giới hạn.'}
+                  {membershipCopy[membershipTier]}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-                  {(membershipTier === 'premium'
-                    ? ['AI Coach không giới hạn', 'Kế hoạch không giới hạn', 'Ưu tiên tính năng mới']
-                    : ['Trải nghiệm tính năng cốt lõi', '01 lần kích hoạt AI Coach', 'Có thể nâng cấp bất cứ lúc nào']
-                  ).map((benefit) => (
+                  {membershipBenefits[membershipTier].map((benefit) => (
                     <span key={benefit} className="inline-flex items-center gap-2 text-xs font-bold text-text-secondary">
                       <Check className="h-3.5 w-3.5 text-amber-300" />
                       {benefit}
@@ -374,14 +387,14 @@ export default function Profile() {
                 </div>
               </div>
 
-              {membershipTier === 'premium' ? (
+              {membershipTier === 'pro' ? (
                 <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-5 py-3 text-center">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-amber-300">Đang hoạt động</p>
-                  <p className="mt-1 text-sm font-black text-text-primary">Premium</p>
+                  <p className="mt-1 text-sm font-black text-text-primary">Pro</p>
                 </div>
               ) : (
                 <button type="button" onClick={openPremiumModal} className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-amber-300 px-6 text-sm font-black text-text-inverse transition-colors hover:bg-amber-200">
-                  Xem gói Premium
+                  Xem gói Plus / Pro
                   <ChevronRight className="h-4 w-4" />
                 </button>
               )}

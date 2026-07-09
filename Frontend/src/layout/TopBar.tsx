@@ -100,7 +100,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('theme') === 'light';
   });
-  const { user, profile, isAdmin, membershipTier, isPremium, openPremiumModal, refreshTick } = useAuth();
+  const { user, profile, isAdmin, membershipTier, refreshTick } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isNotificationsPage = location.pathname === '/notifications';
@@ -117,8 +117,8 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     ? `${nameParts[nameParts.length - 1]} ${nameParts[0]}`
     : rawName;
   const userInitial = nameParts[nameParts.length - 1]?.charAt(0).toUpperCase() || rawName.charAt(0).toUpperCase() || '?';
-  const membershipLabel = isPremium ? 'PREMIUM MEMBER' : 'FREE MEMBER';
-  const membershipClassName = isPremium ? 'text-amber-300' : 'text-accent';
+  const membershipLabel = `${membershipTier.toUpperCase()} MEMBER`;
+  const membershipClassName = membershipTier === 'pro' ? 'text-amber-300' : membershipTier === 'plus' ? 'text-ai' : 'text-accent';
 
 
   const [query, setQuery] = useState('');
@@ -696,15 +696,9 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
         <div className="topbar-user flex shrink-0 items-center gap-3 rounded-full px-1.5 py-1">
           <div className="topbar-user-meta hidden flex-col items-end lg:flex">
             <span className="text-sm font-semibold text-text-primary leading-tight">{userName}</span>
-            {isPremium ? (
-              <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
-                {membershipLabel}
-              </span>
-            ) : (
-              <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
-                {membershipLabel}
-              </span>
-            )}
+            <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
+              {membershipLabel}
+            </span>
           </div>
           <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-text-inverse transition-transform">
             {userInitial}

@@ -533,10 +533,11 @@ export default function LandingPage() {
                 </div>
                 <div className="mt-6">
                   <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">0đ</p>
-                  <p className="mt-1 text-xs font-black text-text-tertiary">25 credit AI / tháng</p>
+                  <p className="mt-1 text-xs font-black text-text-tertiary">4 lượt đổi AI</p>
                 </div>
                 <div className="mt-6 grid gap-3.5">
                   {[
+                    '4 lượt đổi kế hoạch bằng AI',
                     'Kế hoạch ăn & tập AI cá nhân hóa',
                     'Quét món ăn bằng AI',
                     'Thử thách + bảng xếp hạng',
@@ -572,12 +573,12 @@ export default function LandingPage() {
                   <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">
                     49.000đ <span className="text-sm font-bold text-text-tertiary">/tháng</span>
                   </p>
-                  <p className="mt-1 text-xs font-black text-text-tertiary">200 credit AI / tháng</p>
+                  <p className="mt-1 text-xs font-black text-text-tertiary">8 lượt đổi AI</p>
                 </div>
                 <div className="mt-6 grid gap-3.5">
                   {[
                     'Mọi tính năng của Free',
-                    'Gấp 8 lần lượt AI mỗi tháng',
+                    '8 lượt đổi kế hoạch bằng AI',
                     'AI Coach chat thoải mái',
                     'Smart meal planner theo ngân sách',
                   ].map((item) => (
@@ -611,12 +612,12 @@ export default function LandingPage() {
                   <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">
                     99.000đ <span className="text-sm font-bold text-text-tertiary">/tháng</span>
                   </p>
-                  <p className="mt-1 text-xs font-black text-text-tertiary">Credit AI không giới hạn</p>
+                  <p className="mt-1 text-xs font-black text-text-tertiary">Lượt đổi AI không giới hạn</p>
                 </div>
                 <div className="mt-6 grid gap-3.5">
                   {[
                     'Mọi tính năng của Plus',
-                    'Không giới hạn phiên AI',
+                    'Không giới hạn lượt đổi AI',
                     'Tạo lại kế hoạch bao nhiêu lần tùy thích',
                   ].map((item) => (
                     <div key={item} className="flex items-start gap-3 text-sm font-semibold text-text-secondary">
