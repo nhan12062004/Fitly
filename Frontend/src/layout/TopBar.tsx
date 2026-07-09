@@ -3,9 +3,7 @@ import {
   CalendarCheck,
   CheckCheck,
   CheckCircle2,
-  ChevronDown,
   ChevronRight,
-  Crown,
   Droplet,
   Dumbbell,
   Flame,
@@ -17,7 +15,6 @@ import {
   Menu,
   Moon,
   Send,
-  Settings,
   Shield,
   Sparkles,
   Sun,
@@ -135,9 +132,7 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
   const {
     signOut,
     user,
-    openPremiumModal,
     isAdmin,
-    isPremium,
     membershipTier,
     profile,
     refreshProfile,
@@ -593,39 +588,7 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
   );
 
   const avatarDropdown = (
-    <div className="topbar-menu-panel topbar-avatar-menu overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-2xl shadow-black/40 backdrop-blur-xl">
-      <div className="flex items-center gap-3 border-b border-border-primary px-4 py-3">
-        <div className="topbar-avatar flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-text-inverse">
-          {userInitial}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-text-primary">{userName}</p>
-          <p className={`mt-0.5 text-[10px] font-black uppercase tracking-wider ${membershipClassName}`}>
-            {membershipLabel}
-          </p>
-        </div>
-        <Settings className="h-4 w-4 shrink-0 text-text-tertiary" />
-      </div>
-
-      {!isPremium && (
-        <div className="border-b border-border-primary p-3">
-          <button
-            type="button"
-            onClick={() => {
-              setIsAvatarMenuOpen(false);
-              openPremiumModal();
-            }}
-            className="topbar-premium-card flex w-full items-start gap-3 rounded-xl border border-amber-300/30 bg-[linear-gradient(145deg,rgba(245,158,11,0.22),rgba(39,31,18,0.9)_48%,rgba(14,17,22,0.96))] p-3 text-left transition-colors"
-          >
-            <Crown className="mt-0.5 h-5 w-5 shrink-0 text-amber-300 fill-amber-300/25" />
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-amber-100">Nâng cấp Plus / Pro</span>
-              <span className="mt-1 block text-xs leading-5 text-amber-100/70">Thêm lượt đổi AI hoặc mở khóa Pro không giới hạn.</span>
-            </span>
-          </button>
-        </div>
-      )}
-
+    <div className="topbar-menu-panel topbar-avatar-menu overflow-hidden rounded-2xl border border-border-primary shadow-2xl shadow-black/40">
       <div className="border-b border-border-primary p-3">
         <div className="topbar-water-card rounded-xl bg-bg-tertiary p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
@@ -862,7 +825,7 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
           <button
             type="button"
             onClick={toggleAvatarMenu}
-            className="topbar-user flex shrink-0 items-center gap-2 rounded-full px-1.5 py-1"
+            className={`topbar-user flex cursor-pointer shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-bg-tertiary ${isAvatarMenuOpen ? 'bg-bg-tertiary' : ''}`}
             aria-label="Mở cài đặt tài khoản"
             aria-expanded={isAvatarMenuOpen}
           >
@@ -872,10 +835,9 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
                 {membershipLabel}
               </span>
             </div>
-            <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-text-inverse transition-transform">
+            <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-sm font-bold text-text-inverse transition-transform">
               {userInitial}
             </div>
-            <ChevronDown className={`hidden h-4 w-4 text-text-tertiary transition-transform sm:block ${isAvatarMenuOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {isAvatarMenuOpen && (

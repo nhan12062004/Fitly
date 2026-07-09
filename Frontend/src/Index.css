@@ -578,6 +578,10 @@ body {
     box-shadow: 0 28px 70px rgb(var(--shadow-rgb) / 0.24);
   }
 
+  .topbar-avatar-menu {
+    background: #050505;
+  }
+
   .topbar-premium-card,
   .topbar-water-card {
     box-shadow:
@@ -767,6 +771,10 @@ body {
       inset 0 0 0 1px rgba(15, 23, 42, 0.08),
       0 18px 40px rgba(15, 23, 42, 0.08),
       inset 0 1px 0 rgba(255,255,255,0.9);
+  }
+
+  .light .topbar-avatar-menu {
+    background: #050505;
   }
 
   .light .topbar-premium-card {
