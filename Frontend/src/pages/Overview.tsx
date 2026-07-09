@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from 'react';
-import { CheckCircle2, ChevronRight, Droplet, Dumbbell, Flame, Sparkles, Utensils } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Dumbbell, Flame, Sparkles, Utensils } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import ActiveChallengeCard from '../components/ActiveChallengeCard';
 import {
   calculateDailyStreak,
   completeDailyStreakToday,
@@ -714,6 +713,13 @@ export default function Overview() {
   const mealTarget = dailyProgress.calorieTarget || 2400;
   const mealProtein = Math.round(dailyNutrition.protein || 0);
   const mealProteinTarget = Math.round(mealTarget * 0.3 / 4);
+  const workoutCompletionPercent = hasWorkoutPlan
+    ? Math.min(100, Math.round((completedWorkoutCount / Math.max(1, todayExercises.length)) * 100))
+    : 0;
+  const remainingWorkoutCount = hasWorkoutPlan ? Math.max(0, todayExercises.length - completedWorkoutCount) : 0;
+  const mealCaloriePercent = Math.min(100, Math.round((actualMealTotalKcal / Math.max(1, mealTarget)) * 100));
+  const mealProteinPercent = Math.min(100, Math.round((mealProtein / Math.max(1, mealProteinTarget)) * 100));
+  const loggedMealsCount = todayMeals.filter((meal) => meal.kcal > 0).length;
   const progressRows = [
     {
       label: 'Nước',
@@ -730,158 +736,129 @@ export default function Overview() {
     {
       label: 'Tập luyện',
       value: hasWorkoutPlan ? (workoutCompleted ? 'Đã hoàn thành' : 'Chưa hoàn thành') : 'Chưa có kế hoạch',
-      width: hasWorkoutPlan ? Math.min(100, Math.round((completedWorkoutCount / Math.max(1, todayExercises.length)) * 100)) : 0,
+      width: workoutCompletionPercent,
       color: 'bg-accent'
     }
   ];
-  const waterCompleted = dailyProgress.waterIntake >= Math.max(0.1, dailyProgress.waterGoal);
-  const sleepCompleted = dailyProgress.sleepActual >= Math.max(1, dailyProgress.sleepTarget);
-  const pendingPriorityCount = [!waterCompleted, !sleepCompleted, !workoutCompleted].filter(Boolean).length;
-  const heroTaskSummary = pendingPriorityCount === 0
-    ? 'Hôm nay bạn đã hoàn thành các việc chính'
-    : `Hôm nay bạn có ${pendingPriorityCount} việc chính cần hoàn thành`;
-  const workoutHeroLabel = hasWorkoutPlan
-    ? (workoutCompleted ? 'Đã xong buổi tập hôm nay' : `${plannedWorkoutMinutes} phút tập cần hoàn thành`)
-    : 'Chưa có buổi tập hôm nay';
-  const mealHeroLabel = `${todayMeals.length} bữa ăn · ${mealProtein}g protein`;
-  const streakHeroLabel = `Streak ${formatWholeNumber(dailyStreak.count)} ngày · ${
-    dailyStreak.isTodayCompleted ? 'đã tính hôm nay' : 'chưa tính hôm nay'
-  }`;
-  const streakStatusText = dailyStreak.status === 'completed'
-    ? 'Bạn đã giữ streak hôm nay.'
-    : dailyStreak.status === 'pending'
-      ? 'Chưa tính streak hôm nay'
-      : 'Bắt đầu streak đầu tiên';
-  const streakSupportingText = dailyStreak.status === 'completed'
-    ? 'Tốt lắm, ngày mai chỉ cần thêm một hành động lành mạnh nữa để nối chuỗi.'
-    : dailyStreak.status === 'pending'
-      ? 'Hoàn thành một buổi tập, ghi bữa ăn, uống đủ nước hoặc ghi nhận giấc ngủ để giữ streak.'
-      : 'Chỉ cần hoàn thành một hành động lành mạnh hôm nay là bạn có streak 1 ngày.';
+  const healthScoreParts = [
+    Math.min(100, Math.round((dailyProgress.waterIntake / Math.max(0.1, dailyProgress.waterGoal)) * 100)),
+    Math.min(100, Math.round((dailyProgress.sleepActual / Math.max(1, dailyProgress.sleepTarget)) * 100)),
+    hasWorkoutPlan ? Math.min(100, Math.round((completedWorkoutCount / Math.max(1, todayExercises.length)) * 100)) : 0,
+  ];
+  const healthScore = Math.round(healthScoreParts.reduce((sum, value) => sum + value, 0) / healthScoreParts.length);
+  const healthScoreLabel = healthScore >= 80 ? 'Rất tốt' : healthScore >= 50 ? 'Đang tiến bộ' : 'Cần cải thiện';
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="overview-hero overflow-hidden rounded-xl border border-border-primary px-5 py-5 md:px-6 md:py-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-          <p className="text-sm font-black text-text-primary md:text-base">
+      <section className="overview-hero flex flex-col justify-between overflow-hidden rounded-xl px-5 py-5 md:px-6 md:py-6">
+        <div className="max-w-[28rem]">
+          <p className="text-sm font-black text-accent md:text-base">
             {greetingLabel}, {userName} <span aria-hidden>👋</span>
           </p>
-            <p className="mt-1 text-sm font-semibold text-text-secondary md:text-[15px]">
-              {heroTaskSummary}
-            </p>
-          </div>
+          <h1 className="mt-2 max-w-[20rem] text-[2rem] font-black leading-[1.02] text-text-primary md:text-[2.55rem]">
+            Chào mừng đến với Fitly!
+          </h1>
+          <span className="mt-4 block h-1.5 w-16 rounded-full bg-accent" aria-hidden="true" />
+          <p className="mt-4 max-w-[21rem] text-sm font-semibold leading-6 text-text-secondary md:text-[15px]">
+            Tạo kế hoạch tập & ăn để bắt đầu theo dõi hành trình của bạn.
+          </p>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold md:text-sm">
-          <span className="inline-flex items-center gap-2 rounded-full border border-accent/15 bg-accent/10 px-3 py-2 text-accent">
-            <Dumbbell className="h-3.5 w-3.5" />
-            {workoutHeroLabel}
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-info/15 bg-info/10 px-3 py-2 text-info">
-            <Utensils className="h-3.5 w-3.5" />
-            {mealHeroLabel}
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-warning/15 bg-warning/10 px-3 py-2 text-warning">
-            <Flame className="h-3.5 w-3.5" />
-            {streakHeroLabel}
-          </span>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="today-streak-title"
-        className={`overflow-hidden rounded-xl border p-4 shadow-[0_18px_48px_rgba(0,0,0,0.12)] md:p-5 ${
-          dailyStreak.isTodayCompleted
-            ? 'border-warning/25 bg-[linear-gradient(110deg,rgba(245,158,11,0.13),transparent_48%),var(--bg-secondary)]'
-            : 'border-border-primary bg-bg-secondary/80'
-        }`}
-      >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 items-start gap-3.5">
-            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-              dailyStreak.isTodayCompleted ? 'bg-warning/15 text-warning' : 'bg-bg-tertiary text-text-tertiary'
-            }`}>
-              <Flame className="h-6 w-6" />
-            </span>
-            <div className="min-w-0">
-              <p id="today-streak-title" className="text-xs font-black uppercase tracking-[0.14em] text-text-tertiary">Streak hôm nay</p>
-              <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <p className="text-2xl font-black text-text-primary">{formatWholeNumber(dailyStreak.count)} ngày</p>
-                <p className={`text-sm font-black ${dailyStreak.isTodayCompleted ? 'text-warning' : 'text-text-secondary'}`}>
-                  {streakStatusText}
-                </p>
+        <div className="overview-hero-metrics mt-6 grid max-w-[38rem] grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="overview-hero-metric-card flex min-w-0 items-center gap-4 rounded-2xl border border-white/18 bg-slate-900/55 p-3 backdrop-blur-md">
+            <div
+              className="overview-hero-score-ring flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
+              style={{
+                background: `conic-gradient(rgb(var(--accent-rgb)) ${healthScore * 3.6}deg, rgba(148, 163, 184, 0.28) 0deg)`,
+              }}
+            >
+              <div className="flex h-[3.25rem] w-[3.25rem] flex-col items-center justify-center rounded-full bg-slate-800/95 leading-none">
+                <span className="text-xl font-black text-white">{healthScore}</span>
+                <span className="text-[10px] font-bold text-slate-300">/100</span>
               </div>
-              <p className="mt-1.5 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">{streakSupportingText}</p>
-              {dailyStreak.completedTodayReasons.length > 0 && (
-                <p className="mt-2 text-xs font-bold text-accent">
-                  Đã tính từ: {dailyStreak.completedTodayReasons.join(', ')}
-                </p>
-              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-200">Điểm sức khỏe</p>
+              <p className="mt-1 text-base font-black text-accent">{healthScoreLabel}</p>
             </div>
           </div>
-          {!dailyStreak.isTodayCompleted && (
-            <button
-              type="button"
-              onClick={() => navigate('/exercises')}
-              className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover md:w-auto"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              Hoàn thành hôm nay
-            </button>
-          )}
+
+          <div className="overview-hero-metric-card flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/18 bg-slate-900/55 p-3 backdrop-blur-md">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-200">Chuỗi duy trì</p>
+              <p className="mt-2 text-2xl font-black text-white">{formatWholeNumber(dailyStreak.count)} ngày</p>
+              <div className="mt-3 flex gap-2" aria-hidden="true">
+                {Array.from({ length: 7 }).map((_, index) => (
+                  <span
+                    key={index}
+                    className={`h-1.5 w-5 rounded-full ${index < Math.min(7, dailyStreak.count) ? 'bg-accent' : 'bg-slate-500/65'}`}
+                  />
+                ))}
+              </div>
+            </div>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-text-inverse">
+              <Flame className="h-5 w-5" />
+            </span>
+          </div>
         </div>
       </section>
 
-      <ActiveChallengeCard />
-
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:col-span-2 md:p-6 xl:col-span-1">
+        <article className="overview-card overview-card--workout flex min-h-[390px] min-w-0 flex-col gap-5 rounded-xl border p-5 md:col-span-2 md:p-6 xl:col-span-1">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-accent">Bài tập</p>
+              <h2 className="mt-3 text-2xl font-black leading-[1.1] text-text-primary">
+                {hasWorkoutPlan ? workoutHeadline : 'Sẵn sàng cho buổi tập đầu tiên'}
+              </h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary">
+                {hasWorkoutPlan ? workoutMetaLine : 'Tạo lịch tập cá nhân hóa để Fitly theo dõi từng buổi tập của bạn.'}
+              </p>
+            </div>
+            <TodayIcon icon={<Dumbbell className="h-5 w-5" />} tone="workout" size="sm" />
+          </div>
+
           {hasWorkoutPlan ? (
             <>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">1. Bài tập hôm nay</p>
-                  <h2 className="mt-4 text-[1.65rem] font-black leading-[1.1] text-text-primary">
-                    {workoutHeadline}
-                  </h2>
-                  <p className="mt-2 text-sm font-semibold text-text-secondary">{workoutMetaLine}</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-xl border border-border-primary/80 bg-bg-tertiary/35 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Xong</p>
+                  <p className="mt-1 text-lg font-black text-text-primary">{completedWorkoutCount}/{todayExercises.length}</p>
                 </div>
-                <TodayIcon icon={<Dumbbell className="h-5 w-5" />} tone="workout" size="sm" />
+                <div className="rounded-xl border border-border-primary/80 bg-bg-tertiary/35 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Thời lượng</p>
+                  <p className="mt-1 text-lg font-black text-text-primary">{plannedWorkoutMinutes}'</p>
+                </div>
+                <div className="rounded-xl border border-border-primary/80 bg-bg-tertiary/35 p-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Còn lại</p>
+                  <p className="mt-1 text-lg font-black text-text-primary">{remainingWorkoutCount}</p>
+                </div>
               </div>
 
-              <div className="themed-subtle-panel flex flex-1 flex-col rounded-xl border p-4">
+              <div className="flex flex-1 flex-col rounded-xl border border-border-primary/85 bg-bg-tertiary/30 p-3.5">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">Danh sách bài</p>
-                  <span className="rounded-full border border-border-primary bg-bg-tertiary/55 px-2.5 py-1 text-[11px] font-black text-text-secondary">
-                    {todayExercises.length} bài
-                  </span>
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-tertiary">Lịch hôm nay</p>
+                  <span className="rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-black text-accent">{workoutCompletionPercent}%</span>
                 </div>
 
-                <ol className="mt-4 space-y-2.5">
-                  {todayExercises.slice(0, 3).map((exercise, index) => (
-                    <li key={`${exercise.name}-${index}`} className="flex items-start gap-3 rounded-lg border border-border-primary/80 bg-bg-tertiary/35 px-3 py-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-secondary text-xs font-black text-text-secondary">
+                <ol className="mt-3 space-y-2">
+                  {todayExercises.slice(0, 4).map((exercise, index) => (
+                    <li key={`${exercise.name}-${index}`} className="group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-bg-secondary/70">
+                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                        exercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-bg-secondary text-text-tertiary'
+                      }`}>
                         {index + 1}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-black leading-6 text-text-primary">{exercise.name}</p>
-                        <p className="mt-0.5 text-xs font-semibold text-text-secondary">{exercise.sets} hiệp × {exercise.reps}</p>
+                        <p className="truncate text-sm font-black text-text-primary">{exercise.name}</p>
+                        <p className="mt-0.5 text-xs font-semibold text-text-tertiary">{exercise.sets} hiệp x {exercise.reps}</p>
                       </div>
                     </li>
                   ))}
                 </ol>
-
-                <div className="mt-4 rounded-xl border border-accent/15 bg-accent/8 px-4 py-3">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-accent">Gợi ý nhanh</p>
-                  <p className="mt-1 text-sm font-semibold leading-6 text-text-secondary">
-                    {workoutCompleted
-                      ? 'Buổi tập hôm nay đã xong. Bạn có thể mở lại để xem chi tiết từng bài hoặc đổi một buổi nhẹ hơn cho ngày mai.'
-                      : 'Bắt đầu buổi tập để mở đầy đủ bài, set, reps và đánh dấu hoàn thành ngay trong phiên tập.'}
-                  </p>
-                </div>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() =>
@@ -907,49 +884,74 @@ export default function Overview() {
                   }
                   className="inline-flex h-12 items-center justify-center rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
                 >
-                  Bắt đầu buổi tập
+                  Bắt đầu tập
                 </button>
                 <button
                   type="button"
                   onClick={() => navigate('/smart-planner')}
                   className="inline-flex h-12 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
                 >
-                  Đổi buổi nhẹ hơn
+                  Chỉnh kế hoạch
                 </button>
               </div>
             </>
           ) : (
-            <div className="mt-6 flex flex-1 flex-col justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
+            <div className="flex flex-1 flex-col justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
               <span className="mx-auto inline-flex">
                 <TodayIcon icon={<Sparkles className="h-5 w-5" />} tone="coach" size="sm" />
               </span>
-              <p className="mx-auto mt-4 w-full max-w-[18rem] min-w-0 break-words text-sm font-semibold leading-6 text-text-secondary sm:max-w-[26rem]">
-                Trợ lý cá nhân có thể tạo lịch tập và thực đơn dựa trên mục tiêu của bạn.
+              <p className="mx-auto mt-4 max-w-[22rem] text-sm font-semibold leading-6 text-text-secondary">
+                Trợ lý cá nhân có thể tạo lịch tập theo mục tiêu, lịch rảnh và thiết bị của bạn.
               </p>
               <button
                 type="button"
                 onClick={() => navigate('/smart-planner')}
                 className="mx-auto mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
               >
-                Tạo kế hoạch với Trợ lý cá nhân
+                Tạo kế hoạch
               </button>
             </div>
           )}
         </article>
 
-        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+        <article className="overview-card overview-card--meal flex min-h-[390px] min-w-0 flex-col gap-5 rounded-xl border p-5 md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">2. Thực đơn hôm nay</p>
-              <p className="mt-4 text-base font-black text-text-primary">Đã ăn: {formatWholeNumber(actualMealTotalKcal)} / {formatWholeNumber(mealTarget)} kcal</p>
-              <p className="mt-2 text-base font-black text-text-primary">Protein: {mealProtein} / {mealProteinTarget}g</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-info">Thực đơn</p>
+              <h2 className="mt-3 text-2xl font-black leading-[1.1] text-text-primary">{formatWholeNumber(actualMealTotalKcal)} kcal</h2>
+              <p className="mt-2 text-sm font-semibold text-text-secondary">
+                {loggedMealsCount}/{todayMeals.length} bữa có dữ liệu · Kế hoạch {formatWholeNumber(plannedMealTotalKcal)} kcal
+              </p>
             </div>
             <TodayIcon icon={<Utensils className="h-5 w-5" />} tone="nutrition" size="sm" />
           </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-info/20 bg-info/10 p-3">
+              <div className="flex items-end justify-between gap-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-info">Calories</p>
+                <p className="text-sm font-black text-info">{mealCaloriePercent}%</p>
+              </div>
+              <p className="mt-2 text-sm font-bold text-text-primary">{formatWholeNumber(actualMealTotalKcal)} / {formatWholeNumber(mealTarget)}</p>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-info/15">
+                <div className="h-full rounded-full bg-info" style={{ width: `${mealCaloriePercent}%` }} />
+              </div>
+            </div>
+            <div className="rounded-xl border border-accent/20 bg-accent/10 p-3">
+              <div className="flex items-end justify-between gap-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Protein</p>
+                <p className="text-sm font-black text-accent">{mealProteinPercent}%</p>
+              </div>
+              <p className="mt-2 text-sm font-bold text-text-primary">{mealProtein} / {mealProteinTarget}g</p>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-accent/15">
+                <div className="h-full rounded-full bg-accent" style={{ width: `${mealProteinPercent}%` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-1 flex-col gap-2">
             {todayMeals.slice(0, 4).map((meal, index) => (
-              <div key={`${meal.type}-${index}`} className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-2.5">
+              <div key={`${meal.type}-${index}`} className="flex items-center gap-3 rounded-xl border border-border-primary/80 bg-bg-tertiary/35 px-3 py-2.5">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-secondary text-xs font-black text-text-tertiary">
                   {index + 1}
                 </span>
@@ -957,37 +959,53 @@ export default function Overview() {
                   <p className="truncate text-sm font-black text-text-primary">{meal.foods}</p>
                   <p className="mt-0.5 text-xs font-semibold text-text-tertiary">{meal.label}</p>
                 </div>
-                <span className="shrink-0 text-right text-sm font-black text-text-secondary">{formatWholeNumber(meal.kcal)} kcal</span>
+                <span className="shrink-0 rounded-full bg-bg-secondary px-2.5 py-1 text-[11px] font-black text-text-secondary">
+                  {formatWholeNumber(meal.kcal)}
+                </span>
               </div>
             ))}
           </div>
 
-          <div className="mt-auto border-t border-border-primary/70 pt-4">
-            <button
-              type="button"
-              onClick={() => navigate('/diet-plan')}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-info/40 hover:text-info"
-            >
-              Xem thực đơn
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/diet-plan')}
+            className="mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-info/40 hover:text-info"
+          >
+            Xem thực đơn
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </article>
 
-        <article className="flex min-h-[360px] min-w-0 flex-col gap-5 rounded-xl border border-border-primary bg-bg-secondary/80 p-5 shadow-[0_22px_60px_rgba(0,0,0,0.14)] backdrop-blur-xl md:p-6">
+        <article className="overview-card overview-card--progress flex min-h-[390px] min-w-0 flex-col gap-5 rounded-xl border p-5 md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-text-tertiary">3. Tiến độ hôm nay</p>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-warning">Tiến độ</p>
+              <h2 className="mt-3 text-2xl font-black leading-[1.1] text-text-primary">{healthScore}/100</h2>
+              <p className="mt-2 text-sm font-semibold text-text-secondary">Trạng thái hôm nay: {healthScoreLabel}</p>
             </div>
             <TodayIcon icon={<CheckCircle2 className="h-5 w-5" />} tone="score" size="sm" />
           </div>
 
-          <div className="space-y-5">
+          <div className="rounded-xl border border-border-primary/85 bg-bg-tertiary/30 p-4">
+            <div
+              className="mx-auto flex h-28 w-28 items-center justify-center rounded-full"
+              style={{
+                background: `conic-gradient(rgb(var(--warning-rgb)) ${healthScore * 3.6}deg, rgba(148, 163, 184, 0.22) 0deg)`,
+              }}
+            >
+              <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-bg-secondary">
+                <span className="text-2xl font-black text-text-primary">{healthScore}</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">điểm</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
             {progressRows.map((row) => (
               <div key={row.label}>
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <span className="text-sm font-black text-text-primary">{row.label}</span>
-                  <span className="text-sm font-bold text-text-secondary">{row.value}</span>
+                  <span className="text-xs font-bold text-text-secondary">{row.value}</span>
                 </div>
                 <div className="macro-progress h-2 overflow-hidden rounded-full bg-bg-tertiary">
                   <div
@@ -999,14 +1017,14 @@ export default function Overview() {
             ))}
           </div>
 
-          <div className="mt-auto rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 py-4">
-            <div className="flex items-center gap-3">
-              <TodayIcon icon={<Droplet className="h-5 w-5" />} tone="water" size="sm" />
-              <p className="text-sm font-semibold leading-6 text-text-secondary">
-                Cập nhật nước, giấc ngủ và hoàn thành tập luyện để Trợ lý cá nhân đánh giá tiến độ chính xác hơn.
-              </p>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/progress')}
+            className="mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-warning/40 hover:text-warning"
+          >
+            Xem tiến độ
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </article>
       </section>
     </div>

@@ -613,43 +613,36 @@ body {
   }
 
   .overview-hero {
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-tertiary: #94a3b8;
+    --border-primary: rgba(255,255,255,0.16);
     position: relative;
     overflow: hidden;
-    background:
-      linear-gradient(140deg, color-mix(in srgb, var(--surface-hero) 98%, transparent) 0%, color-mix(in srgb, var(--bg-secondary) 94%, transparent) 44%, color-mix(in srgb, var(--bg-primary) 98%, transparent) 100%);
-    box-shadow:
-      0 30px 90px rgb(var(--shadow-rgb) / 0.22),
-      inset 0 1px 0 rgba(255,255,255,0.05);
-  }
-
-  .overview-hero::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 24% 22%, rgba(255,255,255,0.055), transparent 28%),
-      radial-gradient(circle at 82% 24%, rgba(255,255,255,0.035), transparent 24%),
-      linear-gradient(120deg, rgba(255,255,255,0.08), transparent 24%);
-    opacity: 0.95;
-  }
-
-  .overview-hero::after {
-    content: "";
-    position: absolute;
-    inset: auto -8% -28% 38%;
-    height: 75%;
-    background:
-      radial-gradient(circle at center, rgba(255,255,255,0.04), transparent 38%),
-      radial-gradient(circle at 64% 38%, rgba(255,255,255,0.025), transparent 32%);
-    filter: blur(12px);
-    opacity: 0.9;
-    pointer-events: none;
+    isolation: isolate;
+    min-height: clamp(19rem, 26vw, 23rem);
+    background: url('/gym-hero-banner.png');
+    background-position: center right;
+    background-repeat: no-repeat;
+    background-size: cover;
+    box-shadow: none;
   }
 
   .overview-hero > * {
     position: relative;
     z-index: 1;
+  }
+
+  .overview-hero-metric-card {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.16),
+      0 16px 36px rgb(0 0 0 / 0.26);
+  }
+
+  .overview-hero-score-ring {
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.08),
+      0 10px 24px rgb(0 0 0 / 0.20);
   }
 
   .overview-kpi {
@@ -690,6 +683,11 @@ body {
     inset: 0;
     pointer-events: none;
     opacity: 0.9;
+  }
+
+  .overview-card > * {
+    position: relative;
+    z-index: 1;
   }
 
   .overview-card--workout {
@@ -786,13 +784,6 @@ body {
     box-shadow:
       0 10px 24px rgba(15,23,42,0.10),
       inset 0 1px 0 rgba(255,255,255,0.38);
-  }
-
-  .light .overview-hero::before {
-    background:
-      radial-gradient(circle at 24% 22%, rgba(0,0,0,0.04), transparent 28%),
-      radial-gradient(circle at 82% 24%, rgba(0,0,0,0.025), transparent 24%),
-      linear-gradient(120deg, rgba(255,255,255,0.56), transparent 24%);
   }
 
   .light .overview-card {
