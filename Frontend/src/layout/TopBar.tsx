@@ -1,8 +1,39 @@
-import { Search, Moon, Sun, Bell, Menu, Dumbbell, Utensils, Home, Timer, Blocks, Brain, ChevronRight, X, Loader2, Flame, Sparkles, TrendingUp, Shield, CheckCircle2, CalendarCheck, Droplet, MessageSquare, CheckCheck } from 'lucide-react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Bell,
+  CalendarCheck,
+  CheckCheck,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Crown,
+  Droplet,
+  Dumbbell,
+  Flame,
+  GlassWater,
+  Home,
+  Loader2,
+  Lock,
+  LogOut,
+  Menu,
+  Moon,
+  Send,
+  Settings,
+  Shield,
+  Sparkles,
+  Sun,
+  Trash2,
+  TrendingUp,
+  User,
+  Users,
+  Utensils,
+  X,
+} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ElementType } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../contexts/AuthContext';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/Supabase';
+import { API_BASE_URL } from '../lib/Api';
 import {
   archiveNotification,
   ensureActionableNotifications,
@@ -13,54 +44,57 @@ import {
   type NotificationTone,
   type UserNotification,
 } from '../lib/Notifications';
+import { supabase } from '../lib/Supabase';
 
-function normalizeViet(str: string): string {
-  return str
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase();
-}
+const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
-interface SearchResult {
-  id: string;
-  title: string;
-  subtitle: string;
-  type: 'exercise' | 'diet' | 'page' | 'workout';
-  href: string;
-}
-
-type PageIcon = 'home' | 'brain' | 'dumbbell' | 'utensils' | 'timer' | 'blocks' | 'sparkles' | 'trendingUp' | 'shield' | 'bell';
-
-const BASE_QUICK_ACCESS_PAGES: (SearchResult & { pageIcon: PageIcon; badge?: string; badgeColor?: string })[] = [
-  { id: 'overview', title: 'Tổng quan', subtitle: 'Trang chủ & thống kê', type: 'page', href: '/overview', pageIcon: 'home' },
-  { id: 'smart-planner', title: 'Trợ lý cá nhân', subtitle: 'Lên kế hoạch tập và ăn uống', type: 'page', href: '/smart-planner', pageIcon: 'sparkles' },
-  { id: 'exercises', title: 'Bài tập', subtitle: 'Lịch tập và thư viện', type: 'page', href: '/exercises', pageIcon: 'dumbbell' },
-  { id: 'diet-plan', title: 'Thực đơn', subtitle: 'Bữa ăn và calories', type: 'page', href: '/diet-plan', pageIcon: 'utensils' },
-  { id: 'progress', title: 'Tiến độ', subtitle: 'Theo dõi thay đổi', type: 'page', href: '/progress', pageIcon: 'trendingUp' },
-  { id: 'notifications', title: 'Thông báo', subtitle: 'Lịch tập, dinh dưỡng và AI Coach', type: 'page', href: '/notifications', pageIcon: 'bell' },
-];
-
-const PAGE_ICON_MAP: Record<PageIcon, { Icon: React.ElementType; bg: string; color: string }> = {
-  home:      { Icon: Home,     bg: 'bg-info/10', color: 'text-info' },
-  brain:     { Icon: Brain,    bg: 'bg-warning/10', color: 'text-warning' },
-  dumbbell:  { Icon: Dumbbell, bg: 'bg-accent/10', color: 'text-accent' },
-  utensils:  { Icon: Utensils, bg: 'bg-info/10', color: 'text-info' },
-  timer:     { Icon: Timer,    bg: 'bg-warning/10', color: 'text-warning' },
-  blocks:    { Icon: Blocks,   bg: 'bg-ai/10', color: 'text-ai' },
-  sparkles:  { Icon: Sparkles, bg: 'bg-ai/10', color: 'text-ai' },
-  trendingUp: { Icon: TrendingUp, bg: 'bg-warning/10', color: 'text-warning' },
-  shield:    { Icon: Shield,   bg: 'bg-danger/10', color: 'text-danger' },
-  bell:      { Icon: Bell,     bg: 'bg-accent/10', color: 'text-accent' },
+type TopBarProps = {
+  onProfileClick?: () => void;
+  onPasswordClick?: () => void;
 };
 
-const NOTIFICATION_TONE_MAP: Record<NotificationTone, { Icon: React.ElementType; bg: string; color: string }> = {
+type NavMenuItem = {
+  icon: ElementType;
+  label: string;
+  path: string;
+  iconClass: string;
+  adminOnly?: boolean;
+};
+
+const NAV_ITEMS: NavMenuItem[] = [
+  { icon: Home, label: 'Hôm nay', path: '/overview', iconClass: 'text-text-tertiary group-hover:text-text-primary' },
+  { icon: Sparkles, label: 'AI Coach', path: '/smart-planner', iconClass: 'text-ai' },
+  { icon: Dumbbell, label: 'Bài tập', path: '/exercises', iconClass: 'text-accent' },
+  { icon: Utensils, label: 'Thực đơn', path: '/diet-plan', iconClass: 'text-info' },
+  { icon: TrendingUp, label: 'Tiến độ', path: '/progress', iconClass: 'text-warning' },
+  { icon: Users, label: 'Thử thách', path: '/challenges', iconClass: 'text-ai' },
+  { icon: Shield, label: 'Quản trị', path: '/admin-panel', iconClass: 'text-danger', adminOnly: true },
+];
+
+const NOTIFICATION_TONE_MAP: Record<NotificationTone, { Icon: ElementType; bg: string; color: string }> = {
   workout: { Icon: CalendarCheck, bg: 'bg-accent/10', color: 'text-accent' },
   nutrition: { Icon: Droplet, bg: 'bg-info/10', color: 'text-info' },
-  coach: { Icon: MessageSquare, bg: 'bg-ai/10', color: 'text-ai' },
+  coach: { Icon: Sparkles, bg: 'bg-ai/10', color: 'text-ai' },
   progress: { Icon: Flame, bg: 'bg-warning/10', color: 'text-warning' },
   system: { Icon: CheckCircle2, bg: 'bg-bg-tertiary', color: 'text-text-secondary' },
+};
+
+const getDatePartsInTimeZone = (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value || '1970';
+  const month = parts.find((part) => part.type === 'month')?.value || '01';
+  const day = parts.find((part) => part.type === 'day')?.value || '01';
+  return { year, month, day };
+};
+
+const getVietnamDateKey = (date = new Date()): string => {
+  const { year, month, day } = getDatePartsInTimeZone(date, VIETNAM_TIMEZONE);
+  return `${year}-${month}-${day}`;
 };
 
 const formatNotificationTime = (isoDate: string): string => {
@@ -82,60 +116,60 @@ const isWaterNotification = (item: UserNotification): boolean => {
   return item.tone === 'nutrition' && item.dedupe_key.startsWith('water:');
 };
 
-function ResultIcon({ type, pageIcon }: { type: string; pageIcon?: PageIcon }) {
-  const base = 'w-8 h-8 rounded-xl flex items-center justify-center shrink-0';
-
-  if (type === 'exercise') return <div className={`${base} bg-accent/10`}><Dumbbell className="w-4 h-4 text-accent" /></div>;
-  if (type === 'diet')     return <div className={`${base} bg-info/10`}><Utensils className="w-4 h-4 text-info" /></div>;
-
-  if (pageIcon && PAGE_ICON_MAP[pageIcon]) {
-    const { Icon, bg, color } = PAGE_ICON_MAP[pageIcon];
-    return <div className={`${base} ${bg}`}><Icon className={`w-4 h-4 ${color}`} /></div>;
-  }
-  return <div className={`${base} bg-bg-tertiary`}><Home className="w-4 h-4 text-text-secondary" /></div>;
-}
-
-export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
+export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps) {
   const [isLightMode, setIsLightMode] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('theme') === 'light';
   });
-  const { user, profile, isAdmin, membershipTier, refreshTick } = useAuth();
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState<UserNotification[]>([]);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [recordingWaterId, setRecordingWaterId] = useState<string | null>(null);
+  const [waterIntake, setWaterIntake] = useState(0);
+  const [waterGoal, setWaterGoal] = useState(2.5);
+  const [isPollingTelegram, setIsPollingTelegram] = useState(false);
+  const [isUnlinking, setIsUnlinking] = useState(false);
+
+  const {
+    signOut,
+    user,
+    openPremiumModal,
+    isAdmin,
+    isPremium,
+    membershipTier,
+    profile,
+    refreshProfile,
+    refreshTick,
+  } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const isNotificationsPage = location.pathname === '/notifications';
-  const quickAccessPages = isAdmin
-    ? [
-        ...BASE_QUICK_ACCESS_PAGES,
-        { id: 'admin-panel', title: 'Quản trị viên', subtitle: 'Cấu hình và kiểm soát', type: 'page' as const, href: '/admin-panel', pageIcon: 'shield' as const }
-      ]
-    : BASE_QUICK_ACCESS_PAGES;
+  const primaryMenuItems = NAV_ITEMS.filter((item) => !item.adminOnly);
+  const mobileMenuItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
+  const adminMenuItem = NAV_ITEMS.find((item) => item.adminOnly);
+  const mobileNavRegionRef = useRef<HTMLDivElement>(null);
+  const notificationRegionRef = useRef<HTMLDivElement>(null);
+  const avatarMenuRegionRef = useRef<HTMLDivElement>(null);
+  const unreadCount = notifications.filter((item) => !item.read_at).length;
 
-  const rawName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Thành viên";
+  const rawName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Thành viên';
   const nameParts = rawName.trim().split(/\s+/);
-  const userName = nameParts.length > 1
-    ? `${nameParts[nameParts.length - 1]} ${nameParts[0]}`
-    : rawName;
+  const userName = nameParts.length > 1 ? `${nameParts[nameParts.length - 1]} ${nameParts[0]}` : rawName;
   const userInitial = nameParts[nameParts.length - 1]?.charAt(0).toUpperCase() || rawName.charAt(0).toUpperCase() || '?';
   const membershipLabel = `${membershipTier.toUpperCase()} MEMBER`;
   const membershipClassName = membershipTier === 'pro' ? 'text-amber-300' : membershipTier === 'plus' ? 'text-ai' : 'text-accent';
 
-
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<UserNotification[]>([]);
-  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
-  const [recordingWaterId, setRecordingWaterId] = useState<string | null>(null);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const mobileInputRef = useRef<HTMLInputElement>(null);
-  const searchRegionRef = useRef<HTMLDivElement>(null);
-  const notificationRegionRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const unreadCount = notifications.filter((item) => !item.read_at).length;
+  const notify = useCallback((message: unknown) => {
+    const text = String(message || '');
+    if (/lỗi|loi|không tìm|khong tim|không thể|khong the|hết hạn|het han|chưa được|chua duoc/i.test(text)) {
+      toast.error(text);
+      return;
+    }
+    toast.success(text);
+  }, [toast]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -155,24 +189,25 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   }, [isLightMode]);
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (searchRegionRef.current && !searchRegionRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (mobileNavRegionRef.current && !mobileNavRegionRef.current.contains(target)) {
+        setIsMobileNavOpen(false);
       }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  useEffect(() => {
-    const handlePointerDown = (e: MouseEvent) => {
-      if (notificationRegionRef.current && !notificationRegionRef.current.contains(e.target as Node)) {
+      if (notificationRegionRef.current && !notificationRegionRef.current.contains(target)) {
         setIsNotificationsOpen(false);
       }
+      if (avatarMenuRegionRef.current && !avatarMenuRegionRef.current.contains(target)) {
+        setIsAvatarMenuOpen(false);
+      }
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsNotificationsOpen(false);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMobileNavOpen(false);
+        setIsNotificationsOpen(false);
+        setIsAvatarMenuOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', handlePointerDown);
@@ -182,6 +217,64 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  const fetchWater = useCallback(async () => {
+    if (!user?.id) {
+      setWaterIntake(0);
+      setWaterGoal(2.5);
+      return;
+    }
+
+    const today = getVietnamDateKey();
+    const [{ data: log }, { data: lifestyle }] = await Promise.all([
+      supabase
+        .from('daily_progress_logs')
+        .select('water_intake_ml')
+        .eq('user_id', user.id)
+        .eq('log_date', today)
+        .maybeSingle(),
+      supabase
+        .from('lifestyle_settings')
+        .select('daily_water_goal')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+    ]);
+
+    setWaterIntake((log?.water_intake_ml || 0) / 1000);
+    setWaterGoal(lifestyle?.daily_water_goal || 2.5);
+  }, [user?.id]);
+
+  useEffect(() => {
+    void fetchWater();
+  }, [fetchWater, refreshTick]);
+
+  useEffect(() => {
+    if (!isPollingTelegram || !user?.id) return;
+
+    let attempts = 0;
+    const maxAttempts = 40;
+    const interval = window.setInterval(async () => {
+      attempts += 1;
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('telegram_chat_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (updatedProfile?.telegram_chat_id) {
+        window.clearInterval(interval);
+        setIsPollingTelegram(false);
+        await refreshProfile();
+      }
+
+      if (attempts >= maxAttempts) {
+        window.clearInterval(interval);
+        setIsPollingTelegram(false);
+      }
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [isPollingTelegram, refreshProfile, user?.id]);
 
   const loadNotifications = useCallback(async (syncActionable = false) => {
     if (!user?.id) {
@@ -230,109 +323,23 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     };
   }, [loadNotifications, user?.id]);
 
-  const doSearch = useCallback(async (q: string) => {
-    const trimmed = q.trim();
-    if (!trimmed) {
-      setResults([]);
-      setIsOpen(false);
-      return;
-    }
-
-    setIsSearching(true);
-    setIsOpen(true);
-    setActiveIndex(-1);
-
-    try {
-      const lower = normalizeViet(trimmed);
-
-      // 1. Static pages (hỗ trợ tìm không dấu)
-      const pageResults = quickAccessPages.filter(p =>
-        normalizeViet(p.title).includes(lower) ||
-        normalizeViet(p.subtitle).includes(lower)
-      );
-
-      // 2. Exercises from DB
-      const { data: exercises } = await supabase
-        .from('exercises')
-        .select('id, name, target_muscle, body_part')
-        .ilike('name', `%${trimmed}%`)
-        .limit(6);
-
-      const exerciseResults: SearchResult[] = (exercises || []).map((ex: any) => ({
-        id: `ex-${ex.id}`,
-        title: ex.name,
-        subtitle: [ex.target_muscle, ex.body_part].filter(Boolean).join(' • '),
-        type: 'exercise' as const,
-        href: '/exercises',
-      }));
-
-      setResults([...pageResults, ...exerciseResults]);
-    } catch (e) {
-      console.error('Search error:', e);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [quickAccessPages]);
-
-  const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setQuery(val);
-    clearTimeout(debounceRef.current);
-    if (!val.trim()) {
-      setResults([]);
-      setIsOpen(true);
-      return;
-    }
-    debounceRef.current = setTimeout(() => doSearch(val), 280);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isOpen || results.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setActiveIndex(i => Math.min(i + 1, results.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setActiveIndex(i => Math.max(i - 1, -1));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const item = results[activeIndex] ?? results[0];
-      if (item) navigateToResult(item);
-    } else if (e.key === 'Escape') {
-      setIsOpen(false);
-      inputRef.current?.blur();
-    }
-  };
-
-  const navigateToResult = (item: SearchResult) => {
-    setIsOpen(false);
-    setQuery('');
-    setResults([]);
-    navigate(item.href);
-  };
-
-  const clearSearch = () => {
-    setQuery('');
-    setResults([]);
-    setIsOpen(false);
-    inputRef.current?.focus();
-  };
-
-  const openSearchPanel = () => {
-    setIsOpen(true);
+  const toggleMobileNav = () => {
+    setIsMobileNavOpen((value) => !value);
     setIsNotificationsOpen(false);
-    window.setTimeout(() => {
-      const target = window.matchMedia('(max-width: 639px)').matches
-        ? mobileInputRef.current
-        : inputRef.current;
-      target?.focus();
-    }, 20);
+    setIsAvatarMenuOpen(false);
   };
 
   const toggleNotifications = () => {
     setIsNotificationsOpen((value) => !value);
-    setIsOpen(false);
+    setIsMobileNavOpen(false);
+    setIsAvatarMenuOpen(false);
     if (!isNotificationsOpen) void loadNotifications(true);
+  };
+
+  const toggleAvatarMenu = () => {
+    setIsAvatarMenuOpen((value) => !value);
+    setIsMobileNavOpen(false);
+    setIsNotificationsOpen(false);
   };
 
   const markAllNotificationsRead = async () => {
@@ -371,6 +378,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     try {
       await recordWaterFromNotification(user.id);
       await archiveNotification(user.id, item.id);
+      await fetchWater();
     } catch (error) {
       console.error('Notification water record error:', error);
       await loadNotifications(false);
@@ -379,98 +387,114 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     }
   };
 
-  const searchDropdown = (
-    <div
-      className="topbar-search-dropdown rounded-2xl border border-border-primary bg-bg-secondary shadow-2xl shadow-black/40 overflow-hidden"
-      style={{ backdropFilter: 'blur(12px)' }}
-    >
-      {query.trim() ? (
-        results.length > 0 ? (
-          <div className="py-2 max-h-80 overflow-y-auto custom-scrollbar">
+  const updateWaterIntake = async (amount: number) => {
+    if (!user?.id) return;
+    const today = getVietnamDateKey();
+    const { error } = await supabase
+      .from('daily_progress_logs')
+      .upsert({
+        user_id: user.id,
+        log_date: today,
+        water_intake_ml: Math.round(amount * 1000),
+      }, { onConflict: 'user_id,log_date' });
 
-            {results.filter(r => r.type === 'page').length > 0 && (
-              <>
-                <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-text-tertiary">Trang</p>
-                {results.filter(r => r.type === 'page').map((item) => {
-                  const globalIdx = results.indexOf(item);
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => navigateToResult(item)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-bg-tertiary transition-colors group ${activeIndex === globalIdx ? 'bg-bg-tertiary' : ''}`}
-                    >
-                      <ResultIcon type={item.type} pageIcon={(item as any).pageIcon} />
-                      <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-semibold text-text-primary truncate group-hover:text-accent transition-colors">{item.title}</p>
-                        <p className="text-xs text-text-tertiary truncate">{item.subtitle}</p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </button>
-                  );
-                })}
-              </>
-            )}
+    if (!error) {
+      setWaterIntake(amount);
+      window.dispatchEvent(new CustomEvent('fitly:water-updated', {
+        detail: { waterIntake: amount },
+      }));
+    }
+  };
 
-            {results.filter(r => r.type === 'exercise').length > 0 && (
-              <>
-                <p className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-text-tertiary border-t border-border-primary mt-1">Bài tập</p>
-                {results.filter(r => r.type === 'exercise').map((item) => {
-                  const globalIdx = results.indexOf(item);
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => navigateToResult(item)}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-bg-tertiary transition-colors group ${activeIndex === globalIdx ? 'bg-bg-tertiary' : ''}`}
-                    >
-                      <ResultIcon type={item.type} />
-                      <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-semibold text-text-primary truncate group-hover:text-accent transition-colors">{item.title}</p>
-                        <p className="text-xs text-text-tertiary truncate">{item.subtitle}</p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </button>
-                  );
-                })}
-              </>
-            )}
-          </div>
-        ) : !isSearching ? (
-          <div className="py-8 text-center">
-            <Search className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-            <p className="text-sm text-text-tertiary">Không tìm thấy kết quả cho "<span className="text-text-secondary font-medium">{query}</span>"</p>
-          </div>
-        ) : null
-      ) : (
-        <div className="p-3">
-          <div className="p-0">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-text-tertiary">Truy cập nhanh</p>
-            </div>
+  const handleUnlinkTelegram = async () => {
+    if (!confirm('Bạn có chắc chắn muốn hủy liên kết với Telegram Bot không?')) return;
 
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {quickAccessPages.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => navigateToResult(item)}
-                  className="group flex items-center gap-3 rounded-2xl border border-transparent bg-bg-secondary/45 px-3 py-3 text-left transition-all hover:border-border-primary hover:bg-bg-tertiary"
-                >
-                  <ResultIcon type={item.type} pageIcon={item.pageIcon} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-text-primary group-hover:text-accent transition-colors">{item.title}</p>
-                    <p className="truncate text-xs text-text-tertiary">{item.subtitle}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    setIsUnlinking(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ telegram_chat_id: null })
+        .eq('id', user?.id);
+
+      if (error) throw error;
+      await refreshProfile();
+      notify('Đã hủy liên kết Telegram thành công');
+    } catch (err: any) {
+      notify(`Lỗi: ${err.message}`);
+    } finally {
+      setIsUnlinking(false);
+      setIsAvatarMenuOpen(false);
+    }
+  };
+
+  const handleConnectTelegram = async () => {
+    if (!user?.id) {
+      notify('Lỗi: Không tìm thấy ID người dùng. Vui lòng đăng nhập lại.');
+      return;
+    }
+
+    try {
+      const { data: profileExists, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Profile check error:', checkError);
+        notify('Lỗi kết nối. Vui lòng thử lại.');
+        return;
+      }
+
+      if (!profileExists) {
+        notify('Hồ sơ chưa được tạo. Vui lòng hoàn thành khảo sát lần đầu trước khi kết nối Telegram.');
+        return;
+      }
+
+      const sessionRes = await supabase.auth.getSession();
+      const accessToken = sessionRes.data.session?.access_token;
+      if (!accessToken) {
+        notify('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        return;
+      }
+
+      const linkRes = await fetch(`${API_BASE_URL}/api/telegram/link-token`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const payload = await linkRes.json().catch(() => ({}));
+      if (!linkRes.ok || !payload?.telegramLink) {
+        throw new Error(payload?.error || 'Không thể tạo liên kết Telegram an toàn.');
+      }
+
+      setIsAvatarMenuOpen(false);
+      window.open(String(payload.telegramLink), '_blank');
+      setIsPollingTelegram(true);
+    } catch (err: any) {
+      notify(`Lỗi: ${err.message || 'Không thể kết nối Telegram.'}`);
+    }
+  };
+
+  const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
+    `topbar-nav-item group inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-sm transition-all ${
+      isActive
+        ? 'topbar-nav-item-active text-text-primary font-semibold'
+        : 'text-text-secondary hover:text-text-primary'
+    }`;
+
+  const mobileNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
+    `group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all ${
+      isActive
+        ? 'topbar-nav-item-active text-text-primary font-semibold'
+        : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
+    }`;
+
+  const floatingPanelStyle = { top: 'calc(var(--layout-topbar-height, 5rem) + 0.75rem)' };
 
   const notificationDropdown = (
-    <div className="topbar-notification-dropdown topbar-search-dropdown overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-2xl shadow-black/40 backdrop-blur-xl">
+    <div className="topbar-menu-panel topbar-notification-dropdown overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-2xl shadow-black/40 backdrop-blur-xl">
       <div className="flex items-center justify-between gap-3 border-b border-border-primary px-4 py-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-text-primary">Thông báo</p>
@@ -500,7 +524,7 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
           <div className="py-8 text-center">
             <Bell className="mx-auto mb-2 h-7 w-7 text-text-tertiary" />
             <p className="text-sm font-semibold text-text-primary">Chưa có thông báo</p>
-            <p className="mt-1 text-xs text-text-tertiary">Khi có lịch tập, nước uống hoặc cập nhật AI, chúng sẽ xuất hiện ở đây.</p>
+            <p className="mt-1 px-8 text-xs text-text-tertiary">Khi có lịch tập, nước uống hoặc cập nhật AI, chúng sẽ xuất hiện ở đây.</p>
           </div>
         ) : notifications.map((item) => {
           const { Icon, bg, color } = NOTIFICATION_TONE_MAP[item.tone];
@@ -568,107 +592,244 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
     </div>
   );
 
-  return (
-    <header className="topbar-shell sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-3 border-b border-border-primary bg-bg-secondary px-4 md:h-20 md:gap-4 md:px-8">
-      <div className="flex min-w-0 flex-1 items-center gap-4">
+  const avatarDropdown = (
+    <div className="topbar-menu-panel topbar-avatar-menu overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-2xl shadow-black/40 backdrop-blur-xl">
+      <div className="flex items-center gap-3 border-b border-border-primary px-4 py-3">
+        <div className="topbar-avatar flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-text-inverse">
+          {userInitial}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-text-primary">{userName}</p>
+          <p className={`mt-0.5 text-[10px] font-black uppercase tracking-wider ${membershipClassName}`}>
+            {membershipLabel}
+          </p>
+        </div>
+        <Settings className="h-4 w-4 shrink-0 text-text-tertiary" />
+      </div>
+
+      {!isPremium && (
+        <div className="border-b border-border-primary p-3">
+          <button
+            type="button"
+            onClick={() => {
+              setIsAvatarMenuOpen(false);
+              openPremiumModal();
+            }}
+            className="topbar-premium-card flex w-full items-start gap-3 rounded-xl border border-amber-300/30 bg-[linear-gradient(145deg,rgba(245,158,11,0.22),rgba(39,31,18,0.9)_48%,rgba(14,17,22,0.96))] p-3 text-left transition-colors"
+          >
+            <Crown className="mt-0.5 h-5 w-5 shrink-0 text-amber-300 fill-amber-300/25" />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-amber-100">Nâng cấp Plus / Pro</span>
+              <span className="mt-1 block text-xs leading-5 text-amber-100/70">Thêm lượt đổi AI hoặc mở khóa Pro không giới hạn.</span>
+            </span>
+          </button>
+        </div>
+      )}
+
+      <div className="border-b border-border-primary p-3">
+        <div className="topbar-water-card rounded-xl bg-bg-tertiary p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Droplet className="h-4 w-4 text-info" />
+              <span className="text-sm font-medium text-text-secondary">Nước uống</span>
+            </div>
+            <span className="text-xs font-semibold text-text-tertiary">{waterIntake.toFixed(1)} / {waterGoal.toFixed(1)}L</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {Array.from({ length: 5 }).map((_, index) => {
+              const cupIndex = index + 1;
+              const cupSize = waterGoal / 5;
+              const isFilled = waterIntake >= cupIndex * cupSize;
+              const isPartial = !isFilled && waterIntake > index * cupSize;
+
+              return (
+                <button
+                  key={cupIndex}
+                  type="button"
+                  onClick={() => void updateWaterIntake(cupIndex * cupSize)}
+                  className="flex flex-1 justify-center rounded-lg py-1 transition-transform hover:scale-110 active:scale-95"
+                  title={`${(cupSize * 1000).toFixed(0)}ml`}
+                >
+                  <GlassWater
+                    className={`h-7 w-7 transition-all ${
+                      isFilled
+                        ? 'text-info fill-info/30 drop-shadow-[0_0_6px_rgb(var(--info-rgb)_/_0.35)]'
+                        : isPartial
+                          ? 'text-info/50 fill-info/12'
+                          : 'text-gray-600/30 fill-transparent'
+                    }`}
+                    strokeWidth={1.5}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-2">
         <button
           type="button"
-          className="topbar-menu-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary text-text-secondary transition-colors hover:text-text-primary lg:hidden"
-          onClick={onMenuClick}
-          aria-label="Mở menu điều hướng"
+          onClick={() => {
+            setIsAvatarMenuOpen(false);
+            onProfileClick?.();
+          }}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
         >
-          <Menu className="w-6 h-6" />
+          <User className="h-4 w-4" />
+          Thông tin cá nhân
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setIsAvatarMenuOpen(false);
+            onPasswordClick?.();
+          }}
+          className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+        >
+          <Lock className="h-4 w-4" />
+          Đổi mật khẩu
         </button>
 
-        <div ref={searchRegionRef} className="topbar-search-wrap relative flex-1">
-          {isOpen ? (
-            <div className="relative sm:hidden">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
-              <input
-                ref={mobileInputRef}
-                type="text"
-                placeholder="Tìm kiếm..."
-                value={query}
-                onChange={handleInput}
-                onKeyDown={handleKeyDown}
-                className="topbar-search-input h-10 w-full rounded-full border border-accent bg-bg-secondary pl-9 pr-9 text-xs text-text-primary outline-none placeholder:text-text-tertiary"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (query) {
-                    setQuery('');
-                    setResults([]);
-                    mobileInputRef.current?.focus();
-                  } else {
-                    setIsOpen(false);
-                  }
-                }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary transition-colors hover:text-text-primary"
-                aria-label={query ? 'Xóa tìm kiếm' : 'Đóng tìm kiếm'}
-              >
-                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-              </button>
+        {profile?.telegram_chat_id ? (
+          <div className="mt-1 flex items-center justify-between rounded-xl bg-accent/10 px-3 py-2.5 group/tg">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-4 w-4 text-accent" />
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase text-accent">Telegram</span>
+                <span className="text-[9px] text-text-tertiary">Đã kết nối</span>
+              </div>
             </div>
-          ) : (
             <button
-              onClick={openSearchPanel}
-              className="topbar-action flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent sm:hidden"
+              type="button"
+              onClick={handleUnlinkTelegram}
+              disabled={isUnlinking}
+              className="rounded-lg p-1.5 text-text-tertiary opacity-100 transition-all hover:bg-danger/10 hover:text-danger sm:opacity-0 sm:group-hover/tg:opacity-100"
+              title="Hủy liên kết"
             >
-              <Search className="h-5 w-5 transition-colors" />
+              {isUnlinking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
             </button>
-          )}
-
-          <div className="relative hidden sm:block w-full max-w-[30rem] md:max-w-[34rem]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-tertiary pointer-events-none" />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Tìm kiếm bài tập, thực đơn,..."
-            value={query}
-            onChange={handleInput}
-            onKeyDown={handleKeyDown}
-            onFocus={() => {
-              if (query.trim() && results.length > 0) setIsOpen(true);
-              else if (!query.trim()) setIsOpen(true);
-            }}
-            className="topbar-search-input w-full bg-bg-secondary border border-border-primary rounded-full py-3 pl-12 pr-10 text-sm text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent transition-colors"
-          />
-          {isSearching && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary animate-spin" />
-          )}
-          {!isSearching && query && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
-          {isOpen && (
-            <div className="absolute top-full mt-2 left-0 right-0 z-50">
-              {searchDropdown}
-            </div>
-          )}
           </div>
+        ) : (
+          <button
+            type="button"
+            disabled={isPollingTelegram}
+            onClick={() => void handleConnectTelegram()}
+            className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-text-secondary transition-colors hover:bg-info/5 hover:text-info disabled:cursor-default disabled:opacity-70"
+          >
+            {isPollingTelegram ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-info" />
+                <span className="font-medium text-info">Đang chờ kết nối...</span>
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" />
+                Kết nối Telegram Bot
+              </>
+            )}
+          </button>
+        )}
 
-          {isOpen && (
-            <div className="fixed left-3 right-3 top-[76px] z-50 sm:hidden">
-              {searchDropdown}
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-danger transition-colors hover:bg-danger/10"
+        >
+          <LogOut className="h-4 w-4" />
+          Đăng xuất
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <header className="topbar-shell sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-3 bg-bg-secondary px-4 md:h-20 md:gap-4 md:px-8">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <NavLink to="/overview" className="topbar-brand flex min-w-0 shrink-0 items-center gap-2 rounded-full pr-2 text-text-primary">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center">
+            <img src="/logo.png" alt="Fitly" className="h-full w-full object-contain" />
+          </span>
+          <span className="hidden min-w-0 flex-col leading-tight sm:flex">
+            <span className="truncate text-lg font-bold">Fitly</span>
+            <span className="truncate text-[10px] font-semibold uppercase tracking-widest text-accent">Trợ lý cá nhân</span>
+          </span>
+        </NavLink>
+
+        <nav className="topbar-nav hidden min-w-0 max-w-full items-center gap-1 overflow-x-auto custom-scrollbar xl:flex" aria-label="Điều hướng chính">
+          {primaryMenuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink key={item.path} to={item.path} className={navLinkClassName}>
+                <Icon className={`h-4 w-4 shrink-0 ${item.iconClass}`} />
+                <span className="whitespace-nowrap">{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        <div ref={mobileNavRegionRef} className="relative xl:hidden">
+          <button
+            type="button"
+            className={`topbar-menu-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary text-text-secondary transition-colors hover:text-text-primary ${isMobileNavOpen ? 'text-accent' : ''}`}
+            onClick={toggleMobileNav}
+            aria-label="Mở menu điều hướng"
+            aria-expanded={isMobileNavOpen}
+          >
+            {isMobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+
+          {isMobileNavOpen && (
+            <div
+              className="fixed left-3 right-3 z-50 sm:left-[var(--layout-gutter)] sm:right-auto sm:w-[23rem]"
+              style={floatingPanelStyle}
+            >
+              <div className="topbar-menu-panel topbar-nav-dropdown rounded-2xl border border-border-primary bg-bg-secondary p-2 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                {mobileMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setIsMobileNavOpen(false)}
+                      className={mobileNavLinkClassName}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <Icon className={`h-4 w-4 shrink-0 ${item.iconClass}`} />
+                        <span className="truncate">{item.label}</span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" />
+                    </NavLink>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      <div className={`shrink-0 items-center gap-2 sm:flex sm:gap-3 md:gap-4 ${isOpen ? 'hidden' : 'flex'}`}>
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        {isAdmin && adminMenuItem && (
+          <button
+            type="button"
+            onClick={() => navigate(adminMenuItem.path)}
+            className={`topbar-action topbar-action-icon-only hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent sm:flex ${location.pathname === adminMenuItem.path ? '[&_svg]:text-accent text-accent' : ''}`}
+            aria-label="Quản trị"
+            title="Quản trị"
+          >
+            <Shield className="h-5 w-5 transition-colors" />
+          </button>
+        )}
 
         <button
+          type="button"
           onClick={() => setIsLightMode(!isLightMode)}
           className="topbar-action topbar-action-icon-only flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent"
+          aria-label={isLightMode ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng'}
+          title={isLightMode ? 'Giao diện tối' : 'Giao diện sáng'}
         >
-          {isLightMode ? <Sun className="w-5 h-5 transition-colors" /> : <Moon className="w-5 h-5 transition-colors" />}
+          {isLightMode ? <Sun className="h-5 w-5 transition-colors" /> : <Moon className="h-5 w-5 transition-colors" />}
         </button>
-
 
         <div ref={notificationRegionRef} className="relative">
           <button
@@ -677,15 +838,19 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
             className={`topbar-action topbar-action-icon-only relative flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent ${isNotificationsOpen ? '[&_svg]:text-accent' : ''}`}
             aria-label={`Thông báo${unreadCount > 0 ? `, ${unreadCount} chưa đọc` : ''}`}
             aria-expanded={isNotificationsOpen}
+            title="Thông báo"
           >
-            <Bell className="w-5 h-5 transition-colors" />
+            <Bell className="h-5 w-5 transition-colors" />
             {unreadCount > 0 && (
               <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-accent shadow-[0_0_0_2px_var(--bg-secondary)]" />
             )}
           </button>
 
           {isNotificationsOpen && (
-            <div className="fixed left-4 right-4 top-[76px] z-50 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[28rem] sm:translate-x-10 md:translate-x-14">
+            <div
+              className="fixed left-3 right-3 z-50 sm:left-auto sm:right-[var(--layout-gutter)] sm:w-[28rem]"
+              style={floatingPanelStyle}
+            >
               {notificationDropdown}
             </div>
           )}
@@ -693,16 +858,34 @@ export default function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
 
         <span className="hidden h-8 w-px shrink-0 bg-border-primary lg:block"></span>
 
-        <div className="topbar-user flex shrink-0 items-center gap-3 rounded-full px-1.5 py-1">
-          <div className="topbar-user-meta hidden flex-col items-end lg:flex">
-            <span className="text-sm font-semibold text-text-primary leading-tight">{userName}</span>
-            <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
-              {membershipLabel}
-            </span>
-          </div>
-          <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-text-inverse transition-transform">
-            {userInitial}
-          </div>
+        <div ref={avatarMenuRegionRef} className="relative">
+          <button
+            type="button"
+            onClick={toggleAvatarMenu}
+            className="topbar-user flex shrink-0 items-center gap-2 rounded-full px-1.5 py-1"
+            aria-label="Mở cài đặt tài khoản"
+            aria-expanded={isAvatarMenuOpen}
+          >
+            <div className="topbar-user-meta hidden flex-col items-end lg:flex">
+              <span className="text-sm font-semibold leading-tight text-text-primary">{userName}</span>
+              <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
+                {membershipLabel}
+              </span>
+            </div>
+            <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-bold text-text-inverse transition-transform">
+              {userInitial}
+            </div>
+            <ChevronDown className={`hidden h-4 w-4 text-text-tertiary transition-transform sm:block ${isAvatarMenuOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isAvatarMenuOpen && (
+            <div
+              className="fixed left-3 right-3 z-50 sm:left-auto sm:right-[var(--layout-gutter)] sm:w-[23rem]"
+              style={floatingPanelStyle}
+            >
+              {avatarDropdown}
+            </div>
+          )}
         </div>
       </div>
     </header>

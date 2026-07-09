@@ -1,6 +1,5 @@
 import { Suspense, useState, useEffect } from 'react';
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
-import Sidebar from '../layout/Sidebar';
 import TopBar from '../layout/TopBar';
 import SurveyForm, { type SurveyPlanSummary } from '../components/SurveyForm';
 import SurveyResultScreen from '../components/SurveyResultScreen';
@@ -60,7 +59,6 @@ const formatExerciseDetail = (item: any) => {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileSupplementOpen, setIsProfileSupplementOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const { isLoggedIn, hasProfile, isCheckingProfile, refreshProfile } = useAuth();
@@ -226,25 +224,11 @@ export default function Dashboard() {
         onClose={() => setIsPasswordModalOpen(false)}
       />
 
-      {/* Mobile Sidebar Overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
-      
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <Sidebar 
-          onClose={() => setIsMobileMenuOpen(false)} 
-          onProfileClick={openProfileEditor} 
+      <div className="app-scroll-region flex-1 flex h-full min-w-0 w-full flex-col overflow-y-auto custom-scrollbar">
+        <TopBar
+          onProfileClick={openProfileEditor}
           onPasswordClick={() => setIsPasswordModalOpen(true)}
         />
-      </div>
-
-      <div className="app-scroll-region flex-1 flex h-full min-w-0 w-full flex-col overflow-y-auto custom-scrollbar">
-        <TopBar onMenuClick={() => setIsMobileMenuOpen(true)} />
         <main className="dashboard-main flex min-h-0 flex-1 flex-col gap-6 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 lg:px-7 min-w-0 relative">
           <div className="dashboard-content mx-auto w-full min-w-0">
             <ProfileCompletionNudge onOpenProfile={openProfileSupplement} />
