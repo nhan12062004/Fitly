@@ -91,7 +91,7 @@ export default function PrivacyPolicyPage() {
       <header className="relative z-10 border-b border-white/[0.06] bg-[#0b0d10]">
         <div className="mx-auto flex h-20 w-full max-w-5xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <button type="button" onClick={() => navigate('/')} className="flex min-w-0 items-center gap-3 text-left">
-            <img src="/logo.svg" alt="Fitly" className="h-10 w-10 shrink-0 object-contain" />
+            <img src="/logo.png" alt="Fitly" className="h-10 w-10 shrink-0 object-contain" />
             <span className="min-w-0">
               <span className="block truncate text-base font-black text-text-primary sm:text-lg">Fitly</span>
               <span className="mt-0.5 block truncate text-xs font-semibold text-text-tertiary">Trợ lý cá nhân</span>

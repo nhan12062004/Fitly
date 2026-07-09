@@ -2140,7 +2140,7 @@ export default function AICoach() {
                           className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-bg-tertiary"
                         >
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-bg-primary ring-1 ring-border-primary">
-                            <img src="/logo.svg" alt="" className="h-5 w-5 object-contain" />
+                            <img src="/logo.png" alt="" className="h-5 w-5 object-contain" />
                           </span>
                           <span className="min-w-0">
                             <span className="font-mono text-sm font-black text-text-primary">{item.label}</span>

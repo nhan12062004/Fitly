@@ -185,7 +185,7 @@ export default function Sidebar({ onClose, onProfileClick, onPasswordClick }: {
       <div className="sidebar-brand h-[72px] md:h-20 px-4 sm:px-6 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="sidebar-logo flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11">
-            <img src="/logo.svg" alt="Logo Fitly - Trợ lý cá nhân" className="w-full h-full object-contain" />
+            <img src="/logo.png" alt="Logo Fitly - Trợ lý cá nhân" className="w-full h-full object-contain" />
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-text-primary leading-tight">Fitly</h1>

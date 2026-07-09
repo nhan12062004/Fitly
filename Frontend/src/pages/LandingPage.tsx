@@ -167,7 +167,7 @@ export default function LandingPage() {
       >
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 py-4 sm:h-20 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-0 lg:px-8">
           <button type="button" onClick={() => navigate('/')} className="flex min-w-0 items-center gap-3 text-left">
-            <img src="/logo.svg" alt="Fitly" className="h-10 w-10 shrink-0 object-contain sm:h-11 sm:w-11" />
+            <img src="/logo.png" alt="Fitly" className="h-10 w-10 shrink-0 object-contain sm:h-11 sm:w-11" />
             <div className="min-w-0">
               <p className="truncate text-base font-black text-text-primary sm:text-lg">Fitly - Trợ lý cá nhân</p>
             </div>
@@ -720,7 +720,7 @@ export default function LandingPage() {
         <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-8 px-4 sm:px-6 md:grid-cols-[1fr_0.8fr_0.8fr_0.8fr] lg:px-8">
           <div>
             <div className="flex items-center gap-3">
-              <img src="/logo.svg" alt="Fitly" className="h-10 w-10 shrink-0 object-contain" />
+              <img src="/logo.png" alt="Fitly" className="h-10 w-10 shrink-0 object-contain" />
               <p className="text-xl font-black text-text-primary">Fitly - Trợ lý cá nhân</p>
             </div>
           </div>
