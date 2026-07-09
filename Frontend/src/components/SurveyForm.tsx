@@ -44,8 +44,6 @@ import {
 } from '../lib/MotivationOptions';
 import {
   DEFAULT_WORKOUT_DURATION,
-  WORKOUT_DURATION_TAGS,
-  normalizeWorkoutDurationTag,
 } from '../lib/WorkoutDuration';
 import { useToast } from './ToastProvider';
 
@@ -984,9 +982,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
               ? 'Phòng Gym'
               : (l.data?.workout_location || prev.workout_location),
             workout_time: l.data?.workout_time || prev.workout_time,
-            workout_duration: normalizeWorkoutDurationTag(
-              l.data?.workout_duration?.toString() || prev.workout_duration
-            ),
+            workout_duration: DEFAULT_WORKOUT_DURATION,
             equipment_available: ({
               'Đầy đủ tạ & máy móc (Gym)': 'Đầy đủ tạ & máy móc',
               'Tạ đơn (Dumbbells) & Thảm': 'Tạ đơn & Thảm',
@@ -1103,8 +1099,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     }
     if (
       !formData.experience_level ||
-      !formData.workout_location ||
-      !formData.workout_duration
+      !formData.workout_location
     ) {
       return 4;
     }
@@ -1136,8 +1131,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
     if (currentStep === 4) {
       if (
         !formData.experience_level ||
-        !formData.workout_location ||
-        !formData.workout_duration
+        !formData.workout_location
       ) {
         return;
       }
@@ -1261,7 +1255,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           current_diet: formData.current_diet,
           workout_location: formData.workout_location,
           workout_time: formData.workout_time,
-          workout_duration: parseInt(normalizeWorkoutDurationTag(formData.workout_duration), 10),
+          workout_duration: parseInt(DEFAULT_WORKOUT_DURATION, 10),
           equipment_available: resolvedEquipment,
           experience_level: formData.experience_level,
           meals_per_day: mealsPerDay,
@@ -1319,7 +1313,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
         throw firstError;
       }
 
-      const durationMinutes = Number(normalizeWorkoutDurationTag(formData.workout_duration)) || Number(DEFAULT_WORKOUT_DURATION) || 30;
+      const durationMinutes = Number(DEFAULT_WORKOUT_DURATION) || 45;
       const selectedMeals = MEAL_OPTIONS.find(option => option.value === formData.meals_per_day);
       const selectedActivity = ACTIVITY_LEVEL_OPTIONS.find(option => option.value === normalizedActivityLevel);
       const selectedFrequency = WORKOUT_FREQUENCY_OPTIONS.find(
@@ -1337,7 +1331,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
         frequency: selectedActivity
           ? `${selectedActivity.label} · ${selectedFrequency?.label || selectedActivity.value}`
           : selectedFrequency?.label || `${workoutFrequencyToWeeklyWorkouts(normalizedActivityLevel)} buổi / tuần`,
-        duration: `${durationMinutes}-${durationMinutes + 10} phút / buổi`,
+        duration: `${durationMinutes} phút / buổi`,
         targetCalories: estimatedTargetCalories,
         gender: formData.gender,
         age: ageYears,
@@ -1840,7 +1834,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 Bạn muốn tập như thế nào?
               </h3>
               <p className="mt-3 text-sm font-medium leading-6 text-text-secondary">
-                Cho Fitly biết trình độ, nơi tập và thời lượng để chọn bài phù hợp với điều kiện thực tế của bạn.
+                Cho Fitly biết trình độ và nơi tập để chọn bài phù hợp với điều kiện thực tế của bạn.
               </p>
             </div>
 
@@ -1849,18 +1843,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                 <ChoiceGrid name="experience_level" value={formData.experience_level} options={EXPERIENCE_OPTIONS} onChange={handleInputChange} columns="md:grid-cols-2" />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <ChoiceGrid name="workout_location" value={formData.workout_location} options={LOCATION_OPTIONS} onChange={handleInputChange} columns="grid-cols-1" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-text-tertiary">{"Thời lượng mỗi buổi"} <span className="text-red-500">*</span></label>
-                  <select name="workout_duration" value={normalizeWorkoutDurationTag(formData.workout_duration)} onChange={handleInputChange} className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary/70 px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent">
-                    {WORKOUT_DURATION_TAGS.map((minutes) => (
-                      <option key={minutes} value={String(minutes)}>{`${minutes} phút`}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="space-y-2.5">
+                <p className="text-xs font-black text-text-primary">Bạn muốn tập ở đâu?</p>
+                <ChoiceGrid name="workout_location" value={formData.workout_location} options={LOCATION_OPTIONS} onChange={handleInputChange} columns="md:grid-cols-2" />
               </div>
             </div>
 
