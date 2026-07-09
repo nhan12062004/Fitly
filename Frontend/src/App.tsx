@@ -16,6 +16,7 @@ import Exercises from './pages/Exercises';
 import LandingPage from './pages/LandingPage';
 import Notifications from './pages/Notifications';
 import Overview from './pages/Overview';
+import PremiumCheckout from './pages/PremiumCheckout';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import Profile from './pages/Profile';
 import Progress from './pages/Progress';
@@ -38,8 +39,8 @@ function ScrollToTop() {
 export default function App() {
   return (
     <ToastProvider>
-      <AuthProvider>
-        <BrowserRouter>
+      <BrowserRouter>
+        <AuthProvider>
           <ScrollToTop />
           <div className="flex min-h-screen w-full bg-bg-primary font-sans text-text-primary selection:bg-accent selection:text-text-inverse">
             <Suspense fallback={<LoadingScreen />}>
@@ -63,6 +64,7 @@ export default function App() {
                   <Route path="diet-plan" element={<DietPlan />} />
                   <Route path="profile" element={<Profile />} />
                   <Route path="profile/edit" element={<Profile />} />
+                  <Route path="premium" element={<PremiumCheckout />} />
                   <Route path="progress" element={<Progress />} />
                   <Route path="challenges" element={<Challenges />} />
                   <Route path="challenges/:id" element={<ChallengeDetails />} />
@@ -72,8 +74,8 @@ export default function App() {
               </Routes>
             </Suspense>
           </div>
-        </BrowserRouter>
-      </AuthProvider>
+        </AuthProvider>
+      </BrowserRouter>
     </ToastProvider>
   );
 }

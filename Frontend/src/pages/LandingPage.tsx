@@ -516,11 +516,11 @@ export default function LandingPage() {
             <SectionHeading
               eyebrow="Bảng giá"
               title="Chọn gói theo nhịp tập của bạn"
-              description="Dùng miễn phí để làm quen với lịch tập, thực đơn và theo dõi tiến độ. Khi cần nhiều lượt AI hơn, bạn có thể nâng cấp sau."
+              description="Dùng thử 7 ngày để nhận lịch tự động đầu tiên. Khi cần lịch mới hằng tuần và thêm quota AI, bạn có thể nâng cấp sau."
             />
             <div className="mt-7 inline-flex max-w-full items-center gap-2 rounded-full border border-accent/35 bg-accent/10 px-4 py-2 text-xs font-black text-accent">
               <Zap className="h-4 w-4 fill-current" />
-              <span>Dùng thử miễn phí trước khi nâng cấp</span>
+              <span>Ưu đãi lần đầu: giảm 30% tháng đầu cho Plus hoặc Pro</span>
             </div>
 
             <div className="mt-10 grid grid-cols-1 gap-4 text-left md:grid-cols-2 lg:grid-cols-3 lg:gap-5">
@@ -528,19 +528,20 @@ export default function LandingPage() {
                 <div>
                   <h3 className="text-xl font-black text-text-primary">Free</h3>
                   <p className="mt-3 min-h-12 text-sm font-semibold leading-6 text-text-secondary">
-                    Trải nghiệm đầy đủ tính năng cốt lõi — không cần thẻ.
+                    Free trial 7 ngày — không cần thẻ.
                   </p>
                 </div>
                 <div className="mt-6">
                   <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">0đ</p>
-                  <p className="mt-1 text-xs font-black text-text-tertiary">4 lượt đổi AI</p>
+                  <p className="mt-1 text-xs font-black text-text-tertiary">1 lịch + 10 lần đổi + 25 chat</p>
                 </div>
                 <div className="mt-6 grid gap-3.5">
                   {[
-                    '4 lượt đổi kế hoạch bằng AI',
-                    'Kế hoạch ăn & tập AI cá nhân hóa',
+                    '1 lịch tự động 7 ngày khi đăng ký',
+                    '5 lần tạo lại bài tập',
+                    '5 lần tạo lại thực đơn',
+                    '25 tin nhắn AI Coach',
                     'Quét món ăn bằng AI',
-                    'Thử thách + bảng xếp hạng',
                     'Theo dõi tiến độ',
                   ].map((item) => (
                     <div key={item} className="flex items-start gap-3 text-sm font-semibold text-text-secondary">
@@ -565,22 +566,29 @@ export default function LandingPage() {
                   <div>
                     <h3 className="text-xl font-black text-text-primary">Plus</h3>
                     <p className="mt-3 min-h-12 text-sm font-semibold leading-6 text-text-secondary">
-                      Cho người tập nghiêm túc, dùng AI hằng ngày.
+                      Gói nên chọn: tự có lịch mới mỗi tuần, đủ dùng cho phần lớn người tập.
                     </p>
                   </div>
+                  <span className="shrink-0 rounded-full border border-accent/35 bg-accent/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-accent">
+                    Phổ biến nhất
+                  </span>
                 </div>
                 <div className="mt-6">
-                  <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">
-                    49.000đ <span className="text-sm font-bold text-text-tertiary">/tháng</span>
+                  <p className="inline-flex rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-200">
+                    Tháng đầu 55.000đ
                   </p>
-                  <p className="mt-1 text-xs font-black text-text-tertiary">8 lượt đổi AI</p>
+                  <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">
+                    79.000đ <span className="text-sm font-bold text-text-tertiary">/tháng</span>
+                  </p>
+                  <p className="mt-1 text-xs font-black text-text-tertiary">Giảm 30% cho lần mua đầu</p>
                 </div>
                 <div className="mt-6 grid gap-3.5">
                   {[
-                    'Mọi tính năng của Free',
-                    '8 lượt đổi kế hoạch bằng AI',
-                    'AI Coach chat thoải mái',
-                    'Smart meal planner theo ngân sách',
+                    'Tự tạo lịch tập & thực đơn 7 ngày hằng tuần',
+                    '4 lần tạo lịch thêm mỗi tháng',
+                    '60 lần đổi lịch mỗi tháng',
+                    '200 tin nhắn AI Coach',
+                    'Mọi tính năng theo dõi của Free',
                   ].map((item) => (
                     <div key={item} className="flex items-start gap-3 text-sm font-semibold text-text-secondary">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
@@ -591,10 +599,10 @@ export default function LandingPage() {
                 <div className="mt-auto pt-7">
                   <button
                     type="button"
-                    disabled
-                    className="inline-flex h-11 w-full cursor-not-allowed items-center justify-center rounded-lg border border-border-primary bg-transparent px-5 text-sm font-black uppercase tracking-[0.14em] text-text-tertiary opacity-70"
+                    onClick={() => navigate('/signup')}
+                    className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
                   >
-                    Sắp ra mắt
+                    Chọn Plus
                   </button>
                 </div>
               </article>
@@ -604,21 +612,26 @@ export default function LandingPage() {
                   <div>
                     <h3 className="text-xl font-black text-text-primary">Pro</h3>
                     <p className="mt-3 min-h-12 text-sm font-semibold leading-6 text-text-secondary">
-                      Dùng AI không cần đếm lượt — tối ưu tối đa.
+                      Dành cho người đổi lịch nhiều và chat coach thường xuyên.
                     </p>
                   </div>
                 </div>
                 <div className="mt-6">
-                  <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">
-                    99.000đ <span className="text-sm font-bold text-text-tertiary">/tháng</span>
+                  <p className="inline-flex rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-200">
+                    Tháng đầu 104.000đ
                   </p>
-                  <p className="mt-1 text-xs font-black text-text-tertiary">Lượt đổi AI không giới hạn</p>
+                  <p className="text-[2.15rem] font-black leading-none text-accent sm:text-4xl">
+                    149.000đ <span className="text-sm font-bold text-text-tertiary">/tháng</span>
+                  </p>
+                  <p className="mt-1 text-xs font-black text-text-tertiary">Giảm 30% cho lần mua đầu</p>
                 </div>
                 <div className="mt-6 grid gap-3.5">
                   {[
                     'Mọi tính năng của Plus',
-                    'Không giới hạn lượt đổi AI',
-                    'Tạo lại kế hoạch bao nhiêu lần tùy thích',
+                    '12 lần tạo lịch thêm mỗi tháng',
+                    '100 lần tạo lại bài tập',
+                    '100 lần tạo lại thực đơn',
+                    '800 tin nhắn AI Coach',
                   ].map((item) => (
                     <div key={item} className="flex items-start gap-3 text-sm font-semibold text-text-secondary">
                       <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
@@ -629,10 +642,10 @@ export default function LandingPage() {
                 <div className="mt-auto pt-7">
                   <button
                     type="button"
-                    disabled
-                    className="inline-flex h-11 w-full cursor-not-allowed items-center justify-center rounded-lg border border-border-primary bg-transparent px-5 text-sm font-black uppercase tracking-[0.14em] text-text-tertiary opacity-70"
+                    onClick={() => navigate('/signup')}
+                    className="inline-flex h-11 w-full items-center justify-center rounded-lg border border-border-primary bg-transparent px-5 text-sm font-black text-text-primary transition-colors hover:border-accent/35 hover:bg-bg-tertiary"
                   >
-                    Sắp ra mắt
+                    Chọn Pro
                   </button>
                 </div>
               </article>

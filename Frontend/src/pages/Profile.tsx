@@ -133,8 +133,8 @@ const getBmiStatus = (bmi: number | null) => {
 
 const membershipLabels = { free: 'Free', plus: 'Plus', pro: 'Pro' };
 
-const AI_LIMIT = { free: 25, plus: 50, pro: Infinity };
-const AI_SWAP_LIMIT = { free: 5, plus: 8, pro: Infinity };
+const AI_LIMIT = { free: 25, plus: 200, pro: 800 };
+const AI_SWAP_LIMIT = { free: 5, plus: 30, pro: 100 };
 const APP_URL = (import.meta.env.VITE_APP_URL || 'https://trend-fit.vercel.app').replace(/\/$/, '');
 const FITNESS_GOAL_OPTIONS = ['Giảm mỡ', 'Tăng cơ', 'Giữ dáng', 'Tăng sức mạnh', 'Cải thiện sức khỏe'];
 const DIET_PREFERENCE_OPTIONS = ['Bình thường', 'Eat clean', 'Giàu protein', 'Ăn chay', 'Keto'];
@@ -608,7 +608,7 @@ export default function Profile() {
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="min-w-0">
-            <h1 className="text-xl font-black text-text-primary">Đổi thông tin</h1>
+            <h1 className="text-xl font-black text-text-primary">Cập nhật hồ sơ</h1>
             <p className="mt-1 text-sm font-semibold text-text-secondary">Cập nhật hồ sơ, chỉ số cơ thể và các lưu ý sức khỏe.</p>
           </div>
         </div>
@@ -737,7 +737,7 @@ export default function Profile() {
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
               >
                 <PencilLine className="h-4 w-4 text-accent" />
-                Đổi thông tin
+                Cập nhật hồ sơ
               </button>
               <button
                 type="button"
@@ -966,7 +966,7 @@ export default function Profile() {
             icon={<Ruler className="h-4 w-4" />}
             value={formData.height ? `${formData.height}` : '--'}
             label="Chiều cao"
-            color="text-sky-400 bg-sky-400/15 border-sky-400/20"
+            color="text-green-400 bg-green-400/15 border-green-400/20"
           />
           <BodyStatCard
             icon={<TrendingUp className="h-4 w-4" />}
@@ -1201,7 +1201,7 @@ export default function Profile() {
               <div>
                 <div className="flex justify-between mb-1">
                   <span className="text-[11px] font-bold text-text-secondary">
-                    <span className="text-amber-400 font-black">PRO</span> — Không giới hạn
+                    <span className="text-amber-400 font-black">PRO</span> — 800 credit/tháng
                   </span>
                   <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 20)}/20</span>
                 </div>

@@ -121,7 +121,7 @@ const GOAL_OPTIONS: ChoiceOption[] = [
     label: 'Sức mạnh',
     description: 'Nâng nặng hơn mỗi tuần, cảm giác mạnh mẽ thật sự.',
     icon: Zap,
-    iconWrapClass: 'bg-cyan-500/12 text-cyan-300 ring-cyan-300/35',
+    iconWrapClass: 'bg-green-500/12 text-green-300 ring-green-300/35',
   },
   {
     value: 'Sức bền',
@@ -166,7 +166,7 @@ const ACTIVITY_LEVEL_OPTIONS: ChoiceOption[] = [
     label: 'Vận động đều',
     description: 'Tập 3-5 ngày/tuần, giữ sức khỏe ổn định.',
     icon: Bike,
-    iconWrapClass: 'bg-sky-500/12 text-sky-300 ring-sky-300/35',
+    iconWrapClass: 'bg-green-500/12 text-green-300 ring-green-300/35',
   },
   {
     value: '5 ngày/tuần',

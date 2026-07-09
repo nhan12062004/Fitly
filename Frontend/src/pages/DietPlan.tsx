@@ -456,7 +456,7 @@ const FoodPicker = ({
       >
         <div className="flex items-center justify-between gap-4 border-b border-border-primary px-5 py-4">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-blue-500">Thêm vào {mealLabel}</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-green-500">Thêm vào {mealLabel}</p>
             <h3 className="diet-title mt-1 text-lg font-black">Chọn món ăn</h3>
           </div>
           <button
@@ -522,7 +522,7 @@ const FoodPicker = ({
                   {Math.round(food.calories)} kcal - P {roundMacro(food.protein)}g - C {roundMacro(food.carbs)}g
                 </span>
               </span>
-              <Plus className="h-4 w-4 text-blue-500" />
+              <Plus className="h-4 w-4 text-green-500" />
             </button>
           ))}
 

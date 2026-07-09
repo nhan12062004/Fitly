@@ -99,6 +99,7 @@ export default function TopBar() {
     profile,
     refreshTick,
   } = useAuth();
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const isNotificationsPage = location.pathname === '/notifications';
@@ -113,8 +114,14 @@ export default function TopBar() {
   const nameParts = rawName.trim().split(/\s+/);
   const userName = nameParts.length > 1 ? `${nameParts[nameParts.length - 1]} ${nameParts[0]}` : rawName;
   const userInitial = nameParts[nameParts.length - 1]?.charAt(0).toUpperCase() || rawName.charAt(0).toUpperCase() || '?';
+  const avatarUrl = typeof profile?.avatar_url === 'string' ? profile.avatar_url.trim() : '';
+  const shouldShowAvatar = !!avatarUrl && !avatarLoadFailed;
   const membershipLabel = `${membershipTier.toUpperCase()} MEMBER`;
   const membershipClassName = membershipTier === 'pro' ? 'text-amber-300' : membershipTier === 'plus' ? 'text-ai' : 'text-accent';
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [avatarUrl]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -502,8 +509,17 @@ export default function TopBar() {
               {membershipLabel}
             </span>
           </div>
-          <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-sm font-bold text-text-inverse transition-transform">
-            {userInitial}
+          <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-accent text-sm font-bold text-text-inverse transition-transform">
+            {shouldShowAvatar ? (
+              <img
+                src={avatarUrl}
+                alt={rawName}
+                className="h-full w-full object-cover"
+                onError={() => setAvatarLoadFailed(true)}
+              />
+            ) : (
+              userInitial
+            )}
           </div>
         </button>
       </div>

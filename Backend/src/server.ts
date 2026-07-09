@@ -48,11 +48,28 @@ const AI_EXERCISE_CATALOG_LIMIT = 48;
 const AI_FOOD_CATALOG_LIMIT = 72;
 const AI_FOOD_CATALOG_FETCH_LIMIT = 320;
 type MembershipTier = 'free' | 'plus' | 'pro';
-const AI_CHANGE_LIMIT_BY_TIER: Record<MembershipTier, number | null> = {
-  free: 4,
-  plus: 8,
-  pro: null
+type AiQuotaKey = 'planGenerations' | 'workoutAdjustments' | 'mealAdjustments' | 'chatMessages';
+const AI_QUOTAS_BY_TIER: Record<MembershipTier, Record<AiQuotaKey, number>> = {
+  free: {
+    planGenerations: 1,
+    workoutAdjustments: 5,
+    mealAdjustments: 5,
+    chatMessages: 25
+  },
+  plus: {
+    planGenerations: 4,
+    workoutAdjustments: 30,
+    mealAdjustments: 30,
+    chatMessages: 200
+  },
+  pro: {
+    planGenerations: 12,
+    workoutAdjustments: 100,
+    mealAdjustments: 100,
+    chatMessages: 800
+  }
 };
+const FREE_TRIAL_DAYS = 7;
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -793,56 +810,168 @@ const normalizeMembershipTier = (value: unknown): MembershipTier => {
   return 'free';
 };
 
-const getAiChangeUsageCount = async (userId: string): Promise<number> => {
-  const [generatedChangesRes, appliedChatChangesRes] = await Promise.all([
-    supabase
-      .from('ai_plan_adjustments')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('source_type', 'ai_coach_generate'),
-    supabase
-      .from('ai_plan_adjustments')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('source_type', 'chat')
-      .eq('status', 'applied')
-  ]);
+const getMonthlyQuotaStart = (date = new Date()) => new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 
-  const firstError = generatedChangesRes.error || appliedChatChangesRes.error;
-  if (firstError) throw firstError;
+const getAiQuotaWindow = (profile: any, membershipTier: MembershipTier) => {
+  if (membershipTier === 'free') {
+    const createdAt = profile?.created_at ? new Date(profile.created_at) : new Date();
+    const safeStart = Number.isNaN(createdAt.getTime()) ? new Date() : createdAt;
+    return {
+      startsAt: safeStart,
+      endsAt: addDays(safeStart, FREE_TRIAL_DAYS)
+    };
+  }
 
-  return (generatedChangesRes.count || 0) + (appliedChatChangesRes.count || 0);
+  return {
+    startsAt: getMonthlyQuotaStart(),
+    endsAt: null as Date | null
+  };
+};
+
+const applyQuotaWindow = (query: any, startsAt: Date, endsAt: Date | null) => {
+  let nextQuery = query.gte('created_at', startsAt.toISOString());
+  if (endsAt) nextQuery = nextQuery.lt('created_at', endsAt.toISOString());
+  return nextQuery;
+};
+
+const getAiQuotaUsageCount = async (
+  userId: string,
+  quotaKey: AiQuotaKey,
+  startsAt: Date,
+  endsAt: Date | null
+): Promise<number> => {
+  if (quotaKey === 'chatMessages') {
+    const chatRes = await applyQuotaWindow(
+      supabase
+        .from('ai_chat_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('role', 'user'),
+      startsAt,
+      endsAt
+    );
+    if (chatRes.error) throw chatRes.error;
+    return chatRes.count || 0;
+  }
+
+  let query = supabase
+    .from('ai_plan_adjustments')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('status', 'applied');
+
+  if (quotaKey === 'planGenerations') {
+    query = query.eq('source_type', 'ai_coach_generate');
+  } else if (quotaKey === 'workoutAdjustments') {
+    query = query.eq('source_type', 'chat').eq('plan_type', 'workout');
+  } else if (quotaKey === 'mealAdjustments') {
+    query = query.eq('source_type', 'chat').eq('plan_type', 'meal');
+  }
+
+  const usageRes = await applyQuotaWindow(query, startsAt, endsAt);
+  if (usageRes.error) throw usageRes.error;
+  return usageRes.count || 0;
 };
 
 const getAiCoachAccessState = async (profile: any, userId: string) => {
   const membershipTier = normalizeMembershipTier(profile?.membership_tier);
-  const aiChangeLimit = AI_CHANGE_LIMIT_BY_TIER[membershipTier];
-  const aiChangeUsage = aiChangeLimit === null ? 0 : await getAiChangeUsageCount(userId);
-  const aiChangesRemaining = aiChangeLimit === null ? null : Math.max(0, aiChangeLimit - aiChangeUsage);
-  const canUseAiChange = aiChangeLimit === null || aiChangeUsage < aiChangeLimit;
+  const quotaLimits = AI_QUOTAS_BY_TIER[membershipTier];
+  const quotaWindow = getAiQuotaWindow(profile, membershipTier);
+  const trialExpired = membershipTier === 'free' && !!quotaWindow.endsAt && new Date() >= quotaWindow.endsAt;
+
+  const [
+    planGenerations,
+    workoutAdjustments,
+    mealAdjustments,
+    chatMessages
+  ] = await Promise.all([
+    getAiQuotaUsageCount(userId, 'planGenerations', quotaWindow.startsAt, quotaWindow.endsAt),
+    getAiQuotaUsageCount(userId, 'workoutAdjustments', quotaWindow.startsAt, quotaWindow.endsAt),
+    getAiQuotaUsageCount(userId, 'mealAdjustments', quotaWindow.startsAt, quotaWindow.endsAt),
+    getAiQuotaUsageCount(userId, 'chatMessages', quotaWindow.startsAt, quotaWindow.endsAt)
+  ]);
+
+  const usage: Record<AiQuotaKey, number> = {
+    planGenerations,
+    workoutAdjustments,
+    mealAdjustments,
+    chatMessages
+  };
+  const remaining = Object.fromEntries(
+    (Object.keys(quotaLimits) as AiQuotaKey[]).map((key) => [
+      key,
+      Math.max(0, quotaLimits[key] - usage[key])
+    ])
+  ) as Record<AiQuotaKey, number>;
 
   return {
     membershipTier,
-    aiChangeLimit,
-    aiChangeUsage,
-    aiChangesRemaining,
-    canGenerate: canUseAiChange,
-    canUseAiChange,
-    isUnlimited: aiChangeLimit === null
+    trialExpired,
+    trialEndsAt: membershipTier === 'free' ? quotaWindow.endsAt?.toISOString() || null : null,
+    quotaWindow: {
+      startsAt: quotaWindow.startsAt.toISOString(),
+      endsAt: quotaWindow.endsAt?.toISOString() || null
+    },
+    quotas: {
+      limits: quotaLimits,
+      usage,
+      remaining
+    },
+    canGenerate: !trialExpired && remaining.planGenerations > 0,
+    canChat: !trialExpired && remaining.chatMessages > 0,
+    canUseWorkoutAdjustment: !trialExpired && remaining.workoutAdjustments > 0,
+    canUseMealAdjustment: !trialExpired && remaining.mealAdjustments > 0,
+    canUseAiChange: !trialExpired && (remaining.workoutAdjustments > 0 || remaining.mealAdjustments > 0),
+    isUnlimited: false
   };
 };
 
-const buildAiChangeLimitError = (accessState: Awaited<ReturnType<typeof getAiCoachAccessState>>) => ({
+const AI_QUOTA_ERROR_MESSAGES: Record<AiQuotaKey, string> = {
+  planGenerations: 'Ban da dung het luot tao lich tu dong trong goi hien tai. Vui long nang cap Plus hoac Pro de tao lich moi.',
+  workoutAdjustments: 'Ban da dung het luot tao lai bai tap trong goi hien tai. Vui long nang cap Plus hoac Pro de tiep tuc.',
+  mealAdjustments: 'Ban da dung het luot tao lai thuc don trong goi hien tai. Vui long nang cap Plus hoac Pro de tiep tuc.',
+  chatMessages: 'Ban da dung het tin nhan AI Coach trong goi hien tai. Vui long nang cap Plus hoac Pro de tiep tuc.'
+};
+
+const buildAiQuotaLimitError = (
+  accessState: Awaited<ReturnType<typeof getAiCoachAccessState>>,
+  quotaKey: AiQuotaKey
+) => ({
   code: 'AI_CHANGE_LIMIT_REACHED',
-  error:
-    accessState.membershipTier === 'plus'
-      ? 'Goi Plus da dung het 8 luot doi AI. Vui long nang cap Pro de doi khong gioi han.'
-      : 'Goi Free da dung het 4 luot doi AI. Vui long nang cap Plus hoac Pro de tiep tuc.',
+  error: accessState.trialExpired
+    ? 'Free trial 7 ngay da ket thuc. Vui long nang cap Plus hoac Pro de tiep tuc dung AI Coach.'
+    : AI_QUOTA_ERROR_MESSAGES[quotaKey],
   membershipTier: accessState.membershipTier,
-  aiChangeLimit: accessState.aiChangeLimit,
-  aiChangeUsage: accessState.aiChangeUsage,
-  aiChangesRemaining: accessState.aiChangesRemaining
+  quotaKey,
+  trialEndsAt: accessState.trialEndsAt,
+  aiQuota: {
+    limits: accessState.quotas.limits,
+    usage: accessState.quotas.usage,
+    remaining: accessState.quotas.remaining
+  }
 });
+
+const buildAiChangeLimitError = (accessState: Awaited<ReturnType<typeof getAiCoachAccessState>>) =>
+  buildAiQuotaLimitError(accessState, 'workoutAdjustments');
+
+const buildAiQuotaSnapshot = (
+  accessState: Awaited<ReturnType<typeof getAiCoachAccessState>>,
+  incrementKey?: AiQuotaKey
+) => {
+  const usage = { ...accessState.quotas.usage };
+  const remaining = { ...accessState.quotas.remaining };
+  if (incrementKey) {
+    usage[incrementKey] = usage[incrementKey] + 1;
+    remaining[incrementKey] = Math.max(0, remaining[incrementKey] - 1);
+  }
+
+  return {
+    limits: accessState.quotas.limits,
+    usage,
+    remaining,
+    trialEndsAt: accessState.trialEndsAt
+  };
+};
 
 const parseJsonFromAiText = (text: string) => {
   const cleaned = String(text || '')
@@ -1641,15 +1770,15 @@ async function generateWeeklyCoachPlanForUser(params: {
   }
 
   if (premiumOnly) {
-    if (accessState.membershipTier !== 'pro') {
+    if (accessState.membershipTier === 'free') {
       throw new ApiRequestError(403, {
         code: 'PREMIUM_REQUIRED',
-        error: 'Pro membership required for automatic weekly generation.',
+        error: 'Plus or Pro membership required for automatic weekly generation.',
         membershipTier: accessState.membershipTier,
       });
     }
   } else if (!accessState.canGenerate) {
-    throw new ApiRequestError(403, buildAiChangeLimitError(accessState));
+    throw new ApiRequestError(403, buildAiQuotaLimitError(accessState, 'planGenerations'));
   }
 
   const exerciseCatalog = exercises
@@ -2010,7 +2139,7 @@ JSON schema (fixed):
   const adjustment = await supabase.from('ai_plan_adjustments').insert({
     user_id: userId,
     plan_type: planType,
-    source_type: 'ai_coach_generate',
+    source_type: premiumOnly ? 'premium_auto_generate' : 'ai_coach_generate',
     old_plan_id: previousWorkoutPlanId || previousFoodPlanId,
     new_plan_id: weeklyPlanId,
     old_data: {
@@ -2042,12 +2171,7 @@ JSON schema (fixed):
     mealItems: mealRows.length,
     weekStartDate: weekStartKey,
     membershipTier: accessState.membershipTier,
-    aiQuota: {
-      limit: accessState.aiChangeLimit,
-      used: accessState.aiChangeLimit === null ? null : accessState.aiChangeUsage + 1,
-      remaining: accessState.aiChangeLimit === null ? null : Math.max(0, (accessState.aiChangesRemaining || 0) - 1),
-      unlimited: accessState.isUnlimited
-    },
+    aiQuota: buildAiQuotaSnapshot(accessState, premiumOnly ? undefined : 'planGenerations'),
     ai_json: {
       workout_plan: normalizedPlan.workoutPlan,
       meal_plan: normalizedPlan.mealPlan
@@ -2060,7 +2184,7 @@ async function runPremiumMondayAutoPlanner(trigger: 'cron' | 'manual' = 'cron') 
   const premiumProfilesRes = await supabase
     .from('profiles')
     .select('id, full_name')
-    .in('membership_tier', ['pro', 'premium']);
+    .in('membership_tier', ['plus', 'pro', 'premium']);
 
   if (premiumProfilesRes.error) throw premiumProfilesRes.error;
 
@@ -3255,12 +3379,6 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     let todayStatusContext = '';
     let coachDataContext = '';
 
-    try {
-      trackingActionLog = (await processNaturalTracking(authUserId, normalizedMessage)).actionLog;
-    } catch (trackingError: any) {
-      console.warn('[ai-chat] natural tracking skipped:', trackingError?.message || trackingError);
-    }
-
     incrementMetric('totalChatRequests');
     const weeklyPlanQuery = requestedWeekStartDate
       ? supabase
@@ -3370,6 +3488,33 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .in('log_date', recentDateKeys)
         .order('log_date', { ascending: false })
     ]);
+
+    const firstDataError = [
+      todayWorkoutRes.error,
+      todayMealRes.error,
+      weekPlanRes.error,
+      feedbackRes.error,
+      profileRes.error,
+      bodyMetricsRes.error,
+      healthRes.error,
+      recentChatRes.error,
+      dailyExerciseSessionsRes.error,
+      recentProgressLogsRes.error,
+      recentExerciseSessionsRes.error,
+      recentMealLogsRes.error
+    ].find(Boolean);
+    if (firstDataError) throw firstDataError;
+
+    const chatAccessState = await getAiCoachAccessState(profileRes.data || {}, authUserId);
+    if (!chatAccessState.canChat) {
+      return res.status(403).json(buildAiQuotaLimitError(chatAccessState, 'chatMessages'));
+    }
+
+    try {
+      trackingActionLog = (await processNaturalTracking(authUserId, normalizedMessage)).actionLog;
+    } catch (trackingError: any) {
+      console.warn('[ai-chat] natural tracking skipped:', trackingError?.message || trackingError);
+    }
 
     const workoutRows = (todayWorkoutRes.data as any)?.weekly_plan_exercises || [];
     const mealRows = (todayMealRes.data as any)?.weekly_food_items || [];
@@ -3625,7 +3770,8 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     success = true;
     return res.json({
       ...normalizedResponse,
-      adjustmentId: adjustmentId || null
+      adjustmentId: adjustmentId || null,
+      aiQuota: buildAiQuotaSnapshot(chatAccessState, 'chatMessages')
     });
   } catch (error: any) {
     incrementMetric('errorCount');
@@ -3782,8 +3928,14 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       health: applyHealthRes.data || null
     };
     const applyAccessState = await getAiCoachAccessState(applyProfileRes.data || {}, authUserId);
-    if (!applyAccessState.canUseAiChange) {
-      return res.status(403).json(buildAiChangeLimitError(applyAccessState));
+    const adjustmentQuotaKey: AiQuotaKey = adjustmentRes.data.plan_type === 'meal'
+      ? 'mealAdjustments'
+      : 'workoutAdjustments';
+    const canUseAdjustment = adjustmentQuotaKey === 'mealAdjustments'
+      ? applyAccessState.canUseMealAdjustment
+      : applyAccessState.canUseWorkoutAdjustment;
+    if (!canUseAdjustment) {
+      return res.status(403).json(buildAiQuotaLimitError(applyAccessState, adjustmentQuotaKey));
     }
 
     if (adjustmentRes.data.plan_type === 'workout') {
@@ -4076,12 +4228,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
     return res.json({
       success: true,
       adjustmentId,
-      aiQuota: {
-        limit: applyAccessState.aiChangeLimit,
-        used: applyAccessState.aiChangeLimit === null ? null : applyAccessState.aiChangeUsage + 1,
-        remaining: applyAccessState.aiChangeLimit === null ? null : Math.max(0, (applyAccessState.aiChangesRemaining || 0) - 1),
-        unlimited: applyAccessState.isUnlimited
-      }
+      aiQuota: buildAiQuotaSnapshot(applyAccessState, adjustmentQuotaKey)
     });
   } catch (error: any) {
     incrementMetric('errorCount');
@@ -4366,7 +4513,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     }
 
     if (!accessState.canGenerate) {
-      return res.status(403).json(buildAiChangeLimitError(accessState));
+      return res.status(403).json(buildAiQuotaLimitError(accessState, 'planGenerations'));
     }
 
     const exerciseCatalog = exercises
@@ -4816,12 +4963,7 @@ ${jsonSchemaPrompt}
         mealItems: mealRows.length,
         weekStartDate: weekStartKey,
         membershipTier: accessState.membershipTier,
-        aiQuota: {
-          limit: accessState.aiChangeLimit,
-          used: accessState.aiChangeLimit === null ? null : accessState.aiChangeUsage + 1,
-          remaining: accessState.aiChangeLimit === null ? null : Math.max(0, (accessState.aiChangesRemaining || 0) - 1),
-          unlimited: accessState.isUnlimited
-        },
+        aiQuota: buildAiQuotaSnapshot(accessState, 'planGenerations'),
         ai_json: {
           workout_plan: normalizedPlan.workoutPlan,
           meal_plan: workoutOnly ? null : normalizedPlan.mealPlan

@@ -3,7 +3,7 @@ import { supabase } from '../lib/Supabase';
 import { User } from '@supabase/supabase-js';
 import AuthModal from '../components/AuthModal';
 import LoadingScreen from '../components/LoadingScreen';
-import PremiumCheckout from '../pages/PremiumCheckout';
+import { useNavigate } from 'react-router-dom';
 
 export type MembershipTier = 'free' | 'plus' | 'pro';
 
@@ -64,6 +64,7 @@ const normalizeVerifiedEmailRedirect = () => {
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [hasProfile, setHasProfile] = useState(false);
@@ -73,7 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
   const checkProfile = async (userId: string) => {
@@ -168,7 +168,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserRole(null);
         setMembershipTier('free');
         setIsCheckingProfile(false);
-        setIsPremiumModalOpen(false);
         setRefreshTick(0);
       }
     });
@@ -224,7 +223,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setHasProfile(false);
       setUserRole(null);
       setMembershipTier('free');
-      setIsPremiumModalOpen(false);
       setRefreshTick(0);
       
       try {
@@ -243,8 +241,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsAuthModalOpen(true);
   };
   const closeAuthModal = () => setIsAuthModalOpen(false);
-  const openPremiumModal = () => setIsPremiumModalOpen(true);
-  const closePremiumModal = () => setIsPremiumModalOpen(false);
+  const openPremiumModal = () => {
+    navigate('/premium');
+  };
+  const closePremiumModal = () => undefined;
   const refreshProfile = async () => {
     if (user) {
       await checkProfile(user.id);
@@ -273,7 +273,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }}>
       {loading ? <LoadingScreen fullScreen /> : children}
       <AuthModal isOpen={isAuthModalOpen} initialMode={authMode} onClose={closeAuthModal} />
-      <PremiumCheckout isOpen={isPremiumModalOpen} onClose={closePremiumModal} />
     </AuthContext.Provider>
   );
 }
