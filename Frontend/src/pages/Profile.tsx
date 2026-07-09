@@ -10,8 +10,8 @@ import {
 import {
   Activity,
   AlertCircle,
+  ArrowLeft,
   BadgeCheck,
-  BriefcaseBusiness,
   CalendarDays,
   Camera,
   Check,
@@ -20,28 +20,31 @@ import {
   Flame,
   HeartPulse,
   Loader2,
-  Mail,
+  Lock,
+  LogOut,
   PencilLine,
-  Phone,
+  PowerOff,
   Ruler,
   Save,
   Scale,
+  Send,
   Settings,
-  ShieldCheck,
+  Trash2,
   Trophy,
   TrendingUp,
   User,
   Users,
-  VenusAndMars,
   X,
   Zap,
   Apple,
 } from 'lucide-react';
+import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import { getUserChallenges, type ChallengeSummary } from '../lib/Challenges';
+import { API_BASE_URL } from '../lib/Api';
 
 const emptyForm = {
   full_name: '',
@@ -49,6 +52,7 @@ const emptyForm = {
   phone: '',
   gender: 'Nam',
   birthday: '',
+  age: '',
   job: '',
   height: '',
   weight: '',
@@ -58,6 +62,9 @@ const emptyForm = {
   injuries: '',
   allergies: '',
   medications: 'Không sử dụng thuốc',
+  fitness_goal: 'Giảm mỡ',
+  diet_preference: 'Bình thường',
+  budget_level: 'Trung bình',
 };
 
 const toInput = (value: unknown) => {
@@ -88,6 +95,27 @@ const formatDate = (value: string) => {
   return date.toLocaleDateString('vi-VN');
 };
 
+const getAgeFromBirthday = (value: string) => {
+  if (!value) return '';
+  const birthDate = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return '';
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const hasBirthdayPassed =
+    today.getMonth() > birthDate.getMonth()
+    || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+  if (!hasBirthdayPassed) age -= 1;
+
+  return age > 0 && age < 130 ? String(age) : '';
+};
+
+const getBirthdayFromAge = (value: string) => {
+  const age = Math.floor(Number(value));
+  if (!Number.isFinite(age) || age <= 0 || age >= 130) return null;
+  return `${new Date().getFullYear() - age}-01-01`;
+};
+
 const formatJoinMonth = (isoString: string) => {
   if (!isoString) return '';
   const date = new Date(isoString);
@@ -107,15 +135,27 @@ const membershipLabels = { free: 'Free', plus: 'Plus', pro: 'Pro' };
 
 const AI_LIMIT = { free: 25, plus: 50, pro: Infinity };
 const AI_SWAP_LIMIT = { free: 5, plus: 8, pro: Infinity };
+const APP_URL = (import.meta.env.VITE_APP_URL || 'https://trend-fit.vercel.app').replace(/\/$/, '');
+const FITNESS_GOAL_OPTIONS = ['Giảm mỡ', 'Tăng cơ', 'Giữ dáng', 'Tăng sức mạnh', 'Cải thiện sức khỏe'];
+const DIET_PREFERENCE_OPTIONS = ['Bình thường', 'Eat clean', 'Giàu protein', 'Ăn chay', 'Keto'];
+const MEAL_BUDGET_OPTIONS = ['Tiết kiệm', 'Trung bình', 'Thoải mái'];
+
+type ProfileOutletContext = {
+  onPasswordClick?: () => void;
+};
 
 export default function Profile() {
-  const { user, profile, membershipTier, openPremiumModal, refreshProfile } = useAuth();
+  const { onPasswordClick } = useOutletContext<ProfileOutletContext>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isProfileEditPage = location.pathname === '/profile/edit';
+  const { user, profile, membershipTier, openPremiumModal, refreshProfile, signOut } = useAuth();
   const toast = useToast();
   const [formData, setFormData] = useState(emptyForm);
   const [latestBodyCreatedAt, setLatestBodyCreatedAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(isProfileEditPage);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -132,7 +172,11 @@ export default function Profile() {
   const [aiUsed, setAiUsed] = useState(0);
   const [aiSwapWorkout, setAiSwapWorkout] = useState(0);
   const [aiSwapMeal, setAiSwapMeal] = useState(0);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPollingTelegram, setIsPollingTelegram] = useState(false);
+  const [isUnlinkingTelegram, setIsUnlinkingTelegram] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
 
   // ── Load profile data ────────────────────────────────────────────────────
   useEffect(() => {
@@ -156,7 +200,7 @@ export default function Profile() {
             .limit(1)
             .maybeSingle(),
           supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
-          supabase.from('lifestyle_settings').select('fitness_goal').eq('user_id', userId).maybeSingle(),
+          supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
           supabase
             .from('daily_progress_logs')
             .select('log_date', { count: 'exact', head: false })
@@ -190,6 +234,7 @@ export default function Profile() {
           phone: p.phone || '',
           gender: p.gender || 'Nam',
           birthday: p.birthday || '',
+          age: getAgeFromBirthday(p.birthday || ''),
           job: p.job || '',
           height: toInput(b.height),
           weight: toInput(b.weight),
@@ -199,6 +244,9 @@ export default function Profile() {
           injuries: h.injuries || '',
           allergies: h.medical_history || '',
           medications: h.medications || 'Không sử dụng thuốc',
+          fitness_goal: lifestyleRes.data?.fitness_goal || 'Giảm mỡ',
+          diet_preference: lifestyleRes.data?.diet_preference || 'Bình thường',
+          budget_level: lifestyleRes.data?.budget_level || 'Trung bình',
         });
         setLatestBodyCreatedAt(b.created_at || '');
         setAvatarUrl(p.avatar_url || null);
@@ -245,6 +293,142 @@ export default function Profile() {
   useEffect(() => {
     if (error) toast.error(error);
   }, [error, toast]);
+
+  useEffect(() => {
+    setIsEditing(isProfileEditPage);
+  }, [isProfileEditPage]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(target)) {
+        setIsSettingsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsSettingsOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isSettingsOpen]);
+
+  useEffect(() => {
+    if (!isPollingTelegram || !user?.id) return;
+
+    let attempts = 0;
+    const maxAttempts = 40;
+    const interval = window.setInterval(async () => {
+      attempts += 1;
+      const { data: updatedProfile } = await supabase
+        .from('profiles')
+        .select('telegram_chat_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (updatedProfile?.telegram_chat_id) {
+        window.clearInterval(interval);
+        setIsPollingTelegram(false);
+        await refreshProfile();
+        setReloadKey((value) => value + 1);
+        toast.success('Đã kết nối Telegram thành công');
+      }
+
+      if (attempts >= maxAttempts) {
+        window.clearInterval(interval);
+        setIsPollingTelegram(false);
+      }
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [isPollingTelegram, refreshProfile, toast, user?.id]);
+
+  const notifyTelegramResult = (message: unknown) => {
+    const text = String(message || '');
+    if (/lỗi|loi|không tìm|khong tim|không thể|khong the|hết hạn|het han|chưa được|chua duoc/i.test(text)) {
+      toast.error(text);
+      return;
+    }
+    toast.success(text);
+  };
+
+  const handleUnlinkTelegram = async () => {
+    if (!user?.id) return;
+    if (!confirm('Bạn có chắc chắn muốn hủy liên kết với Telegram Bot không?')) return;
+
+    setIsUnlinkingTelegram(true);
+    try {
+      const { error: unlinkError } = await supabase
+        .from('profiles')
+        .update({ telegram_chat_id: null })
+        .eq('id', user.id);
+
+      if (unlinkError) throw unlinkError;
+      await refreshProfile();
+      setReloadKey((value) => value + 1);
+      toast.success('Đã hủy liên kết Telegram thành công');
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể hủy liên kết Telegram.');
+    } finally {
+      setIsUnlinkingTelegram(false);
+    }
+  };
+
+  const handleConnectTelegram = async () => {
+    if (!user?.id) {
+      notifyTelegramResult('Lỗi: Không tìm thấy ID người dùng. Vui lòng đăng nhập lại.');
+      return;
+    }
+
+    try {
+      const { data: profileExists, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Profile check error:', checkError);
+        notifyTelegramResult('Lỗi kết nối. Vui lòng thử lại.');
+        return;
+      }
+
+      if (!profileExists) {
+        notifyTelegramResult('Hồ sơ chưa được tạo. Vui lòng hoàn thành khảo sát lần đầu trước khi kết nối Telegram.');
+        return;
+      }
+
+      const sessionRes = await supabase.auth.getSession();
+      const accessToken = sessionRes.data.session?.access_token;
+      if (!accessToken) {
+        notifyTelegramResult('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        return;
+      }
+
+      const linkRes = await fetch(`${API_BASE_URL}/api/telegram/link-token`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const payload = await linkRes.json().catch(() => ({}));
+      if (!linkRes.ok || !payload?.telegramLink) {
+        throw new Error(payload?.error || 'Không thể tạo liên kết Telegram an toàn.');
+      }
+
+      window.open(String(payload.telegramLink), '_blank');
+      setIsPollingTelegram(true);
+    } catch (err: any) {
+      notifyTelegramResult(`Lỗi: ${err?.message || 'Không thể kết nối Telegram.'}`);
+    }
+  };
 
   // ── Avatar upload ────────────────────────────────────────────────────────
   const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -304,6 +488,24 @@ export default function Profile() {
   const handleCancel = () => {
     setIsEditing(false);
     setReloadKey((v) => v + 1);
+    navigate('/profile');
+  };
+
+  const openProfileEditor = () => {
+    setIsSettingsOpen(false);
+    navigate('/profile/edit');
+  };
+
+  const handleDisableAccount = () => {
+    setIsSettingsOpen(false);
+    const confirmed = window.confirm('Vô hiệu hóa tài khoản sẽ cần khóa đăng nhập và bảo vệ dữ liệu của bạn. Bạn muốn tiếp tục?');
+    if (!confirmed) return;
+
+    toast.warning({
+      title: 'Chưa thể vô hiệu hóa tự động',
+      message: 'Hệ thống hiện chưa có backend/schema để khóa tài khoản an toàn. Cần thêm API vô hiệu hóa tài khoản trước khi thao tác này hoạt động thật.',
+      duration: 6000,
+    });
   };
 
   const handleSave = async (e: FormEvent) => {
@@ -312,14 +514,14 @@ export default function Profile() {
     setSaving(true);
     setError('');
     try {
-      const [profileRes, bodyRes, healthRes] = await Promise.all([
+      const [profileRes, bodyRes, healthRes, lifestyleRes] = await Promise.all([
         supabase.from('profiles').upsert({
           id: user.id,
           full_name: formData.full_name.trim(),
           email: formData.email || user.email,
           phone: formData.phone.trim(),
           gender: formData.gender,
-          birthday: formData.birthday || null,
+          birthday: getBirthdayFromAge(formData.age),
           job: formData.job.trim(),
           updated_at: new Date().toISOString(),
         }),
@@ -338,15 +540,23 @@ export default function Profile() {
           medications: formData.medications.trim(),
           updated_at: new Date().toISOString(),
         }),
+        supabase.from('lifestyle_settings').upsert({
+          user_id: user.id,
+          fitness_goal: formData.fitness_goal,
+          diet_preference: formData.diet_preference,
+          budget_level: formData.budget_level,
+          updated_at: new Date().toISOString(),
+        }),
       ]);
 
-      const firstError = [profileRes.error, bodyRes.error, healthRes.error].find(Boolean);
+      const firstError = [profileRes.error, bodyRes.error, healthRes.error, lifestyleRes.error].find(Boolean);
       if (firstError) throw firstError;
 
       await refreshProfile();
       setLatestBodyCreatedAt(new Date().toISOString());
       setIsEditing(false);
       toast.success('Đã lưu thông tin hồ sơ!');
+      navigate('/profile');
     } catch (err: any) {
       setError(err?.message || 'Không thể lưu thông tin cá nhân.');
     } finally {
@@ -365,6 +575,7 @@ export default function Profile() {
   const goalLabel = fitnessGoal || 'Chưa đặt mục tiêu';
   const aiLimit = AI_LIMIT[membershipTier] ?? 25;
   const aiSwapLimit = AI_SWAP_LIMIT[membershipTier] ?? 5;
+  const referralLink = refCode ? `${APP_URL}/register?ref=${refCode}` : '';
 
   const level = dbLevel;
   const expInLevel = totalExp % 100;
@@ -383,6 +594,117 @@ export default function Profile() {
     'text-emerald-400 bg-emerald-400/15 border-emerald-400/25',
   ];
 
+  if (isProfileEditPage || isEditing) {
+    return (
+      <form onSubmit={handleSave} className="dashboard-page-shell pb-5 md:pb-7 space-y-4">
+        <div className="flex items-start gap-3 px-1">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={saving}
+            className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60"
+            title="Quay lại hồ sơ"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-xl font-black text-text-primary">Đổi thông tin</h1>
+            <p className="mt-1 text-sm font-semibold text-text-secondary">Cập nhật hồ sơ, chỉ số cơ thể và các lưu ý sức khỏe.</p>
+          </div>
+        </div>
+
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+          <section id="thong-tin-ca-nhan" className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<User className="h-4 w-4" />} title="Thông tin cá nhân" helper="Thông tin nhận diện cơ bản của bạn." />
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <ProfileField label="Họ và tên" name="full_name" value={formData.full_name} onChange={handleChange} editing icon={<User className="h-4 w-4" />} />
+              <ProfileField label="Tuổi" name="age" value={formData.age} onChange={handleChange} editing type="number" suffix="tuổi" icon={<CalendarDays className="h-4 w-4" />} />
+              <div className="md:col-span-2">
+                <OptionButtonGroup
+                  label="Giới tính"
+                  value={formData.gender}
+                  options={['Nam', 'Nữ', 'Khác']}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, gender: value }))}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<Trophy className="h-4 w-4" />} title="Mục tiêu, thực đơn & ngân sách" helper="Các lựa chọn chính để Fitly cá nhân hóa kế hoạch." />
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <OptionButtonGroup
+                label="Mục tiêu chính"
+                value={formData.fitness_goal}
+                options={FITNESS_GOAL_OPTIONS}
+                onChange={(value) => setFormData((prev) => ({ ...prev, fitness_goal: value }))}
+                columns="sm:grid-cols-2 xl:grid-cols-3"
+              />
+              <OptionButtonGroup
+                label="Kiểu ăn"
+                value={formData.diet_preference}
+                options={DIET_PREFERENCE_OPTIONS}
+                onChange={(value) => setFormData((prev) => ({ ...prev, diet_preference: value }))}
+                columns="sm:grid-cols-2 xl:grid-cols-3"
+              />
+              <div className="md:col-span-2">
+                <OptionButtonGroup
+                  label="Ngân sách bữa ăn"
+                  value={formData.budget_level}
+                  options={MEAL_BUDGET_OPTIONS}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, budget_level: value }))}
+                  columns="sm:grid-cols-3"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <ProfileTextArea label="Dị ứng / thực phẩm cần tránh" name="allergies" value={formData.allergies} onChange={handleChange} editing icon={<AlertCircle className="h-4 w-4" />} />
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <section id="chi-so-co-the" className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<Ruler className="h-4 w-4" />} title="Chỉ số cơ thể" helper="Mỗi lần lưu sẽ tạo một mốc mới để theo dõi tiến độ." />
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <ProfileField label="Chiều cao" name="height" value={formData.height} onChange={handleChange} editing type="number" suffix="cm" viewValue={formatMetric(formData.height, 'cm')} icon={<Ruler className="h-4 w-4" />} />
+              <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
+              <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
+              <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
+            </div>
+          </section>
+
+          <section id="suc-khoe" className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<HeartPulse className="h-4 w-4" />} title="Sức khỏe cơ bản" helper="Chỉ giữ các lưu ý ảnh hưởng trực tiếp tới độ an toàn khi tập." />
+            <div className="mt-5 grid gap-4">
+              <ProfileTextArea label="Bệnh nền / lưu ý sức khỏe" name="health_condition" value={formData.health_condition} onChange={handleChange} editing icon={<HeartPulse className="h-4 w-4" />} />
+              <ProfileTextArea label="Chấn thương" name="injuries" value={formData.injuries} onChange={handleChange} editing icon={<Activity className="h-4 w-4" />} />
+            </div>
+          </section>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={saving}
+            className="inline-flex flex-1 h-12 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary text-sm font-black text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60"
+          >
+            <X className="h-4 w-4" /> Hủy
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Lưu thay đổi
+          </button>
+        </div>
+      </form>
+    );
+  }
+
   return (
     <form onSubmit={handleSave} className="dashboard-page-shell pb-5 md:pb-7 space-y-4">
       <input
@@ -393,17 +715,57 @@ export default function Profile() {
         onChange={handleAvatarChange}
       />
 
+      <div className="flex items-center justify-between px-1">
+        <h1 className="text-xl font-black text-text-primary">Hồ sơ</h1>
+        <div ref={settingsMenuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen((value) => !value)}
+            className={`flex h-9 w-9 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition-colors hover:text-text-primary ${isSettingsOpen ? 'text-accent' : ''}`}
+            aria-label="Cài đặt hồ sơ"
+            aria-expanded={isSettingsOpen}
+            title="Cài đặt"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+
+          {isSettingsOpen && (
+            <div className="absolute right-0 top-11 z-20 w-64 overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-2 shadow-2xl shadow-black/30">
+              <button
+                type="button"
+                onClick={openProfileEditor}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              >
+                <PencilLine className="h-4 w-4 text-accent" />
+                Đổi thông tin
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSettingsOpen(false);
+                  onPasswordClick?.();
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              >
+                <Lock className="h-4 w-4 text-accent" />
+                Đổi mật khẩu
+              </button>
+              <div className="my-1 h-px bg-border-primary" />
+              <button
+                type="button"
+                onClick={handleDisableAccount}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-danger/10"
+              >
+                <PowerOff className="h-4 w-4" />
+                Vô hiệu hóa tài khoản
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
         <div className="p-5 md:p-6">
-          <div className="mb-4 flex items-start justify-between">
-            <h1 className="text-xl font-black text-text-primary">Hồ sơ</h1>
-            <button
-              type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition-colors hover:text-text-primary"
-            >
-              <Settings className="h-4 w-4" />
-            </button>
-          </div>
 
           <div className="flex items-start gap-4">
             <div className="relative shrink-0">
@@ -455,13 +817,6 @@ export default function Profile() {
               )}
             </div>
 
-            <button
-              type="button"
-              className="hidden shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2 text-xs font-black text-accent transition-colors hover:bg-accent/20 sm:flex"
-            >
-              <Users className="h-4 w-4" />
-              Mời bạn
-            </button>
           </div>
 
           <div className="mt-4">
@@ -475,6 +830,94 @@ export default function Profile() {
                 style={{ width: `${Math.min(100, expInLevel)}%` }}
               />
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-info/20 bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="p-4 md:p-5">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-info/20 bg-info/10 text-info">
+                <Send className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-black text-text-primary">Telegram Bot</h2>
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${
+                    profile?.telegram_chat_id
+                      ? 'border-accent/25 bg-accent/10 text-accent'
+                      : 'border-info/25 bg-info/10 text-info'
+                  }`}>
+                    {profile?.telegram_chat_id ? <Check className="h-3 w-3" /> : <Send className="h-3 w-3" />}
+                    {profile?.telegram_chat_id ? 'Đã kết nối' : 'Chưa kết nối'}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm font-semibold leading-6 text-text-secondary">
+                  Bot nhận tín hiệu từ Fitly và gửi các nhắc nhở quan trọng vào Telegram, để bạn giữ nhịp tập luyện mà không cần mở web liên tục.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="flex min-w-0 items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-info" />
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-text-primary">Nhắc đúng lúc</p>
+                  <p className="mt-0.5 text-[11px] font-semibold leading-5 text-text-secondary">Nước, ngủ nghỉ và thói quen hằng ngày.</p>
+                </div>
+              </div>
+              <div className="flex min-w-0 items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-info" />
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-text-primary">Theo lịch tập</p>
+                  <p className="mt-0.5 text-[11px] font-semibold leading-5 text-text-secondary">Nhận nhắc buổi tập và kế hoạch hôm nay.</p>
+                </div>
+              </div>
+              <div className="flex min-w-0 items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-info" />
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-text-primary">Thao tác nhanh</p>
+                  <p className="mt-0.5 text-[11px] font-semibold leading-5 text-text-secondary">Theo dõi tiến độ ngay trong cuộc trò chuyện.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between gap-4 border-t border-border-primary bg-bg-tertiary/35 p-4 lg:border-l lg:border-t-0 md:p-5">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-text-tertiary">Trạng thái</p>
+              <p className="mt-1 text-lg font-black text-text-primary">
+                {profile?.telegram_chat_id ? 'Bot đang bật' : 'Sẵn sàng kích hoạt'}
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-text-secondary">
+                {profile?.telegram_chat_id
+                  ? 'Bạn có thể hủy liên kết bất cứ lúc nào.'
+                  : 'Mở Telegram để xác nhận liên kết an toàn.'}
+              </p>
+            </div>
+
+            {profile?.telegram_chat_id ? (
+              <button
+                type="button"
+                onClick={() => void handleUnlinkTelegram()}
+                disabled={isUnlinkingTelegram}
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-danger/25 bg-danger/10 px-3 text-xs font-black text-danger transition-colors hover:bg-danger/15 disabled:opacity-60"
+              >
+                {isUnlinkingTelegram ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Hủy liên kết
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void handleConnectTelegram()}
+                disabled={isPollingTelegram}
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-info px-4 text-xs font-black text-text-inverse transition-colors hover:bg-info/90 disabled:cursor-default disabled:opacity-70"
+              >
+                {isPollingTelegram ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {isPollingTelegram ? 'Đang chờ kết nối...' : 'Kết nối bot'}
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -505,7 +948,7 @@ export default function Profile() {
           <h2 className="text-base font-black text-text-primary">Chỉ số cơ thể</h2>
           <button
             type="button"
-            onClick={() => setIsEditing(true)}
+            onClick={openProfileEditor}
             className="flex items-center gap-1.5 text-xs font-bold text-accent hover:text-accent/80 transition-colors"
           >
             <PencilLine className="h-3.5 w-3.5" />
@@ -594,37 +1037,6 @@ export default function Profile() {
         )}
       </section>
 
-
-      {/* ── CHỈNH SỬA HỒ SƠ BUTTON ──────────────────────────────────── */}
-      {isEditing ? (
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={saving}
-            className="inline-flex flex-1 h-12 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary text-sm font-black text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60"
-          >
-            <X className="h-4 w-4" /> Hủy
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex flex-1 h-12 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Lưu thay đổi
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setIsEditing(true)}
-          className="inline-flex w-full h-12 items-center justify-center gap-2 rounded-xl bg-accent text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover shadow-[0_8px_24px_rgba(var(--color-accent-rgb,99,234,190),0.25)]"
-        >
-          <PencilLine className="h-4 w-4" />
-          Chỉnh sửa hồ sơ
-        </button>
-      )}
 
       {/* ── GÓI AI ───────────────────────────────────────────────────── */}
       <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
@@ -729,13 +1141,13 @@ export default function Profile() {
             <div className="flex items-center gap-2">
               <div className="flex-1 overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary px-3 py-2.5">
                 <p className="truncate text-xs font-semibold text-text-secondary font-mono">
-                  {`${import.meta.env.VITE_APP_URL || window.location.origin}/register?ref=${refCode}`}
+                  {referralLink}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(`${import.meta.env.VITE_APP_URL || window.location.origin}/register?ref=${refCode}`);
+                  navigator.clipboard.writeText(referralLink);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}
@@ -808,53 +1220,14 @@ export default function Profile() {
         </div>
       </section>
 
-      {/* ── THÔNG TIN CÁ NHÂN (Edit form) ────────────────────────────── */}
-      {isEditing && (
-        <section id="thong-tin-ca-nhan" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-          <SectionTitle icon={<User className="h-4 w-4" />} title="Thông tin cá nhân" helper="Thông tin nhận diện và liên hệ cơ bản của bạn." />
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <ProfileField label="Họ và tên" name="full_name" value={formData.full_name} onChange={handleChange} editing icon={<User className="h-4 w-4" />} />
-            <ProfileField label="Email" name="email" value={formData.email} onChange={handleChange} editing={false} icon={<Mail className="h-4 w-4" />} />
-            <ProfileField label="Số điện thoại" name="phone" value={formData.phone} onChange={handleChange} editing icon={<Phone className="h-4 w-4" />} />
-            <ProfileSelect label="Giới tính" name="gender" value={formData.gender} onChange={handleChange} editing options={['Nam', 'Nữ', 'Khác']} icon={<VenusAndMars className="h-4 w-4" />} />
-            <ProfileField label="Ngày sinh" name="birthday" value={formData.birthday} onChange={handleChange} editing type="date" viewValue={formatDate(formData.birthday)} icon={<CalendarDays className="h-4 w-4" />} />
-            <ProfileField label="Nghề nghiệp" name="job" value={formData.job} onChange={handleChange} editing icon={<BriefcaseBusiness className="h-4 w-4" />} />
-          </div>
-        </section>
-      )}
-
-      {/* ── CHỈ SỐ CƠ THỂ (Edit form) ────────────────────────────────── */}
-      {isEditing && (
-        <div className="grid items-start gap-5 lg:grid-cols-2">
-          <section id="chi-so-co-the" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<Ruler className="h-4 w-4" />} title="Chỉ số cơ thể" helper="Mỗi lần lưu sẽ tạo một mốc mới để theo dõi tiến độ." />
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <ProfileField label="Chiều cao" name="height" value={formData.height} onChange={handleChange} editing type="number" suffix="cm" viewValue={formatMetric(formData.height, 'cm')} icon={<Ruler className="h-4 w-4" />} />
-              <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
-              <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
-              <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
-            </div>
-          </section>
-
-          <section id="suc-khoe" className="scroll-mt-5 rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<HeartPulse className="h-4 w-4" />} title="Sức khỏe cơ bản" helper="Các lưu ý giúp Fitly cá nhân hóa kế hoạch an toàn hơn." />
-            <div className="mt-5 grid gap-4">
-              <ProfileTextArea label="Bệnh nền / lưu ý sức khỏe" name="health_condition" value={formData.health_condition} onChange={handleChange} editing icon={<HeartPulse className="h-4 w-4" />} />
-              <ProfileTextArea label="Chấn thương" name="injuries" value={formData.injuries} onChange={handleChange} editing icon={<Activity className="h-4 w-4" />} />
-              <ProfileTextArea label="Dị ứng / thực phẩm cần tránh" name="allergies" value={formData.allergies} onChange={handleChange} editing icon={<AlertCircle className="h-4 w-4" />} />
-              <ProfileField label="Thuốc đang dùng" name="medications" value={formData.medications} onChange={handleChange} editing icon={<ShieldCheck className="h-4 w-4" />} />
-            </div>
-            <div className="mt-5 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/10 px-4 py-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-              <p className="text-sm font-semibold leading-6 text-text-secondary">
-                Thông tin này không thay thế tư vấn y tế. Hãy hỏi chuyên gia trước khi tập cường độ cao nếu bạn có vấn đề sức khỏe đặc biệt.
-              </p>
-            </div>
-          </section>
-        </div>
-      )}
-
-
+      <button
+        type="button"
+        onClick={() => void signOut()}
+        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-danger/25 bg-danger/10 text-sm font-black text-danger transition-colors hover:bg-danger/15"
+      >
+        <LogOut className="h-4 w-4" />
+        Đăng xuất
+      </button>
 
     </form>
   );
@@ -949,37 +1322,42 @@ function ProfileField({
   );
 }
 
-function ProfileSelect({
-  label, name, value, onChange, editing, options, icon,
+function OptionButtonGroup({
+  label,
+  value,
+  options,
+  onChange,
+  columns = 'sm:grid-cols-3',
 }: {
-  label: string; name: string; value: string;
-  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
-  editing: boolean; options: string[]; icon?: ReactNode;
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  columns?: string;
 }) {
-  if (!editing) {
-    return (
-      <div>
-        <span className="text-[10px] font-black uppercase text-text-tertiary">{label}</span>
-        <div className="mt-1.5 flex min-h-11 items-center gap-3 rounded-xl border border-border-primary bg-bg-tertiary/45 px-3 py-2.5">
-          {icon ? <span className="shrink-0 text-text-tertiary">{icon}</span> : null}
-          <p className="truncate text-sm font-black text-text-primary">{formatValue(value)}</p>
-        </div>
-      </div>
-    );
-  }
   return (
-    <label className="block">
+    <div>
       <span className="text-[10px] font-black uppercase text-text-tertiary">{label}</span>
-      <div className="relative mt-1.5">
-        {icon ? <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-text-tertiary">{icon}</span> : null}
-        <select
-          name={name} value={value} onChange={onChange}
-          className={`h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary pr-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-accent ${icon ? 'pl-10' : 'pl-3'}`}
-        >
-          {options.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+      <div className={`mt-1.5 grid gap-2 ${columns}`}>
+        {options.map((option) => {
+          const selected = value === option;
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onChange(option)}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-black transition-colors ${
+                selected
+                  ? 'border-accent/40 bg-accent/15 text-accent'
+                  : 'border-border-primary bg-bg-tertiary text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {option}
+            </button>
+          );
+        })}
       </div>
-    </label>
+    </div>
   );
 }
 

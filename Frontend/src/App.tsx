@@ -62,6 +62,7 @@ export default function App() {
                   <Route path="exercises/details" element={<ExerciseDetails />} />
                   <Route path="diet-plan" element={<DietPlan />} />
                   <Route path="profile" element={<Profile />} />
+                  <Route path="profile/edit" element={<Profile />} />
                   <Route path="progress" element={<Progress />} />
                   <Route path="challenges" element={<Challenges />} />
                   <Route path="challenges/:id" element={<ChallengeDetails />} />

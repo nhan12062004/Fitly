@@ -172,10 +172,6 @@ export default function Dashboard() {
     navigate('/diet-plan', { replace: true });
   };
 
-  const openProfileEditor = () => {
-    navigate('/profile');
-  };
-
   const openProfileSupplement = () => {
     setIsProfileSupplementOpen(true);
   };
@@ -225,15 +221,12 @@ export default function Dashboard() {
       />
 
       <div className="app-scroll-region flex-1 flex h-full min-w-0 w-full flex-col overflow-y-auto custom-scrollbar">
-        <TopBar
-          onProfileClick={openProfileEditor}
-          onPasswordClick={() => setIsPasswordModalOpen(true)}
-        />
+        <TopBar />
         <main className="dashboard-main flex min-h-0 flex-1 flex-col gap-6 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 lg:px-7 min-w-0 relative">
           <div className="dashboard-content mx-auto w-full min-w-0">
             <ProfileCompletionNudge onOpenProfile={openProfileSupplement} />
             <Suspense fallback={null}>
-              <Outlet context={{ onProfileClick: openProfileEditor }} />
+              <Outlet context={{ onPasswordClick: () => setIsPasswordModalOpen(true) }} />
             </Suspense>
           </div>
         </main>

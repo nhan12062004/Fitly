@@ -7,18 +7,13 @@ import {
   Droplet,
   Dumbbell,
   Flame,
-  GlassWater,
   Home,
   Loader2,
-  Lock,
-  LogOut,
   Menu,
   Moon,
-  Send,
   Shield,
   Sparkles,
   Sun,
-  Trash2,
   TrendingUp,
   User,
   Users,
@@ -28,9 +23,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ElementType } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../contexts/AuthContext';
-import { API_BASE_URL } from '../lib/Api';
 import {
   archiveNotification,
   ensureActionableNotifications,
@@ -42,13 +35,6 @@ import {
   type UserNotification,
 } from '../lib/Notifications';
 import { supabase } from '../lib/Supabase';
-
-const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
-
-type TopBarProps = {
-  onProfileClick?: () => void;
-  onPasswordClick?: () => void;
-};
 
 type NavMenuItem = {
   icon: ElementType;
@@ -76,24 +62,6 @@ const NOTIFICATION_TONE_MAP: Record<NotificationTone, { Icon: ElementType; bg: s
   system: { Icon: CheckCircle2, bg: 'bg-bg-tertiary', color: 'text-text-secondary' },
 };
 
-const getDatePartsInTimeZone = (date: Date, timeZone: string) => {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const year = parts.find((part) => part.type === 'year')?.value || '1970';
-  const month = parts.find((part) => part.type === 'month')?.value || '01';
-  const day = parts.find((part) => part.type === 'day')?.value || '01';
-  return { year, month, day };
-};
-
-const getVietnamDateKey = (date = new Date()): string => {
-  const { year, month, day } = getDatePartsInTimeZone(date, VIETNAM_TIMEZONE);
-  return `${year}-${month}-${day}`;
-};
-
 const formatNotificationTime = (isoDate: string): string => {
   const then = new Date(isoDate).getTime();
   const diffMs = Date.now() - then;
@@ -113,32 +81,24 @@ const isWaterNotification = (item: UserNotification): boolean => {
   return item.tone === 'nutrition' && item.dedupe_key.startsWith('water:');
 };
 
-export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps) {
+export default function TopBar() {
   const [isLightMode, setIsLightMode] = useState(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('theme') === 'light';
   });
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [recordingWaterId, setRecordingWaterId] = useState<string | null>(null);
-  const [waterIntake, setWaterIntake] = useState(0);
-  const [waterGoal, setWaterGoal] = useState(2.5);
-  const [isPollingTelegram, setIsPollingTelegram] = useState(false);
-  const [isUnlinking, setIsUnlinking] = useState(false);
 
   const {
-    signOut,
     user,
     isAdmin,
     membershipTier,
     profile,
-    refreshProfile,
     refreshTick,
   } = useAuth();
-  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const isNotificationsPage = location.pathname === '/notifications';
@@ -147,7 +107,6 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
   const adminMenuItem = NAV_ITEMS.find((item) => item.adminOnly);
   const mobileNavRegionRef = useRef<HTMLDivElement>(null);
   const notificationRegionRef = useRef<HTMLDivElement>(null);
-  const avatarMenuRegionRef = useRef<HTMLDivElement>(null);
   const unreadCount = notifications.filter((item) => !item.read_at).length;
 
   const rawName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Thành viên';
@@ -156,15 +115,6 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
   const userInitial = nameParts[nameParts.length - 1]?.charAt(0).toUpperCase() || rawName.charAt(0).toUpperCase() || '?';
   const membershipLabel = `${membershipTier.toUpperCase()} MEMBER`;
   const membershipClassName = membershipTier === 'pro' ? 'text-amber-300' : membershipTier === 'plus' ? 'text-ai' : 'text-accent';
-
-  const notify = useCallback((message: unknown) => {
-    const text = String(message || '');
-    if (/lỗi|loi|không tìm|khong tim|không thể|khong the|hết hạn|het han|chưa được|chua duoc/i.test(text)) {
-      toast.error(text);
-      return;
-    }
-    toast.success(text);
-  }, [toast]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -192,16 +142,12 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
       if (notificationRegionRef.current && !notificationRegionRef.current.contains(target)) {
         setIsNotificationsOpen(false);
       }
-      if (avatarMenuRegionRef.current && !avatarMenuRegionRef.current.contains(target)) {
-        setIsAvatarMenuOpen(false);
-      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsMobileNavOpen(false);
         setIsNotificationsOpen(false);
-        setIsAvatarMenuOpen(false);
       }
     };
 
@@ -212,64 +158,6 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
-
-  const fetchWater = useCallback(async () => {
-    if (!user?.id) {
-      setWaterIntake(0);
-      setWaterGoal(2.5);
-      return;
-    }
-
-    const today = getVietnamDateKey();
-    const [{ data: log }, { data: lifestyle }] = await Promise.all([
-      supabase
-        .from('daily_progress_logs')
-        .select('water_intake_ml')
-        .eq('user_id', user.id)
-        .eq('log_date', today)
-        .maybeSingle(),
-      supabase
-        .from('lifestyle_settings')
-        .select('daily_water_goal')
-        .eq('user_id', user.id)
-        .maybeSingle(),
-    ]);
-
-    setWaterIntake((log?.water_intake_ml || 0) / 1000);
-    setWaterGoal(lifestyle?.daily_water_goal || 2.5);
-  }, [user?.id]);
-
-  useEffect(() => {
-    void fetchWater();
-  }, [fetchWater, refreshTick]);
-
-  useEffect(() => {
-    if (!isPollingTelegram || !user?.id) return;
-
-    let attempts = 0;
-    const maxAttempts = 40;
-    const interval = window.setInterval(async () => {
-      attempts += 1;
-      const { data: updatedProfile } = await supabase
-        .from('profiles')
-        .select('telegram_chat_id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (updatedProfile?.telegram_chat_id) {
-        window.clearInterval(interval);
-        setIsPollingTelegram(false);
-        await refreshProfile();
-      }
-
-      if (attempts >= maxAttempts) {
-        window.clearInterval(interval);
-        setIsPollingTelegram(false);
-      }
-    }, 3000);
-
-    return () => window.clearInterval(interval);
-  }, [isPollingTelegram, refreshProfile, user?.id]);
 
   const loadNotifications = useCallback(async (syncActionable = false) => {
     if (!user?.id) {
@@ -321,20 +209,12 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
   const toggleMobileNav = () => {
     setIsMobileNavOpen((value) => !value);
     setIsNotificationsOpen(false);
-    setIsAvatarMenuOpen(false);
   };
 
   const toggleNotifications = () => {
     setIsNotificationsOpen((value) => !value);
     setIsMobileNavOpen(false);
-    setIsAvatarMenuOpen(false);
     if (!isNotificationsOpen) void loadNotifications(true);
-  };
-
-  const toggleAvatarMenu = () => {
-    setIsAvatarMenuOpen((value) => !value);
-    setIsMobileNavOpen(false);
-    setIsNotificationsOpen(false);
   };
 
   const markAllNotificationsRead = async () => {
@@ -373,102 +253,11 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
     try {
       await recordWaterFromNotification(user.id);
       await archiveNotification(user.id, item.id);
-      await fetchWater();
     } catch (error) {
       console.error('Notification water record error:', error);
       await loadNotifications(false);
     } finally {
       setRecordingWaterId(null);
-    }
-  };
-
-  const updateWaterIntake = async (amount: number) => {
-    if (!user?.id) return;
-    const today = getVietnamDateKey();
-    const { error } = await supabase
-      .from('daily_progress_logs')
-      .upsert({
-        user_id: user.id,
-        log_date: today,
-        water_intake_ml: Math.round(amount * 1000),
-      }, { onConflict: 'user_id,log_date' });
-
-    if (!error) {
-      setWaterIntake(amount);
-      window.dispatchEvent(new CustomEvent('fitly:water-updated', {
-        detail: { waterIntake: amount },
-      }));
-    }
-  };
-
-  const handleUnlinkTelegram = async () => {
-    if (!confirm('Bạn có chắc chắn muốn hủy liên kết với Telegram Bot không?')) return;
-
-    setIsUnlinking(true);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ telegram_chat_id: null })
-        .eq('id', user?.id);
-
-      if (error) throw error;
-      await refreshProfile();
-      notify('Đã hủy liên kết Telegram thành công');
-    } catch (err: any) {
-      notify(`Lỗi: ${err.message}`);
-    } finally {
-      setIsUnlinking(false);
-      setIsAvatarMenuOpen(false);
-    }
-  };
-
-  const handleConnectTelegram = async () => {
-    if (!user?.id) {
-      notify('Lỗi: Không tìm thấy ID người dùng. Vui lòng đăng nhập lại.');
-      return;
-    }
-
-    try {
-      const { data: profileExists, error: checkError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error('Profile check error:', checkError);
-        notify('Lỗi kết nối. Vui lòng thử lại.');
-        return;
-      }
-
-      if (!profileExists) {
-        notify('Hồ sơ chưa được tạo. Vui lòng hoàn thành khảo sát lần đầu trước khi kết nối Telegram.');
-        return;
-      }
-
-      const sessionRes = await supabase.auth.getSession();
-      const accessToken = sessionRes.data.session?.access_token;
-      if (!accessToken) {
-        notify('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-        return;
-      }
-
-      const linkRes = await fetch(`${API_BASE_URL}/api/telegram/link-token`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      const payload = await linkRes.json().catch(() => ({}));
-      if (!linkRes.ok || !payload?.telegramLink) {
-        throw new Error(payload?.error || 'Không thể tạo liên kết Telegram an toàn.');
-      }
-
-      setIsAvatarMenuOpen(false);
-      window.open(String(payload.telegramLink), '_blank');
-      setIsPollingTelegram(true);
-    } catch (err: any) {
-      notify(`Lỗi: ${err.message || 'Không thể kết nối Telegram.'}`);
     }
   };
 
@@ -587,125 +376,6 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
     </div>
   );
 
-  const avatarDropdown = (
-    <div className="topbar-menu-panel topbar-avatar-menu overflow-hidden rounded-2xl border border-border-primary shadow-2xl shadow-black/40">
-      <div className="border-b border-border-primary p-3">
-        <div className="topbar-water-card rounded-xl bg-bg-tertiary p-3">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Droplet className="h-4 w-4 text-info" />
-              <span className="text-sm font-medium text-text-secondary">Nước uống</span>
-            </div>
-            <span className="text-xs font-semibold text-text-tertiary">{waterIntake.toFixed(1)} / {waterGoal.toFixed(1)}L</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {Array.from({ length: 5 }).map((_, index) => {
-              const cupIndex = index + 1;
-              const cupSize = waterGoal / 5;
-              const isFilled = waterIntake >= cupIndex * cupSize;
-              const isPartial = !isFilled && waterIntake > index * cupSize;
-
-              return (
-                <button
-                  key={cupIndex}
-                  type="button"
-                  onClick={() => void updateWaterIntake(cupIndex * cupSize)}
-                  className="flex flex-1 justify-center rounded-lg py-1 transition-transform hover:scale-110 active:scale-95"
-                  title={`${(cupSize * 1000).toFixed(0)}ml`}
-                >
-                  <GlassWater
-                    className={`h-7 w-7 transition-all ${
-                      isFilled
-                        ? 'text-info fill-info/30 drop-shadow-[0_0_6px_rgb(var(--info-rgb)_/_0.35)]'
-                        : isPartial
-                          ? 'text-info/50 fill-info/12'
-                          : 'text-gray-600/30 fill-transparent'
-                    }`}
-                    strokeWidth={1.5}
-                  />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="p-2">
-        <button
-          type="button"
-          onClick={() => {
-            setIsAvatarMenuOpen(false);
-            onProfileClick?.();
-          }}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
-        >
-          <User className="h-4 w-4" />
-          Thông tin cá nhân
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setIsAvatarMenuOpen(false);
-            onPasswordClick?.();
-          }}
-          className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
-        >
-          <Lock className="h-4 w-4" />
-          Đổi mật khẩu
-        </button>
-
-        {profile?.telegram_chat_id ? (
-          <div className="mt-1 flex items-center justify-between rounded-xl bg-accent/10 px-3 py-2.5 group/tg">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-4 w-4 text-accent" />
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase text-accent">Telegram</span>
-                <span className="text-[9px] text-text-tertiary">Đã kết nối</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleUnlinkTelegram}
-              disabled={isUnlinking}
-              className="rounded-lg p-1.5 text-text-tertiary opacity-100 transition-all hover:bg-danger/10 hover:text-danger sm:opacity-0 sm:group-hover/tg:opacity-100"
-              title="Hủy liên kết"
-            >
-              {isUnlinking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            disabled={isPollingTelegram}
-            onClick={() => void handleConnectTelegram()}
-            className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-text-secondary transition-colors hover:bg-info/5 hover:text-info disabled:cursor-default disabled:opacity-70"
-          >
-            {isPollingTelegram ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin text-info" />
-                <span className="font-medium text-info">Đang chờ kết nối...</span>
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                Kết nối Telegram Bot
-              </>
-            )}
-          </button>
-        )}
-
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-danger transition-colors hover:bg-danger/10"
-        >
-          <LogOut className="h-4 w-4" />
-          Đăng xuất
-        </button>
-      </div>
-    </div>
-  );
-
   return (
     <header className="topbar-shell sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-3 bg-bg-secondary px-4 md:h-20 md:gap-4 md:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -819,36 +489,23 @@ export default function TopBar({ onProfileClick, onPasswordClick }: TopBarProps)
           )}
         </div>
 
-        <span className="hidden h-8 w-px shrink-0 bg-border-primary lg:block"></span>
-
-        <div ref={avatarMenuRegionRef} className="relative">
-          <button
-            type="button"
-            onClick={toggleAvatarMenu}
-            className={`topbar-user flex cursor-pointer shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-bg-tertiary ${isAvatarMenuOpen ? 'bg-bg-tertiary' : ''}`}
-            aria-label="Mở cài đặt tài khoản"
-            aria-expanded={isAvatarMenuOpen}
-          >
-            <div className="topbar-user-meta hidden flex-col items-end lg:flex">
-              <span className="text-sm font-semibold leading-tight text-text-primary">{userName}</span>
-              <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
-                {membershipLabel}
-              </span>
-            </div>
-            <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-sm font-bold text-text-inverse transition-transform">
-              {userInitial}
-            </div>
-          </button>
-
-          {isAvatarMenuOpen && (
-            <div
-              className="fixed left-3 right-3 z-50 sm:left-auto sm:right-[var(--layout-gutter)] sm:w-[23rem]"
-              style={floatingPanelStyle}
-            >
-              {avatarDropdown}
-            </div>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/profile')}
+          className="topbar-user flex cursor-pointer shrink-0 items-center gap-2 px-1.5 py-1"
+          aria-label="Mở hồ sơ"
+          title="Hồ sơ"
+        >
+          <div className="topbar-user-meta hidden flex-col items-end lg:flex">
+            <span className="text-sm font-semibold leading-tight text-text-primary">{userName}</span>
+            <span className={`mt-0.5 text-[9px] font-black uppercase tracking-wider ${membershipClassName}`}>
+              {membershipLabel}
+            </span>
+          </div>
+          <div className="topbar-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent text-sm font-bold text-text-inverse transition-transform">
+            {userInitial}
+          </div>
+        </button>
       </div>
     </header>
   );
