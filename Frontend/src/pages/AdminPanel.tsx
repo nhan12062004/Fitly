@@ -48,6 +48,7 @@ type AdminUser = {
   phone: string | null;
   role: string | null;
   membership_tier: string | null;
+  membership_expires_at?: string | null;
   telegram_chat_id: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -756,11 +757,12 @@ function UsersTab({ users }: { users: AdminUser[] }) {
   return (
     <div className="overflow-hidden rounded-xl border border-border-primary bg-bg-secondary/80">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[860px] text-left text-sm">
           <thead className="border-b border-border-primary bg-bg-tertiary/55 text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">
             <tr>
               <th className="px-4 py-3">Người dùng</th>
               <th className="px-4 py-3">Gói</th>
+              <th className="px-4 py-3">Hạn gói</th>
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Telegram</th>
               <th className="px-4 py-3">Ngày tạo</th>
@@ -778,6 +780,7 @@ function UsersTab({ users }: { users: AdminUser[] }) {
                     {user.membership_tier || 'free'}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-text-secondary">{formatDate(user.membership_expires_at)}</td>
                 <td className="px-4 py-3 text-text-secondary">{user.role || 'user'}</td>
                 <td className="px-4 py-3 text-text-secondary">{user.telegram_chat_id ? 'Đã kết nối' : 'Chưa kết nối'}</td>
                 <td className="px-4 py-3 text-text-secondary">{formatDate(user.created_at)}</td>

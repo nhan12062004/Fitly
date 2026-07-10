@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import {
   X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, type MembershipTier } from '../contexts/AuthContext';
+import { API_BASE_URL } from '../lib/Api';
+import { supabase } from '../lib/Supabase';
+import { useToast } from '../components/ToastProvider';
 
 const tierRank: Record<MembershipTier, number> = {
   free: 0,
@@ -71,9 +75,23 @@ const planCards: Array<{
   },
 ];
 
+const formatMembershipExpiry = (value: unknown): string => {
+  if (!value) return '';
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('vi-VN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+};
+
 export default function PremiumCheckout() {
-  const { membershipTier } = useAuth();
+  const { user, profile, membershipTier, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
+  const [submittingPlanId, setSubmittingPlanId] = useState<MembershipTier | null>(null);
+  const membershipExpiryLabel = formatMembershipExpiry(profile?.membership_expires_at);
 
   const handleClose = () => {
     if (window.history.length > 1) {
@@ -83,25 +101,53 @@ export default function PremiumCheckout() {
     }
   };
 
+  const handlePlanAction = async (tier: MembershipTier) => {
+    if (!user?.id || tier === 'free' || submittingPlanId) return;
+    setSubmittingPlanId(tier);
+    try {
+      const sessionRes = await supabase.auth.getSession();
+      const accessToken = sessionRes.data.session?.access_token;
+      if (!accessToken) throw new Error('Missing access token');
+
+      const response = await fetch(`${API_BASE_URL}/api/membership/renew`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ tier }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Không thể gia hạn gói lúc này.');
+
+      await refreshProfile();
+      toast.success(tier === membershipTier ? 'Đã gia hạn thêm 1 tháng.' : `Đã kích hoạt gói ${tier.toUpperCase()} trong 1 tháng.`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Không thể xử lý gói lúc này.');
+    } finally {
+      setSubmittingPlanId(null);
+    }
+  };
+
   return (
-    <div className="dashboard-page-shell relative mx-auto max-w-4xl pb-5 md:pb-7">
+    <div className="premium-checkout-page dashboard-page-shell relative mx-auto max-w-5xl pb-5 md:pb-7">
       <button
         type="button"
         onClick={handleClose}
-        className="absolute right-1 top-0 z-10 flex h-10 w-10 items-center justify-center rounded-xl text-text-tertiary transition-colors hover:bg-bg-secondary hover:text-text-primary md:right-2"
+        className="premium-checkout-close"
         aria-label="Đóng"
       >
         <X className="h-5 w-5" />
       </button>
 
-      <section className="pt-2 md:pt-3">
+      <section className="premium-checkout-section">
         <div className="text-center">
-          <h1 className="text-xl font-black tracking-tight text-text-primary md:text-2xl">
+          <h1 className="premium-checkout-title">
             Nâng cấp gói của bạn
           </h1>
         </div>
 
-        <div className="mx-auto mt-5 grid max-w-4xl gap-3 lg:grid-cols-3">
+        <div className="premium-plan-grid">
           {planCards.map((plan) => {
             const isFree = plan.id === 'free';
             const isPlus = plan.id === 'plus';
@@ -109,85 +155,92 @@ export default function PremiumCheckout() {
             const isCurrent = plan.id === membershipTier;
             const isLowerTier = tierRank[plan.id] < tierRank[membershipTier];
             const isSuggested = (membershipTier === 'free' && isPlus) || (membershipTier === 'plus' && isPro);
+            const canRenew = isCurrent && !isFree;
             const canUpgrade = !isCurrent && !isLowerTier;
-            const ctaLabel = isCurrent
+            const canSubmit = canRenew || canUpgrade;
+            const isSubmitting = submittingPlanId === plan.id;
+            const ctaLabel = canRenew
+              ? 'Gia hạn 1 tháng'
+              : isCurrent
               ? 'Gói hiện tại của bạn'
               : isLowerTier
                 ? 'Gói thấp hơn'
                 : `Nâng cấp lên ${plan.name}`;
             const badgeLabel = isCurrent ? 'Hiện tại' : isSuggested ? (isPlus ? 'Phổ biến' : 'Đề xuất') : null;
-            const cardClass = isSuggested && isPlus
-              ? 'border-green-400/70 bg-green-500/20'
-              : isSuggested && isPro
-                ? 'border-amber-300/70 bg-amber-300/10'
-                : 'premium-card';
-            const badgeClass = isCurrent
-              ? 'bg-bg-tertiary px-3 py-1 text-text-tertiary'
-              : isPlus
-                ? 'bg-green-300/20 px-3 py-1 text-green-100'
-                : 'bg-amber-300/15 px-3 py-1 text-amber-100';
+            const cardClass = [
+              'premium-plan-card',
+              `premium-plan-${plan.id}`,
+              isSuggested ? 'premium-plan-suggested' : '',
+              isCurrent ? 'premium-plan-current' : '',
+            ].filter(Boolean).join(' ');
 
             return (
               <article
                 key={plan.id}
-                className={`flex min-h-[28.5rem] flex-col rounded-[18px] border p-5 shadow-[0_14px_36px_rgba(0,0,0,0.14)] ${cardClass}`}
+                className={cardClass}
               >
-                <div className="flex min-h-11 items-start justify-between gap-3">
-                  <h2 className="text-3xl font-black tracking-tight text-text-primary">{plan.name}</h2>
-                  <div className="flex flex-wrap justify-end gap-1.5">
+                <div className="premium-plan-head">
+                  <h2>{plan.name}</h2>
+                  <div className="premium-plan-badges">
                     {badgeLabel ? (
-                      <span className={`rounded-full text-[10px] font-black uppercase tracking-[0.12em] ${badgeClass}`}>
+                      <span className={`premium-plan-badge ${isCurrent ? 'premium-plan-badge-current' : isPlus ? 'premium-plan-badge-plus' : 'premium-plan-badge-pro'}`}>
                         {badgeLabel}
                       </span>
                     ) : null}
                   </div>
                 </div>
 
-                <div className={`${isFree ? 'mt-4 min-h-0' : plan.oldPrice ? 'mt-5 min-h-[7.5rem]' : 'mt-5 min-h-[5.25rem]'}`}>
+                <div className={`premium-plan-price-block ${isFree ? 'premium-plan-price-free' : ''}`}>
                   {plan.oldPrice ? (
-                    <div className="flex flex-wrap items-center gap-2 text-xs font-black text-text-tertiary">
-                      <span className="line-through decoration-2">đ{plan.oldPrice}</span>
-                      <span className={`rounded-full px-2.5 py-1 uppercase tracking-[0.1em] ${isPlus ? 'bg-green-300/20 text-green-100' : 'bg-amber-300/15 text-amber-100'}`}>
+                    <div className="premium-plan-promo-row">
+                      <span className="premium-plan-old-price">đ{plan.oldPrice}</span>
+                      <span className={`premium-plan-promo ${isPlus ? 'premium-plan-promo-plus' : 'premium-plan-promo-pro'}`}>
                         {plan.promo}
                       </span>
                     </div>
                   ) : null}
 
-                  <div className={`${isFree ? 'mt-0' : 'mt-2'} flex items-end gap-2`}>
-                    <span className={`${isFree ? 'pb-5' : 'pb-6'} text-xl font-bold text-text-tertiary`}>đ</span>
-                    <span className="text-[2.85rem] font-black leading-none text-text-primary">{plan.price}</span>
-                    <span className="min-w-0 pb-2 text-xs font-bold leading-5 text-text-tertiary">
+                  <div className="premium-plan-price-row">
+                    <span className="premium-plan-currency">đ</span>
+                    <span className="premium-plan-price">{plan.price}</span>
+                    <span className="premium-plan-period">
                       {plan.period}
                     </span>
                   </div>
 
                   {plan.renewText ? (
-                    <p className="mt-2 text-xs font-bold text-text-tertiary">{plan.renewText}</p>
+                    <p className="premium-plan-renew">{plan.renewText}</p>
                   ) : null}
                 </div>
 
-                <p className={`${isFree ? 'mt-5 min-h-0' : 'mt-1 min-h-14'} text-lg font-black leading-7 text-text-primary`}>{plan.description}</p>
+                <p className="premium-plan-description">{plan.description}</p>
 
-                {!canUpgrade ? (
-                  <div className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-full border border-border-primary bg-transparent px-4 text-sm font-black text-text-tertiary">
+                {isCurrent && !isFree && membershipExpiryLabel ? (
+                  <p className="premium-plan-current-note">Hạn gói hiện tại: {membershipExpiryLabel}</p>
+                ) : null}
+
+                {!canSubmit ? (
+                  <div className="premium-plan-cta premium-plan-cta-disabled">
                     {ctaLabel}
                   </div>
                 ) : (
                   <button
                     type="button"
-                    className={`mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-4 text-sm font-black transition-colors ${isPlus ? 'bg-green-400 text-white hover:bg-green-500' : 'bg-white text-black hover:bg-white/90'}`}
+                    onClick={() => void handlePlanAction(plan.id)}
+                    disabled={!!submittingPlanId}
+                    className={`premium-plan-cta ${isPlus ? 'premium-plan-cta-plus' : 'premium-plan-cta-pro'}`}
                   >
-                    {ctaLabel}
+                    {isSubmitting ? 'Đang xử lý...' : ctaLabel}
                   </button>
                 )}
 
-                <div className={`${isFree ? 'mt-5' : 'mt-6'} space-y-3.5`}>
+                <div className="premium-plan-benefits">
                   {plan.featureIntro ? (
-                    <p className="text-sm font-black leading-5 text-text-primary">{plan.featureIntro}</p>
+                    <p className="premium-plan-feature-intro">{plan.featureIntro}</p>
                   ) : null}
                   {plan.benefits.map((benefit) => (
-                    <p key={benefit} className="flex items-center gap-3 text-sm font-semibold leading-5 text-text-secondary">
-                      <span className={`shrink-0 text-base font-black leading-5 ${isPro ? 'text-amber-100' : isPlus ? 'text-green-100' : 'text-accent'}`}>
+                    <p key={benefit} className="premium-plan-benefit">
+                      <span className={`premium-plan-check ${isPro ? 'premium-plan-check-pro' : isPlus ? 'premium-plan-check-plus' : 'premium-plan-check-free'}`}>
                         ✓
                       </span>
                       <span>{benefit}</span>

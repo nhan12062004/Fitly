@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Plus, AlertCircle, Calendar, ImageOff,
-  ChevronDown, SlidersHorizontal, RotateCcw, Play, Eye
+  Plus, AlertCircle, Calendar, ImageOff, Bot,
+  Play, Eye, Moon, ChevronRight, Shield
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../lib/Api';
-import { createDailyExerciseSession } from '../lib/DailyExercises';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
-import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
+import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 
 interface SessionExercise {
@@ -43,26 +42,59 @@ interface SessionExercise {
     image_url?: string;
     target_muscle?: string;
     body_part?: string;
+    equipment?: string;
+    difficulty?: string;
+    movement_pattern?: string;
     instructions?: string[] | string;
   } | null;
 }
 
-interface ExerciseLibraryItem extends ExerciseDetailItem {
-  id: string;
-  name: string;
-  body_part: string;
-  target_muscle: string;
-  gif_url: string;
-  equipment?: string;
-}
+type CalendarDayStats = {
+  planned: number;
+  completed: number;
+  isRestDay: boolean;
+  hasDailySession: boolean;
+  hasWeeklyPlan: boolean;
+};
 
-const getManualSuggestedWeightKg = (_equipment?: string | null): number | null => null;
+type MonthlyPlanSummary = {
+  id: string;
+  week_start_date: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+const EMPTY_DAY_STATS: CalendarDayStats = {
+  planned: 0,
+  completed: 0,
+  isRestDay: false,
+  hasDailySession: false,
+  hasWeeklyPlan: false
+};
 
 const formatWeightKg = (value: unknown, emptyLabel = 'Chưa có tạ đề xuất'): string => {
   if (value === null || value === undefined || value === '') return emptyLabel;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return emptyLabel;
   return `${parsed} kg`;
+};
+
+const formatRestTime = (secondsValue: unknown): string => {
+  const seconds = Math.max(0, Number(secondsValue) || 0);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes > 0 && remainingSeconds > 0) return `${minutes}m ${remainingSeconds}s`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${remainingSeconds}s`;
+};
+
+const formatDifficultyLabel = (value: unknown): string => {
+  const raw = String(value || '').trim();
+  if (!raw) return 'EASY';
+  const normalized = raw.toLowerCase();
+  if (normalized.includes('beginner') || normalized.includes('easy') || normalized.includes('dễ')) return 'EASY';
+  if (normalized.includes('advanced') || normalized.includes('hard') || normalized.includes('khó')) return 'HARD';
+  return 'MEDIUM';
 };
 
 const parseRepAverage = (value: string): number => {
@@ -92,17 +124,9 @@ const getResolvedExerciseKcal = (exercise?: SessionExercise | null): number => {
 type ExercisesPageCache = {
   vnToday: string;
   session: SessionExercise[];
-  library: ExerciseLibraryItem[];
 };
 
 let exercisesPageCache: ExercisesPageCache | null = null;
-const LIBRARY_VISIBLE_BATCH_SIZE = 12;
-const MOBILE_LIBRARY_VISIBLE_BATCH_SIZE = 4;
-
-const getLibraryVisibleBatchSize = () =>
-  typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
-    ? MOBILE_LIBRARY_VISIBLE_BATCH_SIZE
-    : LIBRARY_VISIBLE_BATCH_SIZE;
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DAYS = [
@@ -114,6 +138,7 @@ const DAYS = [
   { id: 5, label: 'TH7', full: 'Thứ 7' },
   { id: 6, label: 'CN', full: 'Chủ nhật' }
 ];
+const MONTH_WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
 const getDatePartsInTimeZone = (date: Date, timeZone: string) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -133,23 +158,6 @@ const getVietnamDateKey = (date = new Date()): string => {
   return `${year}-${month}-${day}`;
 };
 
-const getVietnamDayIndex = (date = new Date()): number => {
-  const dayName = new Intl.DateTimeFormat('en-US', {
-    timeZone: VIETNAM_TIMEZONE,
-    weekday: 'short'
-  }).format(date);
-  const mapping: Record<string, number> = {
-    Mon: 0,
-    Tue: 1,
-    Wed: 2,
-    Thu: 3,
-    Fri: 4,
-    Sat: 5,
-    Sun: 6
-  };
-  return mapping[dayName] ?? 0;
-};
-
 const getWeekStartKey = (baseDate: Date): string => {
   const date = new Date(baseDate);
   const day = date.getDay();
@@ -164,7 +172,12 @@ const getWeekStartKey = (baseDate: Date): string => {
 const toDateKey = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-const getWeekStartDate = (baseDate: Date): Date => new Date(`${getWeekStartKey(baseDate)}T00:00:00`);
+const getDayIndexFromDate = (date: Date): number => {
+  const day = date.getDay();
+  return day === 0 ? 6 : day - 1;
+};
+
+const getDateFromKey = (dateKey: string): Date => new Date(`${dateKey}T00:00:00`);
 
 const addDays = (date: Date, days: number): Date => {
   const next = new Date(date);
@@ -172,56 +185,28 @@ const addDays = (date: Date, days: number): Date => {
   return next;
 };
 
+const getMonthStartDate = (date: Date): Date => new Date(date.getFullYear(), date.getMonth(), 1);
+
+const getMonthEndDate = (date: Date): Date => new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+const getMonthCalendarDates = (monthDate: Date): Date[] => {
+  const firstDay = getMonthStartDate(monthDate);
+  const daysInMonth = getMonthEndDate(monthDate).getDate();
+  const leadingDays = getDayIndexFromDate(firstDay);
+  const totalCells = Math.ceil((leadingDays + daysInMonth) / 7) * 7;
+
+  return Array.from({ length: totalCells }, (_, index) => addDays(firstDay, index - leadingDays));
+};
+
+const isDateKeyBetween = (dateKey: string, startKey: string, endKey: string): boolean =>
+  dateKey >= startKey && dateKey <= endKey;
+
 const normalizeGifUrl = (value: unknown): string => {
   const url = String(value || '').trim();
   if (!url) return '';
   if (url.startsWith('//')) return `https:${url}`;
   if (url.startsWith('http://')) return `https://${url.slice(7)}`;
   return url;
-};
-
-const normalizeForMatch = (value: unknown): string =>
-  String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd');
-
-const equipmentMatchesPreference = (exerciseEquipment: string | undefined, preference: string): boolean => {
-  const pref = normalizeForMatch(preference);
-  if (!pref) return true;
-  if (pref.includes('day du ta') || pref.includes('may moc') || pref.includes('gym')) return true;
-
-  const equipment = normalizeForMatch(exerciseEquipment);
-
-  if (pref.includes('khong dung cu')) {
-    return equipment.includes('khong dung cu') || equipment.includes('bodyweight') || equipment.includes('body weight');
-  }
-
-  if (pref.includes('ta don')) {
-    return (
-      equipment.includes('ta don') ||
-      equipment.includes('dumbbell') ||
-      equipment.includes('khong dung cu') ||
-      equipment.includes('bodyweight') ||
-      equipment.includes('body weight')
-    );
-  }
-
-  if (pref.includes('day khang luc') || pref.includes('resistance')) {
-    return (
-      equipment.includes('day khang luc') ||
-      equipment.includes('resistance band') ||
-      equipment.includes('band') ||
-      equipment.includes('day thung') ||
-      equipment.includes('rope') ||
-      equipment.includes('khong dung cu') ||
-      equipment.includes('bodyweight') ||
-      equipment.includes('body weight')
-    );
-  }
-
-  return true;
 };
 
 const isWeekStartColumnError = (error: any): boolean => {
@@ -295,14 +280,36 @@ const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; cla
 export const ExercisesSkeleton = () => {
   return (
     <div className="dashboard-page-shell exercise-page-shell flex flex-col gap-4 animate-pulse overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7" aria-hidden="true">
-      <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
+      <div className="monthly-workout-calendar">
+        <div className="monthly-workout-calendar-header">
+          <div className="monthly-workout-calendar-title">
+            <span className="monthly-workout-calendar-icon" />
+            <div className="min-w-0">
+              {SkeletonBlock('h-6 w-40 rounded-lg')}
+              {SkeletonBlock('mt-2 h-4 w-56 rounded-lg')}
+            </div>
+          </div>
+          <div className="h-14 w-16 rounded-2xl bg-bg-tertiary/70" />
+        </div>
+
+        <div className="monthly-workout-weekdays">
+          {MONTH_WEEKDAYS.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+
+        <div className="monthly-workout-grid">
+          {Array.from({ length: 35 }).map((_, index) => (
+            <div key={index} className="monthly-workout-day bg-bg-tertiary/45" />
+          ))}
+        </div>
+      </div>
+
+      <div className="today-workout-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex items-center gap-3">
             {SkeletonBlock('h-7 w-44 rounded-lg')}
-            <div className="flex items-center gap-2">
-              <div className="h-4 w-4 rounded-full bg-bg-tertiary/70" />
-              {SkeletonBlock('h-4 w-32 rounded-lg')}
-            </div>
+            <div className="h-8 w-24 rounded-full bg-bg-tertiary/70" />
           </div>
         </div>
 
@@ -349,34 +356,6 @@ export const ExercisesSkeleton = () => {
           </aside>
         </div>
       </div>
-
-      <div className="rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
-        <div className="relative mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            {SkeletonBlock('h-8 w-48 rounded-xl')}
-            <div className="mt-2 flex flex-wrap gap-2">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-8 w-16 rounded-lg bg-bg-tertiary/70" />
-              ))}
-            </div>
-          </div>
-          <div className="h-9 w-24 shrink-0 rounded-lg bg-bg-tertiary/70" />
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="overflow-hidden rounded-xl border border-border-primary/30 bg-bg-tertiary/20">
-              <div className="relative aspect-[16/9] bg-bg-secondary/50" />
-              <div className="p-3">
-                <div className="h-4 w-3/4 rounded bg-bg-tertiary/75" />
-                <div className="mt-2 h-3 w-5/6 rounded bg-bg-tertiary/60" />
-                <div className="mt-1 h-3 w-1/2 rounded bg-bg-tertiary/50" />
-                <div className="mt-3 h-8 w-full rounded-lg border border-border-primary bg-bg-tertiary/35" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
@@ -393,38 +372,32 @@ export default function Exercises() {
   const [session, setSession] = useState<SessionExercise[]>(() => cacheForToday?.session || []);
   const [isLoading, setIsLoading] = useState(() => !cacheForToday);
   const [, setIsRefreshing] = useState(false);
-  const [savingExerciseId, setSavingExerciseId] = useState<string | null>(null);
-  const [saveMessage, setSaveMessage] = useState('');
-  const [saveStatus, setSaveStatus] = useState<'success' | 'error' | ''>('');
-  const [library, setLibrary] = useState<ExerciseLibraryItem[]>(() => cacheForToday?.library || []);
+  const [isCalendarLoading, setIsCalendarLoading] = useState(false);
   const [vnToday, setVnToday] = useState(() => getVietnamDateKey());
+  const [selectedDateKey, setSelectedDateKey] = useState(() => getVietnamDateKey());
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [appliedMuscleFilter, setAppliedMuscleFilter] = useState('all');
-  const [appliedEquipmentFilter, setAppliedEquipmentFilter] = useState('all');
-  const [draftEquipmentFilter, setDraftEquipmentFilter] = useState('all');
-  const [libraryBatchSize, setLibraryBatchSize] = useState(getLibraryVisibleBatchSize);
-  const [visibleLibraryCount, setVisibleLibraryCount] = useState(getLibraryVisibleBatchSize);
-  const filterPopoverRef = useRef<HTMLDivElement | null>(null);
-  const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
-  const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
+  const [calendarStatsByDate, setCalendarStatsByDate] = useState<Record<string, CalendarDayStats>>({});
   const hasLoadedSessionRef = useRef(Boolean(cacheForToday));
-  const [selectedDayId, setSelectedDayId] = useState(() => getVietnamDayIndex());
-  const [dayIndicatorStyle, setDayIndicatorStyle] = useState<{ x: number; y: number; width: number; height: number; visible: boolean }>({
-    x: 0,
-    y: 0,
-    width: 0,
-    height: 0,
-    visible: false
-  });
 
-  const selectedWeekStart = useMemo(() => getWeekStartDate(new Date(`${vnToday}T00:00:00`)), [vnToday]);
-  const selectedDate = useMemo(() => addDays(selectedWeekStart, selectedDayId), [selectedWeekStart, selectedDayId]);
-  const selectedDateKey = useMemo(() => toDateKey(selectedDate), [selectedDate]);
+  const selectedDate = useMemo(() => getDateFromKey(selectedDateKey), [selectedDateKey]);
+  const selectedDayId = useMemo(() => getDayIndexFromDate(selectedDate), [selectedDate]);
+  const selectedMonthStart = useMemo(() => getMonthStartDate(selectedDate), [selectedDate]);
+  const selectedMonthEnd = useMemo(() => getMonthEndDate(selectedDate), [selectedDate]);
+  const selectedMonthStartKey = useMemo(() => toDateKey(selectedMonthStart), [selectedMonthStart]);
+  const selectedMonthEndKey = useMemo(() => toDateKey(selectedMonthEnd), [selectedMonthEnd]);
+  const monthCalendarDates = useMemo(() => getMonthCalendarDates(selectedMonthStart), [selectedMonthStart]);
   const isTodaySelected = selectedDateKey === vnToday;
   const selectedDayTitle = isTodaySelected
     ? 'Bài tập hôm nay'
     : `Bài tập ${DAYS[selectedDayId]?.full.toLowerCase() || ''}`;
+  const selectedMonthLabel = useMemo(
+    () =>
+      selectedDate.toLocaleDateString('vi-VN', {
+        month: 'long',
+        year: 'numeric'
+      }),
+    [selectedDate]
+  );
   const selectedDayDateLabel = useMemo(
     () =>
       selectedDate.toLocaleDateString('vi-VN', {
@@ -434,6 +407,23 @@ export default function Exercises() {
       }),
     [selectedDate]
   );
+  const monthComplianceSummary = useMemo(() => {
+    const dateKeys = monthCalendarDates
+      .filter((date) => date.getMonth() === selectedMonthStart.getMonth())
+      .map(toDateKey);
+
+    const plannedDays = dateKeys.filter((dateKey) => (calendarStatsByDate[dateKey]?.planned || 0) > 0);
+    const completedDays = plannedDays.filter((dateKey) => {
+      const stats = calendarStatsByDate[dateKey] || EMPTY_DAY_STATS;
+      return stats.planned > 0 && stats.completed >= stats.planned;
+    });
+
+    return {
+      plannedDays: plannedDays.length,
+      completedDays: completedDays.length,
+      adherence: plannedDays.length > 0 ? Math.round((completedDays.length / plannedDays.length) * 100) : 0
+    };
+  }, [calendarStatsByDate, monthCalendarDates, selectedMonthStart]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -444,45 +434,126 @@ export default function Exercises() {
   }, []);
 
   useEffect(() => {
-    setSelectedDayId(getVietnamDayIndex());
-  }, [vnToday]);
-
-  useEffect(() => {
     if (user) {
       const shouldLoadSilently = hasLoadedSessionRef.current || (!!cacheForToday && selectedDateKey === vnToday);
       loadSession(shouldLoadSilently);
     } else {
       setSession([]);
-      loadLibrary();
+      setIsLoading(false);
     }
   }, [user, selectedDateKey, vnToday]);
 
   useEffect(() => {
-    if (isLoading) return;
+    loadCalendarStats();
+  }, [user, selectedMonthStartKey, selectedMonthEndKey]);
 
-    const updateDayIndicator = () => {
-      const container = dayTabContainerRef.current;
-      const activeTab = dayTabRefs.current[selectedDayId];
-      if (!container || !activeTab) return;
+  const loadCalendarStats = async (silent = false) => {
+    if (!user?.id) {
+      setCalendarStatsByDate({});
+      setIsCalendarLoading(false);
+      return;
+    }
 
-      const containerRect = container.getBoundingClientRect();
-      const activeRect = activeTab.getBoundingClientRect();
-      setDayIndicatorStyle({
-        x: activeRect.left - containerRect.left,
-        y: activeRect.top - containerRect.top,
-        width: activeRect.width,
-        height: activeRect.height,
-        visible: true
+    if (!silent) setIsCalendarLoading(true);
+
+    try {
+      const dailyRes = await supabase
+        .from('daily_exercise_sessions')
+        .select('log_date, is_completed')
+        .eq('user_id', user.id)
+        .gte('log_date', selectedMonthStartKey)
+        .lte('log_date', selectedMonthEndKey);
+      if (dailyRes.error) throw dailyRes.error;
+
+      const dailyByDate = new Map<string, { total: number; completed: number }>();
+      (dailyRes.data || []).forEach((row: any) => {
+        const dateKey = String(row.log_date || '');
+        if (!dateKey) return;
+        const current = dailyByDate.get(dateKey) || { total: 0, completed: 0 };
+        current.total += 1;
+        if (row.is_completed) current.completed += 1;
+        dailyByDate.set(dateKey, current);
       });
-    };
 
-    const frame = window.requestAnimationFrame(updateDayIndicator);
-    window.addEventListener('resize', updateDayIndicator);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener('resize', updateDayIndicator);
-    };
-  }, [isLoading, selectedDayId, selectedWeekStart]);
+      const monthFirstWeekStartKey = getWeekStartKey(selectedMonthStart);
+      const monthLastWeekStartKey = getWeekStartKey(selectedMonthEnd);
+      const plansRes = await supabase
+        .from('weekly_plans')
+        .select('id, week_start_date, created_at, updated_at')
+        .eq('user_id', user.id)
+        .gte('week_start_date', monthFirstWeekStartKey)
+        .lte('week_start_date', monthLastWeekStartKey)
+        .limit(40);
+      if (plansRes.error) throw plansRes.error;
+
+      const latestPlanByWeek = new Map<string, MonthlyPlanSummary>();
+      (plansRes.data || []).forEach((plan: any) => {
+        const weekStartDate = String(plan.week_start_date || '');
+        if (!weekStartDate) return;
+        const current = latestPlanByWeek.get(weekStartDate);
+        const latest = pickLatestPlan([current, plan].filter(Boolean) as any[]);
+        if (latest) latestPlanByWeek.set(weekStartDate, latest as MonthlyPlanSummary);
+      });
+
+      const planIds = Array.from(latestPlanByWeek.values()).map((plan) => plan.id);
+      const weeklyByDate = new Map<string, { planned: number; isRestDay: boolean }>();
+
+      if (planIds.length > 0) {
+        const planItemsRes = await supabase
+          .from('weekly_plan_exercises')
+          .select('weekly_plan_id, day_of_week, exercise_id, is_rest_day')
+          .in('weekly_plan_id', planIds);
+        if (planItemsRes.error) throw planItemsRes.error;
+
+        const weekStartByPlanId = new Map(
+          Array.from(latestPlanByWeek.values()).map((plan) => [plan.id, plan.week_start_date])
+        );
+
+        (planItemsRes.data || []).forEach((item: any) => {
+          const weekStartKey = weekStartByPlanId.get(String(item.weekly_plan_id || ''));
+          if (!weekStartKey) return;
+
+          const dayIndex = Math.max(0, Math.min(6, Number(item.day_of_week) || 0));
+          const dateKey = toDateKey(addDays(getDateFromKey(weekStartKey), dayIndex));
+          if (!isDateKeyBetween(dateKey, selectedMonthStartKey, selectedMonthEndKey)) return;
+
+          const current = weeklyByDate.get(dateKey) || { planned: 0, isRestDay: false };
+          if (item.is_rest_day) {
+            current.isRestDay = true;
+          } else if (item.exercise_id) {
+            current.planned += 1;
+            current.isRestDay = false;
+          }
+          weeklyByDate.set(dateKey, current);
+        });
+      }
+
+      const nextStats: Record<string, CalendarDayStats> = {};
+      monthCalendarDates.forEach((date) => {
+        const dateKey = toDateKey(date);
+        if (!isDateKeyBetween(dateKey, selectedMonthStartKey, selectedMonthEndKey)) return;
+
+        const daily = dailyByDate.get(dateKey) || { total: 0, completed: 0 };
+        const weekly = weeklyByDate.get(dateKey) || { planned: 0, isRestDay: false };
+        const planned = daily.total > 0 ? daily.total : weekly.planned;
+
+        nextStats[dateKey] = {
+          planned,
+          completed: daily.completed,
+          isRestDay: planned === 0 && weekly.isRestDay,
+          hasDailySession: daily.total > 0,
+          hasWeeklyPlan: weekly.planned > 0 || weekly.isRestDay
+        };
+      });
+
+      setCalendarStatsByDate(nextStats);
+    } catch (error) {
+      console.error('Error loading workout calendar:', error);
+      setCalendarStatsByDate({});
+    } finally {
+      if (!silent) setIsCalendarLoading(false);
+    }
+  };
 
   const loadSession = async (silent = false) => {
     if (silent) {
@@ -496,7 +567,7 @@ export default function Exercises() {
         .from('daily_exercise_sessions')
         .select(`
           *,
-          exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
+          exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions)
         `)
         .eq('user_id', user?.id)
         .eq('log_date', selectedDateKey)
@@ -513,8 +584,7 @@ export default function Exercises() {
         setSession([]);
         await clonePlanToSelectedDate(selectedDateKey, selectedDayId);
       }
-      await loadLibrary(silent);
-
+      await loadCalendarStats(true);
     } catch (e) {
       console.error('Error loading session:', e);
     } finally {
@@ -524,30 +594,6 @@ export default function Exercises() {
       } else {
         setIsLoading(false);
       }
-    }
-  };
-
-  const loadLibrary = async (silent = false) => {
-    if (!silent) setIsLoading(true);
-    try {
-      const { data: libData } = await supabase.from('exercises').select('*').limit(100);
-      if (libData) {
-        setLibrary(
-          libData.map((item: any) => ({
-            ...item,
-            gif_url: normalizeGifUrl(item?.gif_url ?? item?.gifUrl ?? item?.gif ?? ''),
-            image_url: normalizeGifUrl(item?.image_url ?? item?.imageUrl ?? ''),
-            equipment: String(item?.equipment || '')
-          }))
-        );
-      } else {
-        setLibrary([]);
-      }
-    } catch (e) {
-      console.error('Error loading library:', e);
-      setLibrary([]);
-    } finally {
-      if (!silent) setIsLoading(false);
     }
   };
 
@@ -699,88 +745,6 @@ export default function Exercises() {
 
   };
 
-
-  const saveExerciseFromPopup = async (exerciseToSave: ExerciseLibraryItem) => {
-    const currentUser = user!;
-    if (!currentUser) {
-      setSaveMessage('Bạn cần đăng nhập để thêm bài tập.');
-      setSaveStatus('error');
-      return;
-    }
-
-    if (session.some((item) => item.exercise_id === exerciseToSave.id)) {
-      setSaveMessage('Bài tập này đã có trong buổi tập đã chọn.');
-      setSaveStatus('error');
-      return;
-    }
-
-    setSavingExerciseId(exerciseToSave.id);
-    setSaveMessage('');
-    try {
-      const existedRes = await supabase
-        .from('daily_exercise_sessions')
-        .select('id')
-        .eq('user_id', currentUser.id)
-        .eq('log_date', selectedDateKey)
-        .eq('exercise_id', exerciseToSave.id)
-        .limit(1);
-      if (existedRes.error) throw existedRes.error;
-
-      if ((existedRes.data || []).length > 0) {
-        setSaveMessage('Bài tập này đã có trong buổi tập đã chọn.');
-        setSaveStatus('error');
-        return;
-      }
-
-      const cleanSets = 3;
-      const cleanReps = '12';
-      const cleanKg = getManualSuggestedWeightKg(exerciseToSave.equipment);
-      const createdSession = await createDailyExerciseSession({
-        userId: currentUser.id,
-        logDate: selectedDateKey,
-        exerciseId: exerciseToSave.id,
-        sets: cleanSets,
-        reps: cleanReps,
-        weightKg: cleanKg,
-        restSeconds: 60
-      }) as SessionExercise | undefined;
-      if (createdSession) {
-        setSession(prev => {
-          if (prev.some((item) => item.exercise_id === exerciseToSave.id)) return prev;
-          return [...prev, {
-            ...createdSession,
-            name: (createdSession.exercises as any)?.name || 'Exercise',
-            gif_url: normalizeGifUrl((createdSession.exercises as any)?.image_url || '')
-          }];
-        });
-      }
-
-      setSaveMessage(isTodaySelected ? 'Đã thêm vào buổi tập hôm nay.' : 'Đã thêm vào buổi tập đã chọn.');
-      setSaveStatus('success');
-    } catch (e: any) {
-      setSaveMessage(e?.message || 'Thêm bài tập thất bại. Vui lòng thử lại.');
-      setSaveStatus('error');
-    } finally {
-      setSavingExerciseId(null);
-    }
-  };
-
-  useEffect(() => {
-    if (!saveMessage) return;
-    if (saveStatus === 'success') {
-      toast.success(saveMessage);
-    } else {
-      toast.error(saveMessage);
-    }
-    const clear = window.setTimeout(() => {
-      setSaveMessage('');
-      setSaveStatus('');
-    }, 0);
-    return () => {
-      window.clearTimeout(clear);
-    };
-  }, [saveMessage, saveStatus, toast]);
-
   useEffect(() => {
     if (session.length === 0) {
       setSelectedSessionId(null);
@@ -790,11 +754,24 @@ export default function Exercises() {
     if (!exists) setSelectedSessionId(session[0].id);
   }, [session, selectedSessionId]);
 
+  useEffect(() => {
+    if (session.length === 0 || !isDateKeyBetween(selectedDateKey, selectedMonthStartKey, selectedMonthEndKey)) return;
+
+    setCalendarStatsByDate((prev) => ({
+      ...prev,
+      [selectedDateKey]: {
+        ...(prev[selectedDateKey] || EMPTY_DAY_STATS),
+        planned: session.length,
+        completed: session.filter((item) => item.is_completed).length,
+        isRestDay: false,
+        hasDailySession: true
+      }
+    }));
+  }, [session, selectedDateKey, selectedMonthStartKey, selectedMonthEndKey]);
+
   const selectedSessionExercise = session.find((s) => s.id === selectedSessionId) || null;
-  const selectedSessionDetailExercise = useMemo<ExerciseLibraryItem | null>(() => {
+  const selectedSessionDetailExercise = useMemo<ExerciseDetailItem | null>(() => {
     if (!selectedSessionExercise) return null;
-    const fromLibrary = library.find((item) => item.id === selectedSessionExercise.exercise_id);
-    if (fromLibrary) return fromLibrary;
     return {
       id: selectedSessionExercise.exercise_id,
       name: selectedSessionExercise.name || 'Exercise',
@@ -806,10 +783,11 @@ export default function Exercises() {
       image_url: normalizeGifUrl(
         selectedSessionExercise.gif_url || selectedSessionExercise.exercises?.image_url || ''
       ),
-      equipment: ''
+      equipment: '',
+      instructions: selectedSessionExercise.exercises?.instructions || []
     };
-  }, [selectedSessionExercise, library]);
-  const openExerciseDetailsPage = (exercise: ExerciseLibraryItem) => {
+  }, [selectedSessionExercise]);
+  const openExerciseDetailsPage = (exercise: ExerciseDetailItem) => {
     navigate('/exercises/details', { state: { exercise } });
   };
   const selectedExerciseStats = useMemo(() => {
@@ -827,247 +805,237 @@ export default function Exercises() {
       kcalText: `~${kcal} kcal`
     };
   }, [selectedSessionExercise]);
-  const muscleAliases: Record<string, string[]> = {
-    all: [],
-    back: ['back', 'lung', 'co xo', 'xa', 'trap', 'lat', 'upper back'],
-    legs: ['leg', 'chan', 'dui', 'mong', 'but', 'calf', 'glute', 'hamstring', 'quadriceps', 'quat'],
-    chest: ['chest', 'nguc', 'pec', 'pectoral'],
-    shoulders: ['shoulder', 'vai', 'deltoid'],
-    arms: ['arm', 'tay', 'bicep', 'tricep', 'forearm'],
-    abs: ['abs', 'abdom', 'core', 'bung', 'oblique'],
-    cardio: ['cardio', 'tim mach', 'hiit', 'aerobic', 'running', 'jump']
+
+  const openAiWorkoutSwap = () => {
+    const params = new URLSearchParams();
+    const exerciseText = selectedSessionExercise
+      ? `bài "${selectedSessionExercise.name}"`
+      : 'buổi tập';
+    params.set(
+      'prompt',
+      `Đổi ${exerciseText} trong lịch tập ${selectedDayDateLabel}. Hãy đề xuất phương án phù hợp hơn với mục tiêu, thiết bị và sức của tôi.`
+    );
+    params.set('day', String(selectedDayId));
+    params.set('auto', '1');
+    navigate(`/smart-planner?${params.toString()}`);
   };
 
-  const matchesFilter = (ex: ExerciseLibraryItem, filterId: string) => {
-    if (filterId === 'all') return true;
-    const haystack = normalizeForMatch(`${ex.name} ${ex.target_muscle} ${ex.body_part}`);
-    const aliases = muscleAliases[filterId] || [];
-    return aliases.some((kw) => haystack.includes(normalizeForMatch(kw)));
-  };
+  const workoutOrderSummary = useMemo(() => {
+    const completed = session.filter((item) => item.is_completed).length;
+    const totalSets = session.reduce((sum, item) => sum + Math.max(1, Number(item.actual_sets ?? item.sets) || 1), 0);
+    const totalRestSeconds = session.reduce((sum, item) => sum + Math.max(0, Number(item.actual_rest_seconds ?? item.rest_seconds) || 0), 0);
+    const estimatedMinutes = session.length > 0
+      ? Math.max(1, Math.round((totalSets * 50 + totalRestSeconds) / 60))
+      : 0;
+    const focusItems = Array.from(new Set(
+      session
+        .flatMap((item) => [item.exercises?.target_muscle, item.exercises?.body_part])
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+    ));
 
-  const baseFilteredLibrary = library.filter((ex) => matchesFilter(ex, appliedMuscleFilter));
-  const filteredLibrary = baseFilteredLibrary.filter((ex) =>
-    appliedEquipmentFilter === 'all' ? true : equipmentMatchesPreference(ex.equipment, appliedEquipmentFilter)
-  );
-  const visibleLibrary = filteredLibrary.slice(0, visibleLibraryCount);
-  const hasMoreLibraryItems = visibleLibrary.length < filteredLibrary.length;
-  const isEquipmentFilterActive = appliedEquipmentFilter !== 'all';
-
-  const equipmentFilterOptions = [
-    { id: 'all', label: 'Tất cả' },
-    { id: 'Đầy đủ tạ & máy móc', label: 'Đầy đủ tạ & máy móc' },
-    { id: 'Tạ đơn & Thảm', label: 'Tạ đơn & Thảm' },
-    { id: 'Dây kháng lực', label: 'Dây kháng lực' },
-    { id: 'Không dụng cụ', label: 'Không dụng cụ' }
-  ];
-
-  const muscleFilterOptions = [
-    { id: 'all', label: 'Tất cả' },
-    { id: 'back', label: 'Lưng' },
-    { id: 'legs', label: 'Chân' },
-    { id: 'chest', label: 'Ngực' },
-    { id: 'shoulders', label: 'Vai' },
-    { id: 'arms', label: 'Tay' },
-    { id: 'abs', label: 'Bụng' },
-    { id: 'cardio', label: 'Cardio' }
-  ];
-
+    return {
+      completed,
+      progress: session.length > 0 ? Math.round((completed / session.length) * 100) : 0,
+      estimatedMinutes,
+      focusText: focusItems.slice(0, 2).join(', ') || 'Toàn thân'
+    };
+  }, [session]);
   useEffect(() => {
     if (!user || selectedDateKey !== vnToday) return;
     exercisesPageCache = {
       vnToday,
-      session,
-      library
+      session
     };
-  }, [user, selectedDateKey, vnToday, session, library]);
+  }, [user, selectedDateKey, vnToday, session]);
 
-  useEffect(() => {
-    const mobileQuery = window.matchMedia('(max-width: 639px)');
-    const updateBatchSize = () => {
-      const nextBatchSize = mobileQuery.matches
-        ? MOBILE_LIBRARY_VISIBLE_BATCH_SIZE
-        : LIBRARY_VISIBLE_BATCH_SIZE;
-      setLibraryBatchSize(nextBatchSize);
-      setVisibleLibraryCount(nextBatchSize);
-    };
-
-    mobileQuery.addEventListener('change', updateBatchSize);
-    return () => mobileQuery.removeEventListener('change', updateBatchSize);
-  }, []);
-
-  useEffect(() => {
-    setVisibleLibraryCount(libraryBatchSize);
-  }, [appliedMuscleFilter, appliedEquipmentFilter, libraryBatchSize]);
-
-  useEffect(() => {
-    if (!isFilterModalOpen) return;
-    const onMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (filterPopoverRef.current && target && !filterPopoverRef.current.contains(target)) {
-        setIsFilterModalOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onMouseDown);
-    return () => document.removeEventListener('mousedown', onMouseDown);
-  }, [isFilterModalOpen]);
-
-    if (isLoading) return <ExercisesSkeleton />;
+  if (isLoading) return <ExercisesSkeleton />;
 
   return (
     <div className="dashboard-page-shell exercise-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <div className="today-workout-shell overflow-hidden rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
-        <div className="today-workout-header mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-2">
-            <h1 className="text-[1.35rem] font-black leading-tight text-text-primary md:text-2xl">{selectedDayTitle}</h1>
-            <div className="today-workout-date inline-flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-tertiary/45 px-3 py-1.5 text-xs font-bold text-text-tertiary md:text-sm">
-              <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
-              <p>{selectedDayDateLabel}</p>
+      <div className={`monthly-workout-calendar ${isCalendarLoading ? 'monthly-workout-calendar-loading' : ''}`}>
+        <div className="monthly-workout-calendar-header">
+          <div className="monthly-workout-calendar-title">
+            <span className="monthly-workout-calendar-icon">
+              <Calendar className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <h1>Lịch tập tháng</h1>
+              <p>
+                {selectedMonthLabel} · {monthComplianceSummary.plannedDays} ngày tập · {monthComplianceSummary.completedDays} ngày xong
+              </p>
             </div>
           </div>
-        </div>
-
-        <div className="today-workout-day-tabs mb-4 overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary/40 p-1">
-          <div ref={dayTabContainerRef} className="relative grid min-w-0 grid-cols-7 gap-0.5 sm:gap-1">
-            <span
-              className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
-              style={{
-                width: `${dayIndicatorStyle.width}px`,
-                height: `${dayIndicatorStyle.height}px`,
-                transform: `translate(${dayIndicatorStyle.x}px, ${dayIndicatorStyle.y}px)`
-              }}
-            />
-            {DAYS.map((day) => {
-              const dayDate = addDays(selectedWeekStart, day.id);
-              const isSelected = selectedDayId === day.id;
-              const isToday = toDateKey(dayDate) === vnToday;
-              const label = isToday ? 'Hôm nay' : day.label;
-
-              return (
-                <button
-                  key={day.id}
-                  ref={(node) => {
-                    dayTabRefs.current[day.id] = node;
-                  }}
-                  type="button"
-                  onClick={() => setSelectedDayId(day.id)}
-                  className={`inline-flex min-h-[40px] min-w-0 items-center justify-center whitespace-nowrap rounded-lg px-1 text-[10px] font-black uppercase transition sm:px-2 sm:text-[11px] sm:tracking-[0.08em] ${
-                    isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
-                  }`}
-                  title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
-                >
-                  <span className="sm:hidden">{isToday ? 'Nay' : day.label}</span>
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-              );
-            })}
+          <div className="monthly-workout-calendar-score">
+            <strong>{monthComplianceSummary.adherence}%</strong>
+            <span>tuân thủ</span>
           </div>
         </div>
 
-        <div className="today-workout-content grid grid-cols-1 gap-5 md:-ml-2 md:-mt-1 md:gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-stretch">
+        <div className="monthly-workout-weekdays" aria-hidden="true">
+          {MONTH_WEEKDAYS.map((label) => (
+            <span key={label}>{label}</span>
+          ))}
+        </div>
+
+        <div className="monthly-workout-grid">
+          {monthCalendarDates.map((date) => {
+            const dateKey = toDateKey(date);
+            const inMonth = date.getMonth() === selectedMonthStart.getMonth();
+            const stats = calendarStatsByDate[dateKey] || EMPTY_DAY_STATS;
+            const isToday = dateKey === vnToday;
+            const isSelected = dateKey === selectedDateKey;
+            const isComplete = stats.planned > 0 && stats.completed >= stats.planned;
+            const isPlanned = stats.planned > 0 && !isComplete;
+            const isRestDay = stats.isRestDay && stats.planned === 0;
+            const dayTitle = date.toLocaleDateString('vi-VN', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            });
+
+            if (!inMonth) {
+              return <div key={dateKey} className="monthly-workout-day monthly-workout-day-empty" aria-hidden="true" />;
+            }
+
+            return (
+              <button
+                key={dateKey}
+                type="button"
+                onClick={() => setSelectedDateKey(dateKey)}
+                className={[
+                  'monthly-workout-day',
+                  isSelected ? 'monthly-workout-day-selected' : '',
+                  isToday ? 'monthly-workout-day-today' : '',
+                  isComplete ? 'monthly-workout-day-complete' : '',
+                  isPlanned ? 'monthly-workout-day-planned' : '',
+                  isRestDay ? 'monthly-workout-day-rest' : ''
+                ].filter(Boolean).join(' ')}
+                title={dayTitle}
+                aria-pressed={isSelected}
+              >
+                <span className="monthly-workout-day-number">{date.getDate()}</span>
+                {isToday ? <span className="monthly-workout-day-dot" aria-hidden="true" /> : null}
+                <span className="monthly-workout-day-status">
+                  {stats.planned > 0 ? (
+                    `${stats.completed}/${stats.planned}`
+                  ) : isRestDay ? (
+                    <Moon className="h-3.5 w-3.5" />
+                  ) : (
+                    ''
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="today-workout-shell">
+        <div className="today-workout-header">
+          <div className="today-workout-title-row">
+            <h2 className="today-workout-title">{selectedDayTitle}</h2>
+            <span className="today-workout-date">
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
+              {selectedDayDateLabel}
+            </span>
+            <span className={`today-workout-status-pill ${session.length > 0 ? 'today-workout-status-active' : 'today-workout-status-empty'}`}>
+              {session.length > 0 ? `${session.length} bài tập` : 'Chưa có bài tập'}
+            </span>
+          </div>
+        </div>
+
+        <div className="today-workout-content">
           {selectedSessionExercise ? (
-            <>
-              <article className="min-w-0 p-4 md:p-4 xl:pr-8">
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-[176px_minmax(0,540px)] lg:items-stretch lg:gap-5">
-                  <div className="themed-image-surface overflow-hidden rounded-xl border border-border-primary h-[184px] lg:h-full">
-                    <ExerciseThumb
-                      src={selectedSessionExercise.gif_url}
-                      alt={selectedSessionExercise.name}
-                      className="w-full h-full object-contain p-2"
-                    />
+            <article className="today-workout-feature-card">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[176px_minmax(0,560px)] lg:items-stretch lg:gap-5">
+                <div className="themed-image-surface overflow-hidden rounded-xl border border-border-primary h-[184px] lg:h-full">
+                  <ExerciseThumb
+                    src={selectedSessionExercise.gif_url}
+                    alt={selectedSessionExercise.name}
+                    className="w-full h-full object-contain p-2"
+                  />
+                </div>
+                <div className="today-workout-feature flex flex-col justify-center gap-3.5 min-w-0 max-w-[580px]">
+                  <div className="min-w-0">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      {selectedSessionExercise.is_completed ? (
+                        <span className="rounded-full border border-border-primary bg-bg-tertiary/55 px-3 py-1 text-xs font-black text-text-secondary">
+                          Đã hoàn thành
+                        </span>
+                      ) : null}
+                    </div>
+                    <h2 className="text-2xl font-black text-text-primary leading-tight md:text-[1.75rem] md:leading-[1.08] line-clamp-2">{selectedSessionExercise.name}</h2>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {selectedSessionExercise.exercises?.target_muscle ? (
+                        <span className="rounded-full border border-info/20 bg-info/10 px-3 py-1 text-xs font-bold text-info">
+                          {selectedSessionExercise.exercises.target_muscle}
+                        </span>
+                      ) : null}
+                      {selectedSessionExercise.exercises?.body_part ? (
+                        <span className="rounded-full border border-warning/20 bg-warning/10 px-3 py-1 text-xs font-bold text-warning">
+                          {selectedSessionExercise.exercises.body_part}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div className="today-workout-feature flex flex-col justify-center gap-3.5 min-w-0 max-w-[560px]">
-                    <div className="min-w-0">
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        {selectedSessionExercise.is_completed ? (
-                          <span className="rounded-full border border-border-primary bg-bg-tertiary/55 px-3 py-1 text-xs font-black text-text-secondary">
-                            Đã hoàn thành
-                          </span>
-                        ) : null}
-                      </div>
-                      <h2 className="text-2xl font-black text-text-primary leading-tight md:text-[1.75rem] md:leading-[1.08] line-clamp-2">{selectedSessionExercise.name}</h2>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {selectedSessionExercise.exercises?.target_muscle ? (
-                          <span className="rounded-full border border-info/20 bg-info/10 px-3 py-1 text-xs font-bold text-info">
-                            {selectedSessionExercise.exercises.target_muscle}
-                          </span>
-                        ) : null}
-                        {selectedSessionExercise.exercises?.body_part ? (
-                          <span className="rounded-full border border-warning/20 bg-warning/10 px-3 py-1 text-xs font-bold text-warning">
-                            {selectedSessionExercise.exercises.body_part}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                    <div className="today-workout-meta flex flex-wrap items-center gap-2">
-                      <span className="today-workout-meta-item">{selectedExerciseStats.setsText}</span>
-                      <span className="today-workout-meta-item">{selectedExerciseStats.repsText}</span>
-                      <span className="today-workout-meta-item">{selectedExerciseStats.weightText}</span>
-                      <span className="today-workout-meta-item">{selectedExerciseStats.kcalText}</span>
-                    </div>
-                <div className="today-workout-actions mt-1 flex flex-wrap items-center justify-start gap-2">
-                  <button
-                    onClick={() =>
-                      navigate('/exercises/session', {
-                        state: {
-                          session,
-                          selectedSessionId: selectedSessionExercise.id,
-                          logDate: selectedDateKey
-                        }
-                      })
-                    }
-                    className={`h-10 px-4 rounded-xl font-black text-sm transition-colors inline-flex items-center gap-2 ${selectedSessionExercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-accent text-text-inverse hover:bg-accent-hover'}`}
-                  >
-                    <Play className="w-4 h-4" />
-                    {selectedSessionExercise.is_completed ? 'Mở lại buổi tập' : 'Bắt đầu buổi tập'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (selectedSessionDetailExercise) openExerciseDetailsPage(selectedSessionDetailExercise);
-                    }}
-                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Xem chi tiết
-                  </button>
-                </div>
-                </div>
-                </div>
-              </article>
-              <aside className="today-workout-list relative min-w-0 p-4 md:p-4 xl:-ml-2 xl:self-stretch xl:pl-5 xl:pt-4 xl:before:absolute xl:before:bottom-4 xl:before:left-0 xl:before:top-4 xl:before:w-px xl:before:bg-border-primary/70 xl:before:content-['']">
-                <div className="mb-1 flex items-center justify-between gap-3">
-                  <h3 className="text-lg font-black text-text-primary">Danh sách bài tập</h3>
-                </div>
-                <div className="today-workout-list-scroll mt-3.5 space-y-2.5 max-h-[320px] overflow-y-auto custom-scrollbar pr-1">
-                  {session.slice(0, 4).map((ex, idx) => (
+                  <div className="today-workout-meta flex flex-wrap items-center gap-2">
+                    <span className="today-workout-meta-item">{selectedExerciseStats.setsText}</span>
+                    <span className="today-workout-meta-item">{selectedExerciseStats.repsText}</span>
+                    <span className="today-workout-meta-item">{selectedExerciseStats.weightText}</span>
+                    <span className="today-workout-meta-item">{selectedExerciseStats.kcalText}</span>
+                  </div>
+                  <div className="today-workout-actions mt-1 flex flex-wrap items-center justify-start gap-2">
                     <button
-                      key={ex.id}
-                      onClick={() => setSelectedSessionId(ex.id)}
-                      className={`today-workout-list-item w-full text-left rounded-lg px-0 py-1.5 transition-colors ${ex.id === selectedSessionExercise.id ? 'today-workout-list-item-active' : ''}`}
+                      onClick={() =>
+                        navigate('/exercises/session', {
+                          state: {
+                            session,
+                            selectedSessionId: selectedSessionExercise.id,
+                            logDate: selectedDateKey
+                          }
+                        })
+                      }
+                      className={`h-10 px-4 rounded-xl font-black text-sm transition-colors inline-flex items-center gap-2 ${selectedSessionExercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-accent text-text-inverse hover:bg-accent-hover'}`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2 min-w-0">
-                        <span className="today-workout-list-index inline-flex h-5 w-5 shrink-0 items-center justify-center self-center rounded-full border border-accent/55 text-xs font-black leading-none text-accent">{idx + 1}</span>
-                          <span className={`text-sm font-medium ${ex.is_completed ? 'text-text-tertiary line-through' : 'text-text-primary'}`}>{ex.name}</span>
-                        </div>
-                      </div>
+                      <Play className="w-4 h-4" />
+                      {selectedSessionExercise.is_completed ? 'Mở lại buổi tập' : 'Bắt đầu buổi tập'}
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={openAiWorkoutSwap}
+                      className="ai-swap-action inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-black transition-colors"
+                    >
+                      <Bot className="w-4 h-4" />
+                      Đổi bằng AI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedSessionDetailExercise) openExerciseDetailsPage(selectedSessionDetailExercise);
+                      }}
+                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary/45 px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
+                    >
+                      <Eye className="w-4 h-4" />
+                      Xem chi tiết
+                    </button>
+                  </div>
                 </div>
-              </aside>
-            </>
+              </div>
+            </article>
           ) : (
-            <div className="today-workout-empty-state flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/30 px-5 py-8 text-center">
-              <span className="today-workout-empty-icon mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-tertiary">
+            <div className="today-workout-empty-state">
+              <span className="today-workout-empty-icon">
                 <AlertCircle className="h-6 w-6" />
               </span>
-              <p className="text-sm font-semibold text-text-secondary">
+              <p>
                 {isTodaySelected ? 'Chưa có bài tập nào hôm nay.' : 'Chưa có bài tập cho ngày này.'}
               </p>
               <button
                 type="button"
                 onClick={() => navigate('/smart-planner')}
-                className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
+                className="today-workout-empty-action"
               >
                 <Plus className="h-4 w-4" />
                 Tạo kế hoạch
@@ -1077,171 +1045,107 @@ export default function Exercises() {
         </div>
       </div>
 
-      <div className="exercise-library-shell bg-bg-secondary border border-border-primary rounded-xl p-4 md:p-5">
-        <div className="relative mb-4">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-xl md:text-2xl font-black text-text-primary">Thư viện bài tập</h2>
-            <div className="relative shrink-0" ref={filterPopoverRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsFilterModalOpen((prev) => {
-                    if (prev) return false;
-                    setDraftEquipmentFilter(appliedEquipmentFilter);
-                    return true;
-                  });
-                }}
-                className={`group relative inline-flex h-8 items-center gap-1.5 px-2.5 rounded-lg border transition-all ${
-                  isEquipmentFilterActive
-                    ? 'border-accent/45 bg-accent/10 text-accent shadow-[inset_0_0_0_1px_rgb(var(--accent-rgb)_/_0.08)]'
-                    : 'border-border-primary bg-bg-tertiary text-text-secondary hover:border-accent/40 hover:text-text-primary'
-                }`}
-              >
-                {isEquipmentFilterActive && (
-                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-bg-secondary bg-accent" />
-                )}
-                <SlidersHorizontal className={`w-3.5 h-3.5 ${isEquipmentFilterActive ? 'text-accent' : 'text-text-secondary'}`} />
-                <span className="text-xs font-medium leading-none">Bộ lọc</span>
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isFilterModalOpen ? 'rotate-180' : ''} ${isEquipmentFilterActive ? 'text-accent' : 'text-text-secondary group-hover:text-text-primary'}`} />
-              </button>
-
-              {isFilterModalOpen && (
-                <div className="absolute z-[120] right-[calc(100%+8px)] top-1/2 -translate-y-1/2 w-[min(92vw,320px)] max-h-[72vh] overflow-y-auto custom-scrollbar rounded-2xl border border-border-primary bg-bg-secondary p-4 md:p-5 shadow-2xl max-md:right-0 max-md:top-full max-md:translate-y-0 max-md:mt-2">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-sm md:text-base font-black tracking-wide text-text-primary">Bộ lọc</h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraftEquipmentFilter('all');
-                    setAppliedEquipmentFilter('all');
-                    setIsFilterModalOpen(false);
-                  }}
-                  className="h-8 px-1 text-accent hover:text-accent-hover inline-flex items-center gap-1.5"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span className="text-xs font-bold tracking-wide">Xóa tất cả</span>
-                </button>
-              </div>
-
-              <div className="space-y-5">
-                <div>
-                  <p className="mb-2 text-xs font-black tracking-wide text-text-secondary">Thiết bị</p>
-                  <div className="flex flex-wrap gap-2">
-                    {equipmentFilterOptions.map((opt) => (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setDraftEquipmentFilter(opt.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-colors ${draftEquipmentFilter === opt.id ? 'bg-accent text-text-inverse' : 'bg-bg-tertiary border border-border-primary text-text-secondary hover:border-accent/40 hover:text-text-primary'}`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-
-              <div className="mt-6 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAppliedEquipmentFilter(draftEquipmentFilter);
-                    setIsFilterModalOpen(false);
-                  }}
-                  className="h-10 px-6 rounded-xl bg-accent text-text-inverse text-sm font-black tracking-wide transition-colors hover:bg-accent-hover"
-                >
-                  Lưu bộ lọc
-                </button>
-              </div>
+      <section className={`workout-order-shell ${session.length === 0 ? 'workout-order-rest-shell' : ''}`}>
+          <div className="workout-order-header">
+            <div className="min-w-0">
+              <p className="workout-order-eyebrow">THỨ TỰ BÀI TẬP</p>
+              <h2>{`Ngày ${selectedDayId + 1} · ${selectedDayDateLabel}${session.length === 0 ? ' · Nghỉ' : ''}`}</h2>
             </div>
-              )}
-            </div>
+            {session.length > 0 ? (
+              <div className="workout-order-progress">
+                <strong>{workoutOrderSummary.progress}%</strong>
+                <span>hoàn thành</span>
+              </div>
+            ) : null}
           </div>
-          <div className="grid grid-cols-4 gap-2 sm:flex sm:flex-wrap">
-            {muscleFilterOptions.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setAppliedMuscleFilter(opt.id)}
-                className={`inline-flex min-h-8 w-full items-center justify-center rounded-lg px-2 py-1.5 text-xs font-bold tracking-wide transition-colors sm:w-auto sm:px-3 ${appliedMuscleFilter === opt.id ? 'bg-accent text-text-inverse' : 'bg-bg-tertiary border border-border-primary text-text-secondary hover:border-accent/40 hover:text-text-primary'}`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          {visibleLibrary.map((ex) => {
-            const isSavingThisExercise = savingExerciseId === ex.id;
-            const isAlreadyInSession = session.some((item) => item.exercise_id === ex.id);
-
-            return (
-            <div
-              key={ex.id}
-              onClick={() => openExerciseDetailsPage(ex)}
-              className="overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary/50 cursor-pointer transition-colors hover:border-accent/45"
-            >
-              <div className="relative aspect-[16/9] overflow-hidden bg-bg-secondary">
-                <ExerciseThumb src={ex.image_url} alt={ex.name} />
+          {session.length > 0 ? (
+            <>
+              <div className="workout-order-summary">
+                <span>{session.length} bài trong buổi</span>
+                <span>~{workoutOrderSummary.estimatedMinutes} phút ước tính</span>
+                <span>Trọng tâm {workoutOrderSummary.focusText}</span>
               </div>
 
-              <div className="p-3">
-                <h4 className="truncate text-sm font-black text-text-primary">{ex.name}</h4>
-                <p className="mt-1 truncate text-xs font-semibold text-text-secondary">
-                  Cơ chính: {ex.target_muscle || 'Không rõ'}
-                </p>
-                <p className="mt-1 truncate text-xs text-text-tertiary">
-                  Thiết bị: {ex.equipment || 'Không rõ'}
-                </p>
+              <div className="workout-order-list">
+                {session.map((exercise, index) => {
+                  const isActive = exercise.id === selectedSessionExercise?.id;
+                  const sets = Math.max(1, Number(exercise.actual_sets ?? exercise.sets) || 1);
+                  const reps = Math.max(1, parseRepAverage(String((exercise.actual_reps ?? exercise.reps) || '10')));
+                  const restSeconds = exercise.actual_rest_seconds ?? exercise.rest_seconds;
+                  const kcal = getResolvedExerciseKcal(exercise);
+                  const tags = [
+                    exercise.exercises?.target_muscle,
+                    exercise.exercises?.body_part,
+                    exercise.exercises?.equipment,
+                    exercise.exercises?.movement_pattern
+                  ].map((item) => String(item || '').trim()).filter(Boolean).slice(0, 4);
 
-                <div className="mt-3 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openExerciseDetailsPage(ex)}
-                    className="h-8 flex-1 rounded-lg border border-border-primary bg-bg-tertiary/45 px-3 text-xs font-bold text-text-primary transition-colors hover:border-accent/30 hover:bg-bg-tertiary"
-                  >
-                    Xem chi tiết
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      saveExerciseFromPopup(ex);
-                    }}
-                    disabled={isSavingThisExercise || isAlreadyInSession}
-                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                      isAlreadyInSession
-                        ? 'cursor-not-allowed border border-accent/35 bg-accent/15 text-accent'
-                        : 'bg-accent text-text-inverse hover:bg-accent-hover disabled:opacity-60'
-                    }`}
-                    aria-label={isAlreadyInSession ? 'Bài tập đã có trong buổi tập' : 'Thêm bài tập'}
-                    title={isAlreadyInSession ? 'Bài tập đã có trong buổi tập' : 'Thêm bài tập'}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
+                  return (
+                    <button
+                      key={exercise.id}
+                      type="button"
+                      onClick={() => setSelectedSessionId(exercise.id)}
+                      className={`workout-order-item ${isActive ? 'workout-order-item-active' : ''}`}
+                    >
+                      <div className="workout-order-thumb-wrap">
+                        <div className="workout-order-thumb">
+                          <ExerciseThumb
+                            src={exercise.gif_url}
+                            alt={exercise.name}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <span className="workout-order-index">{index + 1}</span>
+                      </div>
+
+                      <div className="workout-order-item-body">
+                        <div className="workout-order-item-title">
+                          <h3 className={exercise.is_completed ? 'line-through' : ''}>{exercise.name}</h3>
+                          <span>{formatDifficultyLabel(exercise.exercises?.difficulty)}</span>
+                        </div>
+                        <div className="workout-order-tags">
+                          {tags.length > 0 ? tags.map((tag, tagIndex) => (
+                            <span key={`${exercise.id}-${tag}-${tagIndex}`}>{tag}</span>
+                          )) : (
+                            <span>Toàn thân</span>
+                          )}
+                        </div>
+                        <p className="workout-order-meta-line">
+                          <strong>{sets}×{reps}</strong>
+                          <span>·</span>
+                          <span>Nghỉ {formatRestTime(restSeconds)}</span>
+                          <span>·</span>
+                          <span>{kcal} kcal</span>
+                        </p>
+                      </div>
+
+                      <span className={`workout-order-action ${isActive ? 'workout-order-action-play' : ''}`}>
+                        {isActive ? <Play className="h-4 w-4 fill-current" /> : <ChevronRight className="h-4 w-4" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="workout-order-rest-panel">
+              <span className="workout-order-rest-icon">
+                <Shield className="h-4 w-4" />
+              </span>
+              <div className="workout-order-rest-content">
+                <span className="workout-order-rest-kicker">NGÀY NGHỈ</span>
+                <h3>Phục hồi chủ động</h3>
+                <p>Không có bài chính hôm nay. Giữ cơ thể nhẹ nhàng để buổi tập kế tiếp hiệu quả hơn.</p>
+                <div className="workout-order-rest-chips">
+                  <span>Đi bộ nhẹ</span>
+                  <span>Mobility</span>
+                  <span>Stretching 10–20 phút</span>
                 </div>
               </div>
             </div>
-            );
-          })}
-        </div>
-
-        {hasMoreLibraryItems && (
-          <div className="mt-4 flex justify-center">
-            <button
-              type="button"
-              onClick={() => setVisibleLibraryCount((count) => count + libraryBatchSize)}
-              className="h-10 px-5 rounded-xl border border-border-primary bg-bg-tertiary text-sm font-black text-text-primary transition-colors hover:border-accent/45 hover:text-accent inline-flex items-center gap-2"
-            >
-              <ChevronDown className="w-4 h-4" />
-              Xem thêm
-            </button>
-          </div>
-        )}
-      </div>
-
+          )}
+        </section>
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   Scale,
   Send,
   Settings,
+  Shield,
   Trash2,
   Trophy,
   TrendingUp,
@@ -149,7 +150,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
   const isProfileEditPage = location.pathname === '/profile/edit';
-  const { user, profile, membershipTier, openPremiumModal, refreshProfile, signOut } = useAuth();
+  const { user, profile, membershipTier, isAdmin, openPremiumModal, refreshProfile, signOut } = useAuth();
   const toast = useToast();
   const [formData, setFormData] = useState(emptyForm);
   const [latestBodyCreatedAt, setLatestBodyCreatedAt] = useState('');
@@ -750,6 +751,19 @@ export default function Profile() {
                 <Lock className="h-4 w-4 text-accent" />
                 Đổi mật khẩu
               </button>
+              {isAdmin ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsOpen(false);
+                    navigate('/admin-panel');
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+                >
+                  <Shield className="h-4 w-4 text-danger" />
+                  Quản trị viên
+                </button>
+              ) : null}
               <div className="my-1 h-px bg-border-primary" />
               <button
                 type="button"

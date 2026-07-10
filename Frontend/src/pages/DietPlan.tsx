@@ -12,6 +12,7 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
+import { useNavigate } from 'react-router-dom';
 
 interface Food {
   id: string;
@@ -586,6 +587,7 @@ export function DietPlanSkeleton() {
 
 export default function DietPlan() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const toast = useToast();
   const alert = (message: unknown) => {
     const text = String(message || '');
@@ -733,6 +735,20 @@ export default function DietPlan() {
   );
   const visibleMealSummaries = useMemo(() => mealSummaries.filter((meal) => meal.hasItems), [mealSummaries]);
   const hasMenuForSelectedDay = visibleMealSummaries.length > 0;
+
+  const openAiMealSwap = (meal?: { label: string; names: string; id: MealTypeId }) => {
+    const params = new URLSearchParams();
+    const mealText = meal
+      ? `bữa ${meal.label.toLowerCase()} đang có ${meal.names}`
+      : 'thực đơn trong ngày';
+    params.set(
+      'prompt',
+      `Đổi ${mealText} cho ${selectedDayDateLabel}. Hãy đề xuất món dễ theo hơn nhưng vẫn giữ mục tiêu calories và protein của tôi.`
+    );
+    params.set('day', String(selectedDayId));
+    params.set('auto', '1');
+    navigate(`/smart-planner?${params.toString()}`);
+  };
 
   useEffect(() => {
     if (isCurrentWeek) setSelectedDayId(getTodayDayIndex());
@@ -1457,6 +1473,14 @@ export default function DietPlan() {
                     className="diet-control rounded-xl border border-border-primary px-4 py-2 text-sm font-black transition"
                   >
                     Đổi món
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openAiMealSwap(meal)}
+                    className="ai-swap-action inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-black transition"
+                  >
+                    <Bot className="h-4 w-4" />
+                    Đổi bằng AI
                   </button>
                   <button
                     type="button"

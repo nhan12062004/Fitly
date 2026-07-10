@@ -308,6 +308,7 @@ CREATE TABLE public.profiles (
   role text DEFAULT 'user'::text,
   telegram_chat_id text,
   membership_tier text NOT NULL DEFAULT 'free'::text,
+  membership_expires_at timestamp with time zone,
   ai_coach_free_used_at timestamp with time zone
 );
 -- 19. Table: telegram_reminder_dispatches

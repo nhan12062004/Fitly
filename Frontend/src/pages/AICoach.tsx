@@ -28,6 +28,7 @@ import {
   WORKOUT_DURATION_TAGS,
   normalizeWorkoutDurationTag,
 } from '../lib/WorkoutDuration';
+import { useLocation } from 'react-router-dom';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const RECENT_CHAT_LIMIT = 80;
@@ -186,6 +187,13 @@ const writeChatDraft = (storageKey: string | null, value: string): void => {
   }
 };
 
+const getCoachLaunchDayIndex = (search: string): number | null => {
+  const value = new URLSearchParams(search).get('day');
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? Math.max(0, Math.min(6, parsed)) : null;
+};
+
 type WorkoutProposalPayload = {
   day_of_week: number;
   duration_minutes: number;
@@ -224,8 +232,16 @@ type MealProposalPayload = {
   notes?: string;
 };
 
+type AiQuotaSnapshot = {
+  limits: Record<string, number>;
+  usage: Record<string, number>;
+  remaining: Record<string, number>;
+  trialEndsAt?: string | null;
+};
+
 type AIChatApiResponse = {
   code?: string;
+  error?: string;
   reply: string;
   intent: string;
   responseMode?: 'plan_edit' | 'coach_advice' | 'support' | 'safety' | 'redirect';
@@ -234,6 +250,7 @@ type AIChatApiResponse = {
   actionPayload: unknown;
   confidence: number;
   adjustmentId?: string | null;
+  aiQuota?: AiQuotaSnapshot | null;
 };
 
 type CoachQuickAction = {
@@ -1097,6 +1114,7 @@ function TodayDigestBubble({
 
 export default function AICoach() {
   const { user, isLoggedIn, profile, refreshTick, refreshProfile, openPremiumModal } = useAuth();
+  const location = useLocation();
   const toast = useToast();
   const initialTodayDateKey = getVietnamDateKey();
   const initialWeekStartKey = getWeekStartKey(new Date(`${initialTodayDateKey}T00:00:00`));
@@ -1116,6 +1134,8 @@ export default function AICoach() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [chatInput, setChatInput] = useState(() => readChatDraft(chatDraftStorageKey));
+  const [aiQuota, setAiQuota] = useState<AiQuotaSnapshot | null>(null);
+  const [selectedCoachDayIndex, setSelectedCoachDayIndex] = useState<number | null>(() => getCoachLaunchDayIndex(location.search));
   const [isListening, setIsListening] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; size: number; type: string } | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => initialCoachCache?.chatMessages || []);
@@ -1134,11 +1154,46 @@ export default function AICoach() {
   const chatMessagesRef = useRef<ChatMessage[]>([]);
   const hasAutoScrolledChatRef = useRef(false);
   const shouldJumpToLatestRef = useRef(true);
+  const handledLaunchPromptRef = useRef('');
 
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${todayDateKey}T00:00:00`)), [todayDateKey]);
   const cacheKey = user?.id ? `${user.id}:${weekStartKey}:${todayDateKey}` : null;
   const coachDisplayName = useMemo(() => getCoachDisplayName(profile, user), [profile, user]);
+
+  useEffect(() => {
+    setSelectedCoachDayIndex(getCoachLaunchDayIndex(location.search));
+  }, [location.search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadQuota = async () => {
+      if (!user?.id) {
+        setAiQuota(null);
+        return;
+      }
+
+      try {
+        const sessionRes = await supabase.auth.getSession();
+        const accessToken = sessionRes.data.session?.access_token;
+        if (!accessToken) return;
+        const response = await fetch(`${API_BASE_URL}/api/ai/quota`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!cancelled && response.ok && payload?.aiQuota) {
+          setAiQuota(payload.aiQuota as AiQuotaSnapshot);
+        }
+      } catch {
+        if (!cancelled) setAiQuota(null);
+      }
+    };
+
+    void loadQuota();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, refreshTick]);
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -1417,7 +1472,16 @@ export default function AICoach() {
     [items, todaySessionItems, foodItems, todayDayIndex],
   );
 
-  const selectedDay = days[todayDayIndex] || days[0];
+  const selectedDayIndex = selectedCoachDayIndex ?? todayDayIndex;
+  const selectedDay = days[selectedDayIndex] || days[todayDayIndex] || days[0];
+  const chatQuotaSummary = useMemo(() => {
+    const limit = Number(aiQuota?.limits?.chatMessages ?? 0);
+    if (!limit) return null;
+    const used = Math.max(0, Number(aiQuota?.usage?.chatMessages ?? 0));
+    const remaining = Math.max(0, Number(aiQuota?.remaining?.chatMessages ?? Math.max(0, limit - used)));
+    return { limit, used, remaining };
+  }, [aiQuota]);
+
   useEffect(() => {
     const fetchChat = async () => {
       const cached = cacheKey ? aiCoachPageCache.get(cacheKey) || null : null;
@@ -1800,13 +1864,16 @@ export default function AICoach() {
     }
   };
 
-  const submitChat = async (messageText?: string) => {
+  const submitChat = async (messageText?: string, options?: { dayIndexOverride?: number }) => {
     const rawMessage = String(messageText ?? chatInput).trim();
     const attachmentContext = selectedAttachment
       ? `\n\n[Attached file: ${selectedAttachment.name} (${formatAttachmentSize(selectedAttachment.size)}, ${selectedAttachment.type})]`
       : '';
     const message = `${rawMessage}${attachmentContext}`.trim();
-    if (!message || !selectedDay || !user?.id) return;
+    const targetDay = typeof options?.dayIndexOverride === 'number'
+      ? (days[options.dayIndexOverride] || selectedDay)
+      : selectedDay;
+    if (!message || !targetDay || !user?.id) return;
     if (submitLockRef.current) return;
 
     const now = Date.now();
@@ -1860,7 +1927,7 @@ export default function AICoach() {
         },
         body: JSON.stringify({
           message,
-          selectedDayIndex: selectedDay.dayIndex,
+          selectedDayIndex: targetDay.dayIndex,
           weekStartDate: weekStartKey,
           clientHistory,
         }),
@@ -1868,13 +1935,17 @@ export default function AICoach() {
 
       const payload = (await response.json().catch(() => ({}))) as Partial<AIChatApiResponse>;
       if (!response.ok) {
+        if (payload?.aiQuota) setAiQuota(payload.aiQuota);
         if (payload?.code === 'AI_CHANGE_LIMIT_REACHED' || payload?.code === 'PREMIUM_REQUIRED') {
           openPremiumModal();
+          toast.error(payload?.error || payload?.reply || 'Bạn đã dùng hết lượt AI Coach trong gói hiện tại.');
+          return;
         }
-        throw new Error(payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');
+        throw new Error(payload?.error || payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');
       }
 
-      const replyContent = String(payload.reply || '').trim() || buildCoachReply(selectedDay, message, previousTopic, lifestyle);
+      if (payload.aiQuota) setAiQuota(payload.aiQuota);
+      const replyContent = String(payload.reply || '').trim() || buildCoachReply(targetDay, message, previousTopic, lifestyle);
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
@@ -1896,7 +1967,7 @@ export default function AICoach() {
       const fallbackMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
-        content: buildCoachReply(selectedDay, message, previousTopic, lifestyle),
+        content: buildCoachReply(targetDay, message, previousTopic, lifestyle),
         createdAt: new Date().toISOString(),
         responseMode: 'coach_advice',
         optimistic: true,
@@ -1908,6 +1979,32 @@ export default function AICoach() {
       setIsSendingChat(false);
     }
   };
+
+  useEffect(() => {
+    if (loading || !user?.id) return;
+    const params = new URLSearchParams(location.search);
+    const prompt = String(params.get('prompt') || params.get('message') || '').trim();
+    if (!prompt) return;
+
+    const dayIndex = getCoachLaunchDayIndex(location.search);
+    const shouldAutoSend = params.get('auto') === '1';
+    const promptKey = `${prompt}|${dayIndex ?? ''}|${shouldAutoSend ? 'auto' : 'draft'}`;
+    if (handledLaunchPromptRef.current === promptKey) return;
+    handledLaunchPromptRef.current = promptKey;
+
+    if (typeof dayIndex === 'number') {
+      setSelectedCoachDayIndex(dayIndex);
+    }
+    setChatInput(prompt);
+    writeChatDraft(chatDraftStorageKey, prompt);
+    window.requestAnimationFrame(() => chatInputRef.current?.focus());
+
+    if (shouldAutoSend) {
+      window.setTimeout(() => {
+        void submitChat(prompt, { dayIndexOverride: dayIndex ?? undefined });
+      }, 120);
+    }
+  }, [location.search, loading, user?.id, chatDraftStorageKey]);
 
   const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey) return;
@@ -1937,18 +2034,26 @@ export default function AICoach() {
                       </p>
                     </div>
                   </div>
-                  {chatMessages.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleClearConversation()}
-                      disabled={isSendingChat || isClearingChat}
-                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-xs font-black text-text-primary transition-colors hover:border-danger/40 hover:text-danger disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:gap-2 sm:px-3"
-                      aria-label="Xoá cuộc hội thoại"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="hidden sm:inline">{isClearingChat ? 'Đang xoá' : 'Xoá hội thoại'}</span>
-                    </button>
-                  ) : null}
+                  <div className="ai-coach-header-actions">
+                    {chatQuotaSummary ? (
+                      <div className="ai-coach-quota-pill" title={`${chatQuotaSummary.used}/${chatQuotaSummary.limit} tin nhắn đã dùng`}>
+                        <span>Còn</span>
+                        <strong>{chatQuotaSummary.remaining}/{chatQuotaSummary.limit}</strong>
+                      </div>
+                    ) : null}
+                    {chatMessages.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleClearConversation()}
+                        disabled={isSendingChat || isClearingChat}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-xs font-black text-text-primary transition-colors hover:border-danger/40 hover:text-danger disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:gap-2 sm:px-3"
+                        aria-label="Xoá cuộc hội thoại"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="hidden sm:inline">{isClearingChat ? 'Đang xoá' : 'Xoá hội thoại'}</span>
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 

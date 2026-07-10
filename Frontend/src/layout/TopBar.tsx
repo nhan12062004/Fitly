@@ -94,7 +94,6 @@ export default function TopBar() {
 
   const {
     user,
-    isAdmin,
     membershipTier,
     profile,
     refreshTick,
@@ -104,8 +103,7 @@ export default function TopBar() {
   const location = useLocation();
   const isNotificationsPage = location.pathname === '/notifications';
   const primaryMenuItems = NAV_ITEMS.filter((item) => !item.adminOnly);
-  const mobileMenuItems = NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
-  const adminMenuItem = NAV_ITEMS.find((item) => item.adminOnly);
+  const mobileMenuItems = NAV_ITEMS.filter((item) => !item.adminOnly);
   const mobileNavRegionRef = useRef<HTMLDivElement>(null);
   const notificationRegionRef = useRef<HTMLDivElement>(null);
   const unreadCount = notifications.filter((item) => !item.read_at).length;
@@ -449,18 +447,6 @@ export default function TopBar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-        {isAdmin && adminMenuItem && (
-          <button
-            type="button"
-            onClick={() => navigate(adminMenuItem.path)}
-            className={`topbar-action topbar-action-icon-only hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent sm:flex ${location.pathname === adminMenuItem.path ? '[&_svg]:text-accent text-accent' : ''}`}
-            aria-label="Quản trị"
-            title="Quản trị"
-          >
-            <Shield className="h-5 w-5 transition-colors" />
-          </button>
-        )}
-
         <button
           type="button"
           onClick={() => setIsLightMode(!isLightMode)}

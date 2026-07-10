@@ -2375,6 +2375,59 @@ app.get('/api/profiles', async (req, res) => {
   }
 });
 
+const addMonthsToUtcDate = (date: Date, months: number): Date => {
+  const next = new Date(date);
+  next.setUTCMonth(next.getUTCMonth() + months);
+  return next;
+};
+
+app.post('/api/membership/renew', async (req, res) => {
+  try {
+    const authUserId = await getAuthUserId(req);
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const requestedTier = normalizeMembershipTier(req.body?.tier);
+    if (requestedTier === 'free') {
+      return res.status(400).json({ error: 'Vui lòng chọn gói Plus hoặc Pro để gia hạn.' });
+    }
+
+    const profileRes = await supabase
+      .from('profiles')
+      .select('id, membership_tier, membership_expires_at')
+      .eq('id', authUserId)
+      .maybeSingle();
+    if (profileRes.error) throw profileRes.error;
+
+    const now = new Date();
+    const currentExpiresAt = profileRes.data?.membership_expires_at
+      ? new Date(profileRes.data.membership_expires_at)
+      : null;
+    const baseDate = currentExpiresAt && currentExpiresAt > now ? currentExpiresAt : now;
+    const nextExpiresAt = addMonthsToUtcDate(baseDate, 1).toISOString();
+
+    const updateRes = await supabase
+      .from('profiles')
+      .update({
+        membership_tier: requestedTier,
+        membership_expires_at: nextExpiresAt,
+        updated_at: now.toISOString()
+      })
+      .eq('id', authUserId)
+      .select('id, membership_tier, membership_expires_at')
+      .maybeSingle();
+    if (updateRes.error) throw updateRes.error;
+
+    res.json({
+      success: true,
+      data: updateRes.data
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error?.message || 'Không thể gia hạn gói lúc này.' });
+  }
+});
+
 const parseStringArrayInput = (value: unknown): string[] | undefined => {
   if (value === undefined) return undefined;
   if (Array.isArray(value)) {
@@ -2544,20 +2597,24 @@ app.get('/api/admin/overview', async (req, res) => {
       supabase.from('daily_meal_logs').select('id', { count: 'exact', head: true }).eq('log_date', today).eq('is_completed', true)
     ]);
 
-    const firstError = [
-      usersRes,
-      premiumRes,
-      newUsersRes,
-      telegramLinkedRes,
-      exercisesRes,
-      foodsRes,
-      aiProposedRes,
-      aiAppliedRes,
-      aiRejectedRes,
-      workoutDoneRes,
-      mealsDoneRes
-    ].find((item) => item.error)?.error;
-    if (firstError) throw firstError;
+    [
+      ['profiles', usersRes],
+      ['premium profiles', premiumRes],
+      ['new users', newUsersRes],
+      ['telegram linked users', telegramLinkedRes],
+      ['exercises', exercisesRes],
+      ['foods', foodsRes],
+      ['ai proposed adjustments', aiProposedRes],
+      ['ai applied adjustments', aiAppliedRes],
+      ['ai rejected adjustments', aiRejectedRes],
+      ['today completed workouts', workoutDoneRes],
+      ['today completed meals', mealsDoneRes]
+    ].forEach(([label, result]) => {
+      const error = (result as any)?.error;
+      if (error) {
+        console.warn(`[admin-overview] Failed to load ${label}:`, error.message || error);
+      }
+    });
 
     res.json({
       success: true,
@@ -2589,17 +2646,31 @@ app.get('/api/admin/users', async (req, res) => {
 
     const query = String(req.query.q || '').trim();
     const limit = Math.max(1, Math.min(200, Number(req.query.limit) || 80));
-    let request = supabase
-      .from('profiles')
-      .select('id, full_name, email, phone, gender, birthday, job, role, membership_tier, telegram_chat_id, created_at, updated_at')
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const buildProfilesRequest = (columns: string) => {
+      let request = supabase
+        .from('profiles')
+        .select(columns)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-    if (query) {
-      request = request.or(`full_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`);
+      if (query) {
+        request = request.or(`full_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`);
+      }
+
+      return request;
+    };
+
+    const fullColumns = 'id, full_name, email, phone, gender, birthday, job, role, membership_tier, membership_expires_at, telegram_chat_id, created_at, updated_at';
+    const fallbackColumns = 'id, full_name, email, phone, role, membership_tier, created_at, updated_at';
+    let { data, error } = await buildProfilesRequest(fullColumns);
+
+    if (error) {
+      console.warn('[admin-users] full profile query failed, retrying with minimal columns:', error.message || error);
+      const fallbackResult = await buildProfilesRequest(fallbackColumns);
+      data = fallbackResult.data;
+      error = fallbackResult.error;
     }
 
-    const { data, error } = await request;
     if (error) throw error;
     res.json({ success: true, data: data || [] });
   } catch (error: any) {
@@ -3317,6 +3388,32 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (
     }
     console.error('[workout/complete-set] failed:', error?.message || error);
     return res.status(500).json({ error: error?.message || 'Failed to complete set' });
+  }
+});
+
+app.get('/api/ai/quota', aiLimiter, async (req, res) => {
+  try {
+    const authUserId = await getAuthUserId(req);
+    if (!authUserId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const profileRes = await supabase
+      .from('profiles')
+      .select('id, membership_tier, created_at, ai_coach_free_used_at')
+      .eq('id', authUserId)
+      .maybeSingle();
+    if (profileRes.error) throw profileRes.error;
+
+    const accessState = await getAiCoachAccessState(profileRes.data || {}, authUserId);
+    return res.json({
+      membershipTier: accessState.membershipTier,
+      canChat: accessState.canChat,
+      trialExpired: accessState.trialExpired,
+      aiQuota: buildAiQuotaSnapshot(accessState)
+    });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Failed to load AI quota' });
   }
 });
 

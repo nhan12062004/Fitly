@@ -755,17 +755,17 @@ export default function Overview() {
           <p className="text-sm font-black text-accent md:text-base">
             {greetingLabel}, {userName} <span aria-hidden>👋</span>
           </p>
-          <h1 className="mt-2 max-w-[20rem] text-[2rem] font-black leading-[1.02] text-text-primary md:text-[2.55rem]">
+          <h1 className="overview-hero-title mt-2 max-w-[20rem] text-[2rem] font-black leading-[1.02] md:text-[2.55rem]">
             Chào mừng đến với Fitly!
           </h1>
           <span className="mt-4 block h-1.5 w-16 rounded-full bg-accent" aria-hidden="true" />
-          <p className="mt-4 max-w-[21rem] text-sm font-semibold leading-6 text-text-secondary md:text-[15px]">
+          <p className="overview-hero-copy mt-4 max-w-[21rem] text-sm font-semibold leading-6 md:text-[15px]">
             Tạo kế hoạch tập & ăn để bắt đầu theo dõi hành trình của bạn.
           </p>
         </div>
 
         <div className="overview-hero-metrics mt-6 grid max-w-[38rem] grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="overview-hero-metric-card flex min-w-0 items-center gap-4 rounded-2xl border border-white/18 bg-slate-900/55 p-3 backdrop-blur-md">
+          <div className="overview-hero-metric-card flex min-w-0 items-center gap-4 rounded-2xl border p-3 backdrop-blur-md">
             <div
               className="overview-hero-score-ring flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
               style={{
@@ -783,7 +783,7 @@ export default function Overview() {
             </div>
           </div>
 
-          <div className="overview-hero-metric-card flex min-w-0 items-center justify-between gap-4 rounded-2xl border border-white/18 bg-slate-900/55 p-3 backdrop-blur-md">
+          <div className="overview-hero-metric-card flex min-w-0 items-center justify-between gap-4 rounded-2xl border p-3 backdrop-blur-md">
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-200">Chuỗi duy trì</p>
               <p className="mt-2 text-2xl font-black text-white">{formatWholeNumber(dailyStreak.count)} ngày</p>
