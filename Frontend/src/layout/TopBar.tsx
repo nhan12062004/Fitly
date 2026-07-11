@@ -9,7 +9,6 @@ import {
   Flame,
   Home,
   Loader2,
-  Menu,
   Moon,
   Shield,
   Sparkles,
@@ -18,7 +17,6 @@ import {
   User,
   Users,
   Utensils,
-  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ElementType } from 'react';
@@ -86,7 +84,6 @@ export default function TopBar() {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('theme') === 'light';
   });
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
@@ -103,8 +100,6 @@ export default function TopBar() {
   const location = useLocation();
   const isNotificationsPage = location.pathname === '/notifications';
   const primaryMenuItems = NAV_ITEMS.filter((item) => !item.adminOnly);
-  const mobileMenuItems = NAV_ITEMS.filter((item) => !item.adminOnly);
-  const mobileNavRegionRef = useRef<HTMLDivElement>(null);
   const notificationRegionRef = useRef<HTMLDivElement>(null);
   const unreadCount = notifications.filter((item) => !item.read_at).length;
 
@@ -141,9 +136,6 @@ export default function TopBar() {
   useEffect(() => {
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
-      if (mobileNavRegionRef.current && !mobileNavRegionRef.current.contains(target)) {
-        setIsMobileNavOpen(false);
-      }
       if (notificationRegionRef.current && !notificationRegionRef.current.contains(target)) {
         setIsNotificationsOpen(false);
       }
@@ -151,7 +143,6 @@ export default function TopBar() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setIsMobileNavOpen(false);
         setIsNotificationsOpen(false);
       }
     };
@@ -211,14 +202,8 @@ export default function TopBar() {
     };
   }, [loadNotifications, user?.id]);
 
-  const toggleMobileNav = () => {
-    setIsMobileNavOpen((value) => !value);
-    setIsNotificationsOpen(false);
-  };
-
   const toggleNotifications = () => {
     setIsNotificationsOpen((value) => !value);
-    setIsMobileNavOpen(false);
     if (!isNotificationsOpen) void loadNotifications(true);
   };
 
@@ -267,17 +252,10 @@ export default function TopBar() {
   };
 
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
-    `topbar-nav-item group inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-3 text-sm transition-all ${
+    `topbar-nav-item group inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full px-3 text-sm transition-all ${
       isActive
         ? 'topbar-nav-item-active text-text-primary font-semibold'
         : 'text-text-secondary hover:text-text-primary'
-    }`;
-
-  const mobileNavLinkClassName = ({ isActive }: { isActive: boolean }) =>
-    `group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-all ${
-      isActive
-        ? 'topbar-nav-item-active text-text-primary font-semibold'
-        : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
     }`;
 
   const floatingPanelStyle = { top: 'calc(var(--layout-topbar-height, 5rem) + 0.75rem)' };
@@ -394,56 +372,17 @@ export default function TopBar() {
           </span>
         </NavLink>
 
-        <nav className="topbar-nav hidden min-w-0 max-w-full items-center gap-1 overflow-x-auto custom-scrollbar xl:flex" aria-label="Điều hướng chính">
+        <nav className="topbar-nav flex min-w-0 max-w-full items-center gap-1 overflow-x-auto custom-scrollbar" aria-label="Điều hướng chính">
           {primaryMenuItems.map((item) => {
             const Icon = item.icon;
             return (
-              <NavLink key={item.path} to={item.path} className={navLinkClassName}>
+              <NavLink key={item.path} to={item.path} className={navLinkClassName} title={item.label}>
                 <Icon className={`h-4 w-4 shrink-0 ${item.iconClass}`} />
-                <span className="whitespace-nowrap">{item.label}</span>
+                <span className="topbar-nav-label whitespace-nowrap">{item.label}</span>
               </NavLink>
             );
           })}
         </nav>
-
-        <div ref={mobileNavRegionRef} className="relative xl:hidden">
-          <button
-            type="button"
-            className={`topbar-menu-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary text-text-secondary transition-colors hover:text-text-primary ${isMobileNavOpen ? 'text-accent' : ''}`}
-            onClick={toggleMobileNav}
-            aria-label="Mở menu điều hướng"
-            aria-expanded={isMobileNavOpen}
-          >
-            {isMobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-
-          {isMobileNavOpen && (
-            <div
-              className="fixed left-3 right-3 z-50 sm:left-[var(--layout-gutter)] sm:right-auto sm:w-[23rem]"
-              style={floatingPanelStyle}
-            >
-              <div className="topbar-menu-panel topbar-nav-dropdown rounded-2xl border border-border-primary bg-bg-secondary p-2 shadow-2xl shadow-black/40 backdrop-blur-xl">
-                {mobileMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <NavLink
-                      key={item.path}
-                      to={item.path}
-                      onClick={() => setIsMobileNavOpen(false)}
-                      className={mobileNavLinkClassName}
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <Icon className={`h-4 w-4 shrink-0 ${item.iconClass}`} />
-                        <span className="truncate">{item.label}</span>
-                      </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" />
-                    </NavLink>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">

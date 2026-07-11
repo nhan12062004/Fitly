@@ -4,7 +4,6 @@ import {
   Bike,
   Calendar,
   Check,
-  EyeOff,
   User,
   Dumbbell,
   Flame,
@@ -20,7 +19,6 @@ import {
   MoveVertical,
   Plus,
   Venus,
-  VenusAndMars,
   Weight,
   Wind,
   Zap,
@@ -189,18 +187,6 @@ const GENDER_OPTIONS: ChoiceOption[] = [
     label: 'Nữ',
     icon: Venus,
     iconWrapClass: 'text-text-primary',
-  },
-  {
-    value: 'Khác',
-    label: 'Khác',
-    icon: VenusAndMars,
-    iconWrapClass: 'text-text-primary',
-  },
-  {
-    value: 'Ẩn',
-    label: 'Ẩn',
-    icon: EyeOff,
-    iconWrapClass: 'text-text-primary',
   }
 ];
 
@@ -340,14 +326,14 @@ function GenderChoiceList({
   onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3">
       {options.map((option) => {
         const active = value === option.value;
         const Icon = option.icon || User;
         return (
           <label
             key={option.value}
-            className={`flex min-h-[78px] cursor-pointer flex-col items-center justify-center rounded-md border px-3 py-3 text-center transition-colors ${
+            className={`flex min-h-[72px] cursor-pointer items-center justify-center gap-3 rounded-lg border px-4 py-3 text-center transition-colors ${
               active
                 ? 'border-accent bg-accent/10 text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                 : 'border-border-primary bg-bg-secondary text-text-primary hover:border-accent/45 hover:bg-bg-tertiary'
@@ -364,7 +350,7 @@ function GenderChoiceList({
             <span className={`flex h-8 w-8 items-center justify-center ${active ? 'text-accent' : option.iconWrapClass || 'text-text-primary'}`}>
               <Icon className="h-6 w-6" strokeWidth={2.4} />
             </span>
-            <span className={`mt-2 block text-xs font-bold ${active ? 'text-accent' : 'text-text-primary'}`}>{option.label}</span>
+            <span className={`block text-sm font-bold ${active ? 'text-accent' : 'text-text-primary'}`}>{option.label}</span>
           </label>
         );
       })}

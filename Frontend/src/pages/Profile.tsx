@@ -17,11 +17,13 @@ import {
   Check,
   ChevronRight,
   Copy,
+  Dumbbell,
   Flame,
   HeartPulse,
   Loader2,
   Lock,
   LogOut,
+  Mars,
   PencilLine,
   PowerOff,
   Ruler,
@@ -35,6 +37,9 @@ import {
   TrendingUp,
   User,
   Users,
+  Venus,
+  Target,
+  Wind,
   X,
   Zap,
   Apple,
@@ -137,9 +142,58 @@ const membershipLabels = { free: 'Free', plus: 'Plus', pro: 'Pro' };
 const AI_LIMIT = { free: 25, plus: 200, pro: 800 };
 const AI_SWAP_LIMIT = { free: 5, plus: 30, pro: 100 };
 const APP_URL = (import.meta.env.VITE_APP_URL || 'https://trend-fit.vercel.app').replace(/\/$/, '');
-const FITNESS_GOAL_OPTIONS = ['Giảm mỡ', 'Tăng cơ', 'Giữ dáng', 'Tăng sức mạnh', 'Cải thiện sức khỏe'];
+const FITNESS_GOAL_OPTIONS = ['Giảm mỡ', 'Tăng cơ', 'Sức mạnh', 'Sức bền', 'Dẻo dai', 'Phục hồi & Tái tạo'];
+const FITNESS_GOAL_DESCRIPTIONS: Record<string, string> = {
+  'Giảm mỡ': 'Đốt mỡ thừa, lấy lại vóc dáng tự tin.',
+  'Tăng cơ': 'Cơ rắn chắc, thân hình thon gọn hơn mỗi tuần.',
+  'Sức mạnh': 'Nâng nặng hơn mỗi tuần, cảm giác mạnh mẽ thật sự.',
+  'Sức bền': 'Tim khỏe hơn, vận động lâu mà ít mệt.',
+  'Dẻo dai': 'Khớp linh hoạt, giảm đau lưng và nguy cơ chấn thương.',
+  'Phục hồi & Tái tạo': 'Lấy lại năng lượng, giảm căng thẳng và phục hồi tốt hơn.',
+};
+const FITNESS_GOAL_ICONS: Record<string, ReactNode> = {
+  'Giảm mỡ': <Flame className="h-5 w-5" strokeWidth={2.4} />,
+  'Tăng cơ': <Dumbbell className="h-5 w-5" strokeWidth={2.4} />,
+  'Sức mạnh': <Zap className="h-5 w-5" strokeWidth={2.4} />,
+  'Sức bền': <HeartPulse className="h-5 w-5" strokeWidth={2.4} />,
+  'Dẻo dai': <Wind className="h-5 w-5" strokeWidth={2.4} />,
+  'Phục hồi & Tái tạo': <Target className="h-5 w-5" strokeWidth={2.4} />,
+};
+const LEGACY_FITNESS_GOAL_MAP: Record<string, string> = {
+  'Giảm cân': 'Giảm mỡ',
+  'Tăng sức mạnh': 'Sức mạnh',
+  'Cải thiện sức khỏe': 'Sức bền',
+  'Giữ dáng': 'Dẻo dai',
+};
 const DIET_PREFERENCE_OPTIONS = ['Bình thường', 'Eat clean', 'Giàu protein', 'Ăn chay', 'Keto'];
+const DIET_PREFERENCE_DESCRIPTIONS: Record<string, string> = {
+  'Bình thường': 'Ăn đa dạng, dễ theo và phù hợp sinh hoạt hằng ngày.',
+  'Eat clean': 'Ưu tiên thực phẩm tươi, ít chế biến và cân bằng dinh dưỡng.',
+  'Giàu protein': 'Tăng đạm để hỗ trợ tăng cơ, no lâu và phục hồi tốt hơn.',
+  'Ăn chay': 'Không dùng thịt cá, ưu tiên nguồn đạm thực vật phù hợp.',
+  Keto: 'Giảm tinh bột, tăng chất béo tốt và kiểm soát năng lượng chặt hơn.',
+};
 const MEAL_BUDGET_OPTIONS = ['Tiết kiệm', 'Trung bình', 'Thoải mái'];
+const MEAL_BUDGET_DESCRIPTIONS: Record<string, string> = {
+  'Tiết kiệm': 'Ưu tiên nguyên liệu phổ biến, dễ mua và chi phí thấp.',
+  'Trung bình': 'Cân bằng giữa chi phí, độ tiện lợi và chất lượng bữa ăn.',
+  'Thoải mái': 'Linh hoạt hơn với nguyên liệu đa dạng và món ăn phong phú.',
+};
+const GENDER_OPTIONS = ['Nam', 'Nữ'];
+const GENDER_ICONS: Record<string, ReactNode> = {
+  Nam: <Mars className="h-6 w-6" strokeWidth={2.4} />,
+  Nữ: <Venus className="h-6 w-6" strokeWidth={2.4} />,
+};
+
+const normalizeGender = (value: unknown) => (
+  GENDER_OPTIONS.includes(String(value)) ? String(value) : 'Nam'
+);
+
+const normalizeFitnessGoal = (value: unknown) => {
+  const goal = String(value || '').trim();
+  const normalized = LEGACY_FITNESS_GOAL_MAP[goal] || goal;
+  return FITNESS_GOAL_OPTIONS.includes(normalized) ? normalized : 'Giảm mỡ';
+};
 
 type ProfileOutletContext = {
   onPasswordClick?: () => void;
@@ -233,7 +287,7 @@ export default function Profile() {
           full_name: p.full_name || metadataFullName || '',
           email: p.email || userEmail,
           phone: p.phone || '',
-          gender: p.gender || 'Nam',
+          gender: normalizeGender(p.gender),
           birthday: p.birthday || '',
           age: getAgeFromBirthday(p.birthday || ''),
           job: p.job || '',
@@ -245,13 +299,13 @@ export default function Profile() {
           injuries: h.injuries || '',
           allergies: h.medical_history || '',
           medications: h.medications || 'Không sử dụng thuốc',
-          fitness_goal: lifestyleRes.data?.fitness_goal || 'Giảm mỡ',
+          fitness_goal: normalizeFitnessGoal(lifestyleRes.data?.fitness_goal),
           diet_preference: lifestyleRes.data?.diet_preference || 'Bình thường',
           budget_level: lifestyleRes.data?.budget_level || 'Trung bình',
         });
         setLatestBodyCreatedAt(b.created_at || '');
         setAvatarUrl(p.avatar_url || null);
-        setFitnessGoal(lifestyleRes.data?.fitness_goal || '');
+        setFitnessGoal(normalizeFitnessGoal(lifestyleRes.data?.fitness_goal));
         setTotalExp(p.exp ?? 0);
         setDbLevel(p.level ?? 1);
         setRefCode(p.ref_code || '');
@@ -624,29 +678,40 @@ export default function Profile() {
                 <OptionButtonGroup
                   label="Giới tính"
                   value={formData.gender}
-                  options={['Nam', 'Nữ', 'Khác']}
+                  options={GENDER_OPTIONS}
                   onChange={(value) => setFormData((prev) => ({ ...prev, gender: value }))}
+                  columns="sm:grid-cols-2"
+                  icons={GENDER_ICONS}
                 />
               </div>
             </div>
           </section>
 
           <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<Trophy className="h-4 w-4" />} title="Mục tiêu, thực đơn & ngân sách" helper="Các lựa chọn chính để Fitly cá nhân hóa kế hoạch." />
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <SectionTitle icon={<Trophy className="h-4 w-4" />} title="Mục tiêu chính" helper="Chọn một mục tiêu để Fitly cá nhân hóa bài tập, dinh dưỡng và nhịp phục hồi." />
+            <div className="mt-5">
               <OptionButtonGroup
-                label="Mục tiêu chính"
+                label="Mục tiêu"
                 value={formData.fitness_goal}
                 options={FITNESS_GOAL_OPTIONS}
                 onChange={(value) => setFormData((prev) => ({ ...prev, fitness_goal: value }))}
                 columns="sm:grid-cols-2 xl:grid-cols-3"
+                icons={FITNESS_GOAL_ICONS}
+                descriptions={FITNESS_GOAL_DESCRIPTIONS}
               />
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<Apple className="h-4 w-4" />} title="Thực đơn & ngân sách" helper="Các lựa chọn chính để Fitly gợi ý bữa ăn phù hợp hơn." />
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
               <OptionButtonGroup
                 label="Kiểu ăn"
                 value={formData.diet_preference}
                 options={DIET_PREFERENCE_OPTIONS}
                 onChange={(value) => setFormData((prev) => ({ ...prev, diet_preference: value }))}
                 columns="sm:grid-cols-2 xl:grid-cols-3"
+                descriptions={DIET_PREFERENCE_DESCRIPTIONS}
               />
               <div className="md:col-span-2">
                 <OptionButtonGroup
@@ -655,6 +720,7 @@ export default function Profile() {
                   options={MEAL_BUDGET_OPTIONS}
                   onChange={(value) => setFormData((prev) => ({ ...prev, budget_level: value }))}
                   columns="sm:grid-cols-3"
+                  descriptions={MEAL_BUDGET_DESCRIPTIONS}
                 />
               </div>
               <div className="md:col-span-2">
@@ -1342,12 +1408,16 @@ function OptionButtonGroup({
   options,
   onChange,
   columns = 'sm:grid-cols-3',
+  icons,
+  descriptions,
 }: {
   label: string;
   value: string;
   options: string[];
   onChange: (value: string) => void;
   columns?: string;
+  icons?: Record<string, ReactNode>;
+  descriptions?: Record<string, string>;
 }) {
   return (
     <div>
@@ -1355,18 +1425,38 @@ function OptionButtonGroup({
       <div className={`mt-1.5 grid gap-2 ${columns}`}>
         {options.map((option) => {
           const selected = value === option;
+          const icon = icons?.[option];
+          const description = descriptions?.[option];
           return (
             <button
               key={option}
               type="button"
               onClick={() => onChange(option)}
-              className={`min-h-11 rounded-xl border px-3 py-2 text-sm font-black transition-colors ${
+              className={`rounded-xl border px-3 py-2 text-sm font-black transition-colors ${
+                description
+                  ? 'flex min-h-[112px] items-start gap-3 text-left'
+                  : icon
+                    ? 'flex min-h-12 items-center justify-center gap-2'
+                    : 'min-h-11'
+              } ${
                 selected
                   ? 'border-accent/40 bg-accent/15 text-accent'
                   : 'border-border-primary bg-bg-tertiary text-text-secondary hover:text-text-primary'
               }`}
             >
-              {option}
+              {icon ? (
+                <span className={`${description ? 'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-bg-secondary' : ''} ${selected ? 'text-accent' : 'text-text-primary'}`}>
+                  {icon}
+                </span>
+              ) : null}
+              {description ? (
+                <span className="min-w-0">
+                  <span className={`block text-sm font-black leading-tight ${selected ? 'text-accent' : 'text-text-primary'}`}>{option}</span>
+                  <span className="mt-1.5 block text-xs font-semibold leading-5 text-text-tertiary">{description}</span>
+                </span>
+              ) : (
+                option
+              )}
             </button>
           );
         })}

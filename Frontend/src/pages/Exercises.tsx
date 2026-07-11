@@ -866,10 +866,6 @@ export default function Exercises() {
               </p>
             </div>
           </div>
-          <div className="monthly-workout-calendar-score">
-            <strong>{monthComplianceSummary.adherence}%</strong>
-            <span>tuân thủ</span>
-          </div>
         </div>
 
         <div className="monthly-workout-weekdays" aria-hidden="true">
