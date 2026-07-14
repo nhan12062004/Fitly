@@ -1644,6 +1644,24 @@ class ApiRequestError extends Error {
   }
 }
 
+const isDatabaseMigrationRequiredError = (error: unknown): boolean => {
+  const databaseError = error as { code?: unknown; message?: unknown } | null;
+  const code = String(databaseError?.code || '');
+  const message = String(databaseError?.message || error || '').toLowerCase();
+
+  return code === '42703'
+    || code === '42883'
+    || code === '42P01'
+    || code === 'PGRST202'
+    || message.includes('could not find the function public.materialize_daily_workout_from_plan_atomically')
+    || message.includes('training_locations does not exist');
+};
+
+const databaseMigrationRequiredResponse = {
+  code: 'DATABASE_MIGRATION_REQUIRED',
+  error: 'Hệ thống đang được cập nhật dữ liệu tập luyện. Vui lòng thử lại sau ít phút.'
+};
+
 const isGroqTokenLimitError = (message: unknown): boolean => {
   const normalized = String(message || '').toLowerCase();
   return normalized.includes('request too large')
@@ -3334,6 +3352,9 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
       return res.status(error.status).json(error.body);
     }
     console.error('[workout/create-daily-exercises-from-plan] failed:', error?.message || error);
+    if (isDatabaseMigrationRequiredError(error)) {
+      return res.status(503).json(databaseMigrationRequiredResponse);
+    }
     return res.status(500).json({ error: error?.message || 'Failed to create daily exercises from plan' });
   }
 });
@@ -5141,6 +5162,17 @@ ${jsonSchemaPrompt}
     if (existingWorkoutPlans.error) throw existingWorkoutPlans.error;
 
     const previousWorkoutPlanId = pickLatestByUpdatedAt(existingWorkoutPlans.data as any[])?.id || null;
+    const replacementStartedAt = new Date().toISOString();
+    // The database permits only one plan per user/week, regardless of its
+    // status. Archive the current plan before inserting its replacement.
+    if (previousWorkoutPlanId) {
+      const archiveWorkoutPlan = await supabase
+        .from('weekly_plans')
+        .update({ plan_status: 'adjusted', updated_at: replacementStartedAt })
+        .eq('id', previousWorkoutPlanId)
+        .eq('plan_status', 'active');
+      if (archiveWorkoutPlan.error) throw archiveWorkoutPlan.error;
+    }
     const createdWorkoutPlan = await supabase
       .from('weekly_plans')
       .insert({
@@ -5233,6 +5265,14 @@ ${jsonSchemaPrompt}
       if (existingFoodPlans.error) throw existingFoodPlans.error;
 
       previousFoodPlanId = pickLatestByUpdatedAt(existingFoodPlans.data as any[])?.id || null;
+      if (previousFoodPlanId) {
+        const archiveFoodPlan = await supabase
+          .from('weekly_food_plans')
+          .update({ plan_status: 'adjusted', updated_at: replacementStartedAt })
+          .eq('id', previousFoodPlanId)
+          .eq('plan_status', 'active');
+        if (archiveFoodPlan.error) throw archiveFoodPlan.error;
+      }
       const createdFoodPlan = await supabase
         .from('weekly_food_plans')
         .insert({
@@ -5388,6 +5428,9 @@ ${jsonSchemaPrompt}
     console.error('[ai-coach-generate] failed:', error?.message || 'unknown_error');
     if (error instanceof ApiRequestError) {
       return res.status(error.status).json(error.body);
+    }
+    if (isDatabaseMigrationRequiredError(error)) {
+      return res.status(503).json(databaseMigrationRequiredResponse);
     }
     return res.status(500).json({
       code: 'AI_GENERATION_FAILED',

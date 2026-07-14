@@ -3,7 +3,6 @@ import {
   Activity,
   Bike,
   Calendar,
-  Check,
   User,
   Dumbbell,
   Flame,
@@ -306,9 +305,7 @@ function ChoiceGrid({
                 <span className={`flex ${compact ? 'h-7 w-7' : 'h-8 w-8'} shrink-0 items-center justify-center rounded-lg ${active ? 'bg-accent/15 text-accent' : 'bg-bg-secondary text-text-tertiary'}`}>
                   <Icon className="h-4 w-4" />
                 </span>
-              ) : (
-                <span className={`mt-1 ${compact ? 'h-2.5 w-2.5' : 'h-3 w-3'} shrink-0 rounded-full ${active ? 'bg-accent' : 'border border-border-primary'}`} />
-              )}
+              ) : null}
             </span>
           </label>
         );
@@ -394,11 +391,6 @@ function GoalChoiceGrid({
               onChange={onChange}
               className="sr-only"
             />
-            {active ? (
-              <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-text-inverse">
-                <Check className="h-3.5 w-3.5" strokeWidth={3} />
-              </span>
-            ) : null}
             <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ring-1 ${option.iconWrapClass || 'bg-accent/12 text-accent ring-accent/30'}`}>
               <Icon className={`h-6 w-6 ${option.iconClass || ''}`} strokeWidth={2.4} />
             </span>
@@ -594,11 +586,6 @@ function ActivityChoiceList({
                   {option.description}
                 </span>
               ) : null}
-            </span>
-            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-              active ? 'border-accent bg-accent text-text-inverse' : 'border-border-primary text-transparent'
-            }`}>
-              <Check className="h-3.5 w-3.5" strokeWidth={3} />
             </span>
           </label>
         );
@@ -1029,19 +1016,25 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
 
   React.useEffect(() => {
     if (isOpen) {
-      setCurrentStep(1);
+      setCurrentStep(modalPurpose === 'workout-plan' ? 2 : 1);
       setIsSubmitted(false);
     }
-  }, [isOpen]);
+  }, [isOpen, modalPurpose]);
 
   const modalMode = Boolean(isOpen);
   const isWorkoutPlanDesigner = modalPurpose === 'workout-plan';
+  const firstSurveyStep = isWorkoutPlanDesigner ? 2 : 1;
+  const visibleStep = currentStep - firstSurveyStep + 1;
+  const visibleTotalSteps = isWorkoutPlanDesigner ? TOTAL_STEPS - 1 : TOTAL_STEPS;
   const submitLabel = isWorkoutPlanDesigner
     ? 'TẠO KẾ HOẠCH TẬP'
     : isOpen
       ? 'CẬP NHẬT HỒ SƠ'
       : 'TẠO KẾ HOẠCH ĐẦU TIÊN';
-  const progressPercent = (currentStep / TOTAL_STEPS) * 100;
+  const progressPercent = (visibleStep / visibleTotalSteps) * 100;
+  const stepCardClass = `rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary sm:px-9 sm:py-9 ${
+    isWorkoutPlanDesigner ? 'shadow-none' : 'shadow-[0_22px_60px_rgba(0,0,0,0.38)]'
+  }`;
   const surveyFooter = (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
       <div className="order-2 hidden min-w-0 flex-1 sm:order-1 sm:block sm:pr-4">
@@ -1097,12 +1090,12 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
   );
 
   const getFirstInvalidStep = (): number | null => {
-    if (
+    if (!isWorkoutPlanDesigner && (
       !formData.gender ||
       !hasPositiveNumber(formData.age) ||
       !hasPositiveNumber(formData.height) ||
       !hasPositiveNumber(formData.weight)
-    ) {
+    )) {
       return 1;
     }
     if (!formData.fitness_goal) {
@@ -1157,7 +1150,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
   function goPrev() {
     setIsSubmitted(false);
     setSubmitError('');
-    setCurrentStep(s => Math.max(1, s - 1));
+    setCurrentStep(s => Math.max(firstSurveyStep, s - 1));
   }
 
   if (isPreloading) {
@@ -1200,7 +1193,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
     const invalidStep = getFirstInvalidStep();
     if (invalidStep !== null) {
       setCurrentStep(invalidStep);
-      setSubmitError(`Vui lòng điền đầy đủ thông tin bắt buộc ở bước ${invalidStep}.`);
+      setSubmitError(`Vui lòng điền đầy đủ thông tin bắt buộc ở bước ${invalidStep - firstSurveyStep + 1}.`);
       return;
     }
     setLoading(true);
@@ -1384,22 +1377,25 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
 
 
   return (
-    <div className={modalMode ? 'fixed inset-0 z-[60] flex items-center justify-center p-0 sm:p-5' : 'min-h-[100dvh] w-full bg-bg-primary px-3 py-3 sm:px-5 sm:py-5'}>
+    <div className={modalMode ? `fixed inset-0 z-[60] flex items-center justify-center ${isWorkoutPlanDesigner ? 'p-4 sm:p-6' : 'p-0 sm:p-5'}` : 'min-h-[100dvh] w-full bg-bg-primary px-3 py-3 sm:px-5 sm:py-5'}>
       {/* Backdrop */}
       {modalMode ? <div className="themed-modal-backdrop absolute inset-0 backdrop-blur-md" /> : null}
 
       {/* Modal Content */}
       <div className={`relative flex w-full flex-col overflow-hidden bg-transparent ${
         modalMode
-          ? 'max-h-[100dvh] max-w-3xl rounded-none animate-in zoom-in duration-300 sm:max-h-[92dvh]'
+          ? isWorkoutPlanDesigner
+            ? 'max-h-[calc(100dvh-2rem)] max-w-2xl animate-in zoom-in duration-300 sm:max-h-[calc(100dvh-3rem)]'
+            : 'max-h-[100dvh] max-w-3xl rounded-none animate-in zoom-in duration-300 sm:max-h-[92dvh]'
           : 'mx-auto min-h-[calc(100dvh-1.5rem)] max-w-3xl sm:min-h-[calc(100dvh-2.5rem)]'
       }`}>
 
         {/* Close Button (Only for Profile Editing) */}
-        {isOpen && onClose && (
+        {isOpen && onClose && !isWorkoutPlanDesigner && (
           <button
             onClick={onClose}
             className="absolute right-4 top-4 z-[70] rounded-xl border border-border-primary bg-bg-primary/80 p-2 text-text-tertiary transition-colors hover:text-text-primary"
+            aria-label="Đóng khảo sát"
           >
             <X className="w-6 h-6" />
           </button>
@@ -1503,7 +1499,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           </div>
         </aside>
 
-        <div className={`flex min-h-0 flex-1 flex-col bg-bg-primary ${modalMode ? 'max-h-[100dvh] sm:max-h-[92dvh]' : ''}`}>
+        <div className={`flex min-h-0 flex-1 flex-col ${isWorkoutPlanDesigner ? 'bg-transparent' : 'bg-bg-primary'} ${modalMode ? (isWorkoutPlanDesigner ? 'max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]' : 'max-h-[100dvh] sm:max-h-[92dvh]') : ''}`}>
           <div className="hidden">
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0">
@@ -1574,7 +1570,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-sm font-black text-text-primary">
-                  Bước {currentStep}/{TOTAL_STEPS}
+                  Bước {visibleStep}/{visibleTotalSteps}
                 </p>
                 <p className="mt-1 text-sm font-semibold text-text-secondary">{STEP_NAV_LABELS[currentStep - 1]}</p>
               </div>
@@ -1591,7 +1587,17 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           </div>
 
         {/* Form Body */}
-        <form id="survey-form" onSubmit={handleSubmit} className="custom-scrollbar mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-y-auto px-0 py-4 sm:px-0 md:px-0 md:py-6">
+        <form id="survey-form" onSubmit={handleSubmit} className={`custom-scrollbar relative mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-y-auto px-0 ${isWorkoutPlanDesigner ? 'py-0' : 'py-4 md:py-6'} sm:px-0 md:px-0`}>
+          {isWorkoutPlanDesigner && onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Đóng tạo kế hoạch tập"
+              className="absolute right-5 top-5 z-10 p-1.5 text-text-tertiary transition-colors hover:text-text-primary"
+            >
+              <X className="h-6 w-6" />
+            </button>
+          ) : null}
           <div className="my-auto space-y-6 md:space-y-8">
             <div className="hidden">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -1659,9 +1665,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
               </div>
             </div>
 
-          {currentStep === 1 && (
-          <section className="rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:px-9 sm:py-9">
-            <div className="flex items-center justify-between gap-4 text-xs font-semibold">
+          {currentStep === 1 && !isWorkoutPlanDesigner && (
+          <section className={stepCardClass}>
+            <div className={`flex items-center justify-between gap-4 text-xs font-semibold ${isWorkoutPlanDesigner ? 'pr-10' : ''}`}>
               <p className="text-accent">Bước 1: Chỉ số cơ thể</p>
               <p className="text-text-secondary">1 / {TOTAL_STEPS}</p>
             </div>
@@ -1742,10 +1748,10 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           )}
 
           {currentStep === 2 && (
-          <section className="rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:px-9 sm:py-9">
-            <div className="flex items-center justify-between gap-4 text-xs font-semibold">
-              <p className="text-accent">Bước 2: Mục tiêu</p>
-              <p className="text-text-secondary">2 / {TOTAL_STEPS}</p>
+          <section className={stepCardClass}>
+            <div className={`flex items-center justify-between gap-4 text-xs font-semibold ${isWorkoutPlanDesigner ? 'pr-10' : ''}`}>
+              <p className="text-accent">Bước {visibleStep}: Mục tiêu</p>
+              <p className="text-text-secondary">{visibleStep} / {visibleTotalSteps}</p>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
               <div
@@ -1767,16 +1773,18 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
               <GoalChoiceGrid name="fitness_goal" value={formData.fitness_goal} options={GOAL_OPTIONS} onChange={handleInputChange} />
             </div>
 
-            <div className="mt-3 flex flex-col-reverse gap-3 sm:mt-4 sm:flex-row sm:justify-between">
-              <button
-                type="button"
-                onClick={goPrev}
-                disabled={loading}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border-primary px-7 text-sm font-black text-accent transition-colors hover:border-accent/45 hover:bg-bg-secondary disabled:opacity-60 sm:w-auto"
-              >
-                <ChevronLeft className="h-4 w-4" strokeWidth={3} />
-                Quay lại
-              </button>
+            <div className={`mt-3 flex flex-col-reverse gap-3 sm:mt-4 sm:flex-row ${currentStep === firstSurveyStep ? 'sm:justify-end' : 'sm:justify-between'}`}>
+              {currentStep > firstSurveyStep ? (
+                <button
+                  type="button"
+                  onClick={goPrev}
+                  disabled={loading}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border-primary px-7 text-sm font-black text-accent transition-colors hover:border-accent/45 hover:bg-bg-secondary disabled:opacity-60 sm:w-auto"
+                >
+                  <ChevronLeft className="h-4 w-4" strokeWidth={3} />
+                  Quay lại
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={goNext}
@@ -1791,10 +1799,10 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           )}
 
           {currentStep === 3 && (
-          <section className="rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:px-9 sm:py-9">
-            <div className="flex items-center justify-between gap-4 text-xs font-semibold">
-              <p className="text-accent">Bước 3: Mức độ vận động</p>
-              <p className="text-text-secondary">3 / {TOTAL_STEPS}</p>
+          <section className={stepCardClass}>
+            <div className={`flex items-center justify-between gap-4 text-xs font-semibold ${isWorkoutPlanDesigner ? 'pr-10' : ''}`}>
+              <p className="text-accent">Bước {visibleStep}: Mức độ vận động</p>
+              <p className="text-text-secondary">{visibleStep} / {visibleTotalSteps}</p>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
               <div
@@ -1840,10 +1848,10 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           )}
 
           {currentStep === 4 && (
-          <section className="rounded-lg border border-border-primary bg-bg-primary px-5 py-7 text-text-primary shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:px-9 sm:py-9">
-            <div className="flex items-center justify-between gap-4 text-xs font-semibold">
-              <p className="text-accent">Bước 4: Thiết lập tập luyện</p>
-              <p className="text-text-secondary">4 / {TOTAL_STEPS}</p>
+          <section className={stepCardClass}>
+            <div className={`flex items-center justify-between gap-4 text-xs font-semibold ${isWorkoutPlanDesigner ? 'pr-10' : ''}`}>
+              <p className="text-accent">Bước {visibleStep}: Thiết lập tập luyện</p>
+              <p className="text-text-secondary">{visibleStep} / {visibleTotalSteps}</p>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
               <div
