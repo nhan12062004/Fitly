@@ -58,6 +58,8 @@ export type SurveyPlanSummary = {
   weeklyWorkouts: number;
   mealsPerDay: number;
   dailyWaterGoalLiters: number;
+  estimatedBodyFatPercentage: number;
+  hasAiWorkoutPreview?: boolean;
   location: string;
   todayWorkout: string;
   todayDuration: string;
@@ -77,6 +79,7 @@ interface SurveyFormProps {
   onComplete: (summary?: SurveyPlanSummary) => void | Promise<void>;
   isOpen?: boolean;
   onClose?: () => void;
+  modalPurpose?: 'profile' | 'workout-plan';
 }
 
 const TOTAL_STEPS = 4;
@@ -863,7 +866,7 @@ const estimateDailyWaterGoalLiters = (weightKg: number, weeklyWorkouts: number) 
   return Math.round(Math.max(1.5, Math.min(4.5, liters)) * 10) / 10;
 };
 
-export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormProps) {
+export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose = 'profile' }: SurveyFormProps) {
   const { user, refreshProfile } = useAuth();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -1032,6 +1035,12 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
   }, [isOpen]);
 
   const modalMode = Boolean(isOpen);
+  const isWorkoutPlanDesigner = modalPurpose === 'workout-plan';
+  const submitLabel = isWorkoutPlanDesigner
+    ? 'TẠO KẾ HOẠCH TẬP'
+    : isOpen
+      ? 'CẬP NHẬT HỒ SƠ'
+      : 'TẠO KẾ HOẠCH ĐẦU TIÊN';
   const progressPercent = (currentStep / TOTAL_STEPS) * 100;
   const surveyFooter = (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
@@ -1077,7 +1086,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
               </>
             ) : (
               <>
-                {isOpen ? "CẬP NHẬT HỒ SƠ" : "TẠO KẾ HOẠCH ĐẦU TIÊN"}
+                {submitLabel}
                 <Zap className="w-4 h-4 text-text-inverse" />
               </>
             )}
@@ -1352,6 +1361,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
         weeklyWorkouts,
         mealsPerDay,
         dailyWaterGoalLiters,
+        estimatedBodyFatPercentage: estimatedBodyFat,
+        hasAiWorkoutPreview: false,
         location: formData.workout_location === 'Tập tại nhà (Home Workout)' ? 'Tại nhà' : 'Phòng gym',
         todayWorkout: formData.experience_level === 'Người mới' ? 'Full Body Beginner' : 'Full Body Strength',
         todayDuration: `${durationMinutes} phút`,
@@ -1883,7 +1894,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                   </>
                 ) : (
                   <>
-                    {isOpen ? 'CẬP NHẬT HỒ SƠ' : 'TẠO KẾ HOẠCH'}
+                    {isWorkoutPlanDesigner ? 'TẠO KẾ HOẠCH TẬP' : isOpen ? 'CẬP NHẬT HỒ SƠ' : 'TẠO KẾ HOẠCH'}
                     <Zap className="h-4 w-4 text-text-inverse" strokeWidth={3} />
                   </>
                 )}
@@ -1935,7 +1946,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                     </>
                   ) : (
                     <>
-                      {isOpen ? "CẬP NHẬT HỒ SƠ" : "TẠO KẾ HOẠCH ĐẦU TIÊN"}
+                      {submitLabel}
                       <Zap className="w-4 h-4 text-text-inverse" />
                     </>
                   )}
@@ -1996,7 +2007,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
                   </>
                 ) : (
                   <>
-                    {isOpen ? "CẬP NHẬT HỒ SƠ" : "TẠO KẾ HOẠCH ĐẦU TIÊN"}
+                    {submitLabel}
                     <Zap className="w-4 h-4 text-text-inverse" />
                   </>
                 )}

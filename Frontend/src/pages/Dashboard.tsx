@@ -3,6 +3,7 @@ import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import TopBar from '../layout/TopBar';
 import SurveyForm, { type SurveyPlanSummary } from '../components/SurveyForm';
 import SurveyResultScreen from '../components/SurveyResultScreen';
+import MealSurveyForm from '../components/MealSurveyForm';
 import ProfileCompletionNudge from '../components/ProfileCompletionNudge';
 import ProfileSupplementModal from '../components/ProfileSupplementModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -65,6 +66,7 @@ export default function Dashboard() {
 
   const [hasShownSurvey, setHasShownSurvey] = useState(false);
   const [surveyPlanSummary, setSurveyPlanSummary] = useState<SurveyPlanSummary | null>(null);
+  const [isMealSurveyOpen, setIsMealSurveyOpen] = useState(false);
   const [isGeneratingSurveyPlan, setIsGeneratingSurveyPlan] = useState(false);
   const [surveyPlanError, setSurveyPlanError] = useState('');
 
@@ -76,6 +78,7 @@ export default function Dashboard() {
     if (!isLoggedIn) {
       setHasShownSurvey(false);
       setSurveyPlanSummary(null);
+      setIsMealSurveyOpen(false);
       setSurveyPlanError('');
       setIsGeneratingSurveyPlan(false);
     }
@@ -144,6 +147,7 @@ export default function Dashboard() {
       todayWorkout: workoutRows.length > 0 ? 'Lịch tập hôm nay' : 'Ngày nghỉ phục hồi',
       todayExercises,
       todayMeals: [],
+      hasAiWorkoutPreview: true,
     });
   };
 
@@ -166,9 +170,15 @@ export default function Dashboard() {
     }
   };
 
-  const continueToMealPlan = () => {
+  const continueToMealSurvey = () => {
+    setIsMealSurveyOpen(true);
+  };
+
+  const completeMealSurvey = async () => {
     setSurveyPlanSummary(null);
+    setIsMealSurveyOpen(false);
     setSurveyPlanError('');
+    await refreshProfile();
     navigate('/diet-plan', { replace: true });
   };
 
@@ -183,12 +193,16 @@ export default function Dashboard() {
   }
 
   if (isLoggedIn && surveyPlanSummary) {
+    if (isMealSurveyOpen) {
+      return <MealSurveyForm onComplete={completeMealSurvey} onBack={() => setIsMealSurveyOpen(false)} />;
+    }
+
     return (
       <SurveyResultScreen
         summary={surveyPlanSummary}
         isGeneratingPlan={isGeneratingSurveyPlan}
         generationError={surveyPlanError}
-        onStart={continueToMealPlan}
+        onStart={continueToMealSurvey}
       />
     );
   }

@@ -185,16 +185,17 @@ export default function SurveyResultScreen({
   const bmr = Math.round(10 * weightKg + 6.25 * (summary.heightCm || 170) - 5 * age + normalizeGenderOffset(summary.gender));
   const activityMultiplier = 1.2 + clamp(summary.weeklyWorkouts || 3, 0, 6) * 0.05;
   const tdee = Math.round(bmr * activityMultiplier);
-  const estimatedBodyFat = clamp(1.2 * bmi + 0.23 * age - 10.8 * normalizeBodyFatSex(summary.gender) - 5.4, 8, 45);
+  const estimatedBodyFat = summary.estimatedBodyFatPercentage
+    || clamp(1.2 * bmi + 0.23 * age - 10.8 * normalizeBodyFatSex(summary.gender) - 5.4, 3, 60);
   const fatMass = (weightKg * estimatedBodyFat) / 100;
   const leanMass = weightKg - fatMass;
-  const waterLiters = Math.max(summary.dailyWaterGoalLiters || 2, Math.round(weightKg * 0.035 * 10) / 10);
-  const waterBlocks = 10;
-  const activeWaterBlocks = clamp(Math.round(waterLiters * 4), 1, waterBlocks);
+  const waterMlPerKg = summary.weeklyWorkouts >= 5 ? 40 : summary.weeklyWorkouts >= 3 ? 35 : 30;
+  const waterLiters = summary.dailyWaterGoalLiters || Math.round(weightKg * waterMlPerKg) / 1000;
+  const waterGlasses = Math.round(waterLiters * 4);
+  const waterBlocks = 12;
+  const activeWaterBlocks = clamp(waterGlasses, 1, waterBlocks);
   const bodyFatBar = clamp((leanMass / weightKg) * 100, 0, 100);
-  const workoutItems = summary.todayExercises.length > 0
-    ? summary.todayExercises
-    : [{ name: 'Lịch tập đang được cá nhân hóa', detail: 'AI sẽ cập nhật bài tập phù hợp với hồ sơ của bạn.' }];
+  const workoutItems = summary.hasAiWorkoutPreview ? summary.todayExercises : [];
 
   return (
     <div className="relative min-h-[100dvh] w-full bg-[#090d13] px-4 py-10 text-white sm:px-5">
@@ -248,7 +249,12 @@ export default function SurveyResultScreen({
             </div>
 
             <div className="divide-y divide-[#273140]">
-              {workoutItems.map((exercise, index) => (
+              {isGeneratingPlan ? (
+                <div className="flex items-center gap-3 p-4 text-sm font-semibold text-[#9ca8ba] sm:p-5">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#c8ff19]" />
+                  AI đang phân tích hồ sơ và chọn bài tập phù hợp cho hôm nay.
+                </div>
+              ) : workoutItems.length > 0 ? workoutItems.map((exercise, index) => (
                 <div key={`${exercise.name}-${index}`} className="grid grid-cols-[36px_minmax(0,1fr)] gap-3 p-4 sm:p-5">
                   <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#c8ff19]/12 text-[#c8ff19]">
                     <Dumbbell className="h-4 w-4" strokeWidth={2.4} />
@@ -258,7 +264,11 @@ export default function SurveyResultScreen({
                     <p className="mt-1 text-xs font-semibold leading-5 text-[#9ca8ba]">{exercise.detail}</p>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="p-4 text-sm font-semibold leading-5 text-[#fca5a5] sm:p-5">
+                  Chưa thể tải danh sách bài tập AI. Bạn vẫn có thể tiếp tục và tạo lại kế hoạch trong AI Coach.
+                </div>
+              )}
             </div>
           </Panel>
 
@@ -363,7 +373,7 @@ export default function SurveyResultScreen({
                   />
                 ))}
               </div>
-              <p className="mt-3 text-[10px] font-bold text-[#7b8798]">≈ 8 ly 250ml</p>
+              <p className="mt-3 text-[10px] font-bold text-[#7b8798]">≈ {waterGlasses} ly 250ml · {waterMlPerKg} ml/kg/ngày</p>
             </Panel>
           </div>
 
@@ -405,7 +415,7 @@ export default function SurveyResultScreen({
           ) : null}
 
           <Panel className="p-4 text-[11px] font-semibold leading-5 text-[#9ca8ba]">
-            <b className="text-white">BMR</b> - năng lượng khi nghỉ hoàn toàn · <b className="text-white">TDEE</b> - tổng tiêu hao theo mức vận động · <b className="text-white">% mỡ</b> ước tính theo Deurenberg · <b className="text-white">BMI</b> theo chuẩn WHO châu Á 2004.
+            <b className="text-white">BMR</b> - năng lượng khi nghỉ hoàn toàn · <b className="text-white">TDEE</b> - tổng tiêu hao theo mức vận động · <b className="text-white">% mỡ</b> ước tính theo công thức Deurenberg (không thay thế InBody) · <b className="text-white">Nước</b> theo 30–40 ml/kg/ngày · <b className="text-white">BMI</b> theo chuẩn WHO châu Á 2004.
           </Panel>
 
           <button
@@ -421,14 +431,14 @@ export default function SurveyResultScreen({
               </>
             ) : (
               <>
-                Tiếp tục lên thực đơn
+                Khảo sát thực đơn
                 <ArrowRight className="h-4 w-4" strokeWidth={3} />
               </>
             )}
           </button>
 
           <p className="pb-6 text-center text-xs font-semibold text-[#7b8798]">
-            Tiếp theo: chọn món và tạo thực đơn phù hợp với lịch tập vừa tạo.
+            Tiếp theo: chọn sở thích ăn uống để cá nhân hóa thực đơn của bạn.
           </p>
         </main>
       </div>

@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
+import SurveyForm from '../components/SurveyForm';
 
 interface SessionExercise {
   id: string;
@@ -62,6 +63,11 @@ type MonthlyPlanSummary = {
   week_start_date: string;
   created_at?: string | null;
   updated_at?: string | null;
+};
+
+type WorkoutPlanQuota = {
+  used: number;
+  limit: number;
 };
 
 const EMPTY_DAY_STATS: CalendarDayStats = {
@@ -361,7 +367,7 @@ export const ExercisesSkeleton = () => {
 };
 
 export default function Exercises() {
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
   const cacheForToday =
@@ -377,6 +383,8 @@ export default function Exercises() {
   const [selectedDateKey, setSelectedDateKey] = useState(() => getVietnamDateKey());
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [calendarStatsByDate, setCalendarStatsByDate] = useState<Record<string, CalendarDayStats>>({});
+  const [isWorkoutSurveyOpen, setIsWorkoutSurveyOpen] = useState(false);
+  const [workoutPlanQuota, setWorkoutPlanQuota] = useState<WorkoutPlanQuota | null>(null);
   const hasLoadedSessionRef = useRef(Boolean(cacheForToday));
 
   const selectedDate = useMemo(() => getDateFromKey(selectedDateKey), [selectedDateKey]);
@@ -442,6 +450,36 @@ export default function Exercises() {
       setIsLoading(false);
     }
   }, [user, selectedDateKey, vnToday]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (!user?.id) {
+      setWorkoutPlanQuota(null);
+      return undefined;
+    }
+
+    const loadWorkoutPlanQuota = async () => {
+      try {
+        const response = await fetchWithAuth('/api/ai/quota');
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || isCancelled) return;
+
+        const limit = Number(payload?.aiQuota?.limits?.planGenerations);
+        const used = Number(payload?.aiQuota?.usage?.planGenerations);
+        if (Number.isFinite(limit) && Number.isFinite(used)) {
+          setWorkoutPlanQuota({ used: Math.max(0, used), limit: Math.max(0, limit) });
+        }
+      } catch {
+        if (!isCancelled) setWorkoutPlanQuota(null);
+      }
+    };
+
+    void loadWorkoutPlanQuota();
+    return () => {
+      isCancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     loadCalendarStats();
@@ -674,6 +712,33 @@ export default function Exercises() {
     }
   };
 
+  const handleWorkoutSurveyComplete = async () => {
+    const response = await fetchWithAuth('/api/ai-coach/generate-weekly-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        weekStartDate: getWeekStartKey(new Date(`${vnToday}T00:00:00`)),
+        planScope: 'workout_only'
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Không thể tạo kế hoạch tập. Vui lòng thử lại.');
+    }
+
+    const nextLimit = Number(payload?.aiQuota?.limits?.planGenerations);
+    const nextUsed = Number(payload?.aiQuota?.usage?.planGenerations);
+    if (Number.isFinite(nextLimit) && Number.isFinite(nextUsed)) {
+      setWorkoutPlanQuota({ used: Math.max(0, nextUsed), limit: Math.max(0, nextLimit) });
+    }
+
+    await refreshProfile();
+    setIsWorkoutSurveyOpen(false);
+    await loadSession(true);
+    await loadCalendarStats(true);
+    toast.success('Đã tạo kế hoạch tập cho tuần này.');
+  };
+
   const toggleComplete = async (id: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
     setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: newStatus } : s));
@@ -853,6 +918,15 @@ export default function Exercises() {
 
   return (
     <div className="dashboard-page-shell exercise-page-shell flex flex-col gap-4 overflow-y-auto custom-scrollbar text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
+      {isWorkoutSurveyOpen ? (
+        <SurveyForm
+          isOpen
+          modalPurpose="workout-plan"
+          onClose={() => setIsWorkoutSurveyOpen(false)}
+          onComplete={handleWorkoutSurveyComplete}
+        />
+      ) : null}
+
       <div className={`monthly-workout-calendar ${isCalendarLoading ? 'monthly-workout-calendar-loading' : ''}`}>
         <div className="monthly-workout-calendar-header">
           <div className="monthly-workout-calendar-title">
@@ -936,10 +1010,15 @@ export default function Exercises() {
               <Calendar className="h-3.5 w-3.5 shrink-0" />
               {selectedDayDateLabel}
             </span>
-            <span className={`today-workout-status-pill ${session.length > 0 ? 'today-workout-status-active' : 'today-workout-status-empty'}`}>
-              {session.length > 0 ? `${session.length} bài tập` : 'Chưa có bài tập'}
-            </span>
+            {session.length > 0 ? (
+              <span className="today-workout-status-pill today-workout-status-active">
+                {session.length} bài tập
+              </span>
+            ) : null}
           </div>
+          <span className="today-workout-status-pill today-workout-status-active">
+            Lượt sử dụng: {workoutPlanQuota ? `${workoutPlanQuota.used}/${workoutPlanQuota.limit}` : '—'}
+          </span>
         </div>
 
         <div className="today-workout-content">
@@ -1028,14 +1107,24 @@ export default function Exercises() {
               <p>
                 {isTodaySelected ? 'Chưa có bài tập nào hôm nay.' : 'Chưa có bài tập cho ngày này.'}
               </p>
-              <button
-                type="button"
-                onClick={() => navigate('/smart-planner')}
-                className="today-workout-empty-action"
-              >
-                <Plus className="h-4 w-4" />
-                Tạo kế hoạch
-              </button>
+              {isTodaySelected ? (
+                <p className="today-workout-empty-note">
+                  Tạo kế hoạch để Fitly sắp xếp bài tập, số hiệp và lần lặp phù hợp với mục tiêu của bạn.
+                </p>
+              ) : null}
+              {isTodaySelected ? (
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsWorkoutSurveyOpen(true)}
+                    disabled={Boolean(workoutPlanQuota && workoutPlanQuota.used >= workoutPlanQuota.limit)}
+                    className="today-workout-empty-action"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Tạo kế hoạch
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

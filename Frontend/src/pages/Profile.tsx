@@ -922,17 +922,7 @@ export default function Profile() {
                 <Send className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-base font-black text-text-primary">Telegram Bot</h2>
-                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${
-                    profile?.telegram_chat_id
-                      ? 'border-accent/25 bg-accent/10 text-accent'
-                      : 'border-info/25 bg-info/10 text-info'
-                  }`}>
-                    {profile?.telegram_chat_id ? <Check className="h-3 w-3" /> : <Send className="h-3 w-3" />}
-                    {profile?.telegram_chat_id ? 'Đã kết nối' : 'Chưa kết nối'}
-                  </span>
-                </div>
+                <h2 className="text-base font-black text-text-primary">Telegram Bot</h2>
                 <p className="mt-1 text-sm font-semibold leading-6 text-text-secondary">
                   Bot nhận tín hiệu từ Fitly và gửi các nhắc nhở quan trọng vào Telegram, để bạn giữ nhịp tập luyện mà không cần mở web liên tục.
                 </p>
@@ -968,7 +958,7 @@ export default function Profile() {
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-text-tertiary">Trạng thái</p>
               <p className="mt-1 text-lg font-black text-text-primary">
-                {profile?.telegram_chat_id ? 'Bot đang bật' : 'Sẵn sàng kích hoạt'}
+                {profile?.telegram_chat_id ? 'Đã kết nối' : 'Sẵn sàng kích hoạt'}
               </p>
               <p className="mt-1 text-xs font-semibold leading-5 text-text-secondary">
                 {profile?.telegram_chat_id
