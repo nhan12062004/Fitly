@@ -23,6 +23,7 @@ import Progress from './pages/Progress';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import WorkoutSession from './pages/WorkoutSession';
+import BodyAssessmentResult from './pages/BodyAssessmentResult';
 
 const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'));
 
@@ -53,6 +54,8 @@ export default function App() {
                 <Route path="/login" element={<AuthPage initialMode="login" />} />
                 <Route path="/signup" element={<AuthPage initialMode="signup" />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/assessment" element={<BodyAssessmentResult />} />
+                <Route path="/ket-qua-the-trang" element={<Navigate to="/assessment" replace />} />
                 <Route element={<Dashboard />}>
                   <Route path="overview" element={<Overview />} />
                   <Route path="notifications" element={<Notifications />} />

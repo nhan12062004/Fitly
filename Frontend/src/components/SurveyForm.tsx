@@ -844,6 +844,25 @@ const estimateTargetCalories = ({
   return Math.max(1200, Math.round((bmr * activityMultiplier + goalAdjustment) / 50) * 50);
 };
 
+// Deurenberg: ước tính % mỡ khi khách chưa có kết quả đo từ máy InBody/cân thông minh.
+const estimateBodyFatPercentage = ({ gender, age, height, weight }: {
+  gender: string;
+  age: number;
+  height: number;
+  weight: number;
+}) => {
+  const bmi = weight / ((height / 100) ** 2);
+  const maleFactor = normalizePlainText(gender).includes('nam') ? 1 : 0;
+  const estimate = 1.2 * bmi + 0.23 * age - 10.8 * maleFactor - 5.4;
+  return Math.round(Math.max(3, Math.min(60, estimate)) * 10) / 10;
+};
+
+const estimateDailyWaterGoalLiters = (weightKg: number, weeklyWorkouts: number) => {
+  const mlPerKg = weeklyWorkouts >= 5 ? 40 : weeklyWorkouts >= 3 ? 35 : 30;
+  const liters = weightKg * mlPerKg / 1000;
+  return Math.round(Math.max(1.5, Math.min(4.5, liters)) * 10) / 10;
+};
+
 export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormProps) {
   const { user, refreshProfile } = useAuth();
   const toast = useToast();
@@ -1188,7 +1207,13 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
       const heightCm = Number(formData.height) || 170;
       const weightKg = Number(formData.weight) || 68;
       const mealsPerDay = parseInt(formData.meals_per_day, 10) || 3;
-      const dailyWaterGoalLiters = parseFloat(formData.daily_water_goal) || 2.0;
+      const dailyWaterGoalLiters = estimateDailyWaterGoalLiters(weightKg, weeklyWorkouts);
+      const estimatedBodyFat = estimateBodyFatPercentage({
+        gender: formData.gender,
+        age: ageYears,
+        height: heightCm,
+        weight: weightKg,
+      });
       const estimatedTargetCalories = estimateTargetCalories({
         gender: formData.gender,
         age: formData.age,
@@ -1220,7 +1245,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose }: SurveyFormPr
           height: parseFloat(formData.height) || 0,
           weight: parseFloat(formData.weight) || 0,
           target_weight: resolvedTargetWeight,
-          body_fat: formData.body_fat ? parseFloat(formData.body_fat) : null,
+          // Ưu tiên số đo khách đã nhập; nếu chưa có, tự ước tính từ dữ liệu khảo sát.
+          body_fat: formData.body_fat ? parseFloat(formData.body_fat) : estimatedBodyFat,
           neck: formData.neck ? parseFloat(formData.neck) : null,
           chest: formData.chest ? parseFloat(formData.chest) : null,
           waist: formData.waist ? parseFloat(formData.waist) : null,
