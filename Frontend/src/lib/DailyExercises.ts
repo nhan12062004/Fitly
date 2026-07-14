@@ -67,51 +67,6 @@ const loadLikelyCreatedExercise = async ({
   return existingRes.data?.[0] || null;
 };
 
-const createDailyExerciseSessionDirectly = async ({
-  userId,
-  logDate,
-  exerciseId,
-  sets,
-  reps,
-  weightKg,
-  restSeconds,
-  orderIndex,
-  targetRpe
-}: CreateDailyExerciseSessionInput & { orderIndex: number }) => {
-  const insertRes = await supabase
-    .from('daily_exercise_sessions')
-    .insert({
-      user_id: userId,
-      log_date: logDate,
-      weekly_plan_exercise_id: null,
-      exercise_id: exerciseId,
-      sets,
-      reps,
-      weight_kg: weightKg,
-      rest_seconds: restSeconds,
-      order_index: orderIndex,
-      is_completed: false,
-      planned_sets: sets,
-      planned_reps: reps,
-      planned_weight_kg: weightKg,
-      planned_rest_seconds: restSeconds,
-      actual_sets: sets,
-      actual_reps: reps,
-      actual_weight_kg: weightKg,
-      actual_rest_seconds: restSeconds,
-      target_rpe: Math.max(5, Math.min(10, Number(targetRpe) || 7)),
-      estimated_kcal: 0,
-      actual_kcal_estimated: 0,
-      completed_sets: 0,
-      load_adjustment_note: null
-    })
-    .select(DAILY_EXERCISE_SESSION_SELECT)
-    .single();
-
-  if (insertRes.error) throw insertRes.error;
-  return insertRes.data;
-};
-
 export const createDailyExerciseSession = async ({
   userId,
   logDate,
@@ -124,7 +79,6 @@ export const createDailyExerciseSession = async ({
   targetRpe
 }: CreateDailyExerciseSessionInput) => {
   const resolvedOrderIndex = await resolveOrderIndex(userId, logDate, orderIndex);
-  let shouldTryDirectInsert = false;
   let apiErrorMessage = 'Thêm bài tập thất bại';
 
   try {
@@ -149,10 +103,8 @@ export const createDailyExerciseSession = async ({
       return payload.exercise;
     }
     apiErrorMessage = String(payload?.error || apiErrorMessage);
-    shouldTryDirectInsert = response.status >= 500;
   } catch (error: any) {
     apiErrorMessage = String(error?.message || apiErrorMessage);
-    shouldTryDirectInsert = true;
   }
 
   const recoveredRow = await loadLikelyCreatedExercise({
@@ -165,23 +117,7 @@ export const createDailyExerciseSession = async ({
     return recoveredRow;
   }
 
-  if (shouldTryDirectInsert) {
-    try {
-      return await createDailyExerciseSessionDirectly({
-        userId,
-        logDate,
-        exerciseId,
-        sets,
-        reps,
-        weightKg,
-        restSeconds,
-        orderIndex: resolvedOrderIndex,
-        targetRpe
-      });
-    } catch (fallbackError: any) {
-      throw new Error(String(fallbackError?.message || apiErrorMessage));
-    }
-  }
-
+  // Direct database fallback is intentionally forbidden: all catalog adds
+  // must pass the API's current ID, eligibility, and safety validation.
   throw new Error(apiErrorMessage);
 };

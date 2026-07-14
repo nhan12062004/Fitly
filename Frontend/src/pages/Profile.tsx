@@ -51,6 +51,15 @@ import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import { getUserChallenges, type ChallengeSummary } from '../lib/Challenges';
 import { API_BASE_URL } from '../lib/Api';
+import {
+  EQUIPMENT_TYPES,
+  TRAINING_LOCATIONS,
+  experienceLevelToMonths,
+  normalizeTrainingLocation,
+  parseAvailableEquipment,
+  type Equipment,
+  type TrainingLocation,
+} from '../lib/exerciseCatalog';
 
 const emptyForm = {
   full_name: '',
@@ -71,6 +80,9 @@ const emptyForm = {
   fitness_goal: 'Giảm mỡ',
   diet_preference: 'Bình thường',
   budget_level: 'Trung bình',
+  workout_location: 'home',
+  equipment_available: 'none',
+  experience_level: 'absolute_beginner',
 };
 
 const toInput = (value: unknown) => {
@@ -185,6 +197,73 @@ const GENDER_ICONS: Record<string, ReactNode> = {
   Nữ: <Venus className="h-6 w-6" strokeWidth={2.4} />,
 };
 
+const TRAINING_LOCATION_LABELS: Record<TrainingLocation, string> = {
+  home: 'Tập tại nhà',
+  gym: 'Phòng gym',
+};
+
+const TRAINING_LOCATION_DESCRIPTIONS: Record<TrainingLocation, string> = {
+  home: 'Ưu tiên những bài phù hợp với không gian tại nhà.',
+  gym: 'Chọn bài phù hợp với điều kiện ở phòng gym.',
+};
+
+const LEGACY_WORKOUT_LOCATION_VALUES: Record<string, TrainingLocation> = {
+  'Phòng Gym chuyên nghiệp': 'gym',
+};
+
+const EQUIPMENT_LABELS: Record<Equipment, string> = {
+  none: 'Không có dụng cụ',
+  chair: 'Ghế',
+  bench: 'Ghế tập',
+  resistance_band: 'Dây kháng lực',
+  dumbbell: 'Tạ đơn',
+  kettlebell: 'Tạ ấm',
+  barbell: 'Tạ đòn',
+  cable: 'Cáp tập',
+  machine: 'Máy tập',
+  pull_up_bar: 'Xà đơn',
+  stability_ball: 'Bóng tập',
+  foam_roller: 'Con lăn',
+};
+
+const EXPERIENCE_LEVEL_OPTIONS = [
+  {
+    value: 'absolute_beginner',
+    label: 'Người mới hoàn toàn',
+    description: 'Chưa tập hoặc mới bắt đầu làm quen với các động tác cơ bản.',
+  },
+  {
+    value: 'beginner',
+    label: 'Dưới 3 tháng',
+    description: 'Đang xây nền tảng kỹ thuật và thói quen tập đều.',
+  },
+  {
+    value: 'beginner_plus',
+    label: '3–6 tháng',
+    description: 'Đã quen động tác cơ bản và có thể tăng dần độ khó.',
+  },
+  {
+    value: 'intermediate',
+    label: '6–12 tháng',
+    description: 'Tập đều, có thể theo chương trình với cấu trúc rõ ràng.',
+  },
+  {
+    value: 'advanced',
+    label: 'Trên 1 năm',
+    description: 'Có nhiều kinh nghiệm tập luyện và kiểm soát kỹ thuật tốt.',
+  },
+] as const;
+
+type WorkoutExperienceLevel = typeof EXPERIENCE_LEVEL_OPTIONS[number]['value'];
+
+const EXPERIENCE_LEVEL_LABELS = Object.fromEntries(
+  EXPERIENCE_LEVEL_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<WorkoutExperienceLevel, string>;
+
+const EXPERIENCE_LEVEL_DESCRIPTIONS = Object.fromEntries(
+  EXPERIENCE_LEVEL_OPTIONS.map((option) => [option.value, option.description]),
+) as Record<WorkoutExperienceLevel, string>;
+
 const normalizeGender = (value: unknown) => (
   GENDER_OPTIONS.includes(String(value)) ? String(value) : 'Nam'
 );
@@ -193,6 +272,29 @@ const normalizeFitnessGoal = (value: unknown) => {
   const goal = String(value || '').trim();
   const normalized = LEGACY_FITNESS_GOAL_MAP[goal] || goal;
   return FITNESS_GOAL_OPTIONS.includes(normalized) ? normalized : 'Giảm mỡ';
+};
+
+const normalizeWorkoutLocation = (value: unknown): TrainingLocation =>
+  normalizeTrainingLocation(value)
+  ?? LEGACY_WORKOUT_LOCATION_VALUES[String(value ?? '').trim()]
+  ?? 'home';
+
+const serializeAvailableEquipment = (equipment: Iterable<Equipment>): string => {
+  const selected = new Set(equipment);
+  const canonicalEquipment = EQUIPMENT_TYPES.filter((item) => item !== 'none' && selected.has(item));
+  return canonicalEquipment.length > 0 ? canonicalEquipment.join(',') : 'none';
+};
+
+const normalizeAvailableEquipment = (value: unknown): string =>
+  serializeAvailableEquipment(parseAvailableEquipment(value));
+
+const normalizeExperienceLevel = (value: unknown): WorkoutExperienceLevel => {
+  const experienceMonths = experienceLevelToMonths(value);
+  if (experienceMonths <= 0) return 'absolute_beginner';
+  if (experienceMonths <= 2) return 'beginner';
+  if (experienceMonths <= 5) return 'beginner_plus';
+  if (experienceMonths <= 11) return 'intermediate';
+  return 'advanced';
 };
 
 type ProfileOutletContext = {
@@ -302,6 +404,9 @@ export default function Profile() {
           fitness_goal: normalizeFitnessGoal(lifestyleRes.data?.fitness_goal),
           diet_preference: lifestyleRes.data?.diet_preference || 'Bình thường',
           budget_level: lifestyleRes.data?.budget_level || 'Trung bình',
+          workout_location: normalizeWorkoutLocation(lifestyleRes.data?.workout_location),
+          equipment_available: normalizeAvailableEquipment(lifestyleRes.data?.equipment_available),
+          experience_level: normalizeExperienceLevel(lifestyleRes.data?.experience_level),
         });
         setLatestBodyCreatedAt(b.created_at || '');
         setAvatarUrl(p.avatar_url || null);
@@ -600,6 +705,9 @@ export default function Profile() {
           fitness_goal: formData.fitness_goal,
           diet_preference: formData.diet_preference,
           budget_level: formData.budget_level,
+          workout_location: normalizeWorkoutLocation(formData.workout_location),
+          equipment_available: normalizeAvailableEquipment(formData.equipment_available),
+          experience_level: normalizeExperienceLevel(formData.experience_level),
           updated_at: new Date().toISOString(),
         }),
       ]);
@@ -698,6 +806,50 @@ export default function Profile() {
                 columns="sm:grid-cols-2 xl:grid-cols-3"
                 icons={FITNESS_GOAL_ICONS}
                 descriptions={FITNESS_GOAL_DESCRIPTIONS}
+              />
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<Dumbbell className="h-4 w-4" />} title="Tùy chọn tập luyện" helper="Fitly dùng các thông tin này để chỉ đề xuất bài tập phù hợp với nơi tập, dụng cụ và kinh nghiệm của bạn." />
+            <div className="mt-5 space-y-5">
+              <OptionButtonGroup
+                label="Nơi tập"
+                value={formData.workout_location}
+                options={[...TRAINING_LOCATIONS]}
+                onChange={(value) => setFormData((prev) => ({ ...prev, workout_location: value }))}
+                columns="sm:grid-cols-2"
+                optionLabels={TRAINING_LOCATION_LABELS}
+                descriptions={TRAINING_LOCATION_DESCRIPTIONS}
+              />
+              <EquipmentPreferenceGroup
+                value={formData.equipment_available}
+                onChange={(equipment) => {
+                  setFormData((prev) => {
+                    const selected = parseAvailableEquipment(prev.equipment_available);
+                    if (equipment === 'none') {
+                      return { ...prev, equipment_available: 'none' };
+                    }
+
+                    selected.delete('none');
+                    if (selected.has(equipment)) selected.delete(equipment);
+                    else selected.add(equipment);
+
+                    return {
+                      ...prev,
+                      equipment_available: serializeAvailableEquipment(selected),
+                    };
+                  });
+                }}
+              />
+              <OptionButtonGroup
+                label="Kinh nghiệm tập luyện"
+                value={formData.experience_level}
+                options={EXPERIENCE_LEVEL_OPTIONS.map((option) => option.value)}
+                onChange={(value) => setFormData((prev) => ({ ...prev, experience_level: value }))}
+                columns="sm:grid-cols-2 xl:grid-cols-3"
+                optionLabels={EXPERIENCE_LEVEL_LABELS}
+                descriptions={EXPERIENCE_LEVEL_DESCRIPTIONS}
               />
             </div>
           </section>
@@ -1392,6 +1544,50 @@ function ProfileField({
   );
 }
 
+function EquipmentPreferenceGroup({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (equipment: Equipment) => void;
+}) {
+  const selectedEquipment = parseAvailableEquipment(value);
+  const hasAdditionalEquipment = EQUIPMENT_TYPES.some(
+    (equipment) => equipment !== 'none' && selectedEquipment.has(equipment),
+  );
+
+  return (
+    <div>
+      <span className="text-[10px] font-black uppercase text-text-tertiary">Dụng cụ có sẵn</span>
+      <p className="mt-1 text-xs font-semibold leading-5 text-text-secondary">
+        Chọn tất cả dụng cụ bạn có thể dùng. Bài bodyweight luôn được giữ trong lựa chọn phù hợp.
+      </p>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {EQUIPMENT_TYPES.map((equipment) => {
+          const selected = equipment === 'none'
+            ? !hasAdditionalEquipment
+            : selectedEquipment.has(equipment);
+          return (
+            <button
+              key={equipment}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(equipment)}
+              className={`min-h-11 rounded-xl border px-3 py-2 text-left text-sm font-black transition-colors ${
+                selected
+                  ? 'border-accent/40 bg-accent/15 text-accent'
+                  : 'border-border-primary bg-bg-tertiary text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              {EQUIPMENT_LABELS[equipment]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function OptionButtonGroup({
   label,
   value,
@@ -1400,6 +1596,7 @@ function OptionButtonGroup({
   columns = 'sm:grid-cols-3',
   icons,
   descriptions,
+  optionLabels,
 }: {
   label: string;
   value: string;
@@ -1408,6 +1605,7 @@ function OptionButtonGroup({
   columns?: string;
   icons?: Record<string, ReactNode>;
   descriptions?: Record<string, string>;
+  optionLabels?: Record<string, string>;
 }) {
   return (
     <div>
@@ -1417,6 +1615,7 @@ function OptionButtonGroup({
           const selected = value === option;
           const icon = icons?.[option];
           const description = descriptions?.[option];
+          const optionLabel = optionLabels?.[option] || option;
           return (
             <button
               key={option}
@@ -1441,11 +1640,11 @@ function OptionButtonGroup({
               ) : null}
               {description ? (
                 <span className="min-w-0">
-                  <span className={`block text-sm font-black leading-tight ${selected ? 'text-accent' : 'text-text-primary'}`}>{option}</span>
+                  <span className={`block text-sm font-black leading-tight ${selected ? 'text-accent' : 'text-text-primary'}`}>{optionLabel}</span>
                   <span className="mt-1.5 block text-xs font-semibold leading-5 text-text-tertiary">{description}</span>
                 </span>
               ) : (
-                option
+                optionLabel
               )}
             </button>
           );

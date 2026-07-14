@@ -5,6 +5,11 @@
     "scripts": {
         "dev": "npx tsx watch src/server.ts",
         "start": "npx tsx src/server.ts",
+        "build": "tsc --noEmit",
+        "typecheck": "tsc --noEmit",
+        "test": "tsx --test src/services/exerciseCatalogService.test.ts src/services/ai/adjustmentApplyGuard.test.ts",
+        "exercises:validate": "tsx src/scripts/validateExerciseCatalog.ts",
+        "exercises:upsert": "tsx src/scripts/upsertExerciseCatalog.ts",
         "db:migration:list": "npx supabase migration list --workdir ..",
         "db:migration:repair:normalize-rls": "npx supabase migration repair 20260602110000 --status applied --linked --workdir ..",
         "db:push": "npx supabase db push --linked --include-all --workdir .."

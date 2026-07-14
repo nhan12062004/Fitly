@@ -14,7 +14,7 @@ import {
 import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
+import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import {
   DEFAULT_WORKOUT_FREQUENCY,
@@ -793,143 +793,70 @@ const mergeOptimisticChatMessages = (serverMessages: ChatMessage[], currentMessa
 
 function AICoachSkeleton() {
   return (
-    <div className="dashboard-page-shell flex flex-col gap-4 animate-pulse pb-4 md:gap-5 md:pb-6 lg:pb-7" aria-hidden="true">
+    <div className="dashboard-page-shell animate-pulse pb-4 md:pb-6 lg:pb-7" aria-hidden="true">
       <section>
         <article className="ai-coach-chat-shell flex h-[calc(100dvh-8rem)] min-w-0 flex-col overflow-hidden rounded-xl border border-border-primary bg-bg-secondary text-text-primary shadow-[0_24px_70px_rgba(0,0,0,0.18)]">
-          <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-3">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-bg-tertiary/75" />
-              <div className="min-w-0 flex-1">
-                {SkeletonBlock('h-5 w-28 rounded-lg')}
-                {SkeletonBlock('mt-2 h-3 w-44 rounded-lg')}
+          <div className="shrink-0 border-b border-border-primary bg-bg-secondary px-4 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <div className="h-8 w-8 shrink-0 rounded-full bg-bg-tertiary/75" />
+                <span className="-ml-3 mt-4 h-2.5 w-2.5 rounded-full border-2 border-bg-secondary bg-ai/60" />
+                <div className="min-w-0">
+                  {SkeletonBlock('h-5 w-24 rounded-lg')}
+                  {SkeletonBlock('mt-1.5 h-3 w-52 max-w-[42vw] rounded-lg')}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-20 rounded-full border border-border-primary bg-ai/10" />
+                <div className="hidden h-9 w-9 rounded-xl border border-border-primary bg-bg-tertiary sm:block" />
               </div>
             </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden bg-bg-tertiary px-5 py-5">
-            <div className="flex h-full flex-col gap-4">
-              <div className="flex items-start gap-3">
-                <div className="mt-1 h-8 w-8 shrink-0 rounded-full bg-ai/70" />
-                <div className="w-full max-w-[980px] space-y-4">
-                  <div className="rounded-[20px] border border-border-primary bg-bg-secondary px-4 py-4">
-                    {SkeletonBlock('h-3 w-20 rounded-lg')}
-                    {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
-                    {SkeletonBlock('mt-2 h-3 w-[82%] rounded-lg')}
+            <div className="space-y-4">
+              <div className="flex justify-start">
+                <div className="ai-chat-bubble-wrap w-full max-w-[86%] sm:max-w-[78%]">
+                  <div className="rounded-[18px] border border-border-primary bg-bg-secondary/75 px-5 py-4">
+                    {SkeletonBlock('h-3 w-full rounded-lg')}
+                    {SkeletonBlock('mt-2 h-3 w-[92%] rounded-lg')}
+                    {SkeletonBlock('mt-2 h-3 w-[68%] rounded-lg')}
                   </div>
-
-                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                    <SkeletonSurface className="flex min-h-[280px] min-w-0 flex-col gap-4 bg-bg-secondary/80 p-4 shadow-none">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          {SkeletonBlock('h-3 w-24')}
-                          {SkeletonBlock('mt-4 h-6 w-[84%] rounded-xl')}
-                          {SkeletonBlock('mt-3 h-4 w-[60%]')}
-                        </div>
-                        <div className="h-10 w-10 shrink-0 rounded-2xl bg-bg-tertiary/60" />
-                      </div>
-
-                      <div className="flex flex-1 flex-col rounded-xl border border-border-primary bg-bg-tertiary/25 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                          {SkeletonBlock('h-3 w-20')}
-                          <div className="h-6 w-12 rounded-full bg-bg-tertiary/55" />
-                        </div>
-
-                        <div className="mt-3 space-y-2.5">
-                          {Array.from({ length: 3 }).map((_, index) => (
-                            <div
-                              key={index}
-                              className="flex items-start gap-3 rounded-lg border border-border-primary/80 bg-bg-tertiary/35 px-3 py-3"
-                            >
-                              <div className="h-8 w-8 shrink-0 rounded-full bg-bg-secondary/90" />
-                              <div className="min-w-0 flex-1">
-                                {SkeletonBlock('h-4 w-[80%] rounded-lg')}
-                                {SkeletonBlock('mt-2 h-3 w-20 rounded-lg')}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </SkeletonSurface>
-
-                    <SkeletonSurface className="flex min-h-[280px] min-w-0 flex-col gap-4 bg-bg-secondary/80 p-4 shadow-none">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          {SkeletonBlock('h-3 w-24')}
-                          {SkeletonBlock('mt-4 h-5 w-[76%] rounded-xl')}
-                          {SkeletonBlock('mt-3 h-5 w-[56%] rounded-xl')}
-                        </div>
-                        <div className="h-10 w-10 shrink-0 rounded-2xl bg-bg-tertiary/60" />
-                      </div>
-
-                      <div className="space-y-3">
-                        {Array.from({ length: 4 }).map((_, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-tertiary/35 px-3 py-3"
-                          >
-                            <div className="h-8 w-8 shrink-0 rounded-full bg-bg-secondary/90" />
-                            <div className="min-w-0 flex-1">
-                              {SkeletonBlock('h-4 w-[72%] rounded-lg')}
-                              {SkeletonBlock('mt-2 h-3 w-20 rounded-lg')}
-                            </div>
-                            <div className="h-4 w-14 shrink-0 rounded-lg bg-bg-tertiary/60" />
-                          </div>
-                        ))}
-                      </div>
-                    </SkeletonSurface>
-
-                    <SkeletonSurface className="flex min-h-[280px] min-w-0 flex-col gap-4 bg-bg-secondary/80 p-4 shadow-none">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          {SkeletonBlock('h-3 w-24')}
-                          {SkeletonBlock('mt-4 h-5 w-[68%] rounded-xl')}
-                        </div>
-                        <div className="h-10 w-10 shrink-0 rounded-2xl bg-bg-tertiary/60" />
-                      </div>
-
-                      <div className="space-y-4">
-                        {Array.from({ length: 3 }).map((_, index) => (
-                          <div key={index}>
-                            <div className="mb-2 flex items-center justify-between gap-3">
-                              {SkeletonBlock('h-4 w-24 rounded-lg')}
-                              {SkeletonBlock('h-4 w-12 rounded-lg')}
-                            </div>
-                            <div className="h-2 rounded-full bg-bg-tertiary/60" />
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-auto rounded-xl border border-border-primary bg-bg-tertiary/30 px-4 py-3">
-                        {SkeletonBlock('h-3 w-full rounded-lg')}
-                        {SkeletonBlock('mt-2 h-3 w-[78%] rounded-lg')}
-                      </div>
-                    </SkeletonSurface>
-                  </div>
+                  {SkeletonBlock('mt-1 h-2 w-10 rounded-lg')}
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <div className="w-full max-w-[320px] rounded-[18px] bg-bg-secondary/80 px-4 py-3">
-                  {SkeletonBlock('h-3 w-20 rounded-lg')}
-                  {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
+                <div className="ai-chat-bubble-wrap w-full max-w-[58%] sm:max-w-[42%]">
+                  <div className="rounded-[18px] border border-accent/35 bg-accent/20 px-4 py-3">
+                    {SkeletonBlock('h-3 w-full rounded-lg')}
+                    {SkeletonBlock('mt-2 h-3 w-[72%] rounded-lg')}
+                  </div>
+                  <div className="ml-auto mt-1 h-2 w-10 rounded-lg bg-bg-secondary/70" />
                 </div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <div className="mt-1 h-8 w-8 shrink-0 rounded-full bg-ai/55" />
-                <div className="w-full max-w-[560px] rounded-[18px] border border-border-primary bg-bg-secondary/80 px-4 py-3">
-                  {SkeletonBlock('h-3 w-16 rounded-lg')}
-                  {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
-                  {SkeletonBlock('mt-2 h-3 w-[88%] rounded-lg')}
+              <div className="flex justify-start">
+                <div className="ai-chat-bubble-wrap w-full max-w-[76%]">
+                  <div className="rounded-[18px] border border-border-primary bg-bg-secondary/75 px-4 py-3">
+                    {SkeletonBlock('h-2.5 w-16 rounded-lg')}
+                    {SkeletonBlock('mt-3 h-3 w-full rounded-lg')}
+                    {SkeletonBlock('mt-2 h-3 w-[84%] rounded-lg')}
+                    {SkeletonBlock('mt-2 h-3 w-[54%] rounded-lg')}
+                  </div>
+                  {SkeletonBlock('mt-1 h-2 w-10 rounded-lg')}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="shrink-0 border-t border-border-primary bg-bg-tertiary px-5 pb-4 pt-4">
-            <div className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-secondary px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.06)]">
-              {SkeletonBlock('h-4 flex-1 rounded-lg')}
-              <div className="h-10 w-10 rounded-[14px] bg-bg-tertiary/60" />
+          <div className="shrink-0 border-t border-border-primary bg-bg-tertiary px-3 pb-2 pt-2 sm:px-5">
+            <div className="ai-chat-composer flex min-h-11 items-end gap-1.5 rounded-[22px] border border-border-primary bg-bg-secondary px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)] sm:gap-2">
+              <div className="h-8 w-8 shrink-0 rounded-full bg-bg-tertiary/70" />
+              <div className="min-w-0 flex-1">
+                {SkeletonBlock('h-3 w-52 max-w-full rounded-lg')}
+              </div>
+              <div className="h-8 w-8 shrink-0 rounded-full bg-bg-tertiary/70" />
             </div>
           </div>
         </article>
@@ -1240,6 +1167,9 @@ export default function AICoach() {
           .select('id, name, description, week_start_date, updated_at')
           .eq('user_id', user.id)
           .eq('week_start_date', weekStartKey)
+          .eq('plan_status', 'active')
+          .order('updated_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         if (byWeek.error && isWeekStartColumnError(byWeek.error)) {
@@ -1247,6 +1177,7 @@ export default function AICoach() {
             .from('weekly_plans')
             .select('id, name, description, week_start_date, updated_at')
             .eq('user_id', user.id)
+            .eq('plan_status', 'active')
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -1318,6 +1249,7 @@ export default function AICoach() {
           .select('id, name, week_start_date, updated_at')
           .eq('user_id', user.id)
           .eq('week_start_date', weekStartKey)
+          .eq('plan_status', 'active')
           .limit(20);
 
         if (foodPlans.error) throw foodPlans.error;

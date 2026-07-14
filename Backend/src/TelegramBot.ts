@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import cron from 'node-cron';
 import { resolveWeeklyWorkouts } from './lib/WorkoutFrequency';
 import { verifyTelegramLinkToken } from './lib/telegramLinkToken';
+import {
+  buildExerciseEligibilityContext,
+  getExerciseEligibilityDecision,
+} from './services/exerciseCatalogService';
 import { callCoachCompletion } from './services/ai/coachConversationService';
 import {
   analyzeMealPhotoCalories,
@@ -60,6 +64,25 @@ const MAX_HISTORY = 20; // Giữ tối đa 20 tin nhắn gần nhất
 const HISTORY_TTL_MS = 2 * 60 * 60 * 1000; // Xóa sau 2 giờ không hoạt động
 const PENDING_MEAL_TTL_MS = 45 * 60 * 1000;
 const TELEGRAM_MEDIA_MAX_BYTES = Number(process.env.TELEGRAM_MEDIA_MAX_BYTES || 20 * 1024 * 1024);
+
+const getTelegramExerciseEligibilityDecision = async (userId: string, exercise: unknown) => {
+  const [profileRes, lifestyleRes, healthRes] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+    supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
+    supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
+  ]);
+  const error = [profileRes.error, lifestyleRes.error, healthRes.error].find(Boolean);
+  if (error) throw error;
+  const safetyContext = {
+    profile: profileRes.data || null,
+    lifestyle: lifestyleRes.data || null,
+    health: healthRes.data || null,
+  };
+  return getExerciseEligibilityDecision(
+    exercise,
+    buildExerciseEligibilityContext(safetyContext),
+  );
+};
 
 function getHistory(chatId: number): ChatMessage[] {
   const history = conversationStore.get(chatId) || [];
@@ -403,6 +426,7 @@ async function getTodayWorkoutReminderSnapshot(userId: string) {
     .select('id, name, created_at, updated_at')
     .eq('user_id', userId)
     .eq('week_start_date', weekStartKey)
+    .eq('plan_status', 'active')
     .limit(20);
 
   const latestPlan = ((plansRes.data || []) as any[]).sort((a, b) =>
@@ -627,8 +651,8 @@ async function buildCoachDataContext(userId: string) {
       .in('log_date', dateKeys)
       .order('log_date', { ascending: false })
       .order('order_index', { ascending: true }),
-    supabase.from('weekly_plans').select('id, name, description, week_start_date, created_at, updated_at').eq('user_id', userId).eq('week_start_date', weekStartKey).limit(20),
-    supabase.from('weekly_food_plans').select('id, name, week_start_date, created_at, updated_at').eq('user_id', userId).eq('week_start_date', weekStartKey).limit(20),
+    supabase.from('weekly_plans').select('id, name, description, week_start_date, created_at, updated_at').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(20),
+    supabase.from('weekly_food_plans').select('id, name, week_start_date, created_at, updated_at').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(20),
   ]);
 
   const latestWorkoutPlan = ((weeklyPlansRes.data || []) as any[]).sort((a, b) =>
@@ -768,7 +792,7 @@ async function buildWorkoutReport(profile: LinkedProfile) {
       .in('log_date', dateKeys)
       .order('log_date', { ascending: false })
       .order('order_index', { ascending: true }),
-    supabase.from('weekly_plans').select('id, name, week_start_date, created_at, updated_at').eq('user_id', profile.id).eq('week_start_date', weekStartKey).limit(20),
+    supabase.from('weekly_plans').select('id, name, week_start_date, created_at, updated_at').eq('user_id', profile.id).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(20),
   ]);
 
   const latestPlan = ((plansRes.data || []) as any[]).sort((a, b) =>
@@ -829,6 +853,7 @@ async function buildMealReport(profile: LinkedProfile) {
     .select('id, name, week_start_date, created_at, updated_at')
     .eq('user_id', profile.id)
     .eq('week_start_date', weekStartKey)
+    .eq('plan_status', 'active')
     .limit(20);
 
   const latestPlan = ((plansRes.data || []) as any[]).sort((a, b) =>
@@ -2047,9 +2072,11 @@ export const initTelegramBot = () => {
           const restMatch = userMessage.match(/(\d+)\s*(s|giây|sec|phút)/i);
           const shortMatch = userMessage.match(/(\d+)\s*x\s*(\d+)/i); // pattern 4x10
 
-          const sets = setsMatch ? parseInt(setsMatch[1]) : (shortMatch ? parseInt(shortMatch[1]) : 3);
+          const requestedSets = setsMatch ? parseInt(setsMatch[1]) : (shortMatch ? parseInt(shortMatch[1]) : 3);
+          const sets = Math.max(1, Math.min(6, Number.isFinite(requestedSets) ? requestedSets : 3));
           const reps = repsMatch ? repsMatch[1] : (shortMatch ? shortMatch[2] : '12');
-          const weightKg = kgMatch ? parseFloat(kgMatch[1]) : 0;
+          const parsedWeightKg = kgMatch ? parseFloat(kgMatch[1]) : 0;
+          const weightKg = Math.max(0, Math.min(500, Number.isFinite(parsedWeightKg) ? parsedWeightKg : 0));
           let restSeconds = 0;
           if (restMatch) {
             restSeconds = parseInt(restMatch[1]);
@@ -2057,6 +2084,7 @@ export const initTelegramBot = () => {
           } else {
             restSeconds = 60;
           }
+          restSeconds = Math.max(30, Math.min(300, Number.isFinite(restSeconds) ? restSeconds : 60));
 
           // Tách tên bài tập (bỏ các keyword và số liệu)
           const cleanMsg = userMessage
@@ -2068,12 +2096,15 @@ export const initTelegramBot = () => {
           if (cleanMsg.length > 1) {
             const { data: exercise } = await supabase
               .from('exercises')
-              .select('id, name')
+              .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, movement_pattern, goal_type, contraindications, calories_per_minute')
               .ilike('name', `%${cleanMsg}%`)
               .limit(1)
               .maybeSingle();
             
-            if (exercise) {
+            const eligibility = exercise
+              ? await getTelegramExerciseEligibilityDecision(userProfile.id, exercise)
+              : null;
+            if (exercise && eligibility?.eligible) {
               const { data: maxOrder } = await supabase
                 .from('daily_exercise_sessions')
                 .select('order_index')
@@ -2092,9 +2123,11 @@ export const initTelegramBot = () => {
                 weight_kg: weightKg,
                 rest_seconds: restSeconds,
                 is_completed: false,
-                order_index: (maxOrder?.order_index || 0) + 1
+                order_index: Number(maxOrder?.order_index ?? -1) + 1
               });
               actionLog += `✅ Đã thêm "${exercise.name}" (${sets}x${reps} | ${weightKg}kg | nghỉ ${restSeconds}s).\n`;
+            } else if (exercise) {
+              actionLog += `⚠️ Bài "${exercise.name}" chưa phù hợp với nơi tập, dụng cụ, kinh nghiệm hoặc điều kiện an toàn hiện tại.\n`;
             } else {
               actionLog += `⚠️ Không tìm thấy bài "${cleanMsg}" trong thư viện.\n`;
             }

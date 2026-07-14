@@ -78,6 +78,7 @@ scratch/
 supabase/*
 !supabase/migrations/
 !supabase/migrations/*.sql
+!supabase/verify_rpc_execute_privileges.sql
 Backend/migrations/
 docs/backups/
 metadata.json

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import ExerciseDetailOverlay, { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
+import ExerciseDetailOverlay, { toExerciseDetailItem, type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchWithAuth } from '../lib/Api';
 import { createDailyExerciseSession } from '../lib/DailyExercises';
@@ -21,21 +21,6 @@ const normalizeMediaUrl = (value: unknown): string => {
   if (url.startsWith('http://')) return `https://${url.slice(7)}`;
   return url;
 };
-
-const toGifStorageUrl = (gifUrl: unknown, imageUrl: unknown): string => {
-  const direct = normalizeMediaUrl(gifUrl);
-  if (direct) return direct.replace(/\.(jpg|jpeg|png|webp)(?=($|\?))/i, '.gif');
-
-  const image = normalizeMediaUrl(imageUrl);
-  return image.replace(/\.(jpg|jpeg|png|webp)(?=($|\?))/i, '.gif');
-};
-
-const normalizeForMatch = (value: unknown): string =>
-  String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd');
 
 const getManualSuggestedWeightKg = (_equipment?: string | null): number | null => null;
 
@@ -130,8 +115,9 @@ export default function ExerciseDetails() {
   const { user } = useAuth();
   const toast = useToast();
   const state = (location.state || {}) as ExerciseDetailsLocationState;
-  const cachedExercise = state.exercise?.id ? exerciseDetailsCache.get(String(state.exercise.id)) || null : null;
-  const initialExerciseDetail = state.exercise || cachedExercise || null;
+  const stateExercise = state.exercise ? toExerciseDetailItem(state.exercise) : null;
+  const cachedExercise = stateExercise?.id ? exerciseDetailsCache.get(String(stateExercise.id)) || null : null;
+  const initialExerciseDetail = stateExercise || cachedExercise || null;
   const [exerciseDetail, setExerciseDetail] = useState<ExerciseDetailItem | null>(initialExerciseDetail);
   const [isResolvingDetail, setIsResolvingDetail] = useState(() => !!state.exercise?.id);
   const [, setIsRefreshing] = useState(false);
@@ -206,27 +192,6 @@ export default function ExerciseDetails() {
       setSaveMessage('Đã thêm vào buổi tập hôm nay.');
       setSaveStatus('success');
       return;
-      const response = await fetchWithAuth('/api/workout/daily-exercises', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          logDate: today,
-          exerciseId: exercise.id,
-          sets: defaultSets,
-          reps: defaultReps,
-          weightKg: defaultWeightKg,
-          restSeconds: defaultRestSeconds,
-          orderIndex: nextOrder
-        })
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(String(payload?.error || 'Thêm bài tập thất bại'));
-      }
-      setSaveMessage('Đã thêm vào buổi tập hôm nay.');
-      setSaveStatus('success');
     } catch {
       setSaveMessage('Thêm bài tập thất bại. Vui lòng thử lại.');
       setSaveStatus('error');
@@ -269,25 +234,14 @@ export default function ExerciseDetails() {
       try {
         const { data } = await supabase
           .from('exercises')
-          .select('id, name, target_muscle, body_part, gif_url, image_url, equipment, instructions, secondary_muscles')
+          .select('*')
           .eq('id', String(exerciseId))
           .maybeSingle();
 
         if (!data) return;
 
-        const resolvedDetail = {
-          id: String(data.id),
-          name: String(data.name || state.exercise?.name || 'Bài tập'),
-          target_muscle: String(data.target_muscle || ''),
-          body_part: String(data.body_part || ''),
-          gif_url: toGifStorageUrl(data.gif_url, (data as any).image_url),
-          equipment: String(data.equipment || ''),
-          instructions: (data as any).instructions || [],
-          secondary_muscles: (data as any).secondary_muscles || [],
-          description: String(state.exercise?.description || ''),
-          image_url: normalizeMediaUrl((data as any).image_url || '')
-        };
-        exerciseDetailsCache.set(String(data.id), resolvedDetail);
+        const resolvedDetail = toExerciseDetailItem(data, stateExercise || undefined);
+        exerciseDetailsCache.set(resolvedDetail.id, resolvedDetail);
         setExerciseDetail(resolvedDetail);
       } finally {
         setIsResolvingDetail(false);
@@ -297,7 +251,7 @@ export default function ExerciseDetails() {
     };
 
     fetchDetail();
-  }, [state.exercise?.id]);
+  }, [stateExercise?.id]);
 
   if (isPageLoading || (isResolvingDetail && !exerciseDetail)) {
     return <ExerciseDetailsSkeleton />;
@@ -372,7 +326,7 @@ export default function ExerciseDetails() {
                       {
                         ...sessionRow,
                         name: sessionRow.exercises?.name || exercise.name,
-                        gif_url: normalizeMediaUrl(sessionRow.exercises?.image_url || exercise.gif_url)
+                        gif_url: normalizeMediaUrl(sessionRow.exercises?.image_url || exercise.gif_url || '')
                       }
                     ],
                     selectedSessionId: sessionRow.id,
@@ -410,7 +364,7 @@ export default function ExerciseDetails() {
                     {
                       ...sessionRow,
                       name: sessionRow.exercises?.name || exercise.name,
-                      gif_url: normalizeMediaUrl(sessionRow.exercises?.image_url || exercise.gif_url)
+                      gif_url: normalizeMediaUrl(sessionRow.exercises?.image_url || exercise.gif_url || '')
                     }
                   ],
                   selectedSessionId: sessionRow.id,
@@ -428,7 +382,7 @@ export default function ExerciseDetails() {
                   id: `detail-${exercise.id}`,
                   exercise_id: exercise.id,
                   name: exercise.name,
-                  gif_url: exercise.gif_url,
+                  gif_url: exercise.gif_url || '',
                   sets: 3,
                   reps: '12',
                   weight_kg: defaultWeightKg,

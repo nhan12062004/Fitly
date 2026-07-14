@@ -308,6 +308,7 @@ export const ensureActionableNotifications = async (userId: string) => {
       .eq('user_id', userId)
       .eq('week_start_date', weekStartKey)
       .eq('generated_by', 'ai')
+      .eq('plan_status', 'active')
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle(),

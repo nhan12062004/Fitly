@@ -261,6 +261,7 @@ type DailyMealLogRow = {
 };
 
 let overviewCache: {
+  userId: string;
   stats: typeof initialStats;
   todayExercises: OverviewExercise[];
   todayMealItems: OverviewMealItem[];
@@ -274,16 +275,17 @@ let overviewCache: {
 export default function Overview() {
   const navigate = useNavigate();
   const { user, isLoggedIn, profile, refreshTick } = useAuth();
-  const [loading, setLoading] = useState(() => !overviewCache);
+  const cachedOverview = user?.id && overviewCache?.userId === user.id ? overviewCache : null;
+  const [loading, setLoading] = useState(() => !cachedOverview);
   const [, setIsRefreshing] = useState(false);
-  const [stats, setStats] = useState(() => overviewCache?.stats || initialStats);
-  const [todayExercises, setTodayExercises] = useState<OverviewExercise[]>(() => overviewCache?.todayExercises || []);
-  const [todayMealItems, setTodayMealItems] = useState<OverviewMealItem[]>(() => overviewCache?.todayMealItems || []);
-  const [mealsPerDay, setMealsPerDay] = useState(() => overviewCache?.mealsPerDay || 3);
-  const [todayMeals, setTodayMeals] = useState<OverviewMeal[]>(() => overviewCache?.todayMeals || createDefaultMeals(overviewCache?.mealsPerDay || 3));
-  const [dailyNutrition, setDailyNutrition] = useState(() => overviewCache?.dailyNutrition || initialDailyNutrition);
-  const [dailyProgress, setDailyProgress] = useState(() => overviewCache?.dailyProgress || initialDailyProgress);
-  const [dailyStreak, setDailyStreak] = useState<DailyStreakState>(() => overviewCache?.dailyStreak || initialDailyStreak);
+  const [stats, setStats] = useState(() => cachedOverview?.stats || initialStats);
+  const [todayExercises, setTodayExercises] = useState<OverviewExercise[]>(() => cachedOverview?.todayExercises || []);
+  const [todayMealItems, setTodayMealItems] = useState<OverviewMealItem[]>(() => cachedOverview?.todayMealItems || []);
+  const [mealsPerDay, setMealsPerDay] = useState(() => cachedOverview?.mealsPerDay || 3);
+  const [todayMeals, setTodayMeals] = useState<OverviewMeal[]>(() => cachedOverview?.todayMeals || createDefaultMeals(cachedOverview?.mealsPerDay || 3));
+  const [dailyNutrition, setDailyNutrition] = useState(() => cachedOverview?.dailyNutrition || initialDailyNutrition);
+  const [dailyProgress, setDailyProgress] = useState(() => cachedOverview?.dailyProgress || initialDailyProgress);
+  const [dailyStreak, setDailyStreak] = useState<DailyStreakState>(() => cachedOverview?.dailyStreak || initialDailyStreak);
   const [progressBarsActive, setProgressBarsActive] = useState(false);
   const dailyStreakRef = useRef(dailyStreak);
   const refreshTickRef = useRef(refreshTick);
@@ -383,9 +385,20 @@ export default function Overview() {
 
     async function fetchData() {
       if (!user) return;
-      const hasCache = !!overviewCache;
+      const hasCache = overviewCache?.userId === user.id;
       setLoading(!hasCache);
       setIsRefreshing(hasCache);
+      if (!hasCache) {
+        setStats(initialStats);
+        setTodayExercises([]);
+        setTodayMealItems([]);
+        setMealsPerDay(3);
+        setTodayMeals(createDefaultMeals(3));
+        setDailyNutrition(initialDailyNutrition);
+        setDailyProgress(initialDailyProgress);
+        dailyStreakRef.current = initialDailyStreak;
+        setDailyStreak(initialDailyStreak);
+      }
       try {
         const today = new Date();
         const todayStr = getVietnamDateKey(today);
@@ -407,7 +420,7 @@ export default function Overview() {
           supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, gif_url, image_url, instructions, target_muscle, body_part, difficulty)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
           supabase.from('daily_meal_logs').select('calories, protein, carbs, fat, quantity, is_completed').eq('user_id', user.id).eq('log_date', todayStr).eq('is_completed', true),
           supabase.from('health_conditions').select('sleep_hours').eq('user_id', user.id).maybeSingle(),
-          supabase.from('weekly_food_plans').select('id').eq('user_id', user.id).eq('week_start_date', weekStartKey).order('updated_at', { ascending: false }).limit(1),
+          supabase.from('weekly_food_plans').select('id').eq('user_id', user.id).eq('week_start_date', weekStartKey).eq('plan_status', 'active').order('updated_at', { ascending: false }).limit(1),
           supabase.from('daily_exercise_sessions').select('log_date, is_completed').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr),
           supabase.from('daily_meal_logs').select('log_date, is_completed').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr),
           supabase.from('daily_progress_logs').select('log_date, water_intake_ml, sleep_hours').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr)
@@ -633,6 +646,7 @@ export default function Overview() {
         setDailyProgress(nextDailyProgressWithMeals);
 
         overviewCache = {
+          userId: user.id,
           stats: nextStats,
           todayExercises: nextTodayExercises,
           todayMealItems: mealItemsList,

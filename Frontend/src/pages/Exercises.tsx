@@ -46,7 +46,15 @@ interface SessionExercise {
     equipment?: string;
     difficulty?: string;
     movement_pattern?: string;
-    instructions?: string[] | string;
+    instructions?: unknown;
+    secondary_muscles?: unknown;
+    training_locations?: unknown;
+    min_experience_months?: number | null;
+    progression_level?: number | null;
+    goal_type?: unknown;
+    contraindications?: unknown;
+    estimated_duration_seconds?: number | null;
+    calories_per_minute?: number | null;
   } | null;
 }
 
@@ -521,6 +529,7 @@ export default function Exercises() {
         .eq('user_id', user.id)
         .gte('week_start_date', monthFirstWeekStartKey)
         .lte('week_start_date', monthLastWeekStartKey)
+        .eq('plan_status', 'active')
         .limit(40);
       if (plansRes.error) throw plansRes.error;
 

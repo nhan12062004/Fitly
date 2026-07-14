@@ -116,9 +116,16 @@ Backend:
 npm run start
 npm run db:migration:list
 npm run db:push
+npm run exercises:validate -- --file catalog/exercise-catalog.template.json
+npm run exercises:upsert -- --file path/to/exercises.json
+npm run exercises:upsert -- --file catalog/exercise-catalog.template.json --allow-empty
 ```
 
+`exercises:upsert` rejects an empty catalog by default. Use `--allow-empty` only when an explicit no-op import is intended.
+
 </details>
+
+Exercise catalog validation and import details are in [docs/exercise-catalog-design.md](docs/exercise-catalog-design.md).
 
 ## Ghi Chú
 

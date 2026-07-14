@@ -18,15 +18,32 @@ import { AIChatContext, AIChatResponse, AIIntent } from './services/ai/types';
 import { WorkoutPrescription, prescribeWorkoutExercise } from './services/workoutPrescriptionService';
 import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservability';
 import { validateActionPayload } from './services/ai/aiValidationService';
+import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
 import {
   buildSafetyPromptAddendum,
-  filterSafeExercisesForUser,
   filterSafeFoodsForUser,
   getFoodSafetyDecision,
-  sanitizeWorkoutActionExercises,
   sanitizeWorkoutPlanForUser,
 } from './services/ai/personalizationGuardService';
+import {
+  buildExerciseEligibilityContext,
+  getExerciseEligibilityDecision,
+  getEligibleExercises,
+  rankExercises,
+  validateExerciseProposal,
+} from './services/exerciseCatalogService';
+import {
+  type ExerciseInstructions,
+  isExerciseId,
+  normalizeBodyPart,
+  normalizeDifficulty,
+  normalizeEquipment,
+  normalizeExerciseInstructions,
+  normalizeGoalType,
+  normalizeMovementPattern,
+  normalizeTrainingLocation,
+} from '../../shared/exerciseCatalog';
 import {
   buildCoachDataContext,
   buildTodayStatus,
@@ -45,6 +62,7 @@ const AI_ACTION_FLOW_ENABLED = process.env.AI_ACTION_FLOW_ENABLED !== 'false';
 const PREMIUM_AUTO_PLAN_ENABLED = process.env.PREMIUM_AUTO_PLAN_ENABLED !== 'false';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const AI_EXERCISE_CATALOG_LIMIT = 48;
+const AI_EXERCISE_CATALOG_FETCH_LIMIT = 500;
 const AI_FOOD_CATALOG_LIMIT = 72;
 const AI_FOOD_CATALOG_FETCH_LIMIT = 320;
 type MembershipTier = 'free' | 'plus' | 'pro';
@@ -1425,7 +1443,7 @@ const getLatestBodyWeightKg = async (userId: string): Promise<number> => {
 const getExerciseMetaForKcal = async (exerciseId: string) => {
   const exerciseRes = await supabase
     .from('exercises')
-    .select('id, name, body_part, target_muscle, equipment, difficulty, movement_pattern, calories_per_minute')
+    .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, movement_pattern, goal_type, contraindications, calories_per_minute')
     .eq('id', exerciseId)
     .maybeSingle();
   if (exerciseRes.error) throw exerciseRes.error;
@@ -1656,12 +1674,14 @@ const hasExistingWeeklyCoachPlan = async (userId: string, weekStartKey: string) 
       .select('id')
       .eq('user_id', userId)
       .eq('week_start_date', weekStartKey)
+      .eq('plan_status', 'active')
       .limit(1),
     supabase
       .from('weekly_food_plans')
       .select('id')
       .eq('user_id', userId)
       .eq('week_start_date', weekStartKey)
+      .eq('plan_status', 'active')
       .limit(1),
   ]);
 
@@ -1695,8 +1715,8 @@ async function generateWeeklyCoachPlanForUser(params: {
     supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
     supabase
       .from('exercises')
-      .select('id, name, body_part, target_muscle, equipment, difficulty, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
-      .limit(AI_EXERCISE_CATALOG_LIMIT),
+      .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
+      .limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
     supabase
       .from('foods')
       .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
@@ -1712,6 +1732,7 @@ async function generateWeeklyCoachPlanForUser(params: {
       .from('weekly_food_items')
       .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
       .eq('weekly_food_plans.user_id', userId)
+      .eq('weekly_food_plans.plan_status', 'active')
       .order('created_at', { ascending: false })
       .limit(20),
     supabase
@@ -1740,7 +1761,17 @@ async function generateWeeklyCoachPlanForUser(params: {
   const lifestyle = lifestyleRes.data || {};
   const health = healthRes.data || {};
   const safetyContext = { profile, lifestyle, health };
-  const exercises = filterSafeExercisesForUser(clampList(exerciseCatalogRes.data as any[], AI_EXERCISE_CATALOG_LIMIT), safetyContext);
+  const eligibilityContext = buildExerciseEligibilityContext(safetyContext);
+  const recentExerciseIds = new Set(
+    (recentSessionsRes.data || []).map((item: any) => String(item.exercise_id || '')).filter(Boolean)
+  );
+  const exercises = rankExercises(
+    getEligibleExercises(exerciseCatalogRes.data as unknown[], eligibilityContext),
+    eligibilityContext,
+    { recentExerciseIds },
+  )
+    .slice(0, AI_EXERCISE_CATALOG_LIMIT)
+    .map(({ exercise }) => exercise);
   const recentMealHistory = [
     ...((recentMealLogsRes.data || []) as any[]),
     ...((recentMealsRes.data || []) as any[])
@@ -1782,7 +1813,7 @@ async function generateWeeklyCoachPlanForUser(params: {
   }
 
   const exerciseCatalog = exercises
-    .map((item: any) => `${item.id}|${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|eq=${truncateText(item.equipment, 14)}|level=${truncateText(item.difficulty, 10)}|pattern=${truncateText(item.movement_pattern, 12)}`)
+    .map((item) => `${item.id}|${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|secondary=${truncateText(item.secondary_muscles.join(','), 24)}|eq=${truncateText(item.equipment, 14)}|locations=${item.training_locations.join(',')}|difficulty=${truncateText(item.difficulty, 16)}|min_months=${item.min_experience_months}|progression=${item.progression_level}|pattern=${truncateText(item.movement_pattern, 18)}|goals=${truncateText(item.goal_type.join(','), 24)}`)
     .join('\n');
 
   const foodCatalog = foods
@@ -1948,12 +1979,28 @@ JSON schema (fixed):
   }
 
   const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
+  const proposalValidation = validateExerciseProposal(parsed, eligibilityContext, exercises, {
+    allowEmpty: true,
+    requireSevenDays: true,
+  });
+  if (!proposalValidation.valid) {
+    throw new ApiRequestError(422, {
+      error: 'AI workout proposal contains an ineligible or invalid exercise.',
+      details: proposalValidation.errors,
+    });
+  }
   const normalizedPlan = normalizeAiPlanPayload(parsed);
   const guardedWorkout = sanitizeWorkoutPlanForUser(
     normalizedPlan.workoutPlan,
     safetyContext,
     exerciseById
   );
+  if (guardedWorkout.removedCount > 0) {
+    throw new ApiRequestError(422, {
+      error: 'AI workout proposal failed safety revalidation.',
+      details: guardedWorkout.warnings,
+    });
+  }
   normalizedPlan.workoutPlan = guardedWorkout.workoutPlan;
 
   const existingWorkoutPlans = await supabase
@@ -1961,6 +2008,7 @@ JSON schema (fixed):
     .select('id, created_at, updated_at')
     .eq('user_id', userId)
     .eq('week_start_date', weekStartKey)
+    .eq('plan_status', 'active')
     .limit(20);
   if (existingWorkoutPlans.error) throw existingWorkoutPlans.error;
 
@@ -1972,7 +2020,7 @@ JSON schema (fixed):
       name: normalizedPlan.workoutPlan.plan_name || 'AI Coach Week Plan',
       description: normalizedPlan.workoutPlan.explanation || '',
       week_start_date: weekStartKey,
-      plan_status: 'active',
+      plan_status: 'draft',
       generated_by: 'ai',
       ai_explanation: truncateText(normalizedPlan.workoutPlan.explanation || '', 500)
     })
@@ -1980,14 +2028,6 @@ JSON schema (fixed):
     .single();
   if (createdWorkoutPlan.error) throw createdWorkoutPlan.error;
   const weeklyPlanId = createdWorkoutPlan.data.id;
-
-  if (previousWorkoutPlanId) {
-    const markOldWorkoutPlan = await supabase
-      .from('weekly_plans')
-      .update({ plan_status: 'adjusted', updated_at: new Date().toISOString() })
-      .eq('id', previousWorkoutPlanId);
-    if (markOldWorkoutPlan.error) throw markOldWorkoutPlan.error;
-  }
 
   const workoutRows: any[] = [];
   for (const day of normalizedPlan.workoutPlan.days || []) {
@@ -2017,7 +2057,9 @@ JSON schema (fixed):
 
     for (const [index, item] of day.exercises.entries()) {
       const exerciseId = String(item.exercise_id || '');
-      if (!exerciseIds.has(exerciseId)) continue;
+      if (!exerciseIds.has(exerciseId)) {
+        throw new ApiRequestError(422, { error: `AI selected an invalid exercise id: ${exerciseId}` });
+      }
       const exercise = exerciseById.get(exerciseId);
       const prescription = await prescribeWorkoutExercise({
         userId,
@@ -2053,6 +2095,7 @@ JSON schema (fixed):
     .select('id, created_at, updated_at')
     .eq('user_id', userId)
     .eq('week_start_date', weekStartKey)
+    .eq('plan_status', 'active')
     .limit(20);
   if (existingFoodPlans.error) throw existingFoodPlans.error;
 
@@ -2063,7 +2106,7 @@ JSON schema (fixed):
       user_id: userId,
       name: 'AI Coach Meal Plan',
       week_start_date: weekStartKey,
-      plan_status: 'active',
+      plan_status: 'draft',
       generated_by: 'ai',
       ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500)
     })
@@ -2071,14 +2114,6 @@ JSON schema (fixed):
     .single();
   if (createdFoodPlan.error) throw createdFoodPlan.error;
   const foodPlanId = createdFoodPlan.data.id;
-
-  if (previousFoodPlanId) {
-    const markOldFoodPlan = await supabase
-      .from('weekly_food_plans')
-      .update({ plan_status: 'adjusted', updated_at: new Date().toISOString() })
-      .eq('id', previousFoodPlanId);
-    if (markOldFoodPlan.error) throw markOldFoodPlan.error;
-  }
 
   const mealRows: any[] = [];
   const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
@@ -2122,6 +2157,41 @@ JSON schema (fixed):
   if (mealRows.length > 0) {
     const insertedMeals = await supabase.from('weekly_food_items').insert(mealRows);
     if (insertedMeals.error) throw insertedMeals.error;
+  }
+
+  // Keep replacement plans invisible to active-plan queries until every
+  // required child row has been persisted. Old plans are retained if any
+  // write above fails, leaving a retry-safe draft instead of a broken active plan.
+  const activatedAt = new Date().toISOString();
+  const activateWorkoutPlan = await supabase
+    .from('weekly_plans')
+    .update({ plan_status: 'active', updated_at: activatedAt })
+    .eq('id', weeklyPlanId)
+    .eq('plan_status', 'draft');
+  if (activateWorkoutPlan.error) throw activateWorkoutPlan.error;
+
+  const activateFoodPlan = await supabase
+    .from('weekly_food_plans')
+    .update({ plan_status: 'active', updated_at: activatedAt })
+    .eq('id', foodPlanId)
+    .eq('plan_status', 'draft');
+  if (activateFoodPlan.error) throw activateFoodPlan.error;
+
+  if (previousWorkoutPlanId) {
+    const markOldWorkoutPlan = await supabase
+      .from('weekly_plans')
+      .update({ plan_status: 'adjusted', updated_at: activatedAt })
+      .eq('id', previousWorkoutPlanId)
+      .eq('plan_status', 'active');
+    if (markOldWorkoutPlan.error) throw markOldWorkoutPlan.error;
+  }
+  if (previousFoodPlanId) {
+    const markOldFoodPlan = await supabase
+      .from('weekly_food_plans')
+      .update({ plan_status: 'adjusted', updated_at: activatedAt })
+      .eq('id', previousFoodPlanId)
+      .eq('plan_status', 'active');
+    if (markOldFoodPlan.error) throw markOldFoodPlan.error;
   }
 
   const recommendation = await supabase.from('ai_recommendations').insert({
@@ -2432,17 +2502,6 @@ const parseStringArrayInput = (value: unknown): string[] | undefined => {
   return text.split(/[,;\n]+/).map((item) => item.trim()).filter(Boolean);
 };
 
-const parseInstructionsInput = (value: unknown): unknown => {
-  if (value === undefined) return undefined;
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item || '').trim()).filter(Boolean);
-  }
-  if (typeof value === 'object' && value !== null) return value;
-  const text = String(value || '').trim();
-  if (!text) return [];
-  return text.split(/\n+/).map((item) => item.trim()).filter(Boolean);
-};
-
 const parseOptionalNumberInput = (value: unknown): number | null | undefined => {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
@@ -2450,63 +2509,305 @@ const parseOptionalNumberInput = (value: unknown): number | null | undefined => 
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const createCatalogId = (name: unknown, prefix: string): string => {
-  const slug = String(name || prefix)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48) || prefix;
-  return `${slug}-${Date.now().toString(36)}`;
+type ExerciseFieldErrors = Record<string, string[]>;
+
+class ExercisePayloadValidationError extends Error {
+  fields: ExerciseFieldErrors;
+
+  constructor(fields: ExerciseFieldErrors) {
+    super('Invalid exercise payload');
+    this.name = 'ExercisePayloadValidationError';
+    this.fields = fields;
+  }
+}
+
+const isPlainPayloadObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const appendExerciseFieldError = (errors: ExerciseFieldErrors, field: string, message: string) => {
+  if (!errors[field]) errors[field] = [];
+  errors[field].push(message);
 };
 
-const sanitizeExercisePayload = (raw: any, isCreate: boolean) => {
-  const payload: Record<string, unknown> = {};
-  if (isCreate) {
-    payload.id = String(raw?.id || createCatalogId(raw?.name, 'exercise')).trim();
+const hasExercisePayloadErrors = (errors: ExerciseFieldErrors): boolean => Object.keys(errors).length > 0;
+
+const hasExercisePayloadField = (payload: Record<string, unknown>, field: string): boolean =>
+  Object.prototype.hasOwnProperty.call(payload, field);
+
+const trimExerciseText = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+
+const parseExerciseStringArray = (value: unknown): string[] => Array.from(new Set(
+  (parseStringArrayInput(value) || []).map((item) => item.trim()).filter(Boolean)
+));
+
+const isHttpUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Normalizes only submitted fields on updates so pre-existing legacy rows can
+ * still be read and edited incrementally. New catalog entries must contain a
+ * complete canonical taxonomy and all eligibility metadata.
+ */
+const sanitizeExercisePayload = (
+  rawValue: unknown,
+  isCreate: boolean,
+  expectedExerciseId?: string,
+): Record<string, unknown> => {
+  if (!isPlainPayloadObject(rawValue)) {
+    throw new ExercisePayloadValidationError({ payload: ['must be a JSON object'] });
   }
 
-  const textFields = [
-    'name',
-    'body_part',
-    'equipment',
-    'target_muscle',
-    'gif_url',
-    'image_url',
-    'difficulty',
-    'movement_pattern'
-  ];
-  textFields.forEach((field) => {
-    if (raw?.[field] !== undefined) payload[field] = String(raw[field] || '').trim() || null;
+  const raw = rawValue;
+  const payload: Record<string, unknown> = {};
+  const errors: ExerciseFieldErrors = {};
+  const hasField = (field: string) => hasExercisePayloadField(raw, field);
+
+  if (isCreate) {
+    const id = trimExerciseText(raw.id);
+    if (!id) appendExerciseFieldError(errors, 'id', 'is required');
+    else if (!isExerciseId(id)) appendExerciseFieldError(errors, 'id', 'must be lowercase kebab-case');
+    else payload.id = id;
+  } else if (hasField('id')) {
+    const submittedId = trimExerciseText(raw.id);
+    if (!submittedId || submittedId !== expectedExerciseId) {
+      appendExerciseFieldError(errors, 'id', 'cannot be changed');
+    }
+  }
+
+  if (isCreate || hasField('name')) {
+    const name = trimExerciseText(raw.name);
+    if (!name) appendExerciseFieldError(errors, 'name', 'is required');
+    else payload.name = name;
+  }
+
+  const assignCanonicalTaxonomy = (
+    field: string,
+    normalize: (value: unknown) => string | null,
+  ) => {
+    if (!hasField(field)) {
+      if (isCreate) appendExerciseFieldError(errors, field, 'is required');
+      return;
+    }
+    const rawText = trimExerciseText(raw[field]);
+    if (!rawText) {
+      appendExerciseFieldError(errors, field, 'is required');
+      return;
+    }
+    const normalized = normalize(rawText);
+    if (!normalized) {
+      appendExerciseFieldError(errors, field, 'must use a supported canonical taxonomy value');
+      return;
+    }
+    payload[field] = normalized;
+  };
+
+  assignCanonicalTaxonomy('body_part', normalizeBodyPart);
+  assignCanonicalTaxonomy('target_muscle', normalizeBodyPart);
+  assignCanonicalTaxonomy('equipment', normalizeEquipment);
+  assignCanonicalTaxonomy('difficulty', normalizeDifficulty);
+  assignCanonicalTaxonomy('movement_pattern', normalizeMovementPattern);
+
+  const assignCanonicalTaxonomyList = (
+    field: string,
+    normalize: (value: unknown) => string | null,
+  ) => {
+    if (!hasField(field)) {
+      if (isCreate) payload[field] = [];
+      return;
+    }
+    if (raw[field] !== null && !Array.isArray(raw[field]) && typeof raw[field] !== 'string') {
+      appendExerciseFieldError(errors, field, 'must be an array or comma-separated string');
+      return;
+    }
+    const normalized: string[] = [];
+    parseExerciseStringArray(raw[field]).forEach((item) => {
+      const canonicalValue = normalize(item);
+      if (!canonicalValue) {
+        appendExerciseFieldError(errors, field, `contains unsupported taxonomy value: ${item}`);
+      } else if (!normalized.includes(canonicalValue)) {
+        normalized.push(canonicalValue);
+      }
+    });
+    if (!errors[field]) payload[field] = normalized;
+  };
+
+  assignCanonicalTaxonomyList('secondary_muscles', normalizeBodyPart);
+  assignCanonicalTaxonomyList('goal_type', normalizeGoalType);
+
+  if (Array.isArray(payload.secondary_muscles) && typeof payload.target_muscle === 'string' &&
+    payload.secondary_muscles.includes(payload.target_muscle)) {
+    appendExerciseFieldError(errors, 'secondary_muscles', 'must not include target_muscle');
+  }
+
+  if (!hasField('training_locations')) {
+    if (isCreate) appendExerciseFieldError(errors, 'training_locations', 'is required');
+  } else if (raw.training_locations !== null && !Array.isArray(raw.training_locations) && typeof raw.training_locations !== 'string') {
+    appendExerciseFieldError(errors, 'training_locations', 'must be an array or comma-separated string');
+  } else {
+    const locations: string[] = [];
+    parseExerciseStringArray(raw.training_locations).forEach((item) => {
+      const location = normalizeTrainingLocation(item);
+      if (!location) {
+        appendExerciseFieldError(errors, 'training_locations', `contains unsupported location: ${item}`);
+      } else if (!locations.includes(location)) {
+        locations.push(location);
+      }
+    });
+    if (locations.length === 0) appendExerciseFieldError(errors, 'training_locations', 'must include home or gym');
+    if (!errors.training_locations) payload.training_locations = locations;
+  }
+
+  const assignIntegerMetadata = (field: string, min: number, max: number) => {
+    if (!hasField(field)) {
+      if (isCreate) appendExerciseFieldError(errors, field, 'is required');
+      return;
+    }
+    const rawNumber = raw[field];
+    if (rawNumber === null || rawNumber === '' || (typeof rawNumber === 'string' && !rawNumber.trim())) {
+      appendExerciseFieldError(errors, field, 'is required');
+      return;
+    }
+    const parsed = Number(rawNumber);
+    if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+      appendExerciseFieldError(errors, field, `must be an integer from ${min} to ${max}`);
+      return;
+    }
+    payload[field] = parsed;
+  };
+
+  assignIntegerMetadata('min_experience_months', 0, 120);
+  assignIntegerMetadata('progression_level', 1, 5);
+
+  if (hasField('contraindications')) {
+    if (raw.contraindications !== null && !Array.isArray(raw.contraindications) && typeof raw.contraindications !== 'string') {
+      appendExerciseFieldError(errors, 'contraindications', 'must be an array or comma-separated string');
+    } else {
+      payload.contraindications = parseExerciseStringArray(raw.contraindications);
+    }
+  } else if (isCreate) {
+    payload.contraindications = [];
+  }
+
+  const assignOptionalNumber = (field: string, validate: (value: number) => boolean, message: string) => {
+    if (!hasField(field)) return;
+    const rawNumber = raw[field];
+    if (rawNumber === null || rawNumber === '' || (typeof rawNumber === 'string' && !rawNumber.trim())) {
+      payload[field] = null;
+      return;
+    }
+    const parsed = Number(rawNumber);
+    if (!Number.isFinite(parsed) || !validate(parsed)) {
+      appendExerciseFieldError(errors, field, message);
+      return;
+    }
+    payload[field] = parsed;
+  };
+
+  assignOptionalNumber(
+    'estimated_duration_seconds',
+    (value) => Number.isInteger(value) && value > 0,
+    'must be a positive integer or null',
+  );
+  assignOptionalNumber(
+    'calories_per_minute',
+    (value) => value >= 0,
+    'must be a non-negative number or null',
+  );
+
+  ['image_url', 'gif_url'].forEach((field) => {
+    if (!hasField(field)) return;
+    const url = trimExerciseText(raw[field]);
+    if (!url) {
+      payload[field] = null;
+    } else if (!isHttpUrl(url)) {
+      appendExerciseFieldError(errors, field, 'must be a valid http(s) URL or null');
+    } else {
+      payload[field] = url;
+    }
   });
 
-  const instructions = parseInstructionsInput(raw?.instructions);
-  if (instructions !== undefined) payload.instructions = instructions;
-
-  const secondaryMuscles = parseStringArrayInput(raw?.secondary_muscles);
-  if (secondaryMuscles !== undefined) payload.secondary_muscles = secondaryMuscles;
-
-  const goalType = parseStringArrayInput(raw?.goal_type);
-  if (goalType !== undefined) payload.goal_type = goalType;
-
-  const contraindications = parseStringArrayInput(raw?.contraindications);
-  if (contraindications !== undefined) payload.contraindications = contraindications;
-
-  const estimatedDuration = parseOptionalNumberInput(raw?.estimated_duration_seconds);
-  if (estimatedDuration !== undefined) payload.estimated_duration_seconds = estimatedDuration;
-
-  const caloriesPerMinute = parseOptionalNumberInput(raw?.calories_per_minute);
-  if (caloriesPerMinute !== undefined) payload.calories_per_minute = caloriesPerMinute;
-
-  if (!String(payload.name || '').trim()) {
-    throw new Error('Exercise name is required');
-  }
-  if (isCreate && !String(payload.id || '').trim()) {
-    throw new Error('Exercise id is required');
+  if (isCreate || hasField('instructions')) {
+    const rawInstructions = hasField('instructions') ? raw.instructions : {};
+    if (rawInstructions !== null && !Array.isArray(rawInstructions) && typeof rawInstructions !== 'string' && !isPlainPayloadObject(rawInstructions)) {
+      appendExerciseFieldError(errors, 'instructions', 'must be an object, array, string, or null');
+    } else {
+      const instructions = normalizeExerciseInstructions(rawInstructions);
+      const selfId = isCreate ? String(payload.id || '') : String(expectedExerciseId || '');
+      (['easier_variation_id', 'harder_variation_id'] as const).forEach((field) => {
+        const variationId = instructions[field];
+        if (!variationId) return;
+        if (!isExerciseId(variationId)) {
+          appendExerciseFieldError(errors, `instructions.${field}`, 'must be lowercase kebab-case');
+        } else if (variationId === selfId) {
+          appendExerciseFieldError(errors, `instructions.${field}`, 'cannot reference this exercise');
+        }
+      });
+      payload.instructions = instructions satisfies ExerciseInstructions;
+    }
   }
 
+  if (hasExercisePayloadErrors(errors)) throw new ExercisePayloadValidationError(errors);
+  if (!isCreate && Object.keys(payload).length === 0) {
+    throw new ExercisePayloadValidationError({ payload: ['must include at least one editable field'] });
+  }
   return payload;
+};
+
+const validateExerciseVariationReferences = async (payload: Record<string, unknown>) => {
+  const instructions = payload.instructions as ExerciseInstructions | undefined;
+  if (!instructions) return;
+
+  const references = (['easier_variation_id', 'harder_variation_id'] as const)
+    .map((field) => ({ field: `instructions.${field}`, id: instructions[field] }))
+    .filter((reference): reference is { field: string; id: string } => Boolean(reference.id));
+  if (references.length === 0) return;
+
+  const variationIds = Array.from(new Set(references.map((reference) => reference.id)));
+  const existingRes = await supabase
+    .from('exercises')
+    .select('id')
+    .in('id', variationIds);
+  if (existingRes.error) throw existingRes.error;
+
+  const existingIds = new Set((existingRes.data || []).map((exercise: any) => String(exercise.id || '')));
+  const errors: ExerciseFieldErrors = {};
+  references.forEach((reference) => {
+    if (!existingIds.has(reference.id)) {
+      appendExerciseFieldError(errors, reference.field, `references an exercise that does not exist: ${reference.id}`);
+    }
+  });
+  if (hasExercisePayloadErrors(errors)) throw new ExercisePayloadValidationError(errors);
+};
+
+const ensureExerciseIdAvailable = async (exerciseId: string) => {
+  const existingRes = await supabase
+    .from('exercises')
+    .select('id')
+    .eq('id', exerciseId)
+    .maybeSingle();
+  if (existingRes.error) throw existingRes.error;
+  if (existingRes.data?.id) {
+    throw new ExercisePayloadValidationError({ id: ['already exists'] });
+  }
+};
+
+const sendExercisePayloadError = (res: express.Response, error: any, fallback: string) => {
+  if (error instanceof ExercisePayloadValidationError) {
+    return res.status(400).json({ error: error.message, fields: error.fields });
+  }
+  if (String(error?.code || '') === '23505') {
+    return res.status(400).json({
+      error: 'Invalid exercise payload',
+      fields: { id: ['already exists'] }
+    });
+  }
+  return res.status(400).json({ error: error?.message || fallback });
 };
 
 const sanitizeFoodPayload = (raw: any) => {
@@ -2702,11 +3003,13 @@ app.post('/api/admin/exercises', async (req, res) => {
     if (!adminUserId) return;
 
     const payload = sanitizeExercisePayload(req.body, true);
+    await ensureExerciseIdAvailable(String(payload.id));
+    await validateExerciseVariationReferences(payload);
     const { data, error } = await supabase.from('exercises').insert(payload).select('*').single();
     if (error) throw error;
     res.status(201).json({ success: true, data });
   } catch (error: any) {
-    res.status(400).json({ error: error?.message || 'Failed to create exercise' });
+    return sendExercisePayloadError(res, error, 'Failed to create exercise');
   }
 });
 
@@ -2716,7 +3019,8 @@ app.put('/api/admin/exercises/:id', async (req, res) => {
     if (!adminUserId) return;
 
     const exerciseId = String(req.params.id || '').trim();
-    const payload = sanitizeExercisePayload(req.body, false);
+    const payload = sanitizeExercisePayload(req.body, false, exerciseId);
+    await validateExerciseVariationReferences(payload);
     payload.updated_at = new Date().toISOString();
     const { data, error } = await supabase
       .from('exercises')
@@ -2728,7 +3032,7 @@ app.put('/api/admin/exercises/:id', async (req, res) => {
     if (!data) return res.status(404).json({ error: 'Exercise not found' });
     res.json({ success: true, data });
   } catch (error: any) {
-    res.status(400).json({ error: error?.message || 'Failed to update exercise' });
+    return sendExercisePayloadError(res, error, 'Failed to update exercise');
   }
 });
 
@@ -2862,6 +3166,13 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
     const dayIndex = isValidDayIndex(requestedDayIndex)
       ? requestedDayIndex
       : getDayIndexFromDateKey(logDate);
+    const expectedWeekStartKey = getWeekStartKey(new Date(`${logDate}T00:00:00`));
+    const expectedDayIndex = getDayIndexFromDateKey(logDate);
+    if (weekStartKey !== expectedWeekStartKey || dayIndex !== expectedDayIndex) {
+      return res.status(400).json({
+        error: 'weekStartDate and dayIndex must match logDate for weekly-plan materialization.',
+      });
+    }
 
     const existingDailyRes = await supabase
       .from('daily_exercise_sessions')
@@ -2883,6 +3194,7 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
       .select('id, created_at, updated_at')
       .eq('user_id', authUserId)
       .eq('week_start_date', weekStartKey)
+      .eq('plan_status', 'active')
       .limit(20);
     if (planRes.error) throw planRes.error;
 
@@ -2900,7 +3212,7 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
       .from('weekly_plan_exercises')
       .select(`
         *,
-        exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions, calories_per_minute)
+        exercises:exercise_id (id, name, gif_url, image_url, target_muscle, body_part, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, movement_pattern, goal_type, contraindications, instructions, calories_per_minute)
       `)
       .eq('weekly_plan_id', plan.id)
       .eq('day_of_week', dayIndex)
@@ -2917,22 +3229,37 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
       });
     }
 
-    const dailyWorkoutSessionRes = await supabase
-      .from('daily_workout_sessions')
-      .select('id, status')
-      .eq('user_id', authUserId)
-      .eq('log_date', logDate)
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (dailyWorkoutSessionRes.error) throw dailyWorkoutSessionRes.error;
-    if (dailyWorkoutSessionRes.data?.status === 'completed') {
-      return res.status(409).json({ error: 'Workout session for this day is already completed.' });
+    const [profileRes, lifestyleRes, healthRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle(),
+      supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
+      supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle(),
+    ]);
+    const eligibilityDataError = [profileRes.error, lifestyleRes.error, healthRes.error].find(Boolean);
+    if (eligibilityDataError) throw eligibilityDataError;
+    const eligibilityContext = buildExerciseEligibilityContext({
+      profile: profileRes.data || null,
+      lifestyle: lifestyleRes.data || null,
+      health: healthRes.data || null,
+    });
+    const ineligiblePlanExercises = planExercises
+      .map((item: any) => ({
+        exerciseId: String(item.exercise_id || ''),
+        decision: getExerciseEligibilityDecision(item.exercises || { id: item.exercise_id }, eligibilityContext),
+      }))
+      .filter(({ decision }) => !decision.eligible);
+    if (ineligiblePlanExercises.length > 0) {
+      return res.status(422).json({
+        error: 'Weekly plan includes an exercise that is no longer eligible for the current profile.',
+        details: ineligiblePlanExercises.map(({ exerciseId, decision }) => ({
+          exerciseId,
+          reasons: decision.reasons,
+        })),
+      });
     }
 
     const bodyWeightKg = await getLatestBodyWeightKg(authUserId);
     const rows = planExercises.map((item: any, index: number) => {
-      const plannedSets = Math.max(1, Math.min(6, Number(item.planned_sets ?? item.sets) || 3));
+      const plannedSets = Math.max(1, Math.min(8, Number(item.planned_sets ?? item.sets) || 3));
       const plannedReps = truncateText(item.planned_reps ?? item.reps ?? '10-12', 20) || '10-12';
       const rawWeightKg = item.planned_weight_kg ?? item.weight_kg;
       const plannedWeightKg =
@@ -2968,71 +3295,39 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
       });
     });
 
-    const insertDailyRes = await supabase
+    const materializeRes = await supabase.rpc('materialize_daily_workout_from_plan_atomically', {
+      p_user_id: authUserId,
+      p_weekly_plan_id: plan.id,
+      p_log_date: logDate,
+      p_rows: rows,
+    });
+    if (materializeRes.error) {
+      const message = materializeRes.error.message || 'Failed to materialize daily workout';
+      if (/already started|already completed|active workout plan not found|invalid plan exercise|plan exercise no longer exists/i.test(message)) {
+        return res.status(409).json({ error: message });
+      }
+      throw materializeRes.error;
+    }
+
+    const materializeResult = materializeRes.data as {
+      already_materialized?: boolean;
+      daily_workout_session_id?: string | null;
+    } | null;
+    const dailyRowsRes = await supabase
       .from('daily_exercise_sessions')
-      .insert(rows)
-      .select(DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT);
-    if (insertDailyRes.error) throw insertDailyRes.error;
-    const dailyRows = insertDailyRes.data || [];
-
-    const estimatedDuration = Math.max(
-      10,
-      Math.round(dailyRows.reduce((sum: number, item: any) => sum + Math.max(1, Number(item.sets) || 1), 0) * 2)
-    );
-    let workoutSessionId = String(dailyWorkoutSessionRes.data?.id || '').trim();
-    if (!workoutSessionId) {
-      const createSessionRes = await supabase
-        .from('daily_workout_sessions')
-        .insert({
-          user_id: authUserId,
-          weekly_plan_id: plan.id,
-          log_date: logDate,
-          title: `Buoi tap ${logDate}`,
-          duration_minutes: estimatedDuration,
-          calories_burned: 0,
-          status: 'planned'
-        })
-        .select('id')
-        .single();
-      if (createSessionRes.error) throw createSessionRes.error;
-      workoutSessionId = String(createSessionRes.data.id || '');
-    } else {
-      const updateSessionRes = await supabase
-        .from('daily_workout_sessions')
-        .update({
-          weekly_plan_id: plan.id,
-          title: `Buoi tap ${logDate}`,
-          duration_minutes: estimatedDuration,
-          status: 'planned'
-        })
-        .eq('id', workoutSessionId);
-      if (updateSessionRes.error) throw updateSessionRes.error;
-    }
-
-    if (workoutSessionId && dailyRows.length > 0) {
-      const deleteSnapshotRes = await supabase
-        .from('daily_workout_session_exercises')
-        .delete()
-        .eq('session_id', workoutSessionId);
-      if (deleteSnapshotRes.error) throw deleteSnapshotRes.error;
-
-      const snapshotRows = dailyRows.map((dailyExerciseSession: any) =>
-        buildWorkoutSessionExerciseRow({
-          sessionId: workoutSessionId,
-          dailyExerciseSession
-        })
-      );
-      const insertSnapshotRes = await supabase
-        .from('daily_workout_session_exercises')
-        .insert(snapshotRows);
-      if (insertSnapshotRes.error) throw insertSnapshotRes.error;
-    }
+      .select(DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT)
+      .eq('user_id', authUserId)
+      .eq('log_date', logDate)
+      .order('order_index', { ascending: true });
+    if (dailyRowsRes.error) throw dailyRowsRes.error;
+    const dailyRows = dailyRowsRes.data || [];
+    const workoutSessionId = String(materializeResult?.daily_workout_session_id || '').trim() || null;
 
     return res.json({
       exercises: dailyRows,
       workoutSessionId,
       weeklyPlanId: plan.id,
-      source: 'weekly_plan'
+      source: materializeResult?.already_materialized ? 'existing' : 'weekly_plan'
     });
   } catch (error: any) {
     if (error instanceof ApiRequestError) {
@@ -3079,7 +3374,33 @@ app.post('/api/workout/daily-exercises', async (req, res) => {
       orderIndex = Number(latestOrderRes.data?.order_index ?? -1) + 1;
     }
 
-    const exerciseMeta = await getExerciseMetaForKcal(exerciseId);
+    const [exerciseMeta, profileRes, lifestyleRes, healthRes] = await Promise.all([
+      getExerciseMetaForKcal(exerciseId),
+      supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle(),
+      supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
+      supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle(),
+    ]);
+    const eligibilityDataError = [profileRes.error, lifestyleRes.error, healthRes.error].find(Boolean);
+    if (eligibilityDataError) throw eligibilityDataError;
+
+    const safetyContext = {
+      profile: profileRes.data || {},
+      lifestyle: lifestyleRes.data || {},
+      health: healthRes.data || {},
+    };
+    const eligibilityContext = {
+      ...buildExerciseEligibilityContext(safetyContext),
+      safetyContext,
+    };
+    const eligibility = getExerciseEligibilityDecision(exerciseMeta, eligibilityContext);
+    if (!eligibility.eligible) {
+      throw new ApiRequestError(422, {
+        error: 'Exercise is not eligible for the current profile.',
+        code: 'EXERCISE_NOT_ELIGIBLE',
+        reasons: eligibility.reasons,
+      });
+    }
+
     const hasManualWeight = !(rawWeightKg === null || rawWeightKg === undefined || String(rawWeightKg).trim() === '');
     const prescription = await prescribeWorkoutExercise({
       userId: authUserId,
@@ -3476,6 +3797,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           .select('id, weekly_plan_exercises(day_of_week, exercise_id, sets, reps, rest_seconds, weight_kg, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, target_rpe, estimated_kcal, load_instruction, exercises:exercise_id(name, body_part, target_muscle))')
           .eq('user_id', authUserId)
           .eq('week_start_date', requestedWeekStartDate)
+          .eq('plan_status', 'active')
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -3493,6 +3815,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           .select('id, weekly_food_items(id, day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level))')
           .eq('user_id', authUserId)
           .eq('week_start_date', requestedWeekStartDate)
+          .eq('plan_status', 'active')
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -3801,6 +4124,28 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       normalizedResponse.actionPayload = null;
       normalizedResponse.reply = `Mình chưa thể áp dụng thay đổi tự động: ${payloadValidation.message}.`;
     }
+    if (normalizedResponse.actionType === 'replace_today_workout' && normalizedResponse.actionPayload) {
+      const workoutPayload = normalizedResponse.actionPayload as { exercises?: Array<{ exercise_id?: string }> };
+      const proposedIds = (workoutPayload.exercises || [])
+        .map((item) => String(item.exercise_id || '').trim())
+        .filter(Boolean);
+      const proposedCatalogRes = await supabase
+        .from('exercises')
+        .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, movement_pattern, goal_type, contraindications')
+        .in('id', proposedIds);
+      if (proposedCatalogRes.error) throw proposedCatalogRes.error;
+      const proposalEligibility = validateExerciseProposal(
+        normalizedResponse.actionPayload,
+        buildExerciseEligibilityContext(chatSafetyContext),
+        proposedCatalogRes.data as unknown[],
+      );
+      if (!proposalEligibility.valid) {
+        normalizedResponse.actionRequired = false;
+        normalizedResponse.actionType = null;
+        normalizedResponse.actionPayload = null;
+        normalizedResponse.reply = 'Mình chưa tạo đề xuất vì các bài được chọn không còn phù hợp với địa điểm, dụng cụ, kinh nghiệm hoặc điều kiện an toàn hiện tại.';
+      }
+    }
 
     const assistantChatInsert = await supabase.from('ai_chat_messages').insert({
       user_id: authUserId,
@@ -3989,12 +4334,16 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       .maybeSingle();
     if (adjustmentRes.error) throw adjustmentRes.error;
     if (!adjustmentRes.data) return res.status(404).json({ error: 'Adjustment not found' });
-    if (adjustmentRes.data.status === 'applied') return res.json({ success: true, adjustmentId, alreadyApplied: true });
-    if (adjustmentRes.data.apply_idempotency_key && adjustmentRes.data.apply_idempotency_key !== idempotencyKey) {
-      return res.status(409).json({ error: 'Adjustment already processed with another idempotency key' });
+    const applyDecision = getAdjustmentApplyDecision({
+      status: adjustmentRes.data.status,
+      storedIdempotencyKey: adjustmentRes.data.apply_idempotency_key,
+      idempotencyKey,
+    });
+    if (applyDecision.kind === 'already_applied') {
+      return res.json({ success: true, adjustmentId, alreadyApplied: true });
     }
-    if (adjustmentRes.data.status !== 'proposed') {
-      return res.status(409).json({ error: `Adjustment is already ${adjustmentRes.data.status}` });
+    if (applyDecision.kind === 'conflict') {
+      return res.status(409).json({ error: applyDecision.message });
     }
 
     const newData = adjustmentRes.data.new_data || {};
@@ -4017,6 +4366,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       lifestyle: applyLifestyleRes.data || null,
       health: applyHealthRes.data || null
     };
+    const applyEligibilityContext = buildExerciseEligibilityContext(applySafetyContext);
     const applyAccessState = await getAiCoachAccessState(applyProfileRes.data || {}, authUserId);
     const adjustmentQuotaKey: AiQuotaKey = adjustmentRes.data.plan_type === 'meal'
       ? 'mealAdjustments'
@@ -4036,6 +4386,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
             .select('id, week_start_date')
             .eq('id', requestedWorkoutPlanId)
             .eq('user_id', authUserId)
+            .eq('plan_status', 'active')
             .maybeSingle()
         : supabase
             .from('weekly_plans')
@@ -4066,7 +4417,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       )];
       const validExercisesRes = await supabase
         .from('exercises')
-        .select('id, name, body_part, target_muscle, equipment, difficulty, movement_pattern, contraindications, calories_per_minute')
+        .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, movement_pattern, goal_type, contraindications, calories_per_minute')
         .in('id', exerciseIds);
       if (validExercisesRes.error) throw validExercisesRes.error;
       const exerciseMetaById = new Map<string, any>((validExercisesRes.data || []).map((item: any) => [String(item.id), item]));
@@ -4075,15 +4426,20 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       if (missingExerciseIds.length > 0) {
         return res.status(400).json({ error: `Invalid exercise_id: ${missingExerciseIds.join(', ')}` });
       }
-      const guardedExercises = sanitizeWorkoutActionExercises(exercises, applySafetyContext, exerciseMetaById);
-      if (guardedExercises.exercises.length === 0 && exercises.length > 0) {
-        return res.status(400).json({
-          error: 'Adjustment blocked by safety guard: selected exercises conflict with current health or injury profile.'
+      const proposalValidation = validateExerciseProposal(
+        newData,
+        applyEligibilityContext,
+        validExercisesRes.data as unknown[],
+      );
+      if (!proposalValidation.valid) {
+        return res.status(422).json({
+          error: 'Adjustment failed current exercise eligibility validation.',
+          details: proposalValidation.errors,
         });
       }
 
       const rows = (await Promise.all(
-        guardedExercises.exercises.map(async (item: any, index: number) => {
+        exercises.map(async (item: any, index: number) => {
           const exerciseId = String(item.exercise_id || '').trim();
           if (!exerciseId) return null;
           const exerciseMeta = exerciseMetaById.get(exerciseId);
@@ -4114,115 +4470,31 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
         })
       )).filter(Boolean) as any[];
 
-      const existingDailyRes = await supabase
-        .from('daily_exercise_sessions')
-        .select('id, is_completed')
-        .eq('user_id', authUserId)
-        .eq('log_date', targetLogDate);
-      if (existingDailyRes.error) throw existingDailyRes.error;
-      const hasStartedWorkout = (existingDailyRes.data || []).some((item: any) => !!item.is_completed);
-      if (hasStartedWorkout) {
-        return res.status(409).json({ error: 'Workout for this day has already started. Please adjust it inside the workout session.' });
-      }
-
-      if ((existingDailyRes.data || []).length > 0) {
-        const removeDailyRes = await supabase
-          .from('daily_exercise_sessions')
-          .delete()
-          .eq('user_id', authUserId)
-          .eq('log_date', targetLogDate);
-        if (removeDailyRes.error) throw removeDailyRes.error;
-      }
-
-      if (rows.length > 0) {
-        const addDailyRes = await supabase.from('daily_exercise_sessions').insert(rows);
-        if (addDailyRes.error) throw addDailyRes.error;
-      }
-
-      const dailyWorkoutSessionRes = await supabase
-        .from('daily_workout_sessions')
-        .select('id, status')
-        .eq('user_id', authUserId)
-        .eq('log_date', targetLogDate)
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (dailyWorkoutSessionRes.error) throw dailyWorkoutSessionRes.error;
-
-      if (dailyWorkoutSessionRes.data?.status === 'completed') {
-        return res.status(409).json({ error: 'Workout session for this day is already completed.' });
-      }
-
-      const estimatedDuration = Math.max(10, rows.reduce((sum: number, item: any) => sum + Math.max(1, Number(item.sets) || 1), 0) * 2);
-      let dailyWorkoutSessionId = String(dailyWorkoutSessionRes.data?.id || '').trim();
-
-      if (!dailyWorkoutSessionId) {
-        const createDailyWorkoutSessionRes = await supabase
-          .from('daily_workout_sessions')
-          .insert({
-            user_id: authUserId,
-            weekly_plan_id: workoutPlanId,
-            log_date: targetLogDate,
-            title: `Buổi tập ${targetLogDate}`,
-            duration_minutes: estimatedDuration,
-            calories_burned: 0,
-            status: 'planned'
-          })
-          .select('id')
-          .single();
-        if (createDailyWorkoutSessionRes.error) throw createDailyWorkoutSessionRes.error;
-        dailyWorkoutSessionId = String(createDailyWorkoutSessionRes.data?.id || '');
-      } else {
-        const updateDailyWorkoutSessionRes = await supabase
-          .from('daily_workout_sessions')
-          .update({
-            weekly_plan_id: workoutPlanId,
-            title: `Buổi tập ${targetLogDate}`,
-            duration_minutes: estimatedDuration,
-            status: 'planned'
-          })
-          .eq('id', dailyWorkoutSessionId);
-        if (updateDailyWorkoutSessionRes.error) throw updateDailyWorkoutSessionRes.error;
-      }
-
-      if (dailyWorkoutSessionId) {
-        const removeDailyWorkoutExerciseRes = await supabase
-          .from('daily_workout_session_exercises')
-          .delete()
-          .eq('session_id', dailyWorkoutSessionId);
-        if (removeDailyWorkoutExerciseRes.error) throw removeDailyWorkoutExerciseRes.error;
-
-        if (rows.length > 0) {
-          const workoutSessionExerciseRows = rows.map((item: any) => ({
-            session_id: dailyWorkoutSessionId,
-            daily_exercise_session_id: null,
-            weekly_plan_exercise_id: null,
-            exercise_id: item.exercise_id,
-            sets: item.sets,
-            reps: item.reps,
-            weight_kg: item.weight_kg,
-            rest_seconds: item.rest_seconds,
-            order_index: item.order_index,
-            is_completed: false,
-            planned_sets: item.planned_sets,
-            planned_reps: item.planned_reps,
-            planned_weight_kg: item.planned_weight_kg,
-            planned_rest_seconds: item.planned_rest_seconds,
-            actual_sets: item.actual_sets,
-            actual_reps: item.actual_reps,
-            actual_weight_kg: item.actual_weight_kg,
-            actual_rest_seconds: item.actual_rest_seconds,
-            target_rpe: item.target_rpe,
-            estimated_kcal: item.estimated_kcal,
-            actual_kcal_estimated: item.actual_kcal_estimated,
-            completed_sets: item.completed_sets
-          }));
-          const addDailyWorkoutExerciseRes = await supabase
-            .from('daily_workout_session_exercises')
-            .insert(workoutSessionExerciseRows);
-          if (addDailyWorkoutExerciseRes.error) throw addDailyWorkoutExerciseRes.error;
+      const atomicApplyRes = await supabase.rpc('apply_workout_adjustment_atomically', {
+        p_adjustment_id: adjustmentId,
+        p_user_id: authUserId,
+        p_idempotency_key: idempotencyKey,
+        p_weekly_plan_id: workoutPlanId,
+        p_day_of_week: dayOfWeek,
+        p_log_date: targetLogDate,
+        p_rows: rows,
+      });
+      if (atomicApplyRes.error) {
+        const message = atomicApplyRes.error.message || 'Failed to apply workout adjustment';
+        if (/already started|already completed|not proposed|another idempotency/i.test(message)) {
+          return res.status(409).json({ error: message });
         }
+        throw atomicApplyRes.error;
       }
+
+      const atomicResult = atomicApplyRes.data as { already_applied?: boolean } | null;
+      success = true;
+      return res.json({
+        success: true,
+        adjustmentId,
+        alreadyApplied: Boolean(atomicResult?.already_applied),
+        aiQuota: buildAiQuotaSnapshot(applyAccessState, adjustmentQuotaKey)
+      });
     } else if (adjustmentRes.data.plan_type === 'meal') {
       const requestedFoodPlanId = String((oldData as any).weekly_food_plan_id || '').trim();
       const planQuery = requestedFoodPlanId
@@ -4231,6 +4503,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
             .select('id')
             .eq('id', requestedFoodPlanId)
             .eq('user_id', authUserId)
+            .eq('plan_status', 'active')
             .maybeSingle()
         : supabase
             .from('weekly_food_plans')
@@ -4526,10 +4799,10 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       supabase.from('body_metrics').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
-      supabase
-        .from('exercises')
-        .select('id, name, body_part, target_muscle, equipment, difficulty, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
-        .limit(AI_EXERCISE_CATALOG_LIMIT),
+    supabase
+      .from('exercises')
+      .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
+      .limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
       supabase
         .from('foods')
         .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
@@ -4545,6 +4818,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
         .from('weekly_food_items')
         .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
         .eq('weekly_food_plans.user_id', userId)
+        .eq('weekly_food_plans.plan_status', 'active')
         .order('created_at', { ascending: false })
         .limit(20),
       supabase
@@ -4573,7 +4847,17 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const lifestyle = lifestyleRes.data || {};
     const health = healthRes.data || {};
     const safetyContext = { profile, lifestyle, health };
-    const exercises = filterSafeExercisesForUser(clampList(exerciseCatalogRes.data as any[], AI_EXERCISE_CATALOG_LIMIT), safetyContext);
+    const eligibilityContext = buildExerciseEligibilityContext(safetyContext);
+    const recentExerciseIds = new Set(
+      (recentSessionsRes.data || []).map((item: any) => String(item.exercise_id || '')).filter(Boolean)
+    );
+    const exercises = rankExercises(
+      getEligibleExercises(exerciseCatalogRes.data as unknown[], eligibilityContext),
+      eligibilityContext,
+      { recentExerciseIds },
+    )
+      .slice(0, AI_EXERCISE_CATALOG_LIMIT)
+      .map(({ exercise }) => exercise);
     const recentMealHistory = [
       ...((recentMealLogsRes.data || []) as any[]),
       ...((recentMealsRes.data || []) as any[])
@@ -4607,7 +4891,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     }
 
     const exerciseCatalog = exercises
-      .map((item: any) => `${item.id}|${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|eq=${truncateText(item.equipment, 14)}|level=${truncateText(item.difficulty, 10)}|pattern=${truncateText(item.movement_pattern, 12)}`)
+      .map((item) => `${item.id}|${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|secondary=${truncateText(item.secondary_muscles.join(','), 24)}|eq=${truncateText(item.equipment, 14)}|locations=${item.training_locations.join(',')}|difficulty=${truncateText(item.difficulty, 16)}|min_months=${item.min_experience_months}|progression=${item.progression_level}|pattern=${truncateText(item.movement_pattern, 18)}|goals=${truncateText(item.goal_type.join(','), 24)}`)
       .join('\n');
 
     const foodCatalog = foods
@@ -4823,12 +5107,28 @@ ${jsonSchemaPrompt}
     }
 
     const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
+    const proposalValidation = validateExerciseProposal(parsed, eligibilityContext, exercises, {
+      allowEmpty: true,
+      requireSevenDays: true,
+    });
+    if (!proposalValidation.valid) {
+      return res.status(422).json({
+        error: 'AI workout proposal contains an ineligible or invalid exercise.',
+        details: proposalValidation.errors,
+      });
+    }
     const normalizedPlan = normalizeAiPlanPayload(parsed, { requireMealPlan: !workoutOnly });
     const guardedWorkout = sanitizeWorkoutPlanForUser(
       normalizedPlan.workoutPlan,
       safetyContext,
       exerciseById
     );
+    if (guardedWorkout.removedCount > 0) {
+      return res.status(422).json({
+        error: 'AI workout proposal failed safety revalidation.',
+        details: guardedWorkout.warnings,
+      });
+    }
     normalizedPlan.workoutPlan = guardedWorkout.workoutPlan;
 
     const existingWorkoutPlans = await supabase
@@ -4836,6 +5136,7 @@ ${jsonSchemaPrompt}
       .select('id, created_at, updated_at')
       .eq('user_id', userId)
       .eq('week_start_date', weekStartKey)
+      .eq('plan_status', 'active')
       .limit(20);
     if (existingWorkoutPlans.error) throw existingWorkoutPlans.error;
 
@@ -4847,7 +5148,7 @@ ${jsonSchemaPrompt}
         name: normalizedPlan.workoutPlan.plan_name || 'AI Coach Week Plan',
         description: normalizedPlan.workoutPlan.explanation || '',
         week_start_date: weekStartKey,
-        plan_status: 'active',
+        plan_status: 'draft',
         generated_by: 'ai',
         ai_explanation: truncateText(normalizedPlan.workoutPlan.explanation || '', 500)
       })
@@ -4855,14 +5156,6 @@ ${jsonSchemaPrompt}
       .single();
     if (createdWorkoutPlan.error) throw createdWorkoutPlan.error;
     const weeklyPlanId = createdWorkoutPlan.data.id;
-
-    if (previousWorkoutPlanId) {
-      const markOldWorkoutPlan = await supabase
-        .from('weekly_plans')
-        .update({ plan_status: 'adjusted', updated_at: new Date().toISOString() })
-        .eq('id', previousWorkoutPlanId);
-      if (markOldWorkoutPlan.error) throw markOldWorkoutPlan.error;
-    }
 
     const workoutRows: any[] = [];
     for (const day of normalizedPlan.workoutPlan.days || []) {
@@ -4892,7 +5185,9 @@ ${jsonSchemaPrompt}
 
       for (const [index, item] of day.exercises.entries()) {
         const exerciseId = String(item.exercise_id || '');
-        if (!exerciseIds.has(exerciseId)) continue;
+        if (!exerciseIds.has(exerciseId)) {
+          return res.status(422).json({ error: `AI selected an invalid exercise id: ${exerciseId}` });
+        }
         const exercise = exerciseById.get(exerciseId);
         const prescription = await prescribeWorkoutExercise({
           userId,
@@ -4933,6 +5228,7 @@ ${jsonSchemaPrompt}
         .select('id, created_at, updated_at')
         .eq('user_id', userId)
         .eq('week_start_date', weekStartKey)
+        .eq('plan_status', 'active')
         .limit(20);
       if (existingFoodPlans.error) throw existingFoodPlans.error;
 
@@ -4943,7 +5239,7 @@ ${jsonSchemaPrompt}
           user_id: userId,
           name: 'AI Coach Meal Plan',
           week_start_date: weekStartKey,
-          plan_status: 'active',
+          plan_status: 'draft',
           generated_by: 'ai',
           ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500)
         })
@@ -4951,14 +5247,6 @@ ${jsonSchemaPrompt}
         .single();
       if (createdFoodPlan.error) throw createdFoodPlan.error;
       foodPlanId = createdFoodPlan.data.id;
-
-      if (previousFoodPlanId) {
-        const markOldFoodPlan = await supabase
-          .from('weekly_food_plans')
-          .update({ plan_status: 'adjusted', updated_at: new Date().toISOString() })
-          .eq('id', previousFoodPlanId);
-        if (markOldFoodPlan.error) throw markOldFoodPlan.error;
-      }
 
       const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
       for (const day of normalizedPlan.mealPlan.days || []) {
@@ -5002,6 +5290,42 @@ ${jsonSchemaPrompt}
         const insertedMeals = await supabase.from('weekly_food_items').insert(mealRows);
         if (insertedMeals.error) throw insertedMeals.error;
       }
+    }
+
+    // Plans stay drafts while child rows are being assembled. This prevents a
+    // failed insert from replacing the user's working active plan.
+    const activatedAt = new Date().toISOString();
+    const activateWorkoutPlan = await supabase
+      .from('weekly_plans')
+      .update({ plan_status: 'active', updated_at: activatedAt })
+      .eq('id', weeklyPlanId)
+      .eq('plan_status', 'draft');
+    if (activateWorkoutPlan.error) throw activateWorkoutPlan.error;
+
+    if (foodPlanId) {
+      const activateFoodPlan = await supabase
+        .from('weekly_food_plans')
+        .update({ plan_status: 'active', updated_at: activatedAt })
+        .eq('id', foodPlanId)
+        .eq('plan_status', 'draft');
+      if (activateFoodPlan.error) throw activateFoodPlan.error;
+    }
+
+    if (previousWorkoutPlanId) {
+      const markOldWorkoutPlan = await supabase
+        .from('weekly_plans')
+        .update({ plan_status: 'adjusted', updated_at: activatedAt })
+        .eq('id', previousWorkoutPlanId)
+        .eq('plan_status', 'active');
+      if (markOldWorkoutPlan.error) throw markOldWorkoutPlan.error;
+    }
+    if (previousFoodPlanId && foodPlanId) {
+      const markOldFoodPlan = await supabase
+        .from('weekly_food_plans')
+        .update({ plan_status: 'adjusted', updated_at: activatedAt })
+        .eq('id', previousFoodPlanId)
+        .eq('plan_status', 'active');
+      if (markOldFoodPlan.error) throw markOldFoodPlan.error;
     }
 
     const recommendation = await supabase.from('ai_recommendations').insert({

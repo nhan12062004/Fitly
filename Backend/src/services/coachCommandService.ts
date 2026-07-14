@@ -243,7 +243,7 @@ export const buildWorkoutReport = async (profile: ProfileLike) => {
       .in('log_date', dateKeys)
       .order('log_date', { ascending: false })
       .order('order_index', { ascending: true }),
-    supabase.from('weekly_plans').select('id, name, week_start_date, created_at, updated_at').eq('user_id', profile.id).eq('week_start_date', weekStartKey).limit(20),
+    supabase.from('weekly_plans').select('id, name, week_start_date, created_at, updated_at').eq('user_id', profile.id).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(20),
   ]);
 
   const latestPlan = ((plansRes.data || []) as any[]).sort((a, b) =>
@@ -302,6 +302,7 @@ export const buildMealReport = async (profile: ProfileLike) => {
     .select('id, name, week_start_date, created_at, updated_at')
     .eq('user_id', profile.id)
     .eq('week_start_date', weekStartKey)
+    .eq('plan_status', 'active')
     .limit(20);
 
   const latestPlan = ((plansRes.data || []) as any[]).sort((a, b) =>
@@ -399,8 +400,8 @@ export const buildCoachDataContext = async (userId: string) => {
       .in('log_date', dateKeys)
       .order('log_date', { ascending: false })
       .order('order_index', { ascending: true }),
-    supabase.from('weekly_plans').select('id, name, description, week_start_date, created_at, updated_at').eq('user_id', userId).eq('week_start_date', weekStartKey).limit(20),
-    supabase.from('weekly_food_plans').select('id, name, week_start_date, created_at, updated_at').eq('user_id', userId).eq('week_start_date', weekStartKey).limit(20),
+    supabase.from('weekly_plans').select('id, name, description, week_start_date, created_at, updated_at').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(20),
+    supabase.from('weekly_food_plans').select('id, name, week_start_date, created_at, updated_at').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(20),
   ]);
 
   const latestWorkoutPlan = ((weeklyPlansRes.data || []) as any[]).sort((a, b) =>

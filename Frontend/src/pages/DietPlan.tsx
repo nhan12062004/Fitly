@@ -875,6 +875,7 @@ export default function DietPlan() {
             .select('*')
             .eq('user_id', user.id)
             .eq('week_start_date', selectedWeekKey)
+            .eq('plan_status', 'active')
             .limit(20);
 
           if (error) throw error;
@@ -1051,6 +1052,7 @@ export default function DietPlan() {
           .select('*')
           .eq('user_id', user.id)
           .eq('week_start_date', selectedWeekKey)
+          .eq('plan_status', 'active')
           .limit(20);
         const existing = pickLatestPlan(existingPlans);
         if (existing?.id) nextPlanId = existing.id;

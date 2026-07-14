@@ -568,6 +568,7 @@ export default function WorkoutSession() {
       .select('id, created_at, updated_at')
       .eq('user_id', user.id)
       .eq('week_start_date', weekStartKey)
+      .eq('plan_status', 'active')
       .limit(20);
 
     const isWeekStartColumnError = (error: any): boolean => {
@@ -591,6 +592,7 @@ export default function WorkoutSession() {
         .from('weekly_plans')
         .select('id, created_at, updated_at')
         .eq('user_id', user.id)
+        .eq('plan_status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
