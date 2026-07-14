@@ -62,15 +62,7 @@ npm install
 npm run dev
 ```
 
-```bash
-cd Backend
-npm install
-npm run dev
-```
-
 Frontend: `http://localhost:3000`
-
-Backend: `http://localhost:5000`
 
 <details>
 <summary><strong>Biến môi trường chính</strong></summary>
@@ -80,15 +72,13 @@ Frontend `.env`:
 ```env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
-VITE_DEV_API_URL=http://127.0.0.1:5000
-VITE_API_URL=
+VITE_API_URL=https://trendfit.onrender.com
 ```
 
 Backend `.env`:
 
 ```env
-PORT=5000
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=https://trend-fit.vercel.app
 
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -123,7 +113,6 @@ npm run lint
 Backend:
 
 ```bash
-npm run dev
 npm run start
 npm run db:migration:list
 npm run db:push

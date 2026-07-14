@@ -2276,11 +2276,7 @@ function schedulePremiumMondayAutoPlanner() {
 const telegramBot = IS_PRODUCTION ? initTelegramBot() : null;
 
 const defaultAllowedOrigins = [
-  'https://fitly.vercel.app',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173'
+  'https://trend-fit.vercel.app'
 ];
 
 const configuredOrigins = (
@@ -2290,9 +2286,7 @@ const configuredOrigins = (
   ).filter(Boolean)
 );
 
-const allowedOrigins = new Set(
-  configuredOrigins.filter((origin) => !IS_PRODUCTION || !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin))
-);
+const allowedOrigins = new Set(configuredOrigins);
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -2563,6 +2557,23 @@ const countCatalogUsage = async (table: string, column: string, value: string): 
   return count || 0;
 };
 
+const loadAdminCount = async (
+  label: string,
+  request: PromiseLike<{ count: number | null; error: any }>
+): Promise<number> => {
+  try {
+    const { count, error } = await request;
+    if (error) {
+      console.warn(`[admin-overview] Failed to load ${label}:`, error.message || error);
+      return 0;
+    }
+    return count || 0;
+  } catch (error: any) {
+    console.warn(`[admin-overview] Failed to load ${label}:`, error?.message || error);
+    return 0;
+  }
+};
+
 app.get('/api/admin/overview', async (req, res) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
@@ -2584,57 +2595,39 @@ app.get('/api/admin/overview', async (req, res) => {
       workoutDoneRes,
       mealsDoneRes
     ] = await Promise.all([
-      supabase.from('profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).in('membership_tier', ['plus', 'pro', 'premium']),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }).not('telegram_chat_id', 'is', null),
-      supabase.from('exercises').select('id', { count: 'exact', head: true }),
-      supabase.from('foods').select('id', { count: 'exact', head: true }),
-      supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'proposed'),
-      supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'applied'),
-      supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
-      supabase.from('daily_exercise_sessions').select('id', { count: 'exact', head: true }).eq('log_date', today).eq('is_completed', true),
-      supabase.from('daily_meal_logs').select('id', { count: 'exact', head: true }).eq('log_date', today).eq('is_completed', true)
+      loadAdminCount('profiles', supabase.from('profiles').select('id', { count: 'exact', head: true })),
+      loadAdminCount('premium profiles', supabase.from('profiles').select('id', { count: 'exact', head: true }).in('membership_tier', ['plus', 'pro', 'premium'])),
+      loadAdminCount('new users', supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo)),
+      loadAdminCount('telegram linked users', supabase.from('profiles').select('id', { count: 'exact', head: true }).not('telegram_chat_id', 'is', null)),
+      loadAdminCount('exercises', supabase.from('exercises').select('id', { count: 'exact', head: true })),
+      loadAdminCount('foods', supabase.from('foods').select('id', { count: 'exact', head: true })),
+      loadAdminCount('ai proposed adjustments', supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'proposed')),
+      loadAdminCount('ai applied adjustments', supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'applied')),
+      loadAdminCount('ai rejected adjustments', supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'rejected')),
+      loadAdminCount('today completed workouts', supabase.from('daily_exercise_sessions').select('id', { count: 'exact', head: true }).eq('log_date', today).eq('is_completed', true)),
+      loadAdminCount('today completed meals', supabase.from('daily_meal_logs').select('id', { count: 'exact', head: true }).eq('log_date', today).eq('is_completed', true))
     ]);
-
-    [
-      ['profiles', usersRes],
-      ['premium profiles', premiumRes],
-      ['new users', newUsersRes],
-      ['telegram linked users', telegramLinkedRes],
-      ['exercises', exercisesRes],
-      ['foods', foodsRes],
-      ['ai proposed adjustments', aiProposedRes],
-      ['ai applied adjustments', aiAppliedRes],
-      ['ai rejected adjustments', aiRejectedRes],
-      ['today completed workouts', workoutDoneRes],
-      ['today completed meals', mealsDoneRes]
-    ].forEach(([label, result]) => {
-      const error = (result as any)?.error;
-      if (error) {
-        console.warn(`[admin-overview] Failed to load ${label}:`, error.message || error);
-      }
-    });
 
     res.json({
       success: true,
       data: {
-        users: usersRes.count || 0,
-        premiumUsers: premiumRes.count || 0,
-        newUsers7d: newUsersRes.count || 0,
-        telegramLinkedUsers: telegramLinkedRes.count || 0,
-        exercises: exercisesRes.count || 0,
-        foods: foodsRes.count || 0,
+        users: usersRes,
+        premiumUsers: premiumRes,
+        newUsers7d: newUsersRes,
+        telegramLinkedUsers: telegramLinkedRes,
+        exercises: exercisesRes,
+        foods: foodsRes,
         aiAdjustments: {
-          proposed: aiProposedRes.count || 0,
-          applied: aiAppliedRes.count || 0,
-          rejected: aiRejectedRes.count || 0
+          proposed: aiProposedRes,
+          applied: aiAppliedRes,
+          rejected: aiRejectedRes
         },
-        todayCompletedWorkouts: workoutDoneRes.count || 0,
-        todayCompletedMeals: mealsDoneRes.count || 0
+        todayCompletedWorkouts: workoutDoneRes,
+        todayCompletedMeals: mealsDoneRes
       }
     });
   } catch (error: any) {
+    console.error('[admin-overview] failed:', error?.message || error);
     res.status(500).json({ error: error?.message || 'Internal Server Error' });
   }
 });
