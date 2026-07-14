@@ -27,6 +27,7 @@ import {
   EQUIPMENT_TYPES,
   EXERCISE_DIFFICULTIES,
   EXERCISE_LABELS,
+  formatDifficultyLabel,
   GOAL_TYPES,
   MOVEMENT_PATTERNS,
   TRAINING_LOCATIONS,
@@ -1166,7 +1167,7 @@ function ExercisesTab({
                 </td>
                 <td className="px-4 py-3 text-text-secondary">{row.target_muscle || row.body_part || '-'}</td>
                 <td className="px-4 py-3 text-text-secondary">{row.equipment || '-'}</td>
-                <td className="px-4 py-3 text-text-secondary">{row.difficulty || '-'}</td>
+                <td className="px-4 py-3 text-text-secondary">{formatDifficultyLabel(row.difficulty) || '-'}</td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
                     <button type="button" onClick={() => onEdit(row)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-primary bg-bg-tertiary text-text-secondary hover:text-accent">

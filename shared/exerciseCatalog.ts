@@ -9,11 +9,17 @@ export const TRAINING_LOCATIONS = ['home', 'gym'] as const;
 export type TrainingLocation = typeof TRAINING_LOCATIONS[number];
 
 export const EXERCISE_DIFFICULTIES = [
-  'absolute_beginner',
-  'beginner',
-  'beginner_plus',
+  'easy',
+  'medium',
+  'hard',
 ] as const;
 export type ExerciseDifficulty = typeof EXERCISE_DIFFICULTIES[number];
+
+export const EXERCISE_DIFFICULTY_LABELS = {
+  easy: 'Dễ',
+  medium: 'Trung bình',
+  hard: 'Khó',
+} as const satisfies Record<ExerciseDifficulty, string>;
 
 export const BODY_PARTS = [
   'chest',
@@ -206,12 +212,19 @@ const LOCATION_ALIASES: Record<string, TrainingLocation> = {
 };
 
 const DIFFICULTY_ALIASES: Record<string, ExerciseDifficulty> = {
-  absolute_beginner: 'absolute_beginner',
-  absolute_beginner_level: 'absolute_beginner',
-  easy: 'absolute_beginner',
-  beginner: 'beginner',
-  novice: 'beginner_plus',
-  beginner_plus: 'beginner_plus',
+  absolute_beginner: 'easy',
+  absolute_beginner_level: 'easy',
+  novice: 'easy',
+  easy: 'easy',
+  de: 'easy',
+  beginner: 'medium',
+  intermediate: 'medium',
+  medium: 'medium',
+  trung_binh: 'medium',
+  hard: 'hard',
+  kho: 'hard',
+  beginner_plus: 'hard',
+  advanced: 'hard',
 };
 
 const EQUIPMENT_ALIASES: Record<string, Equipment> = {
@@ -440,10 +453,9 @@ export const experienceLevelToMonths = (value: unknown): number => {
 /** Unknown legacy difficulty deliberately stays conservative. */
 export const difficultyToMinimumExperienceMonths = (value: unknown): number => {
   const key = normalizeTextKey(value);
-  if (['absolute_beginner', 'easy', 'beginner'].includes(key)) return 0;
-  if (['beginner_plus', 'novice'].includes(key)) return 3;
-  if (['intermediate', 'medium'].includes(key)) return 6;
-  if (['advanced', 'hard'].includes(key)) return 12;
+  if (['absolute_beginner', 'absolute_beginner_level', 'novice', 'easy', 'de'].includes(key)) return 0;
+  if (['beginner', 'intermediate', 'medium', 'trung_binh'].includes(key)) return 6;
+  if (['beginner_plus', 'advanced', 'hard', 'kho'].includes(key)) return 12;
   return 12;
 };
 
@@ -548,9 +560,7 @@ export const EXERCISE_LABELS = {
     foam_roller: 'Con lăn',
   } satisfies Record<Equipment, string>,
   difficulty: {
-    absolute_beginner: 'Người mới hoàn toàn',
-    beginner: 'Người mới',
-    beginner_plus: 'Từ 3 tháng',
+    ...EXERCISE_DIFFICULTY_LABELS,
   } satisfies Record<ExerciseDifficulty, string>,
   bodyPart: {
     chest: 'Ngực',
@@ -609,9 +619,6 @@ export const formatExperienceRequirement = (months: unknown): string | null => {
 export const formatDifficultyLabel = (value: unknown): string | null => {
   const canonical = normalizeDifficulty(value);
   if (canonical) return EXERCISE_LABELS.difficulty[canonical];
-  const key = normalizeTextKey(value);
-  if (['intermediate', 'medium', 'trung_cap', 'trung_binh'].includes(key)) return 'Trung cấp';
-  if (['advanced', 'hard', 'nang_cao', 'kho'].includes(key)) return 'Nâng cao';
   return null;
 };
 
@@ -724,7 +731,7 @@ export const validateExerciseCatalog = (
       body_part: normalizeBodyPart(record.body_part) || '',
       target_muscle: normalizeBodyPart(record.target_muscle) || '',
       equipment: normalizeEquipment(record.equipment) || '',
-      difficulty: normalizeDifficulty(record.difficulty) || 'absolute_beginner',
+      difficulty: normalizeDifficulty(record.difficulty) || 'easy',
       movement_pattern: normalizeMovementPattern(record.movement_pattern) || '',
     };
     normalizedItems.push(catalogItem);
@@ -750,7 +757,9 @@ export const validateExerciseCatalog = (
       (record.training_locations as unknown[]).some((entry) => !normalizeTrainingLocation(entry))) {
       issues.push({ path: `${path}.training_locations`, message: 'must be a non-empty array of home/gym values' });
     }
-    if (!normalizeDifficulty(record.difficulty)) issues.push({ path: `${path}.difficulty`, message: 'invalid difficulty taxonomy' });
+    if (typeof record.difficulty !== 'string' || !EXERCISE_DIFFICULTIES.includes(record.difficulty as ExerciseDifficulty)) {
+      issues.push({ path: `${path}.difficulty`, message: 'must be one of: easy, medium, hard' });
+    }
     if (!normalizeMovementPattern(record.movement_pattern)) issues.push({ path: `${path}.movement_pattern`, message: 'invalid movement_pattern taxonomy' });
     if (!Array.isArray(record.goal_type) || normalizeStringArray(record.goal_type).some((entry) => !normalizeGoalType(entry))) {
       issues.push({ path: `${path}.goal_type`, message: 'must be an array using canonical goal taxonomy' });

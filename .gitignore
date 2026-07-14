@@ -78,6 +78,8 @@ scratch/
 supabase/*
 !supabase/migrations/
 !supabase/migrations/*.sql
+!supabase/seeds/
+!supabase/seeds/*.sql
 !supabase/verify_rpc_execute_privileges.sql
 Backend/migrations/
 docs/backups/

@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import {
   type ExerciseEligibilityContext,
   normalizeExercise,
   normalizeExerciseInstructions,
+  normalizeDifficulty,
   normalizeEquipment,
   normalizeMovementPattern,
   normalizeTrainingLocation,
@@ -27,7 +30,7 @@ const baseExercise = (overrides: Record<string, unknown> = {}) => ({
   secondary_muscles: ['glutes'],
   equipment: 'none',
   training_locations: ['home', 'gym'],
-  difficulty: 'absolute_beginner',
+  difficulty: 'easy',
   min_experience_months: 0,
   progression_level: 1,
   movement_pattern: 'squat',
@@ -70,6 +73,16 @@ test('normalizes location aliases, equipment aliases, parser and experience valu
   assert.equal(experienceLevelToMonths('Người mới'), 0);
   assert.equal(experienceLevelToMonths('Đã tập dưới 6 tháng'), 4);
   assert.equal(experienceLevelToMonths('Trung cấp'), 8);
+});
+
+test('normalizes legacy exercise difficulties to easy, medium, and hard', () => {
+  assert.equal(normalizeDifficulty('absolute_beginner'), 'easy');
+  assert.equal(normalizeDifficulty('beginner'), 'medium');
+  assert.equal(normalizeDifficulty('beginner_plus'), 'hard');
+  assert.equal(normalizeDifficulty('novice'), 'easy');
+  assert.equal(normalizeDifficulty('intermediate'), 'medium');
+  assert.equal(normalizeDifficulty('advanced'), 'hard');
+  assert.equal(normalizeDifficulty('unknown'), null);
 });
 
 test('normalizes all legacy instruction forms without mutation', () => {
@@ -121,6 +134,17 @@ test('eligibility allows none and resistance band but excludes unavailable equip
     experienceMonths: 4,
   }));
   assert.deepEqual(eligible.map((exercise) => exercise.id), ['bodyweight-squat', 'band-row']);
+});
+
+test('eligibility continues to use min_experience_months rather than difficulty', () => {
+  assert.equal(getExerciseEligibilityDecision(
+    baseExercise({ id: 'hard-but-eligible', difficulty: 'hard', min_experience_months: 3 }),
+    context({ experienceMonths: 4 }),
+  ).eligible, true);
+  assert.equal(getExerciseEligibilityDecision(
+    baseExercise({ id: 'easy-but-ineligible', difficulty: 'easy', min_experience_months: 5 }),
+    context({ experienceMonths: 4 }),
+  ).eligible, false);
 });
 
 test('eligibility supports gym dumbbell/machine and excludes mismatches', () => {
@@ -208,4 +232,18 @@ test('catalog validator accepts a complete canonical item and rejects unexpected
   const numericId = validateExerciseCatalog([{ ...baseExercise(), id: 123 }]);
   assert.equal(numericId.valid, false);
   assert.ok(numericId.issues.some((issue) => issue.path.endsWith('.id')));
+  const legacyDifficulty = validateExerciseCatalog([{ ...baseExercise(), difficulty: 'absolute_beginner' }]);
+  assert.equal(legacyDifficulty.valid, false);
+  assert.ok(legacyDifficulty.issues.some((issue) => issue.path.endsWith('.difficulty')));
+});
+
+test('official SQL catalog contains 100 unique exercises using the new difficulty taxonomy', () => {
+  const seedPath = path.resolve(process.cwd(), '../supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql');
+  const sql = readFileSync(seedPath, 'utf8');
+  const rows = Array.from(sql.matchAll(
+    /insert into public\.exercises \([\s\S]*?\) values \(\n  '([^']+)',[\s\S]*?\n  '(easy|medium|hard)',\n  \d+,\n  \d+,/gi,
+  ));
+  assert.equal(rows.length, 100);
+  assert.equal(new Set(rows.map((row) => row[1])).size, 100);
+  assert.ok(rows.every((row) => ['easy', 'medium', 'hard'].includes(row[2])));
 });

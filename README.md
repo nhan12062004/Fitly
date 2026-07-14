@@ -121,6 +121,8 @@ npm run exercises:upsert -- --file path/to/exercises.json
 npm run exercises:upsert -- --file catalog/exercise-catalog.template.json --allow-empty
 ```
 
+The official 100-exercise SQL seed is [supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql](supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql). Its taxonomy is `easy` (Dễ), `medium` (Trung bình), and `hard` (Khó); `min_experience_months` remains the hard eligibility rule.
+
 `exercises:upsert` rejects an empty catalog by default. Use `--allow-empty` only when an explicit no-op import is intended.
 
 </details>

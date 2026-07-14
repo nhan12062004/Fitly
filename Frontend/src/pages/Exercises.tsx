@@ -11,6 +11,7 @@ import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import SurveyForm from '../components/SurveyForm';
+import { formatDifficultyLabel as formatCatalogDifficultyLabel } from '../lib/exerciseCatalog';
 
 interface SessionExercise {
   id: string;
@@ -103,12 +104,7 @@ const formatRestTime = (secondsValue: unknown): string => {
 };
 
 const formatDifficultyLabel = (value: unknown): string => {
-  const raw = String(value || '').trim();
-  if (!raw) return 'EASY';
-  const normalized = raw.toLowerCase();
-  if (normalized.includes('beginner') || normalized.includes('easy') || normalized.includes('dễ')) return 'EASY';
-  if (normalized.includes('advanced') || normalized.includes('hard') || normalized.includes('khó')) return 'HARD';
-  return 'MEDIUM';
+  return formatCatalogDifficultyLabel(value) || 'Chưa xác định';
 };
 
 const parseRepAverage = (value: string): number => {
@@ -1243,4 +1239,3 @@ export default function Exercises() {
     </div>
   );
 }
-

@@ -49,7 +49,7 @@ Canonical values: `home`, `gym`.
 
 ### Difficulty
 
-New catalog rows use `absolute_beginner`, `beginner`, or `beginner_plus`. Existing values such as `easy`, `medium`, `hard`, `novice`, `intermediate`, and `advanced` remain readable for backward compatibility. Difficulty is display metadata; eligibility must use `min_experience_months`.
+New catalog rows use `easy`, `medium`, or `hard` (displayed as `Dễ`, `Trung bình`, and `Khó`). Existing `absolute_beginner`, `beginner`, `beginner_plus`, `novice`, `intermediate`, and `advanced` values are normalized only at application and migration boundaries; the official catalog validator rejects them. Difficulty is display metadata; eligibility must use `min_experience_months`.
 
 ### Body part and muscles
 
@@ -166,7 +166,7 @@ on conflict (id) do update set
   updated_at = timezone('utc', now());
 ```
 
-It must never truncate or delete the table, generate replacement IDs, or break references from workout history and plans. Use a validated catalog input only; do not import a partial or malformed file.
+It must never truncate the table, generate replacement IDs, or break references from workout history and plans. The official SQL seed at [fitly_exercise_catalog_100_easy_medium_hard.sql](../supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql) names the audited 100 legacy IDs explicitly and stops before deleting any of them if a plan or history record still references one.
 
 ## Adding an exercise or progression
 
