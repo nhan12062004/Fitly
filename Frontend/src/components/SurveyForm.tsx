@@ -32,10 +32,11 @@ import {
   DEFAULT_MOTIVATION,
   normalizeMotivation,
 } from '../lib/MotivationOptions';
-import {
-  DEFAULT_WORKOUT_DURATION,
-} from '../lib/WorkoutDuration';
 import { useToast } from './ToastProvider';
+
+// The backend prescription engine owns the final duration. This is only the
+// neutral value persisted while the survey is being saved.
+const DEFAULT_WORKOUT_DURATION = '45';
 
 export type SurveyPlanSummary = {
   goal: string;
@@ -1337,12 +1338,6 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       const durationMinutes = Number(DEFAULT_WORKOUT_DURATION) || 45;
       const selectedMeals = MEAL_OPTIONS.find(option => option.value === formData.meals_per_day);
       const selectedActivity = ACTIVITY_LEVEL_OPTIONS.find(option => option.value === normalizedActivityLevel);
-      const todayExercises = buildTodayExercises({
-        experience: formData.experience_level,
-        location: formData.workout_location,
-        goal: formData.fitness_goal
-      });
-      const todayMeals = buildTodayMeals(formData.diet_preference, formData.meals_per_day);
       const summary: SurveyPlanSummary = {
         goal: formData.fitness_goal,
         experience: formData.experience_level,
@@ -1364,8 +1359,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
         todayWorkout: formData.experience_level === 'Người mới' ? 'Full Body Beginner' : 'Full Body Strength',
         todayDuration: `${durationMinutes} phút`,
         meals: selectedMeals?.label || `${formData.meals_per_day} bữa/ngày`,
-        todayExercises,
-        todayMeals
+        todayExercises: [],
+        todayMeals: []
       };
 
       await refreshProfile();

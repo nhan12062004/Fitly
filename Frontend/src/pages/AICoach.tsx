@@ -16,18 +16,6 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
-import {
-  DEFAULT_WORKOUT_FREQUENCY,
-  WORKOUT_FREQUENCY_OPTIONS,
-  normalizeWorkoutFrequency,
-  weeklyWorkoutsToFrequency,
-  workoutFrequencyToWeeklyWorkouts,
-} from '../lib/WorkoutFrequency';
-import {
-  DEFAULT_WORKOUT_DURATION,
-  WORKOUT_DURATION_TAGS,
-  normalizeWorkoutDurationTag,
-} from '../lib/WorkoutDuration';
 import { useLocation } from 'react-router-dom';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
@@ -101,8 +89,6 @@ type LifestyleSummary = {
 };
 
 type PlanSettings = {
-  activity_level: string;
-  workout_duration: string;
   workout_location: string;
   equipment_available: string;
   experience_level: string;
@@ -112,8 +98,6 @@ type PlanSettings = {
 };
 
 const DEFAULT_PLAN_SETTINGS: PlanSettings = {
-  activity_level: DEFAULT_WORKOUT_FREQUENCY,
-  workout_duration: DEFAULT_WORKOUT_DURATION,
   workout_location: 'Phòng Gym',
   equipment_available: 'Đầy đủ tạ & máy móc',
   experience_level: 'Người mới',
@@ -1262,14 +1246,8 @@ export default function AICoach() {
   }, [user?.id, refreshTick, weekStartKey, reloadKey, cacheKey]);
 
   useEffect(() => {
-    const nextFrequency = normalizeWorkoutFrequency(
-      lifestyle?.activity_level || weeklyWorkoutsToFrequency(lifestyle?.weekly_workouts),
-    );
-
     setPlanSettings((current) => ({
       ...current,
-      activity_level: nextFrequency,
-      workout_duration: normalizeWorkoutDurationTag(lifestyle?.workout_duration || current.workout_duration),
       workout_location: lifestyle?.workout_location || current.workout_location,
       equipment_available: lifestyle?.equipment_available || current.equipment_available,
       experience_level: lifestyle?.experience_level || current.experience_level,
@@ -1326,14 +1304,9 @@ export default function AICoach() {
     if (!user?.id) return;
     setIsSavingPlanSettings(true);
 
-    const normalizedFrequency = normalizeWorkoutFrequency(planSettings.activity_level);
-    const normalizedDuration = normalizeWorkoutDurationTag(planSettings.workout_duration);
     const mealsPerDay = Math.max(2, Math.min(5, Number(planSettings.meals_per_day) || 3));
     const payload: LifestyleSummary & { user_id: string; updated_at: string } = {
       user_id: user.id,
-      activity_level: normalizedFrequency,
-      weekly_workouts: workoutFrequencyToWeeklyWorkouts(normalizedFrequency),
-      workout_duration: Number(normalizedDuration),
       workout_location: planSettings.workout_location,
       equipment_available: planSettings.equipment_available,
       experience_level: planSettings.experience_level,
@@ -2182,36 +2155,15 @@ export default function AICoach() {
 
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
                 <div className="grid gap-3 md:grid-cols-2">
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Số buổi/tuần</span>
-                    <select
-                      name="activity_level"
-                      value={normalizeWorkoutFrequency(planSettings.activity_level)}
-                      onChange={handlePlanSettingsChange}
-                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
-                    >
-                      {WORKOUT_FREQUENCY_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1.5">
-                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Thời lượng/buổi</span>
-                    <select
-                      name="workout_duration"
-                      value={normalizeWorkoutDurationTag(planSettings.workout_duration)}
-                      onChange={handlePlanSettingsChange}
-                      className="h-11 w-full rounded-xl border border-border-primary bg-bg-primary px-3 text-sm font-semibold text-text-primary outline-none transition-colors focus:border-ai"
-                    >
-                      {WORKOUT_DURATION_TAGS.map((minutes) => (
-                        <option key={minutes} value={String(minutes)}>
-                          {minutes} phút
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="rounded-xl border border-ai/35 bg-ai/10 px-3 py-3 md:col-span-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-ai">Fitly kê đơn lịch tập</p>
+                    <p className="mt-1 text-sm font-black text-text-primary">
+                      {lifestyle?.weekly_workouts || 3} buổi/tuần · {lifestyle?.workout_duration || 45} phút/buổi
+                    </p>
+                    <p className="mt-1 text-xs font-medium text-text-secondary">
+                      Số buổi và thời lượng được tính từ khảo sát, trình độ và giới hạn an toàn; chúng sẽ được cập nhật khi tạo lại lịch.
+                    </p>
+                  </div>
                   <label className="space-y-1.5">
                     <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">Mục tiêu</span>
                     <select

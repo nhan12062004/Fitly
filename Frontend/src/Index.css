@@ -3791,7 +3791,6 @@ body {
   overflow-x: hidden;
 }
 
-/* Body assessment result — deliberately self-contained to preserve the app's existing surfaces. */
 .assessment-page {
   width: 100%;
   min-height: 100vh;

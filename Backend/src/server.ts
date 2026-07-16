@@ -5,8 +5,7 @@ import dotenv from 'dotenv';
 import cron from 'node-cron';
 import rateLimit from 'express-rate-limit';
 import { supabase } from './config/Supabase';
-import { initTelegramBot, getTelegramReminderStatus, sendWaterReminders, sendSleepReminders } from './TelegramBot';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { initTelegramBot } from './TelegramBot';
 import { resolveWeeklyWorkouts } from './lib/WorkoutFrequency';
 import { prescribeTrainingSchedule, type TrainingPrescription } from './lib/TrainingPrescription';
 import { detectIntent, extractDayIndexFromText, getResponseModeForIntent } from './services/ai/aiRouterService';
@@ -2324,7 +2323,7 @@ JSON schema (fixed):
   };
 }
 
-async function runPremiumMondayAutoPlanner(trigger: 'cron' | 'manual' = 'cron') {
+async function runPremiumMondayAutoPlanner() {
   const weekStartKey = getWeekStartKey(new Date(`${getVietnamDateKey()}T00:00:00`));
   const premiumProfilesRes = await supabase
     .from('profiles')
@@ -2335,7 +2334,7 @@ async function runPremiumMondayAutoPlanner(trigger: 'cron' | 'manual' = 'cron') 
 
   const premiumProfiles = premiumProfilesRes.data || [];
   const result = {
-    trigger,
+    trigger: 'cron',
     weekStartDate: weekStartKey,
     totalPremium: premiumProfiles.length,
     generated: 0,
@@ -2396,7 +2395,7 @@ function schedulePremiumMondayAutoPlanner() {
     async () => {
       console.log(`[premium-auto-planner] Running Monday auto generation at ${new Date().toISOString()}`);
       try {
-        const result = await runPremiumMondayAutoPlanner('cron');
+        const result = await runPremiumMondayAutoPlanner();
         console.log('[premium-auto-planner] Result:', JSON.stringify({
           trigger: result.trigger,
           weekStartDate: result.weekStartDate,
@@ -4764,89 +4763,6 @@ app.get('/api/ai/metrics', async (req, res) => {
   });
 });
 
-app.post('/api/generate-plan', async (req, res) => {
-  try {
-    const authUserId = await getAuthUserId(req);
-    const { prompt } = req.body || {};
-
-    if (!authUserId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'Noi dung yeu cau (prompt) khong duoc de trong.' });
-    }
-    if (String(prompt).length > 4000) {
-      return res.status(400).json({ error: 'Prompt qua dai. Gioi han 4000 ky tu.' });
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: 'Thieu GEMINI_API_KEY trong cau hinh server. Vui long kiem tra file .env' });
-    }
-
-    let userContext = '';
-
-    if (authUserId) {
-      const [profile, bodyMetrics, lifestyle, health] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', authUserId).single(),
-        supabase.from('body_metrics').select('*').eq('user_id', authUserId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
-        supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle()
-      ]);
-
-      const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.data?.activity_level, lifestyle.data?.weekly_workouts);
-      const safetyContext = {
-        profile: profile.data || null,
-        lifestyle: lifestyle.data || null,
-        health: health.data || null
-      };
-
-      userContext = `
-Thong tin cuc ky chi tiet cua nguoi dung can duoc ca nhan hoa:
-1. Thong tin co ban: ${profile.data?.full_name || 'Khong ro'} | Gioi tinh: ${profile.data?.gender || 'Khong ro'} | Tuoi/Nam sinh: ${profile.data?.birthday || 'Khong ro'}
-2. Chi so co the & Voc dang: Can nang hien tai: ${bodyMetrics.data?.weight || '?'} kg | Chieu cao: ${bodyMetrics.data?.height || '?'} cm | Muc tieu muon dat: ${bodyMetrics.data?.target_weight || '?'} kg.
-   Vong nguc: ${bodyMetrics.data?.chest || '?'} cm | Vong eo: ${bodyMetrics.data?.waist || '?'} cm | Vong mong: ${bodyMetrics.data?.hips || '?'} cm | Ty le mo (Body Fat): ${bodyMetrics.data?.body_fat || '?'}%.
-3. Loi song & Thoi quen tap luyen:
-   - Mong muon/Muc tieu: ${lifestyle.data?.fitness_goal || 'Tap luyen nang cao suc khoe'}.
-   - Trinh do tap: ${lifestyle.data?.experience_level || 'Khong ro'} | Tan suat tap mong muon: ${lifestyle.data?.activity_level || 'Khong ro'} (${weeklyWorkoutDays} ngay/tuan).
-   - Dia diem tap: ${lifestyle.data?.workout_location || 'Khong ro'} | Dung cu co san: ${lifestyle.data?.equipment_available || 'Khong ro'}.
-   - Thoi gian ranh moi buoi: ${lifestyle.data?.workout_duration || '?'} phut | Hay tap luc: ${lifestyle.data?.workout_time || 'Bat ky'}.
-   - LUU Y QUAN TRONG: Khi lap ke hoach tap luyen theo tuan, phan bo dung ${weeklyWorkoutDays} ngay tap va cac ngay con lai la ngay nghi/phuc hoi.
-4. Dinh duong:
-   - Che do an uu tien: ${lifestyle.data?.diet_preference || 'Binh thuong'} | Che do an hien tai: ${lifestyle.data?.current_diet || 'Khong ro'}.
-   - Kha nang tu nau an: ${lifestyle.data?.cooking_ability || 'Khong ro'} | Tai chinh (Budget): ${lifestyle.data?.budget_level || 'Binh thuong'}.
-   - Muc tieu nuoc uong: ${lifestyle.data?.daily_water_goal || 2} lit/ngay.
-   - Di ung thuc pham: ${health.data?.allergies || 'Khong co'}.
-5. Y te & Tinh than:
-   - Benh ly nen: ${health.data?.health_condition || 'Hoan toan khoe manh'}.
-   - Chan thuong: ${health.data?.injuries || 'Khong bi chan thuong'}.
-   - Dang dung thuoc: ${health.data?.medications || 'Khong'}.
-   - Thoi quen hut thuoc/uong ruou: ${health.data?.smoke_drink || 'Khong'}.
-   - Muc do stress: ${health.data?.stress_level || 'Binh thuong'} | Giac ngu trung binh: ${health.data?.sleep_hours || 7} tieng/ngay.
-
-${buildSafetyPromptAddendum(safetyContext)}
-
-Day la day du ho so cua nguoi dung lay truc tiep tu Database he thong (dua theo form khao sat ho da dien). Hay dung cac thong tin nay nhu mot chuyen gia de lap ke hoach chi tiet, chinh xac 100% phu hop voi tui tien, benh ly, va so do cua ho:
-
-Hay dua vao cac thong tin ca nhan cuc ky chi tiet tren de lap ke hoach hoac tra loi yeu cau sau mot cach chinh xac va phu hop the trang nhat:
-`;
-    }
-
-    const finalPrompt = `${userContext}\nYeu cau cua nguoi dung: ${prompt}`;
-
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
-
-    const response = await model.generateContent(finalPrompt);
-    const text = response.response.text();
-
-    res.json({ success: true, data: text });
-  } catch (error: any) {
-    console.error('[generate-plan] failed:', error?.message || 'unknown_error');
-    res.status(500).json({ error: 'Da co loi xay ra khi goi AI.' });
-  }
-});
-
 app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
@@ -5621,101 +5537,6 @@ app.post('/api/telegram/link-token', async (req, res) => {
     });
   } catch (err: any) {
     return res.status(500).json({ error: err.message || 'Internal Server Error' });
-  }
-});
-
-app.get('/api/telegram/status', async (req, res) => {
-  try {
-    const authUserId = await getAuthUserId(req);
-    if (!authUserId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const isAdmin = await isAdminUser(authUserId);
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    const status = await getTelegramReminderStatus();
-    res.json({ success: true, data: status });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Internal Server Error' });
-  }
-});
-
-app.post('/api/telegram/test-reminders', async (req, res) => {
-  if (!hasValidCronSecret(req)) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  if (!telegramBot) {
-    return res.status(503).json({ error: 'Telegram bot chua duoc cau hinh' });
-  }
-
-  try {
-    const type = String(req.query.type || 'all');
-    const result: Record<string, unknown> = {};
-    if (type === 'water' || type === 'all') {
-      result.water = await sendWaterReminders(telegramBot, 0);
-    }
-    if (type === 'sleep' || type === 'all') {
-      result.sleep = await sendSleepReminders(telegramBot);
-    }
-    res.json({ success: true, data: result });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Internal Server Error' });
-  }
-});
-
-app.post('/api/ai-coach/run-premium-auto-weekly', async (req, res) => {
-  try {
-    if (!hasValidCronSecret(req)) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const result = await runPremiumMondayAutoPlanner('manual');
-    return res.json({ success: true, data: result });
-  } catch (error: any) {
-    console.error('[premium-auto-planner] Manual trigger failed:', error?.message || 'unknown_error');
-    return res.status(500).json({ error: error?.message || 'Failed to run premium auto planner' });
-  }
-});
-
-app.get('/api/telegram/check-profile/:userId', async (req, res) => {
-  const { userId } = req.params;
-
-  try {
-    const authUserId = await getAuthUserId(req);
-    if (!authUserId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const isAdmin = await isAdminUser(authUserId);
-    if (!isAdmin && authUserId !== userId) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, telegram_chat_id')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (profileError) throw profileError;
-
-    if (!profile) {
-      return res.json({
-        success: false,
-        error: 'Profile khong ton tai'
-      });
-    }
-
-    return res.json({
-      success: true,
-      profile: {
-        id: profile.id,
-        telegram_linked: !!profile.telegram_chat_id
-      }
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message || 'Internal Server Error' });
   }
 });
 
