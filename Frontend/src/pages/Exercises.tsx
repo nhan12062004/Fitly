@@ -17,7 +17,7 @@ interface SessionExercise {
   id: string;
   exercise_id: string;
   name: string;
-  gif_url: string;
+  video_url: string;
   sets: number;
   reps: string;
   weight_kg: number | null;
@@ -40,8 +40,7 @@ interface SessionExercise {
   load_adjustment_note?: string | null;
   exercises?: {
     name?: string;
-    gif_url?: string;
-    image_url?: string;
+    video_url?: string;
     target_muscle?: string;
     body_part?: string;
     equipment?: string;
@@ -211,7 +210,7 @@ const getMonthCalendarDates = (monthDate: Date): Date[] => {
 const isDateKeyBetween = (dateKey: string, startKey: string, endKey: string): boolean =>
   dateKey >= startKey && dateKey <= endKey;
 
-const normalizeGifUrl = (value: unknown): string => {
+const normalizeVideoUrl = (value: unknown): string => {
   const url = String(value || '').trim();
   if (!url) return '';
   if (url.startsWith('//')) return `https:${url}`;
@@ -239,25 +238,8 @@ const pickLatestPlan = (plans: any[] | null | undefined) => {
 
 // === Components ===
 const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; className?: string }) => {
-  const candidates = useMemo(() => {
-    const primary = String(src || '').trim();
-    if (!primary) return [];
-
-    const normalized = primary.startsWith('http://') ? `https://${primary.slice(7)}` : primary;
-    const urlWithoutProtocol = normalized.replace(/^https?:\/\//, '');
-    const proxy = `https://images.weserv.nl/?url=${encodeURIComponent(urlWithoutProtocol)}`;
-
-    return [normalized, proxy];
-  }, [src]);
-
-  const [candidateIndex, setCandidateIndex] = useState(0);
-
-  useEffect(() => {
-    setCandidateIndex(0);
-  }, [src]);
-
-  const currentSrc = candidates[candidateIndex];
-  const hasError = !currentSrc;
+  const videoUrl = normalizeVideoUrl(src);
+  const hasError = !videoUrl;
 
   if (hasError) {
     return (
@@ -268,19 +250,11 @@ const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; cla
   }
 
   return (
-    <img
-      src={currentSrc}
-      alt={alt}
-      loading="lazy"
+    <video
+      src={videoUrl}
+      aria-label={alt}
       className={className || "w-full h-full object-cover"}
-      onError={() => {
-        if (candidateIndex < candidates.length - 1) {
-          setCandidateIndex(candidateIndex + 1);
-        } else {
-          setCandidateIndex(candidates.length);
-        }
-      }}
-      referrerPolicy="no-referrer"
+      autoPlay muted loop playsInline preload="metadata"
     />
   );
 };
@@ -610,7 +584,7 @@ export default function Exercises() {
         .from('daily_exercise_sessions')
         .select(`
           *,
-          exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions)
+          exercises:exercise_id (name, video_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions)
         `)
         .eq('user_id', user?.id)
         .eq('log_date', selectedDateKey)
@@ -620,7 +594,7 @@ export default function Exercises() {
         setSession(existingSession.map(s => ({
           ...s,
           name: (s.exercises as any)?.name || 'Exercise',
-          gif_url: normalizeGifUrl((s.exercises as any)?.image_url || '')
+          video_url: normalizeVideoUrl((s.exercises as any)?.video_url || '')
         })));
       } else {
         // 2. No session on this day. Try to clone from weekly plan
@@ -709,7 +683,7 @@ export default function Exercises() {
         setSession(createdExercises.map((s: any) => ({
           ...s,
           name: (s.exercises as any)?.name || 'Exercise',
-          gif_url: normalizeGifUrl((s.exercises as any)?.image_url || (s.exercises as any)?.gif_url || '')
+          video_url: normalizeVideoUrl((s.exercises as any)?.video_url || '')
         })));
       }
     } catch (error) {
@@ -766,7 +740,7 @@ export default function Exercises() {
           ...s,
           ...savedExercise,
           name: (savedExercise.exercises as any)?.name || s.name,
-          gif_url: normalizeGifUrl((savedExercise.exercises as any)?.image_url || (savedExercise.exercises as any)?.gif_url || s.gif_url)
+          video_url: normalizeVideoUrl((savedExercise.exercises as any)?.video_url || s.video_url)
         } : s));
       }
     } catch (error: any) {
@@ -847,12 +821,7 @@ export default function Exercises() {
       name: selectedSessionExercise.name || 'Exercise',
       body_part: String(selectedSessionExercise.exercises?.body_part || ''),
       target_muscle: String(selectedSessionExercise.exercises?.target_muscle || ''),
-      gif_url: normalizeGifUrl(
-        selectedSessionExercise.exercises?.gif_url || ''
-      ),
-      image_url: normalizeGifUrl(
-        selectedSessionExercise.gif_url || selectedSessionExercise.exercises?.image_url || ''
-      ),
+      video_url: normalizeVideoUrl(selectedSessionExercise.exercises?.video_url || selectedSessionExercise.video_url || ''),
       equipment: '',
       instructions: selectedSessionExercise.exercises?.instructions || []
     };
@@ -1032,7 +1001,7 @@ export default function Exercises() {
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-[176px_minmax(0,560px)] lg:items-stretch lg:gap-5">
                 <div className="themed-image-surface overflow-hidden rounded-xl border border-border-primary h-[184px] lg:h-full">
                   <ExerciseThumb
-                    src={selectedSessionExercise.gif_url}
+                    src={selectedSessionExercise.video_url}
                     alt={selectedSessionExercise.name}
                     className="w-full h-full object-contain p-2"
                   />
@@ -1181,7 +1150,7 @@ export default function Exercises() {
                       <div className="workout-order-thumb-wrap">
                         <div className="workout-order-thumb">
                           <ExerciseThumb
-                            src={exercise.gif_url}
+                            src={exercise.video_url}
                             alt={exercise.name}
                             className="h-full w-full object-cover"
                           />

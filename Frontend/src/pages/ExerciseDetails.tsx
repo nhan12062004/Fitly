@@ -277,7 +277,7 @@ export default function ExerciseDetails() {
   return (
     <div className="dashboard-page-shell overflow-y-auto custom-scrollbar text-sm pb-4 md:pb-6 lg:pb-7">
       <ExerciseDetailOverlay
-        key={`${exerciseDetail.id}-${exerciseDetail.gif_url}`}
+        key={`${exerciseDetail.id}-${exerciseDetail.video_url}`}
         exercise={exerciseDetail}
         isSaving={isSaving}
         onClose={() => navigate('/exercises')}
@@ -290,7 +290,7 @@ export default function ExerciseDetails() {
               .from('daily_exercise_sessions')
               .select(`
                 *,
-                exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
+                exercises:exercise_id (name, video_url, target_muscle, body_part, instructions)
               `)
               .eq('user_id', user.id)
               .eq('log_date', today)
@@ -326,7 +326,7 @@ export default function ExerciseDetails() {
                       {
                         ...sessionRow,
                         name: sessionRow.exercises?.name || exercise.name,
-                        gif_url: normalizeMediaUrl(sessionRow.exercises?.image_url || exercise.gif_url || '')
+                        video_url: normalizeMediaUrl(sessionRow.exercises?.video_url || exercise.video_url || '')
                       }
                     ],
                     selectedSessionId: sessionRow.id,
@@ -364,7 +364,7 @@ export default function ExerciseDetails() {
                     {
                       ...sessionRow,
                       name: sessionRow.exercises?.name || exercise.name,
-                      gif_url: normalizeMediaUrl(sessionRow.exercises?.image_url || exercise.gif_url || '')
+                      video_url: normalizeMediaUrl(sessionRow.exercises?.video_url || exercise.video_url || '')
                     }
                   ],
                   selectedSessionId: sessionRow.id,
@@ -382,7 +382,7 @@ export default function ExerciseDetails() {
                   id: `detail-${exercise.id}`,
                   exercise_id: exercise.id,
                   name: exercise.name,
-                  gif_url: exercise.gif_url || '',
+                  video_url: exercise.video_url || '',
                   sets: 3,
                   reps: '12',
                   weight_kg: defaultWeightKg,

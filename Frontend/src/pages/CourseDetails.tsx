@@ -9,7 +9,7 @@ interface Exercise {
   name: string;
   body_part: string;
   target_muscle: string;
-  gif_url: string;
+  video_url: string;
   instructions?: string[] | string;
 }
 
@@ -101,12 +101,12 @@ export default function CourseDetails() {
         
         const { data, error } = await q;
         if (!error && data) {
-          // Normalize gif urls
+          // Normalize direct video URLs.
           const normalized = data.map((ex: any) => {
-            let url = ex.image_url || ex.imageUrl || ex.gif_url || ex.gifUrl || '';
+            let url = ex.video_url || '';
             if (url.startsWith('//')) url = `https:${url}`;
             else if (url.startsWith('http://')) url = `https://${url.slice(7)}`;
-            return { ...ex, gif_url: url };
+            return { ...ex, video_url: url };
           });
           setExercises(normalized);
           courseDetailsCache.set(cacheKey, {
@@ -158,8 +158,8 @@ export default function CourseDetails() {
             {exercises.map((ex) => (
               <div key={ex.id} className="bg-bg-secondary border border-border-primary rounded-xl overflow-hidden hover:border-accent transition-all group flex flex-col cursor-pointer">
                 <div className="themed-image-surface h-40 sm:h-48 w-full relative overflow-hidden shrink-0">
-                  {ex.gif_url ? (
-                    <img src={ex.gif_url} alt={ex.name} className="w-full h-full object-contain mix-blend-multiply transition-transform duration-700 group-hover:scale-110" />
+                  {ex.video_url ? (
+                    <video src={ex.video_url} aria-label={ex.name} className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110" autoPlay muted loop playsInline preload="metadata" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-bg-tertiary text-text-tertiary">
                       No Image

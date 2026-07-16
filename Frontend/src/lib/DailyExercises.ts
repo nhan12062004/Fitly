@@ -3,7 +3,7 @@ import { supabase } from './Supabase';
 
 const DAILY_EXERCISE_SESSION_SELECT = `
   *,
-  exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
+  exercises:exercise_id (name, video_url, target_muscle, body_part, instructions)
 `;
 
 type CreateDailyExerciseSessionInput = {

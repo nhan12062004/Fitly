@@ -81,8 +81,7 @@ type ExerciseRow = {
   body_part?: string | null;
   equipment?: string | null;
   target_muscle?: string | null;
-  gif_url?: string | null;
-  image_url?: string | null;
+  video_url?: string | null;
   difficulty?: string | null;
   instructions?: unknown;
   secondary_muscles?: string[] | null;
@@ -131,8 +130,7 @@ type ExerciseForm = {
   body_part: string;
   equipment: string;
   target_muscle: string;
-  gif_url: string;
-  image_url: string;
+  video_url: string;
   difficulty: string;
   instructions: ExerciseInstructionsForm;
   secondary_muscles: string[];
@@ -177,8 +175,7 @@ const emptyExerciseForm: ExerciseForm = {
   body_part: '',
   equipment: '',
   target_muscle: '',
-  gif_url: '',
-  image_url: '',
+  video_url: '',
   difficulty: '',
   instructions: {
     setup: '',
@@ -355,8 +352,7 @@ const toExerciseForm = (row?: ExerciseRow | null): ExerciseForm => {
     body_part: normalizeBodyPart(row.body_part) || '',
     equipment: normalizeEquipment(row.equipment) || '',
     target_muscle: normalizeBodyPart(row.target_muscle) || '',
-    gif_url: row.gif_url || '',
-    image_url: row.image_url || '',
+    video_url: row.video_url || '',
     difficulty: normalizeDifficulty(row.difficulty) || '',
     instructions: toInstructionForm(row.instructions),
     secondary_muscles: normalizeBodyPartValues(row.secondary_muscles),
@@ -435,8 +431,7 @@ const validateExerciseForm = (form: ExerciseForm, isEditing: boolean): ExerciseF
     appendExerciseFormError(errors, 'goal_type', 'Mục tiêu phải dùng taxonomy chuẩn.');
   }
 
-  if (!isOptionalHttpUrl(form.image_url)) appendExerciseFormError(errors, 'image_url', 'Dùng URL http(s) hợp lệ hoặc để trống.');
-  if (!isOptionalHttpUrl(form.gif_url)) appendExerciseFormError(errors, 'gif_url', 'Dùng URL http(s) hợp lệ hoặc để trống.');
+  if (!isOptionalHttpUrl(form.video_url)) appendExerciseFormError(errors, 'video_url', 'Dùng URL video http(s) hợp lệ hoặc để trống.');
 
   if (form.estimated_duration_seconds.trim()) {
     const duration = Number(form.estimated_duration_seconds);
@@ -493,8 +488,7 @@ const toExercisePayload = (form: ExerciseForm, isEditing: boolean): Record<strin
     contraindications: parseDelimitedList(form.contraindications),
     estimated_duration_seconds: form.estimated_duration_seconds.trim() ? Number(form.estimated_duration_seconds) : null,
     calories_per_minute: form.calories_per_minute.trim() ? Number(form.calories_per_minute) : null,
-    image_url: form.image_url.trim() || null,
-    gif_url: form.gif_url.trim() || null,
+    video_url: form.video_url.trim() || null,
     instructions
   };
   if (!isEditing) payload.id = form.id.trim();
@@ -1677,18 +1671,12 @@ function ExerciseFormPanel({
             />
           </div>
           <Field
-            label="Ảnh URL"
-            value={form.image_url}
-            placeholder="https://..."
-            error={fieldError(fieldErrors, 'image_url')}
-            onChange={(value) => onChange({ image_url: value })}
-          />
-          <Field
-            label="GIF URL"
-            value={form.gif_url}
-            placeholder="https://..."
-            error={fieldError(fieldErrors, 'gif_url')}
-            onChange={(value) => onChange({ gif_url: value })}
+            label="Video URL"
+            value={form.video_url}
+            placeholder="https://.../exercise.mp4"
+            error={fieldError(fieldErrors, 'video_url')}
+            hint="Dùng link trực tiếp tới file MP4 hoặc WebM có thể phát trên trình duyệt."
+            onChange={(value) => onChange({ video_url: value })}
           />
           <Field
             label="Thời lượng (giây)"

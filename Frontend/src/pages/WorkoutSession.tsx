@@ -12,7 +12,7 @@ interface SessionExercise {
   id: string;
   exercise_id: string;
   name: string;
-  gif_url: string;
+  video_url: string;
   sets: number;
   reps: string;
   weight_kg: number | null;
@@ -57,7 +57,7 @@ interface EditExerciseForm {
 type WorkoutDifficulty = 'too_easy' | 'just_right' | 'too_hard';
 type WorkoutPainArea = 'none' | 'knee' | 'back' | 'shoulder' | 'wrist';
 
-const normalizeGifUrl = (value: unknown): string => {
+const normalizeVideoUrl = (value: unknown): string => {
   const url = String(value || '').trim();
   if (!url) return '';
   if (url.startsWith('//')) return `https:${url}`;
@@ -67,7 +67,7 @@ const normalizeGifUrl = (value: unknown): string => {
 
 const ExercisePreview = ({ src, alt }: { src?: string; alt: string }) => {
   const [failed, setFailed] = useState(false);
-  const normalized = normalizeGifUrl(src);
+  const normalized = normalizeVideoUrl(src);
 
   if (!normalized || failed) {
     return (
@@ -76,12 +76,11 @@ const ExercisePreview = ({ src, alt }: { src?: string; alt: string }) => {
   }
 
   return (
-    <img
+    <video
       src={normalized}
-      alt={alt}
+      aria-label={alt}
       className="h-full w-full object-contain"
-      onError={() => setFailed(true)}
-      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)} autoPlay muted loop playsInline preload="metadata"
     />
   );
 };
@@ -142,7 +141,7 @@ const normalizeSessionExercise = (row: any): SessionExercise => ({
   id: String(row?.id || ''),
   exercise_id: String(row?.exercise_id || ''),
   name: row?.name || row?.exercises?.name || 'Bai tap',
-  gif_url: normalizeGifUrl(row?.gif_url || row?.exercises?.image_url || row?.exercises?.gif_url || ''),
+  video_url: normalizeVideoUrl(row?.video_url || row?.exercises?.video_url || ''),
   order_index: Number(row?.order_index || 0),
   is_completed: !!row?.is_completed,
   exercises: row?.exercises || null,
@@ -478,7 +477,7 @@ export default function WorkoutSession() {
             .from('daily_exercise_sessions')
             .select(`
               *,
-              exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
+              exercises:exercise_id (name, video_url, target_muscle, body_part, instructions)
             `)
             .eq('user_id', user.id)
             .eq('log_date', state.logDate)
@@ -699,7 +698,7 @@ export default function WorkoutSession() {
               ? {
                   ...savedExercise,
                   name: item.name,
-                  gif_url: item.gif_url,
+                  video_url: item.video_url,
                   exercises: savedExercise.exercises ?? item.exercises
                 }
               : item
@@ -1126,7 +1125,7 @@ export default function WorkoutSession() {
             <div className="mt-6 inline-flex w-full flex-col items-center gap-4 overflow-hidden rounded-[24px] border border-border-primary bg-bg-secondary/40 p-4 md:gap-6 md:p-6 lg:flex-row">
               <div className="flex w-full max-w-[220px] shrink-0 justify-center md:max-w-[240px]">
                 <div className="aspect-square w-full overflow-hidden rounded-xl bg-transparent">
-                  <ExercisePreview src={activeExercise.gif_url} alt={activeExercise.name} />
+                  <ExercisePreview src={activeExercise.video_url} alt={activeExercise.name} />
                 </div>
               </div>
               <div className="w-full max-w-xl flex flex-col justify-center text-left">
@@ -1218,7 +1217,7 @@ export default function WorkoutSession() {
                                   ...item,
                                   ...savedExercise,
                                   name: item.name,
-                                  gif_url: item.gif_url,
+                                  video_url: item.video_url,
                                   exercises: savedExercise.exercises ?? item.exercises
                                 }
                               : item
@@ -1291,7 +1290,7 @@ export default function WorkoutSession() {
               {nextExercise ? (
                 <div className="flex items-center gap-3">
                   <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-bg-tertiary">
-                    <ExercisePreview src={nextExercise.gif_url} alt={nextExercise.name} />
+                    <ExercisePreview src={nextExercise.video_url} alt={nextExercise.name} />
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-black leading-5 text-text-primary">{nextExercise.name}</p>

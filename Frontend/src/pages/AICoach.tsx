@@ -56,8 +56,7 @@ type PlanExercise = {
     name?: string | null;
     body_part?: string | null;
     target_muscle?: string | null;
-    image_url?: string | null;
-    gif_url?: string | null;
+    video_url?: string | null;
   } | null;
 };
 
@@ -212,8 +211,7 @@ type WorkoutProposalExerciseMeta = {
   name?: string | null;
   body_part?: string | null;
   target_muscle?: string | null;
-  image_url?: string | null;
-  gif_url?: string | null;
+  video_url?: string | null;
 };
 
 type MealProposalPayload = {
@@ -917,7 +915,7 @@ function WorkoutProposalCard({ payload }: { payload: WorkoutProposalPayload }) {
 
       const { data, error } = await supabase
         .from('exercises')
-        .select('id, name, body_part, target_muscle, image_url, gif_url')
+        .select('id, name, body_part, target_muscle, video_url')
         .in('id', exerciseIds);
 
       if (cancelled || error) return;
@@ -947,14 +945,14 @@ function WorkoutProposalCard({ payload }: { payload: WorkoutProposalPayload }) {
         {exercises.slice(0, 4).map((exercise, index) => {
           const exerciseId = String(exercise.exercise_id || '').trim();
           const meta = exerciseId ? exerciseMetaById[exerciseId] : undefined;
-          const imageUrl = meta?.image_url || meta?.gif_url || '';
+          const videoUrl = meta?.video_url || '';
           const title = meta?.name || exercise.name || exerciseId || 'Bài tập';
           const focus = meta?.body_part || meta?.target_muscle || '';
 
           return (
             <div key={`${exercise.exercise_id || 'exercise'}-${index}`} className="flex items-center gap-3 rounded-lg border border-border-primary/80 bg-bg-primary/35 px-3 py-3">
               <div className="flex h-16 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary">
-                <ExerciseThumb src={imageUrl} alt={title} />
+                <ExerciseThumb src={videoUrl} alt={title} />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-black text-text-primary">
@@ -977,23 +975,8 @@ function WorkoutProposalCard({ payload }: { payload: WorkoutProposalPayload }) {
 }
 
 function ExerciseThumb({ src, alt }: { src?: string; alt: string }) {
-  const candidates = useMemo(() => {
-    const primary = normalizeMediaUrl(src);
-    if (!primary) return [];
-
-    const urlWithoutProtocol = primary.replace(/^https?:\/\//, '');
-    const proxy = `https://images.weserv.nl/?url=${encodeURIComponent(urlWithoutProtocol)}&n=-1`;
-    return [primary, proxy];
-  }, [src]);
-
-  const [candidateIndex, setCandidateIndex] = useState(0);
-  const currentSrc = candidates[candidateIndex];
-
-  useEffect(() => {
-    setCandidateIndex(0);
-  }, [src]);
-
-  if (!currentSrc) {
+  const videoUrl = normalizeMediaUrl(src);
+  if (!videoUrl) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-bg-tertiary text-xs font-semibold text-text-tertiary">
         Không có ảnh
@@ -1002,16 +985,11 @@ function ExerciseThumb({ src, alt }: { src?: string; alt: string }) {
   }
 
   return (
-    <img
-      src={currentSrc}
-      alt={alt}
+    <video
+      src={videoUrl}
+      aria-label={alt}
       className="h-full w-full object-cover"
-      onError={() => {
-        setCandidateIndex((index) => {
-          const nextIndex = index + 1;
-          return nextIndex < candidates.length ? nextIndex : index;
-        });
-      }}
+      autoPlay muted loop playsInline preload="metadata"
     />
   );
 }
@@ -1199,7 +1177,7 @@ export default function AICoach() {
             .from('weekly_plan_exercises')
             .select(`
               *,
-              exercises:exercise_id (name, body_part, target_muscle, image_url, gif_url)
+              exercises:exercise_id (name, body_part, target_muscle, video_url)
             `)
             .eq('weekly_plan_id', selectedPlan.id)
             .order('day_of_week', { ascending: true })
@@ -1219,7 +1197,7 @@ export default function AICoach() {
             reps,
             weight_kg,
             rest_seconds,
-            exercises:exercise_id (name, body_part, target_muscle, image_url, gif_url)
+            exercises:exercise_id (name, body_part, target_muscle, video_url)
           `)
           .eq('user_id', user.id)
           .eq('log_date', todayDateKey)

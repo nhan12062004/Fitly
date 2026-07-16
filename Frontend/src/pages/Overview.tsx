@@ -225,7 +225,7 @@ type OverviewExercise = {
   exercise_id: string;
   order_index: number;
   name: string;
-  img: string;
+  video_url: string;
   body_part: string;
   target_muscle: string;
   difficulty: string;
@@ -417,7 +417,7 @@ export default function Overview() {
         ] = await Promise.all([
           supabase.from('lifestyle_settings').select('workout_duration, daily_water_goal, target_calories, meals_per_day').eq('user_id', user.id).maybeSingle(),
           supabase.from('daily_progress_logs').select('water_intake_ml, sleep_hours').eq('user_id', user.id).eq('log_date', todayStr).maybeSingle(),
-          supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, gif_url, image_url, instructions, target_muscle, body_part, difficulty)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
+          supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, video_url, instructions, target_muscle, body_part, difficulty)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
           supabase.from('daily_meal_logs').select('calories, protein, carbs, fat, quantity, is_completed').eq('user_id', user.id).eq('log_date', todayStr).eq('is_completed', true),
           supabase.from('health_conditions').select('sleep_hours').eq('user_id', user.id).maybeSingle(),
           supabase.from('weekly_food_plans').select('id').eq('user_id', user.id).eq('week_start_date', weekStartKey).eq('plan_status', 'active').order('updated_at', { ascending: false }).limit(1),
@@ -486,7 +486,7 @@ export default function Overview() {
           exercise_id: String(session.exercise_id || ''),
           order_index: Number(session.order_index || 0),
           name: (session.exercises as any)?.name || 'B?i t?p',
-          img: normalizeExerciseMediaUrl((session.exercises as any)?.image_url || (session.exercises as any)?.gif_url || ''),
+          video_url: normalizeExerciseMediaUrl((session.exercises as any)?.video_url || ''),
           body_part: String((session.exercises as any)?.body_part || ''),
           target_muscle: String((session.exercises as any)?.target_muscle || ''),
           difficulty: String((session.exercises as any)?.difficulty || ''),
@@ -882,7 +882,7 @@ export default function Overview() {
                           id: exercise.id,
                           exercise_id: exercise.exercise_id,
                           name: exercise.name,
-                          gif_url: exercise.img,
+                          video_url: exercise.video_url,
                           sets: exercise.sets,
                           reps: exercise.reps,
                           weight_kg: exercise.weight_kg,

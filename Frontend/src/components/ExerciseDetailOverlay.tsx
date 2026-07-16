@@ -28,14 +28,12 @@ export type ExerciseDetailItem = {
   name: string;
   body_part?: string | null;
   target_muscle?: string | null;
-  gif_url?: string | null;
+  video_url?: string | null;
   equipment?: string | null;
   instructions?: unknown;
   technique_notes?: unknown;
   description?: string;
   secondary_muscles?: unknown;
-  image_url?: string | null;
-  imageUrl?: string | null;
   training_locations?: unknown;
   difficulty?: string | null;
   min_experience_months?: number | null;
@@ -60,7 +58,7 @@ type RelatedExercise = {
   id: string;
   name: string;
   primaryMuscle: string;
-  gifUrl: string;
+  videoUrl: string;
 };
 
 type VariationExercise = {
@@ -84,13 +82,6 @@ const normalizeMediaUrl = (value: unknown): string => {
   if (url.startsWith('//')) return `https:${url}`;
   if (url.startsWith('http://')) return `https://${url.slice(7)}`;
   return url;
-};
-
-const toGifStorageUrl = (gifUrl: unknown, imageUrl: unknown): string => {
-  const direct = normalizeMediaUrl(gifUrl);
-  if (direct) return direct.replace(/\.(jpg|jpeg|png|webp)(?=($|\?))/i, '.gif');
-
-  return normalizeMediaUrl(imageUrl).replace(/\.(jpg|jpeg|png|webp)(?=($|\?))/i, '.gif');
 };
 
 const formatDuration = (seconds: number | null): string | null => {
@@ -137,28 +128,14 @@ export const toExerciseDetailItem = (
     body_part: normalized.body_part ?? fallback.body_part ?? null,
     target_muscle: normalized.target_muscle ?? fallback.target_muscle ?? null,
     equipment: normalized.equipment ?? fallback.equipment ?? null,
-    gif_url: normalizeMediaUrl(normalized.gif_url ?? fallback.gif_url ?? ''),
-    image_url: normalizeMediaUrl(normalized.image_url ?? fallback.image_url ?? fallback.imageUrl ?? ''),
-    imageUrl: normalizeMediaUrl(fallback.imageUrl ?? normalized.image_url ?? fallback.image_url ?? ''),
+    video_url: normalizeMediaUrl(normalized.video_url ?? fallback.video_url ?? ''),
     description: fallback.description || '',
   };
 };
 
 const ExerciseThumb = ({ src, alt }: { src?: string | null; alt: string }) => {
-  const candidates = useMemo(() => {
-    const primary = normalizeMediaUrl(src);
-    if (!primary) return [];
-    const withoutProtocol = primary.replace(/^https?:\/\//, '');
-    return [primary, `https://images.weserv.nl/?url=${encodeURIComponent(withoutProtocol)}&n=-1`];
-  }, [src]);
-  const [candidateIndex, setCandidateIndex] = useState(0);
-
-  useEffect(() => {
-    setCandidateIndex(0);
-  }, [src]);
-
-  const currentSrc = candidates[candidateIndex];
-  if (!currentSrc) {
+  const videoUrl = normalizeMediaUrl(src);
+  if (!videoUrl) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-bg-tertiary text-text-tertiary">
         <ImageOff className="h-6 w-6" />
@@ -167,12 +144,11 @@ const ExerciseThumb = ({ src, alt }: { src?: string | null; alt: string }) => {
   }
 
   return (
-    <img
-      src={currentSrc}
-      alt={alt}
+    <video
+      src={videoUrl}
+      aria-label={alt}
       className="h-full w-full object-cover"
-      onError={() => setCandidateIndex((index) => index + 1)}
-      referrerPolicy="no-referrer"
+      autoPlay muted loop playsInline preload="metadata"
     />
   );
 };
@@ -233,7 +209,7 @@ export default function ExerciseDetailOverlay({
 
   useEffect(() => {
     setActiveExercise(toExerciseDetailItem(exercise));
-  }, [exercise.id, exercise.name, exercise.gif_url, exercise.image_url, exercise.imageUrl]);
+  }, [exercise.id, exercise.name, exercise.video_url]);
 
   useEffect(() => {
     setIsGifModalOpen(false);
@@ -241,8 +217,7 @@ export default function ExerciseDetailOverlay({
 
   const normalizedExercise = useMemo(() => normalizeExercise(activeExercise), [activeExercise]);
   const instructions: ExerciseInstructions = normalizedExercise.instructions;
-  const gifSrc = toGifStorageUrl(normalizedExercise.gif_url, normalizedExercise.image_url);
-  const previewImageSrc = normalizeMediaUrl(normalizedExercise.image_url || normalizedExercise.gif_url);
+  const videoSrc = normalizeMediaUrl(normalizedExercise.video_url);
   const locations = formatTrainingLocations(normalizedExercise.training_locations);
   const secondaryMuscles = secondaryMuscleLabels(normalizedExercise.secondary_muscles);
   const goals = goalLabels(normalizedExercise.goal_type);
@@ -307,7 +282,7 @@ export default function ExerciseDetailOverlay({
         return;
       }
 
-      const fields = 'id, name, target_muscle, body_part, gif_url, image_url';
+      const fields = 'id, name, target_muscle, body_part, video_url';
       let rows: unknown[] = [];
       if (targetMuscle) {
         const { data } = await supabase
@@ -350,7 +325,7 @@ export default function ExerciseDetailOverlay({
           id: item.id,
           name: item.name,
           primaryMuscle: bodyPartLabel(item.target_muscle) || bodyPartLabel(item.body_part) || 'Cơ chính',
-          gifUrl: normalizeMediaUrl(item.image_url || item.gif_url),
+          videoUrl: normalizeMediaUrl(item.video_url),
         };
       }).filter((item) => Boolean(item.id)));
     };
@@ -395,19 +370,19 @@ export default function ExerciseDetailOverlay({
                 <button
                   type="button"
                   onClick={() => setIsGifModalOpen(true)}
-                  disabled={!gifSrc}
+                  disabled={!videoSrc}
                   className="absolute right-3 top-3 z-10 inline-flex h-8 items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary/90 px-3 text-xs font-semibold text-text-primary backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Play className="h-3.5 w-3.5" />
-                  Xem GIF
+                  Xem video
                 </button>
-                {previewImageSrc ? (
-                  <img
-                    key={previewImageSrc}
-                    src={previewImageSrc}
-                    alt={activeExercise.name}
+                {videoSrc ? (
+                  <video
+                    key={videoSrc}
+                    src={videoSrc}
+                    aria-label={activeExercise.name}
                     className="h-[180px] w-full object-contain sm:h-[220px] lg:h-[260px]"
-                    referrerPolicy="no-referrer"
+                    autoPlay muted loop playsInline preload="metadata"
                   />
                 ) : (
                   <div className="flex h-[180px] w-full items-center justify-center text-text-tertiary sm:h-[220px] lg:h-[260px]">
@@ -512,7 +487,7 @@ export default function ExerciseDetailOverlay({
                     className="flex items-center gap-2.5 rounded-lg border border-border-primary bg-bg-secondary px-2.5 py-2 text-left hover:border-border-secondary"
                   >
                     <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border-primary bg-bg-tertiary">
-                      <ExerciseThumb src={item.gifUrl} alt={item.name} />
+                      <ExerciseThumb src={item.videoUrl} alt={item.name} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[13px] font-bold text-text-primary">{item.name}</p>
@@ -529,7 +504,7 @@ export default function ExerciseDetailOverlay({
         </div>
       </div>
 
-      {isGifModalOpen && gifSrc ? (
+      {isGifModalOpen && videoSrc ? (
         <div className="themed-modal-backdrop fixed inset-0 z-[220] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setIsGifModalOpen(false)}>
           <div className="relative inline-block max-w-[calc(100vw-2rem)] overflow-visible rounded-2xl border border-border-primary bg-bg-secondary p-2" onClick={(event) => event.stopPropagation()}>
             <button
@@ -540,7 +515,7 @@ export default function ExerciseDetailOverlay({
             >
               <X className="h-4 w-4" />
             </button>
-            <img src={gifSrc} alt={`${activeExercise.name} gif`} className="block h-auto w-[min(64vw,560px)] max-h-[62vh] rounded-xl object-contain" referrerPolicy="no-referrer" />
+            <video src={videoSrc} aria-label={`${activeExercise.name} video`} className="block h-auto w-[min(64vw,560px)] max-h-[62vh] rounded-xl object-contain" autoPlay muted loop controls playsInline />
           </div>
         </div>
       ) : null}

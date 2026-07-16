@@ -116,8 +116,8 @@ export type Exercise = {
   contraindications: string[];
   estimated_duration_seconds: number | null;
   calories_per_minute: number | null;
-  image_url: string | null;
-  gif_url: string | null;
+  /** Direct, browser-playable exercise video URL (MP4/WebM). */
+  video_url: string | null;
   instructions: ExerciseInstructions;
 };
 
@@ -531,8 +531,7 @@ export const normalizeExercise = (value: unknown): Exercise => {
     contraindications: normalizeStringArray(record.contraindications),
     estimated_duration_seconds: toFiniteNumber(record.estimated_duration_seconds),
     calories_per_minute: toFiniteNumber(record.calories_per_minute),
-    image_url: normalizeOptionalUrl(record.image_url),
-    gif_url: normalizeOptionalUrl(record.gif_url),
+    video_url: normalizeOptionalUrl(record.video_url),
     instructions: normalizeExerciseInstructions(record.instructions),
   };
 };
@@ -638,8 +637,7 @@ const ALLOWED_CATALOG_KEYS = new Set([
   'contraindications',
   'estimated_duration_seconds',
   'calories_per_minute',
-  'image_url',
-  'gif_url',
+  'video_url',
   'instructions',
 ]);
 
@@ -777,8 +775,7 @@ export const validateExerciseCatalog = (
     if (record.calories_per_minute !== null && (!Number.isFinite(Number(record.calories_per_minute)) || Number(record.calories_per_minute) < 0)) {
       issues.push({ path: `${path}.calories_per_minute`, message: 'must be a non-negative number or null' });
     }
-    if (!isOptionalUrl(record.image_url)) issues.push({ path: `${path}.image_url`, message: 'must be a valid http(s) URL or null' });
-    if (!isOptionalUrl(record.gif_url)) issues.push({ path: `${path}.gif_url`, message: 'must be a valid http(s) URL or null' });
+    if (!isOptionalUrl(record.video_url)) issues.push({ path: `${path}.video_url`, message: 'must be a valid http(s) URL or null' });
     validateInstructionContract(catalogItem.instructions, `${path}.instructions`, issues);
 
     addCount(counts, 'body_part', catalogItem.body_part || 'invalid');

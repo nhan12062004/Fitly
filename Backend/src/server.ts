@@ -1425,7 +1425,7 @@ const buildWorkoutSessionExerciseRow = ({
 
 const DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT = `
   *,
-  exercises:exercise_id (name, gif_url, image_url, target_muscle, body_part, instructions)
+  exercises:exercise_id (name, video_url, target_muscle, body_part, instructions)
 `;
 
 const getLatestBodyWeightKg = async (userId: string): Promise<number> => {
@@ -2738,7 +2738,7 @@ const sanitizeExercisePayload = (
     'must be a non-negative number or null',
   );
 
-  ['image_url', 'gif_url'].forEach((field) => {
+  ['video_url'].forEach((field) => {
     if (!hasField(field)) return;
     const url = trimExerciseText(raw[field]);
     if (!url) {
@@ -3230,7 +3230,7 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
       .from('weekly_plan_exercises')
       .select(`
         *,
-        exercises:exercise_id (id, name, gif_url, image_url, target_muscle, body_part, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, movement_pattern, goal_type, contraindications, instructions, calories_per_minute)
+        exercises:exercise_id (id, name, video_url, target_muscle, body_part, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, movement_pattern, goal_type, contraindications, instructions, calories_per_minute)
       `)
       .eq('weekly_plan_id', plan.id)
       .eq('day_of_week', dayIndex)

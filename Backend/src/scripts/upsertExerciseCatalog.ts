@@ -49,8 +49,7 @@ const toDatabaseRow = (item: ExerciseCatalogItem) => ({
   contraindications: item.contraindications,
   estimated_duration_seconds: item.estimated_duration_seconds,
   calories_per_minute: item.calories_per_minute,
-  image_url: item.image_url,
-  gif_url: item.gif_url,
+  video_url: item.video_url,
   instructions: item.instructions,
   updated_at: new Date().toISOString(),
 });

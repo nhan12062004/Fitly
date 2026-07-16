@@ -38,8 +38,7 @@ const baseExercise = (overrides: Record<string, unknown> = {}) => ({
   contraindications: [],
   estimated_duration_seconds: 60,
   calories_per_minute: null,
-  image_url: null,
-  gif_url: null,
+  video_url: null,
   instructions: {
     setup: ['Stand tall.'],
     steps: ['Brace your core.', 'Sit down and stand up.'],
