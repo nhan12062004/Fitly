@@ -2,7 +2,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { supabase } from './config/Supabase';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
-import { resolveWeeklyWorkouts } from './lib/WorkoutFrequency';
+import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
 import { verifyTelegramLinkToken } from './lib/telegramLinkToken';
 import {
   buildExerciseEligibilityContext,
@@ -2275,7 +2275,14 @@ export const initTelegramBot = () => {
            todayStatus += `- Bài tập: Trống\n`;
         }
 
-        const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.data?.activity_level, lifestyle.data?.weekly_workouts);
+        const trainingContext = await synchronizeTrainingProfileContext({
+          userId: userProfile.id,
+          profile: userProfile,
+          lifestyle: lifestyle.data,
+          health: health.data,
+        });
+        const trainingLifestyle = trainingContext.lifestyle;
+        const weeklyWorkoutDays = trainingContext.trainingPrescription.weeklyWorkouts;
         const coachDataContext = await buildCoachDataContext(userProfile.id);
 
         // === XÂY DỰNG SYSTEM PROMPT CHUYÊN NGHIỆP ===
@@ -2285,11 +2292,11 @@ export const initTelegramBot = () => {
 - Tên: ${userProfile.full_name || 'Học viên'}
 - Cân nặng: ${bodyMetrics.data?.weight || '?'}kg | Chiều cao: ${bodyMetrics.data?.height || '?'}cm
 - Mục tiêu cân nặng: ${bodyMetrics.data?.target_weight || '?'}kg
-- Mục tiêu tập: ${lifestyle.data?.fitness_goal || 'Nâng cao sức khỏe'}
-- Trình độ: ${lifestyle.data?.experience_level || 'Chưa rõ'} | Tần suất tập mong muốn: ${lifestyle.data?.activity_level || 'Chưa rõ'} (${weeklyWorkoutDays} ngày/tuần)
-- Nơi tập: ${lifestyle.data?.workout_location || '?'} | Dụng cụ: ${lifestyle.data?.equipment_available || '?'}
-- Thời lượng/buổi: ${lifestyle.data?.workout_duration || '?'} phút
-- Budget: ${lifestyle.data?.budget_level || 'TB'}
+- Mục tiêu tập: ${trainingLifestyle.fitness_goal || 'Nâng cao sức khỏe'}
+- Trình độ: ${trainingLifestyle.experience_level || 'Chưa rõ'} | Tần suất tập: ${weeklyWorkoutDays} ngày/tuần
+- Nơi tập: ${trainingLifestyle.workout_location || '?'} | Dụng cụ: ${trainingLifestyle.equipment_available || '?'}
+- Thời lượng/buổi: ${trainingLifestyle.workout_duration || '?'} phút
+- Budget: ${trainingLifestyle.budget_level || 'TB'}
 - Bệnh lý: ${health.data?.health_condition || 'Không'} | Chấn thương: ${health.data?.injuries || 'Không'}
 - Dị ứng: ${health.data?.allergies || 'Không'}
 

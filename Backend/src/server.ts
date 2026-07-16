@@ -6,8 +6,8 @@ import cron from 'node-cron';
 import rateLimit from 'express-rate-limit';
 import { supabase } from './config/Supabase';
 import { initTelegramBot } from './TelegramBot';
-import { resolveWeeklyWorkouts } from './lib/WorkoutFrequency';
-import { prescribeTrainingSchedule, type TrainingPrescription } from './lib/TrainingPrescription';
+import { type TrainingPrescription } from './lib/TrainingPrescription';
+import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
 import { detectIntent, extractDayIndexFromText, getResponseModeForIntent } from './services/ai/aiRouterService';
 import { aiChatService } from './services/ai/aiChatService';
 import { aiPlannerService } from './services/ai/aiPlannerService';
@@ -22,7 +22,6 @@ import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
 import {
   buildSafetyPromptAddendum,
-  buildUserSafetyProfile,
   filterSafeFoodsForUser,
   getFoodSafetyDecision,
   sanitizeWorkoutPlanForUser,
@@ -1809,31 +1808,15 @@ async function generateWeeklyCoachPlanForUser(params: {
   ].find(Boolean);
   if (firstError) throw firstError;
 
-  const profile = profileRes.data || {};
+  let profile = profileRes.data || {};
   const bodyMetrics = bodyMetricsRes.data || {};
   let lifestyle = lifestyleRes.data || {};
-  const health = healthRes.data || {};
-  const initialSafetyContext = { profile, lifestyle, health };
-  const trainingPrescription = prescribeTrainingSchedule({
-    activityLevel: lifestyle.activity_level,
-    experienceLevel: lifestyle.experience_level,
-    safety: buildUserSafetyProfile(initialSafetyContext),
-  });
-  const prescriptionUpdate = await supabase
-    .from('lifestyle_settings')
-    .update({
-      weekly_workouts: trainingPrescription.weeklyWorkouts,
-      workout_duration: trainingPrescription.durationMinutes,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId);
-  if (prescriptionUpdate.error) throw prescriptionUpdate.error;
-  lifestyle = {
-    ...lifestyle,
-    weekly_workouts: trainingPrescription.weeklyWorkouts,
-    workout_duration: trainingPrescription.durationMinutes,
-  };
-  const safetyContext = { profile, lifestyle, health };
+  let health = healthRes.data || {};
+  const trainingContext = await synchronizeTrainingProfileContext({ userId, profile, lifestyle, health });
+  profile = trainingContext.profile;
+  lifestyle = trainingContext.lifestyle;
+  health = trainingContext.health;
+  const { safetyContext, trainingPrescription } = trainingContext;
   const eligibilityContext = buildExerciseEligibilityContext(safetyContext);
   const recentExerciseIds = new Set(
     (recentSessionsRes.data || []).map((item: any) => String(item.exercise_id || '')).filter(Boolean)
@@ -3995,6 +3978,14 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     ].find(Boolean);
     if (firstDataError) throw firstDataError;
 
+    const chatTrainingContext = await synchronizeTrainingProfileContext({
+      userId: authUserId,
+      profile: profileRes.data,
+      lifestyle: weekPlanRes.data,
+      health: healthRes.data,
+    });
+    const normalizedChatLifestyle = chatTrainingContext.lifestyle;
+
     const chatAccessState = await getAiCoachAccessState(profileRes.data || {}, authUserId);
     if (!chatAccessState.canChat) {
       return res.status(403).json(buildAiQuotaLimitError(chatAccessState, 'chatMessages'));
@@ -4040,7 +4031,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       recentDateKeys,
       profile: profileRes.data || null,
       bodyMetrics: bodyMetricsRes.data || null,
-      lifestyle: weekPlanRes.data || null,
+      lifestyle: normalizedChatLifestyle,
       health: healthRes.data || null,
       progressLogs: (recentProgressLogsRes.data || []) as any[],
       exerciseSessions: (recentExerciseSessionsRes.data || []) as any[],
@@ -4081,7 +4072,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     let aiResponse: AIChatResponse;
     const chatSafetyContext = {
       profile: profileRes.data || null,
-      lifestyle: weekPlanRes.data || null,
+      lifestyle: normalizedChatLifestyle,
       health: healthRes.data || null
     };
     if (intent === 'adjust_workout') {
@@ -4102,9 +4093,9 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       if (candidateFoodsRes.error) throw candidateFoodsRes.error;
       const safeCandidateFoodSource = filterSafeFoodsForUser(candidateFoodsRes.data as any[], chatSafetyContext);
       const candidateFoods = selectBalancedFoodCatalog(safeCandidateFoodSource, 24, {
-        lifestyle: weekPlanRes.data || {},
+        lifestyle: normalizedChatLifestyle,
         health: healthRes.data || {},
-        mealsPerDay: Number((weekPlanRes.data as any)?.meals_per_day || 3),
+        mealsPerDay: Number(normalizedChatLifestyle.meals_per_day || 3),
         mealTypes: [mealType],
         recentMeals: [
           ...((recentMealLogsRes.data || []) as any[]),
@@ -4127,16 +4118,16 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       });
     } else if (intent === 'create_workout_plan' || intent === 'create_meal_plan') {
       aiResponse = await aiPlannerService(intent, {
-        weeklyWorkouts: Number((weekPlanRes.data as any)?.weekly_workouts || 3),
-        mealsPerDay: Number((weekPlanRes.data as any)?.meals_per_day || 3),
-        fitnessGoal: String((weekPlanRes.data as any)?.fitness_goal || 'general_fitness')
+        weeklyWorkouts: chatTrainingContext.trainingPrescription.weeklyWorkouts,
+        mealsPerDay: Number(normalizedChatLifestyle.meals_per_day || 3),
+        fitnessGoal: String(normalizedChatLifestyle.fitness_goal || 'general_fitness')
       });
     } else if (intent === 'analyze_progress') {
       aiResponse = await progressAnalyzerService({
         completedWorkouts: (feedbackRes.data || []).length,
-        targetWorkouts: Number((weekPlanRes.data as any)?.weekly_workouts || 0),
+        targetWorkouts: chatTrainingContext.trainingPrescription.weeklyWorkouts,
         completedMeals: targetMealRows.length,
-        targetMeals: Number((weekPlanRes.data as any)?.meals_per_day || 0)
+        targetMeals: Number(normalizedChatLifestyle.meals_per_day || 0)
       });
     } else {
       aiResponse = await aiChatService(normalizedMessage, intent, {
@@ -4147,7 +4138,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         targetDayLabel: AI_CHAT_DAY_LABELS[dayIndex] || 'Hom nay',
         profile: profileRes.data || null,
         bodyMetrics: bodyMetricsRes.data || null,
-        lifestyle: weekPlanRes.data || null,
+        lifestyle: normalizedChatLifestyle,
         health: healthRes.data || null,
         todayStatus: todayStatusContext,
         actionLog: trackingActionLog,
@@ -4836,31 +4827,15 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     ].find(Boolean);
     if (firstError) throw firstError;
 
-    const profile = profileRes.data || {};
+    let profile = profileRes.data || {};
     const bodyMetrics = bodyMetricsRes.data || {};
     let lifestyle = lifestyleRes.data || {};
-    const health = healthRes.data || {};
-    const initialSafetyContext = { profile, lifestyle, health };
-    const trainingPrescription = prescribeTrainingSchedule({
-      activityLevel: lifestyle.activity_level,
-      experienceLevel: lifestyle.experience_level,
-      safety: buildUserSafetyProfile(initialSafetyContext),
-    });
-    const prescriptionUpdate = await supabase
-      .from('lifestyle_settings')
-      .update({
-        weekly_workouts: trainingPrescription.weeklyWorkouts,
-        workout_duration: trainingPrescription.durationMinutes,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId);
-    if (prescriptionUpdate.error) throw prescriptionUpdate.error;
-    lifestyle = {
-      ...lifestyle,
-      weekly_workouts: trainingPrescription.weeklyWorkouts,
-      workout_duration: trainingPrescription.durationMinutes,
-    };
-    const safetyContext = { profile, lifestyle, health };
+    let health = healthRes.data || {};
+    const trainingContext = await synchronizeTrainingProfileContext({ userId, profile, lifestyle, health });
+    profile = trainingContext.profile;
+    lifestyle = trainingContext.lifestyle;
+    health = trainingContext.health;
+    const { safetyContext, trainingPrescription } = trainingContext;
     const eligibilityContext = buildExerciseEligibilityContext(safetyContext);
     const recentExerciseIds = new Set(
       (recentSessionsRes.data || []).map((item: any) => String(item.exercise_id || '')).filter(Boolean)
