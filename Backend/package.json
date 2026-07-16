@@ -10,6 +10,7 @@
         "test": "tsx --test src/services/exerciseCatalogService.test.ts src/services/ai/adjustmentApplyGuard.test.ts",
         "exercises:validate": "tsx src/scripts/validateExerciseCatalog.ts",
         "exercises:upsert": "tsx src/scripts/upsertExerciseCatalog.ts",
+        "exercises:attach-videos": "tsx src/scripts/attachExerciseVideos.ts",
         "db:migration:list": "npx supabase migration list --workdir ..",
         "db:migration:repair:normalize-rls": "npx supabase migration repair 20260602110000 --status applied --linked --workdir ..",
         "db:push": "npx supabase db push --linked --include-all --workdir .."
@@ -29,7 +30,8 @@
         "helmet": "^8.2.0",
         "node-cron": "^4.2.1",
         "node-telegram-bot-api": "^0.67.0",
-        "tsx": "^4.21.0"
+        "tsx": "^4.21.0",
+        "xlsx": "^0.18.5"
     },
     "devDependencies": {
         "@types/axios": "^0.9.36",
