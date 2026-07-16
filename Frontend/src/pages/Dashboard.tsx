@@ -1,9 +1,10 @@
 import { Suspense, useState, useEffect } from 'react';
-import { Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import TopBar from '../layout/TopBar';
 import SurveyForm, { type SurveyPlanSummary } from '../components/SurveyForm';
 import SurveyResultScreen from '../components/SurveyResultScreen';
-import MealSurveyForm from '../components/MealSurveyForm';
+import MealSurveyForm, { type MealSurveySelection } from '../components/MealSurveyForm';
+import NutritionResultScreen, { type NutritionResult } from '../components/NutritionResultScreen';
 import ProfileCompletionNudge from '../components/ProfileCompletionNudge';
 import ProfileSupplementModal from '../components/ProfileSupplementModal';
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -60,6 +61,7 @@ const formatExerciseDetail = (item: any) => {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isProfileSupplementOpen, setIsProfileSupplementOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const { isLoggedIn, hasProfile, isCheckingProfile, refreshProfile } = useAuth();
@@ -69,6 +71,9 @@ export default function Dashboard() {
   const [isMealSurveyOpen, setIsMealSurveyOpen] = useState(false);
   const [isGeneratingSurveyPlan, setIsGeneratingSurveyPlan] = useState(false);
   const [surveyPlanError, setSurveyPlanError] = useState('');
+  const [nutritionResult, setNutritionResult] = useState<NutritionResult | null>(null);
+  const [isGeneratingNutritionPlan, setIsGeneratingNutritionPlan] = useState(false);
+  const [nutritionPlanError, setNutritionPlanError] = useState('');
 
   // Keep track if we've already shown the survey to prevent unmounting it during background profile checks (like when switching tabs)
   useEffect(() => {
@@ -81,6 +86,9 @@ export default function Dashboard() {
       setIsMealSurveyOpen(false);
       setSurveyPlanError('');
       setIsGeneratingSurveyPlan(false);
+      setNutritionResult(null);
+      setIsGeneratingNutritionPlan(false);
+      setNutritionPlanError('');
     }
   }, [isLoggedIn, hasProfile, isCheckingProfile]);
 
@@ -156,6 +164,7 @@ export default function Dashboard() {
       setSurveyPlanSummary(summary);
       setSurveyPlanError('');
       setIsGeneratingSurveyPlan(true);
+      navigate('/assessment');
     }
     await refreshProfile();
     if (!summary) return;
@@ -174,12 +183,65 @@ export default function Dashboard() {
     setIsMealSurveyOpen(true);
   };
 
-  const completeMealSurvey = async () => {
-    setSurveyPlanSummary(null);
+  const completeMealSurvey = async (selection: MealSurveySelection) => {
     setIsMealSurveyOpen(false);
-    setSurveyPlanError('');
-    await refreshProfile();
-    navigate('/diet-plan', { replace: true });
+    setNutritionPlanError('');
+    setIsGeneratingNutritionPlan(true);
+    setNutritionResult({
+      ...selection,
+      targetCalories: null,
+      explanation: '',
+      days: [],
+    });
+    navigate('/nutrition-assessment');
+
+    try {
+      const todayKey = getVietnamDateKey();
+      const weekStartDate = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
+      const response = await fetchWithAuth('/api/ai-coach/generate-onboarding-meal-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weekStartDate }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(getApiErrorMessage({ status: response.status, payload, fallbackMessage: 'Không thể tạo thực đơn AI 7 ngày.' }));
+      }
+
+      const foodPlanId = payload?.data?.foodPlanId;
+      if (!foodPlanId) throw new Error('AI chưa trả về thực đơn 7 ngày.');
+      const { data: foodRows, error } = await supabase
+        .from('weekly_food_items')
+        .select('day_of_week, meal_type, quantity, order_index, foods:food_id(name)')
+        .eq('food_plan_id', foodPlanId)
+        .eq('is_rest_day', false)
+        .order('day_of_week', { ascending: true })
+        .order('meal_type', { ascending: true })
+        .order('order_index', { ascending: true });
+      if (error) throw error;
+
+      const grouped = Array.from({ length: 7 }, (_, day) => ({ day, meals: [] as NutritionResult['days'][number]['meals'] }));
+      (foodRows || []).forEach((row: any) => {
+        const day = Number(row.day_of_week);
+        if (day < 0 || day > 6) return;
+        grouped[day].meals.push({
+          mealType: String(row.meal_type || ''),
+          name: row.foods?.name || 'Món ăn AI chọn',
+          quantity: Number(row.quantity || 1),
+        });
+      });
+      setNutritionResult({
+        ...selection,
+        targetCalories: Number(payload?.data?.ai_json?.meal_plan?.target_calories) || null,
+        explanation: String(payload?.data?.ai_json?.meal_plan?.explanation || ''),
+        days: grouped,
+      });
+      await refreshProfile();
+    } catch (err: any) {
+      setNutritionPlanError(err?.message || 'Không thể tạo thực đơn AI 7 ngày.');
+    } finally {
+      setIsGeneratingNutritionPlan(false);
+    }
   };
 
   const openProfileSupplement = () => {
@@ -192,7 +254,7 @@ export default function Dashboard() {
     return <LoadingScreen fullScreen />;
   }
 
-  if (isLoggedIn && surveyPlanSummary) {
+  if (isLoggedIn && surveyPlanSummary && location.pathname === '/assessment') {
     if (isMealSurveyOpen) {
       return <MealSurveyForm onComplete={completeMealSurvey} onBack={() => setIsMealSurveyOpen(false)} />;
     }
@@ -203,6 +265,21 @@ export default function Dashboard() {
         isGeneratingPlan={isGeneratingSurveyPlan}
         generationError={surveyPlanError}
         onStart={continueToMealSurvey}
+      />
+    );
+  }
+
+  if (isLoggedIn && nutritionResult && location.pathname === '/nutrition-assessment') {
+    return (
+      <NutritionResultScreen
+        result={nutritionResult}
+        isGenerating={isGeneratingNutritionPlan}
+        error={nutritionPlanError}
+        onOpenPlan={() => {
+          setNutritionResult(null);
+          setSurveyPlanSummary(null);
+          navigate('/overview');
+        }}
       />
     );
   }

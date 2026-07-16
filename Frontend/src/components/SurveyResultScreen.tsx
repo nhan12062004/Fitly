@@ -199,8 +199,6 @@ export default function SurveyResultScreen({
 
   return (
     <div className="relative min-h-[100dvh] w-full bg-[#090d13] px-4 py-10 text-white sm:px-5">
-      <div className="fixed inset-x-0 top-0 z-20 h-[2px] bg-[#ff4055]" />
-
       <div className="mx-auto w-full max-w-[640px]">
         <header className="text-center">
           <div className="mx-auto flex items-center justify-center gap-2">

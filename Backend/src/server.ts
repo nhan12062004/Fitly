@@ -5439,6 +5439,82 @@ ${jsonSchemaPrompt}
   }
 });
 
+// The onboarding flow deliberately generates meals in a second, smaller request.
+// Workout generation already happened after the training survey; regenerating it
+// here wastes Groq tokens and replaces a plan the user has just reviewed.
+app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, res) => {
+  try {
+    const userId = await getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!process.env.GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
+
+    const weekStartKey = req.body?.weekStartDate || getWeekStartKey(new Date(`${getVietnamDateKey()}T00:00:00`));
+    const [profileRes, lifestyleRes, healthRes, foodRes, workoutPlanRes, foodPlanRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+      supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('foods').select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare').limit(AI_FOOD_CATALOG_FETCH_LIMIT),
+      supabase.from('weekly_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),
+      supabase.from('weekly_food_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),
+    ]);
+    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodRes.error, workoutPlanRes.error, foodPlanRes.error].find(Boolean);
+    if (firstError) throw firstError;
+    if (!profileRes.data?.id) return res.status(403).json({ code: 'PROFILE_REQUIRED', error: 'Vui lòng hoàn thành hồ sơ trước.' });
+    if (!workoutPlanRes.data?.[0]?.id) return res.status(409).json({ error: 'Lịch tập 7 ngày chưa sẵn sàng.' });
+    if (foodPlanRes.data?.[0]?.id) return res.status(409).json({ error: 'Thực đơn 7 ngày đã được tạo.' });
+
+    const lifestyle = lifestyleRes.data || {};
+    const health = healthRes.data || {};
+    const safetyContext = { profile: profileRes.data || {}, lifestyle, health };
+    const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
+    const mealSlots = getMealSlotsForCount(mealsPerDay);
+    const foods = selectBalancedFoodCatalog(filterSafeFoodsForUser(foodRes.data as any[], safetyContext), AI_FOOD_CATALOG_LIMIT, {
+      lifestyle, health, mealsPerDay, mealTypes: mealSlots, targetCalories: Number(lifestyle.target_calories || 0),
+    });
+    const foodById = new Map(foods.map((food: any) => [String(food.id), food]));
+    const foodCatalog = foods.map((food: any) => `${food.id}|${truncateText(food.name, 30)}|g=${classifyFoodComponent(food)}|k=${food.calories || 0}|p=${food.protein || 0}|c=${food.carbs || 0}|f=${food.fat || 0}|meal=${(food.meal_type || []).join(',')}`).join('\n');
+    const prompt = `Generate a 7-day meal plan only. Return valid JSON only.\nUSER: diet=${lifestyle.diet_preference || ''}; cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: exactly 7 days indexed 0..6; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; only FOOD_CATALOG ids; lunch/dinner need carb+protein+vegetable; breakfast needs carb+protein; avoid allergens; do not repeat a food family excessively.\nFOOD_CATALOG:\n${foodCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":0,"meals":[{"meal_type":"breakfast","food_ids":["catalog id"],"quantities":[1]}]}]}}`;
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST', headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }], temperature: 0.35, max_tokens: 1800, response_format: { type: 'json_object' } }),
+    });
+    const groqResult: any = await groqResponse.json();
+    if (!groqResponse.ok || groqResult.error) throw toAiProviderRequestError(groqResult?.error?.message || 'Groq AI request failed');
+    const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
+    const normalizedPlan = normalizeAiPlanPayload({
+      workout_plan: { days: Array.from({ length: 7 }, (_, day_of_week) => ({ day_of_week, is_rest_day: true, exercises: [] })) },
+      meal_plan: parsed?.meal_plan,
+    }, { requireMealPlan: true });
+
+    const createdPlan = await supabase.from('weekly_food_plans').insert({ user_id: userId, name: 'AI Coach Meal Plan', week_start_date: weekStartKey, plan_status: 'draft', generated_by: 'ai', ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500) }).select('id').single();
+    if (createdPlan.error) throw createdPlan.error;
+    const foodPlanId = createdPlan.data.id;
+    const rows: any[] = [];
+    for (const day of normalizedPlan.mealPlan.days) {
+      const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
+      const expanded = expandAiMealItems(day.meals || [], foodById);
+      const enriched = enrichMealComponents(expanded, mealsPerDay, foodById, foods);
+      normalizeDayMeals(enriched, mealsPerDay, foodById).forEach((item: any, index: number) => {
+        const food = foodById.get(String(item.food_id));
+        if (!food) return;
+        rows.push({ food_plan_id: foodPlanId, day_of_week: dayIndex, meal_type: item.meal_type, food_id: item.food_id, quantity: Math.max(0.25, Math.min(6, Number(item.quantity) || 1)), calories: Number(food.calories || 0), protein: Number(food.protein || 0), carbs: Number(food.carbs || 0), fat: Number(food.fat || 0), order_index: index, is_rest_day: false });
+      });
+    }
+    if (!rows.length) throw new Error('AI meal plan did not contain valid foods.');
+    const insertRows = await supabase.from('weekly_food_items').insert(rows);
+    if (insertRows.error) throw insertRows.error;
+    const activate = await supabase.from('weekly_food_plans').update({ plan_status: 'active', updated_at: new Date().toISOString() }).eq('id', foodPlanId).eq('plan_status', 'draft');
+    if (activate.error) throw activate.error;
+    const adjustment = await supabase.from('ai_plan_adjustments').insert({ user_id: userId, plan_type: 'meal', source_type: 'onboarding_meal_generate', old_plan_id: null, new_plan_id: workoutPlanRes.data[0].id, old_data: {}, new_data: { workout_plan_id: workoutPlanRes.data[0].id, food_plan_id: foodPlanId, target_calories: normalizedPlan.mealPlan.target_calories }, reason: truncateText(normalizedPlan.mealPlan.explanation || 'AI created onboarding meal plan.', 300), created_by: 'ai', status: 'applied', applied_at: new Date().toISOString() });
+    if (adjustment.error) console.warn('Failed to store onboarding meal adjustment:', adjustment.error.message);
+    return res.json({ success: true, data: { weeklyPlanId: workoutPlanRes.data[0].id, foodPlanId, mealItems: rows.length, weekStartDate: weekStartKey, ai_json: { meal_plan: normalizedPlan.mealPlan } } });
+  } catch (error: any) {
+    console.error('[ai-coach-onboarding-meal] failed:', error?.message || 'unknown_error');
+    if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
+    return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI 7 ngày lúc này.' });
+  }
+});
+
 app.post('/api/telegram/link-token', async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);

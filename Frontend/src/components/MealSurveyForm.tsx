@@ -9,6 +9,13 @@ type Choice = {
   description: string;
 };
 
+export type MealSurveySelection = {
+  dietPreference: string;
+  mealsPerDay: number;
+  cookingAbility: string;
+  budgetLevel: string;
+};
+
 const DIET_OPTIONS: Choice[] = [
   { value: 'Bình thường', label: 'Ăn cân bằng', description: 'Đa dạng món ăn, dễ áp dụng hằng ngày.' },
   { value: 'Ăn chay', label: 'Ăn chay', description: 'Ưu tiên nguồn đạm và thực phẩm từ thực vật.' },
@@ -76,7 +83,7 @@ function ChoiceGrid({
 }
 
 interface MealSurveyFormProps {
-  onComplete: () => void | Promise<void>;
+  onComplete: (selection: MealSurveySelection) => void | Promise<void>;
   onBack: () => void;
 }
 
@@ -108,7 +115,12 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
         updated_at: new Date().toISOString(),
       });
       if (saveError) throw saveError;
-      await onComplete();
+      await onComplete({
+        dietPreference,
+        mealsPerDay: Number(mealsPerDay),
+        cookingAbility,
+        budgetLevel,
+      });
     } catch (err: any) {
       setError(err?.message || 'Không thể lưu lựa chọn thực đơn. Vui lòng thử lại.');
     } finally {
