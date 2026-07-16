@@ -29,13 +29,6 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import LoadingScreen from './LoadingScreen';
 import {
-  DEFAULT_WORKOUT_FREQUENCY,
-  WORKOUT_FREQUENCY_OPTIONS,
-  normalizeWorkoutFrequency,
-  weeklyWorkoutsToFrequency,
-  workoutFrequencyToWeeklyWorkouts,
-} from '../lib/WorkoutFrequency';
-import {
   DEFAULT_MOTIVATION,
   normalizeMotivation,
 } from '../lib/MotivationOptions';
@@ -148,34 +141,46 @@ const GOAL_OPTIONS: ChoiceOption[] = [
 
 const ACTIVITY_LEVEL_OPTIONS: ChoiceOption[] = [
   {
-    value: '2 ngày/tuần',
+    value: 'sedentary',
     label: 'Ít vận động',
     description: 'Công việc văn phòng, ít đi lại trong ngày.',
     icon: Sofa,
     iconWrapClass: 'bg-slate-500/12 text-slate-300 ring-slate-300/30',
   },
   {
-    value: '3 ngày/tuần',
+    value: 'lightly_active',
     label: 'Vận động nhẹ',
     description: 'Đi bộ hoặc tập nhẹ vài buổi mỗi tuần.',
     icon: Footprints,
     iconWrapClass: 'bg-lime-500/12 text-lime-300 ring-lime-300/35',
   },
   {
-    value: '4 ngày/tuần',
+    value: 'moderately_active',
     label: 'Vận động đều',
     description: 'Tập 3-5 ngày/tuần, giữ sức khỏe ổn định.',
     icon: Bike,
     iconWrapClass: 'bg-green-500/12 text-green-300 ring-green-300/35',
   },
   {
-    value: '5 ngày/tuần',
+    value: 'very_active',
     label: 'Vận động nhiều',
     description: 'Cường độ cao gần như mỗi ngày - bạn nghiêm túc.',
     icon: Zap,
     iconWrapClass: 'bg-purple-500/12 text-purple-300 ring-purple-300/35',
   }
 ];
+
+const DEFAULT_ACTIVITY_LEVEL = 'lightly_active';
+
+const normalizeActivityLevel = (value: unknown): string => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (ACTIVITY_LEVEL_OPTIONS.some((option) => option.value === raw)) return raw;
+  if (raw.includes('ít vận động') || raw.includes('2 ngày') || raw.includes('2 buổi')) return 'sedentary';
+  if (raw.includes('vận động nhẹ') || raw.includes('3 ngày') || raw.includes('3 buổi')) return 'lightly_active';
+  if (raw.includes('vận động đều') || raw.includes('4 ngày') || raw.includes('4 buổi')) return 'moderately_active';
+  if (raw.includes('vận động nhiều') || raw.includes('5 ngày') || raw.includes('5 buổi') || raw.includes('6 ngày')) return 'very_active';
+  return DEFAULT_ACTIVITY_LEVEL;
+};
 
 const GENDER_OPTIONS: ChoiceOption[] = [
   {
@@ -557,7 +562,7 @@ function ActivityChoiceList({
   return (
     <div className="space-y-2.5">
       {options.map((option) => {
-        const active = normalizeWorkoutFrequency(value) === option.value;
+        const active = normalizeActivityLevel(value) === option.value;
         const Icon = option.icon || Activity;
         return (
           <label
@@ -819,8 +824,10 @@ const estimateTargetCalories = ({
   const parsedWeight = Number(weight) || 70;
   const genderOffset = gender === 'Nam' ? 5 : gender === 'Nữ' ? -161 : -78;
   const bmr = 10 * parsedWeight + 6.25 * parsedHeight - 5 * parsedAge + genderOffset;
-  const weeklyWorkouts = workoutFrequencyToWeeklyWorkouts(frequency);
-  const activityMultiplier = 1.2 + Math.min(Math.max(weeklyWorkouts, 0), 6) * 0.05;
+  // Training cadence is prescribed on the server after survey submission.
+  // Keep calorie estimation neutral here so the browser is not a second source
+  // of truth for the workout-frequency rule.
+  const activityMultiplier = 1.375;
   const normalizedGoal = normalizePlainText(goal);
   const goalAdjustment = normalizedGoal.includes('giam')
     ? -350
@@ -882,7 +889,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
     waist: '',
     hips: '',
     // BMI sẽ được tính tự động, không cần trong state input
-    activity_level: DEFAULT_WORKOUT_FREQUENCY,
+    activity_level: DEFAULT_ACTIVITY_LEVEL,
     fitness_goal: 'Giảm mỡ',
     workout_time: 'Sáng sớm',
     workout_duration: DEFAULT_WORKOUT_DURATION,
@@ -965,9 +972,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
             chest: (b.data?.chest && b.data.chest !== 0) ? b.data.chest.toString() : '',
             waist: (b.data?.waist && b.data.waist !== 0) ? b.data.waist.toString() : '',
             hips: (b.data?.hips && b.data.hips !== 0) ? b.data.hips.toString() : '',
-            activity_level: normalizeWorkoutFrequency(
-              l.data?.activity_level || weeklyWorkoutsToFrequency(l.data?.weekly_workouts) || prev.activity_level
-            ),
+            activity_level: normalizeActivityLevel(l.data?.activity_level || prev.activity_level),
             fitness_goal: l.data?.fitness_goal || prev.fitness_goal,
             diet_preference: l.data?.diet_preference === 'Ăn chay (Có thể ăn chay)' ? 'Ăn chay' : (l.data?.diet_preference || prev.diet_preference),
             cooking_ability: l.data?.cooking_ability === 'Tự nấu tối, ăn ngoài trưa' ? 'Ăn trưa ở ngoài, tối tự nấu' : (l.data?.cooking_ability || prev.cooking_ability),
@@ -1203,8 +1208,10 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       const resolvedFullName = formData.full_name.trim() || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Thành viên';
       const resolvedTargetWeight = parseFloat(formData.target_weight) || parseFloat(formData.weight) || 0;
       const resolvedEquipment = formData.workout_location === 'Phòng Gym' ? 'Đầy đủ tạ & máy móc' : 'Không dụng cụ';
-      const normalizedActivityLevel = normalizeWorkoutFrequency(formData.activity_level);
-      const weeklyWorkouts = workoutFrequencyToWeeklyWorkouts(normalizedActivityLevel);
+      const normalizedActivityLevel = normalizeActivityLevel(formData.activity_level);
+      // This is a temporary persistence value only. The backend prescription
+      // rule overwrites it before any AI plan is generated.
+      const weeklyWorkouts = 3;
       const ageYears = Number(formData.age) || 28;
       const heightCm = Number(formData.height) || 170;
       const weightKg = Number(formData.weight) || 68;
@@ -1330,9 +1337,6 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       const durationMinutes = Number(DEFAULT_WORKOUT_DURATION) || 45;
       const selectedMeals = MEAL_OPTIONS.find(option => option.value === formData.meals_per_day);
       const selectedActivity = ACTIVITY_LEVEL_OPTIONS.find(option => option.value === normalizedActivityLevel);
-      const selectedFrequency = WORKOUT_FREQUENCY_OPTIONS.find(
-        option => option.value === normalizedActivityLevel
-      );
       const todayExercises = buildTodayExercises({
         experience: formData.experience_level,
         location: formData.workout_location,
@@ -1343,8 +1347,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
         goal: formData.fitness_goal,
         experience: formData.experience_level,
         frequency: selectedActivity
-          ? `${selectedActivity.label} · ${selectedFrequency?.label || selectedActivity.value}`
-          : selectedFrequency?.label || `${workoutFrequencyToWeeklyWorkouts(normalizedActivityLevel)} buổi / tuần`,
+          ? `${selectedActivity.label} · Fitly đang kê đơn lịch tập`
+          : 'Fitly đang kê đơn lịch tập',
         duration: `${durationMinutes} phút / buổi`,
         targetCalories: estimatedTargetCalories,
         gender: formData.gender,

@@ -142,6 +142,9 @@ export default function Dashboard() {
 
     if (workoutRes.error) throw workoutRes.error;
 
+    const prescribedWeeklyWorkouts = Math.max(2, Math.min(5, Number(payload?.data?.trainingPrescription?.weeklyWorkouts) || 3));
+    const prescribedDurationMinutes = Math.max(20, Math.min(60, Number(payload?.data?.trainingPrescription?.durationMinutes) || 45));
+
     const workoutRows = ((workoutRes.data || []) as any[]).filter((item) => !item.is_rest_day && item.exercise_id);
     const todayExercises = workoutRows.length > 0
       ? workoutRows.map((item) => ({
@@ -152,6 +155,10 @@ export default function Dashboard() {
 
     setSurveyPlanSummary({
       ...summary,
+      frequency: `Fitly đề xuất ${prescribedWeeklyWorkouts} buổi/tuần`,
+      duration: `${prescribedDurationMinutes} phút / buổi`,
+      weeklyWorkouts: prescribedWeeklyWorkouts,
+      todayDuration: workoutRows.length > 0 ? `${prescribedDurationMinutes} phút` : 'Nghỉ phục hồi',
       todayWorkout: workoutRows.length > 0 ? 'Lịch tập hôm nay' : 'Ngày nghỉ phục hồi',
       todayExercises,
       todayMeals: [],
@@ -164,7 +171,6 @@ export default function Dashboard() {
       setSurveyPlanSummary(summary);
       setSurveyPlanError('');
       setIsGeneratingSurveyPlan(true);
-      navigate('/assessment');
     }
     await refreshProfile();
     if (!summary) return;
@@ -177,6 +183,7 @@ export default function Dashboard() {
     } finally {
       setIsGeneratingSurveyPlan(false);
     }
+    navigate('/assessment');
   };
 
   const continueToMealSurvey = () => {
@@ -254,6 +261,10 @@ export default function Dashboard() {
     return <LoadingScreen fullScreen />;
   }
 
+  if (isLoggedIn && surveyPlanSummary && isGeneratingSurveyPlan && location.pathname !== '/assessment') {
+    return <LoadingScreen fullScreen />;
+  }
+
   if (isLoggedIn && surveyPlanSummary && location.pathname === '/assessment') {
     if (isMealSurveyOpen) {
       return <MealSurveyForm onComplete={completeMealSurvey} onBack={() => setIsMealSurveyOpen(false)} />;
@@ -263,7 +274,6 @@ export default function Dashboard() {
       <SurveyResultScreen
         summary={surveyPlanSummary}
         isGeneratingPlan={isGeneratingSurveyPlan}
-        generationError={surveyPlanError}
         onStart={continueToMealSurvey}
       />
     );

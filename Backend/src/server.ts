@@ -8,6 +8,7 @@ import { supabase } from './config/Supabase';
 import { initTelegramBot, getTelegramReminderStatus, sendWaterReminders, sendSleepReminders } from './TelegramBot';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { resolveWeeklyWorkouts } from './lib/WorkoutFrequency';
+import { prescribeTrainingSchedule, type TrainingPrescription } from './lib/TrainingPrescription';
 import { detectIntent, extractDayIndexFromText, getResponseModeForIntent } from './services/ai/aiRouterService';
 import { aiChatService } from './services/ai/aiChatService';
 import { aiPlannerService } from './services/ai/aiPlannerService';
@@ -22,6 +23,7 @@ import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
 import {
   buildSafetyPromptAddendum,
+  buildUserSafetyProfile,
   filterSafeFoodsForUser,
   getFoodSafetyDecision,
   sanitizeWorkoutPlanForUser,
@@ -1249,6 +1251,40 @@ const normalizeAiPlanPayload = (raw: any, options: { requireMealPlan?: boolean }
   };
 };
 
+const enforceTrainingPrescription = (
+  workoutPlan: NormalizedAiPlan['workoutPlan'],
+  prescription: TrainingPrescription,
+) => {
+  const daysByIndex = new Map<number, NormalizedAiPlan['workoutPlan']['days'][number]>();
+  for (const day of workoutPlan.days) {
+    if (daysByIndex.has(day.day_of_week)) {
+      throw new ApiRequestError(422, { error: 'AI workout proposal contains duplicate days.' });
+    }
+    daysByIndex.set(day.day_of_week, day);
+  }
+  if (daysByIndex.size !== 7 || Array.from({ length: 7 }, (_, day) => !daysByIndex.has(day)).some(Boolean)) {
+    throw new ApiRequestError(422, { error: 'AI workout proposal must contain exactly one entry for every day of the week.' });
+  }
+
+  const activeDays = Array.from(daysByIndex.values()).filter((day) => !day.is_rest_day && day.exercises.length > 0);
+  if (activeDays.length !== prescription.weeklyWorkouts) {
+    throw new ApiRequestError(422, {
+      error: `AI workout proposal must contain exactly ${prescription.weeklyWorkouts} training days.`,
+    });
+  }
+
+  return {
+    ...workoutPlan,
+    days: Array.from({ length: 7 }, (_, dayIndex) => {
+      const day = daysByIndex.get(dayIndex)!;
+      const isTrainingDay = !day.is_rest_day && day.exercises.length > 0;
+      return isTrainingDay
+        ? { ...day, day_of_week: dayIndex, is_rest_day: false, duration_minutes: prescription.durationMinutes }
+        : { ...day, day_of_week: dayIndex, is_rest_day: true, duration_minutes: 0, exercises: [] };
+    }),
+  };
+};
+
 const parseAverageReps = (repsText: string): number => {
   const numbers = String(repsText || '')
     .match(/\d+/g)
@@ -1776,8 +1812,28 @@ async function generateWeeklyCoachPlanForUser(params: {
 
   const profile = profileRes.data || {};
   const bodyMetrics = bodyMetricsRes.data || {};
-  const lifestyle = lifestyleRes.data || {};
+  let lifestyle = lifestyleRes.data || {};
   const health = healthRes.data || {};
+  const initialSafetyContext = { profile, lifestyle, health };
+  const trainingPrescription = prescribeTrainingSchedule({
+    activityLevel: lifestyle.activity_level,
+    experienceLevel: lifestyle.experience_level,
+    safety: buildUserSafetyProfile(initialSafetyContext),
+  });
+  const prescriptionUpdate = await supabase
+    .from('lifestyle_settings')
+    .update({
+      weekly_workouts: trainingPrescription.weeklyWorkouts,
+      workout_duration: trainingPrescription.durationMinutes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+  if (prescriptionUpdate.error) throw prescriptionUpdate.error;
+  lifestyle = {
+    ...lifestyle,
+    weekly_workouts: trainingPrescription.weeklyWorkouts,
+    workout_duration: trainingPrescription.durationMinutes,
+  };
   const safetyContext = { profile, lifestyle, health };
   const eligibilityContext = buildExerciseEligibilityContext(safetyContext);
   const recentExerciseIds = new Set(
@@ -1794,7 +1850,7 @@ async function generateWeeklyCoachPlanForUser(params: {
     ...((recentMealLogsRes.data || []) as any[]),
     ...((recentMealsRes.data || []) as any[])
   ];
-  const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.activity_level, lifestyle.weekly_workouts);
+  const weeklyWorkoutDays = trainingPrescription.weeklyWorkouts;
   const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
   const mealSlots = getMealSlotsForCount(mealsPerDay);
   const safeFoodSource = filterSafeFoodsForUser(foodCatalogRes.data as any[], safetyContext);
@@ -1907,7 +1963,8 @@ Rules:
 - Breakfast must use foods that support breakfast; lunch and dinner must use foods that support lunch/dinner; snack must use snack/breakfast-friendly foods.
 - Use recent meal history to infer the user's preferred categories, protein/carb/vegetable balance, diet style and budget tendency.
 - Repeating a liked food is allowed, but do not over-repeat the same exact food or same limited family more than 2-3 times in a week.
-- Training days should match weekly_workouts. Rest days: is_rest_day=true and no exercises.
+- Create exactly ${weeklyWorkoutDays} training days. All other days must be rest days with is_rest_day=true and no exercises.
+- Every training day must have duration_minutes exactly ${trainingPrescription.durationMinutes}; rest days must have duration_minutes=0.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
 - Avoid exercises that conflict with injuries, health conditions, location, or equipment.
@@ -2019,7 +2076,7 @@ JSON schema (fixed):
       details: guardedWorkout.warnings,
     });
   }
-  normalizedPlan.workoutPlan = guardedWorkout.workoutPlan;
+  normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
 
   const existingWorkoutPlans = await supabase
     .from('weekly_plans')
@@ -4865,8 +4922,28 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
 
     const profile = profileRes.data || {};
     const bodyMetrics = bodyMetricsRes.data || {};
-    const lifestyle = lifestyleRes.data || {};
+    let lifestyle = lifestyleRes.data || {};
     const health = healthRes.data || {};
+    const initialSafetyContext = { profile, lifestyle, health };
+    const trainingPrescription = prescribeTrainingSchedule({
+      activityLevel: lifestyle.activity_level,
+      experienceLevel: lifestyle.experience_level,
+      safety: buildUserSafetyProfile(initialSafetyContext),
+    });
+    const prescriptionUpdate = await supabase
+      .from('lifestyle_settings')
+      .update({
+        weekly_workouts: trainingPrescription.weeklyWorkouts,
+        workout_duration: trainingPrescription.durationMinutes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId);
+    if (prescriptionUpdate.error) throw prescriptionUpdate.error;
+    lifestyle = {
+      ...lifestyle,
+      weekly_workouts: trainingPrescription.weeklyWorkouts,
+      workout_duration: trainingPrescription.durationMinutes,
+    };
     const safetyContext = { profile, lifestyle, health };
     const eligibilityContext = buildExerciseEligibilityContext(safetyContext);
     const recentExerciseIds = new Set(
@@ -4883,7 +4960,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       ...((recentMealLogsRes.data || []) as any[]),
       ...((recentMealsRes.data || []) as any[])
     ];
-    const weeklyWorkoutDays = resolveWeeklyWorkouts(lifestyle.activity_level, lifestyle.weekly_workouts);
+    const weeklyWorkoutDays = trainingPrescription.weeklyWorkouts;
     const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
     const mealSlots = getMealSlotsForCount(mealsPerDay);
     const safeFoodSource = filterSafeFoodsForUser(foodCatalogRes.data as any[], safetyContext);
@@ -4944,7 +5021,8 @@ Rules:
 - Never create new exercises. Pick only exercise_id values from EXERCISE_CATALOG.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
-- Training days should match weekly_workouts. Rest days: is_rest_day=true and no exercises.
+- Create exactly ${weeklyWorkoutDays} training days. All other days must be rest days with is_rest_day=true and no exercises.
+- Every training day must have duration_minutes exactly ${trainingPrescription.durationMinutes}; rest days must have duration_minutes=0.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
 - Do not include meal_plan. The app will handle meals in the next onboarding step.
@@ -4961,7 +5039,8 @@ Rules:
 - Breakfast must use foods that support breakfast; lunch and dinner must use foods that support lunch/dinner; snack must use snack/breakfast-friendly foods.
 - Use recent meal history to infer the user's preferred categories, protein/carb/vegetable balance, diet style and budget tendency.
 - Repeating a liked food is allowed, but do not over-repeat the same exact food or same limited family more than 2-3 times in a week.
-- Training days should match weekly_workouts. Rest days: is_rest_day=true and no exercises.
+- Create exactly ${weeklyWorkoutDays} training days. All other days must be rest days with is_rest_day=true and no exercises.
+- Every training day must have duration_minutes exactly ${trainingPrescription.durationMinutes}; rest days must have duration_minutes=0.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
 - Avoid exercises that conflict with injuries, health conditions, location, or equipment.
@@ -5150,7 +5229,7 @@ ${jsonSchemaPrompt}
         details: guardedWorkout.warnings,
       });
     }
-    normalizedPlan.workoutPlan = guardedWorkout.workoutPlan;
+    normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
 
     const existingWorkoutPlans = await supabase
       .from('weekly_plans')
@@ -5416,6 +5495,7 @@ ${jsonSchemaPrompt}
         workoutItems: workoutRows.length,
         mealItems: mealRows.length,
         weekStartDate: weekStartKey,
+        trainingPrescription,
         membershipTier: accessState.membershipTier,
         aiQuota: buildAiQuotaSnapshot(accessState, 'planGenerations'),
         ai_json: {

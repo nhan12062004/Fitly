@@ -67,7 +67,6 @@ const describeArc = (startAngle: number, endAngle: number) => {
 };
 
 function BmiGauge({ bmi }: { bmi: number }) {
-  const bmiLabel = getBmiLabel(bmi);
   const needleAngle = valueToAngle(bmi, 15, 35);
   const needle = polarToCartesian(110, 108, 52, needleAngle);
   const segments = [
@@ -76,44 +75,67 @@ function BmiGauge({ bmi }: { bmi: number }) {
     { from: 25, to: 30, color: '#f59e0b', label: 'Thừa cân nhẹ' },
     { from: 30, to: 35, color: '#fb7185', label: 'Thừa cân' },
   ];
+  const displaySegments = [
+    { from: 15, to: 18.5, color: '#60a5fa', label: 'Thiếu cân' },
+    { from: 18.5, to: 23, color: '#a3ff32', label: 'Bình thường' },
+    { from: 23, to: 25, color: '#fbbf24', label: 'Thừa cân nhẹ' },
+    { from: 25, to: 30, color: '#f59e0b', label: 'Thừa cân' },
+    { from: 30, to: 35, color: '#fb7185', label: 'Béo phì' },
+  ];
+  const displayBmiLabel = displaySegments.find((segment) => bmi < segment.to) || displaySegments[displaySegments.length - 1];
+  const boundaries = [18.5, 23, 25, 30].map((value) => valueToAngle(value, 15, 35));
 
   return (
-    <div className="relative mx-auto h-[178px] w-full max-w-[360px]">
+    <div className="relative mx-auto h-[184px] w-full max-w-[340px]">
       <svg viewBox="0 0 220 146" className="h-full w-full overflow-visible">
         <path
           d={describeArc(180, 360)}
           stroke="rgba(255,255,255,0.07)"
-          strokeWidth="20"
+          strokeWidth="14"
           fill="none"
-          strokeLinecap="round"
+          strokeLinecap="butt"
         />
-        {segments.map((segment) => (
+        {displaySegments.map((segment, index) => (
           <path
             key={segment.label}
             d={describeArc(valueToAngle(segment.from, 15, 35), valueToAngle(segment.to, 15, 35))}
             stroke={segment.color}
-            strokeWidth="20"
+            strokeWidth="14"
             fill="none"
-            strokeLinecap="round"
+            strokeLinecap={index === 0 || index === displaySegments.length - 1 ? 'round' : 'butt'}
           />
         ))}
+        {boundaries.map((angle, index) => {
+          const radians = (angle * Math.PI) / 180;
+          return (
+            <line
+              key={`boundary-${index}`}
+              x1={110 + Math.cos(radians) * 75}
+              y1={108 + Math.sin(radians) * 75}
+              x2={110 + Math.cos(radians) * 89}
+              y2={108 + Math.sin(radians) * 89}
+              stroke="#f8fafc"
+              strokeWidth="2.5"
+            />
+          );
+        })}
         <line
           x1="110"
           y1="108"
           x2={needle.x}
           y2={needle.y}
           stroke="#ffffff"
-          strokeWidth="4"
-          strokeLinecap="round"
+          strokeWidth="2"
+          strokeLinecap="butt"
         />
         <circle cx="110" cy="108" r="7" fill="#ffffff" />
       </svg>
-      <div className="absolute inset-x-0 top-[56px] text-center">
-        <p className="text-[42px] font-black leading-none text-white">{formatNumber(bmi, 1)}</p>
-        <p className={`mt-1 text-sm font-black ${bmiLabel.tone}`}>{bmiLabel.label}</p>
+      <div className="absolute inset-x-0 top-[60px] text-center">
+        <p className="text-[42px] font-black leading-none text-white">{bmi.toFixed(1)}</p>
+        <p className="mt-1 text-sm font-black" style={{ color: displayBmiLabel.color }}>{displayBmiLabel.label}</p>
       </div>
       <div className="absolute bottom-0 left-1/2 flex w-full -translate-x-1/2 flex-wrap justify-center gap-x-3 gap-y-1 text-[9px] font-bold text-[#8994a6]">
-        {segments.map((segment) => (
+        {displaySegments.map((segment) => (
           <span key={segment.label} className="inline-flex items-center gap-1">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
             {segment.label}
@@ -201,28 +223,31 @@ export default function SurveyResultScreen({
     <div className="relative min-h-[100dvh] w-full bg-[#090d13] px-4 py-10 text-white sm:px-5">
       <div className="mx-auto w-full max-w-[640px]">
         <header className="text-center">
-          <div className="mx-auto flex items-center justify-center gap-2">
-            <span className="relative flex h-7 w-7 items-center justify-center">
+          <div className="mx-auto flex items-center justify-center gap-1.5">
+            <img src="/logo.png" alt="Fitly" className="h-7 w-7 object-contain" />
+            <span className="hidden relative flex h-7 w-7 items-center justify-center">
               <span className="absolute h-4 w-1.5 rotate-[-28deg] rounded-full bg-[#1f7cff]" />
               <span className="absolute ml-3 h-6 w-1.5 rotate-[34deg] rounded-full bg-[#12e59a]" />
             </span>
             <span className="text-sm font-black text-[#7dfba0]">Fitly</span>
           </div>
 
-          <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#0c766d] bg-[#062b2d] px-4 py-1.5 text-[10px] font-black uppercase text-[#5eead4] shadow-[0_0_22px_rgba(20,184,166,0.15)]">
+          <div className="hidden mt-5 inline-flex items-center gap-2 rounded-full border border-[#0c766d] bg-[#062b2d] px-4 py-1.5 text-[10px] font-black uppercase text-[#5eead4] shadow-[0_0_22px_rgba(20,184,166,0.15)]">
             <HeartPulse className="h-3.5 w-3.5" strokeWidth={2.5} />
-            Phân tích bài tập
+            Đánh giá thể trạng
           </div>
 
-          <h1 className="mt-3 text-[28px] font-black leading-tight tracking-tight text-white sm:text-[32px]">
+          <h1 className="mt-5 text-[0px] font-black leading-tight tracking-tight text-white sm:text-[0px]">
             Lịch tập AI đã sẵn sàng
+            <span className="text-[28px] sm:text-[32px]">Kết quả phân tích</span>
           </h1>
-          <p className="mt-1 text-xs font-semibold text-[#8390a3] sm:text-sm">
+          <p className="mt-1 text-[0px] font-semibold text-[#8390a3] sm:text-[0px]">
             Xem nhanh bài tập hôm nay, sau đó chuyển sang bước lên thực đơn.
+            <span className="text-xs sm:text-sm">AI dùng các chỉ số này để cá nhân hóa kế hoạch ăn &amp; tập của bạn.</span>
           </p>
         </header>
 
-        <main className="mt-6 space-y-4">
+        <main className="mt-6 flex flex-col gap-4">
           <Panel className="overflow-hidden">
             <div className="border-b border-[#273140] p-4 sm:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -270,8 +295,8 @@ export default function SurveyResultScreen({
             </div>
           </Panel>
 
-          <Panel className="p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase text-[#8c98aa]">
+          <Panel className="order-first min-h-[270px] rounded-[24px] border-[#303947] bg-[#171d27] px-7 py-5 sm:px-8">
+            <div className="flex items-center justify-between gap-3 text-[10px] font-black text-[#9aa8bb]">
               <span>BMI - Chuẩn WHO Á Đông</span>
               <span>Lý tưởng: {formatKg(idealMin)}-{formatKg(idealMax)}</span>
             </div>
@@ -308,7 +333,7 @@ export default function SurveyResultScreen({
             />
           </div>
 
-          <Panel className="p-4 sm:p-5">
+          <Panel className="hidden p-4 sm:p-5">
             <h2 className="text-base font-black text-white">Nhịp tập đề xuất</h2>
             <p className="mt-1 text-[11px] font-semibold text-[#8c98aa]">
               Ưu tiên đúng kỹ thuật trong tuần đầu, tăng tải khi hoàn thành đủ số hiệp.
@@ -392,8 +417,8 @@ export default function SurveyResultScreen({
             </div>
           </Panel>
 
-          {isGeneratingPlan || generationError ? (
-            <Panel className={`p-4 ${generationError ? 'border-red-500/35 bg-red-500/10' : 'border-[#bfff18]/35 bg-[#bfff18]/10'}`}>
+          {isGeneratingPlan ? (
+            <Panel className="border-[#bfff18]/35 bg-[#bfff18]/10 p-4">
               <div className="flex gap-3">
                 {isGeneratingPlan ? (
                   <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[#c8ff19]" />
