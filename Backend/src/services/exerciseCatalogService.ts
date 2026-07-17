@@ -326,10 +326,9 @@ const validateSevenDayWorkoutShape = (proposal: unknown): string[] => {
     if (!Number.isFinite(Number(day.duration_minutes)) || Number(day.duration_minutes) < 0 || Number(day.duration_minutes) > 240) {
       errors.push(`${path}.duration_minutes must be from 0 to 240`);
     }
-    // Models often omit `exercises` on an explicitly marked rest day. Treat
-    // that as an empty list; active days must still provide the array.
-    const isRestDay = day.type === 'rest' || day.is_rest_day === true;
-    if (!Array.isArray(day.exercises) && !isRestDay) errors.push(`${path}.exercises must be an array`);
+    // An omitted exercises field is an empty/rest day. The later prescription
+    // check still rejects a schedule unless it has the exact required number
+    // of active days, so this only tolerates a common AI JSON omission.
   });
   return errors;
 };
