@@ -148,6 +148,7 @@ type AICoachPageCache = {
 
 const aiCoachPageCache = new Map<string, AICoachPageCache>();
 const AI_CHAT_DRAFT_STORAGE_PREFIX = 'fitly:ai-coach-draft:';
+const AI_QUOTA_STORAGE_PREFIX = 'fitly:ai-coach-quota:';
 
 const readChatDraft = (storageKey: string | null): string => {
   if (!storageKey || typeof window === 'undefined') return '';
@@ -372,6 +373,28 @@ const inferResponseMode = (
   if (intent === 'motivation') return 'support';
   if (intent === 'out_of_scope') return 'redirect';
   return 'coach_advice';
+};
+
+const readAiQuota = (storageKey: string | null): AiQuotaSnapshot | null => {
+  if (!storageKey || typeof window === 'undefined') return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || 'null');
+    if (!parsed || typeof parsed !== 'object' || Date.now() - Number(parsed.savedAt || 0) > 10 * 60 * 1000) return null;
+    const quota = parsed.quota;
+    if (!quota || typeof quota !== 'object' || !quota.limits || !quota.usage || !quota.remaining) return null;
+    return quota as AiQuotaSnapshot;
+  } catch {
+    return null;
+  }
+};
+
+const writeAiQuota = (storageKey: string | null, quota: AiQuotaSnapshot): void => {
+  if (!storageKey || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(storageKey, JSON.stringify({ savedAt: Date.now(), quota }));
+  } catch {
+    // The live quota request remains the source of truth when storage is unavailable.
+  }
 };
 
 const getAssistantModeLabel = (message: ChatMessage) => {
@@ -1010,6 +1033,7 @@ export default function AICoach() {
   const initialWeekStartKey = getWeekStartKey(new Date(`${initialTodayDateKey}T00:00:00`));
   const initialCoachCache = user?.id ? aiCoachPageCache.get(`${user.id}:${initialWeekStartKey}:${initialTodayDateKey}`) || null : null;
   const chatDraftStorageKey = user?.id ? `${AI_CHAT_DRAFT_STORAGE_PREFIX}${user.id}` : null;
+  const aiQuotaStorageKey = user?.id ? `${AI_QUOTA_STORAGE_PREFIX}${user.id}` : null;
   const [loading, setLoading] = useState(() => !initialCoachCache);
   const [, setIsRefreshingPlan] = useState(false);
   const [, setIsRefreshingChat] = useState(false);
@@ -1024,7 +1048,7 @@ export default function AICoach() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [chatInput, setChatInput] = useState(() => readChatDraft(chatDraftStorageKey));
-  const [aiQuota, setAiQuota] = useState<AiQuotaSnapshot | null>(null);
+  const [aiQuota, setAiQuota] = useState<AiQuotaSnapshot | null>(() => readAiQuota(aiQuotaStorageKey));
   const [selectedCoachDayIndex, setSelectedCoachDayIndex] = useState<number | null>(() => getCoachLaunchDayIndex(location.search));
   const [isListening, setIsListening] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; size: number; type: string } | null>(null);
@@ -1063,6 +1087,9 @@ export default function AICoach() {
         return;
       }
 
+      const cachedQuota = readAiQuota(aiQuotaStorageKey);
+      if (cachedQuota) setAiQuota(cachedQuota);
+
       try {
         const sessionRes = await supabase.auth.getSession();
         const accessToken = sessionRes.data.session?.access_token;
@@ -1072,7 +1099,9 @@ export default function AICoach() {
         });
         const payload = await response.json().catch(() => ({}));
         if (!cancelled && response.ok && payload?.aiQuota) {
-          setAiQuota(payload.aiQuota as AiQuotaSnapshot);
+          const nextQuota = payload.aiQuota as AiQuotaSnapshot;
+          setAiQuota(nextQuota);
+          writeAiQuota(aiQuotaStorageKey, nextQuota);
         }
       } catch {
         if (!cancelled) setAiQuota(null);
@@ -1083,7 +1112,7 @@ export default function AICoach() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, refreshTick]);
+  }, [user?.id, refreshTick, aiQuotaStorageKey]);
 
   useEffect(() => {
     const loadPlan = async () => {
@@ -1819,7 +1848,10 @@ export default function AICoach() {
 
       const payload = (await response.json().catch(() => ({}))) as Partial<AIChatApiResponse>;
       if (!response.ok) {
-        if (payload?.aiQuota) setAiQuota(payload.aiQuota);
+        if (payload?.aiQuota) {
+          setAiQuota(payload.aiQuota);
+          writeAiQuota(aiQuotaStorageKey, payload.aiQuota);
+        }
         if (payload?.code === 'AI_CHANGE_LIMIT_REACHED' || payload?.code === 'PREMIUM_REQUIRED') {
           openPremiumModal();
           toast.error(payload?.error || payload?.reply || 'Bạn đã dùng hết lượt AI Coach trong gói hiện tại.');
@@ -1828,7 +1860,10 @@ export default function AICoach() {
         throw new Error(payload?.error || payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');
       }
 
-      if (payload.aiQuota) setAiQuota(payload.aiQuota);
+      if (payload.aiQuota) {
+        setAiQuota(payload.aiQuota);
+        writeAiQuota(aiQuotaStorageKey, payload.aiQuota);
+      }
       const replyContent = String(payload.reply || '').trim() || buildCoachReply(targetDay, message, previousTopic, lifestyle);
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
@@ -1919,10 +1954,10 @@ export default function AICoach() {
                     </div>
                   </div>
                   <div className="ai-coach-header-actions">
-                    {chatQuotaSummary ? (
-                      <div className="ai-coach-quota-pill" title={`${chatQuotaSummary.remaining} lượt AI Coach còn lại`}>
+                    {user?.id ? (
+                      <div className="ai-coach-quota-pill" title={chatQuotaSummary ? `${chatQuotaSummary.remaining} lượt AI Coach còn lại` : 'Đang tải lượt AI Coach'}>
                         <Zap className="h-3 w-3 fill-current" aria-hidden="true" />
-                        <strong>{chatQuotaSummary.remaining} lượt</strong>
+                        <strong>{chatQuotaSummary ? `${chatQuotaSummary.remaining} lượt` : '... lượt'}</strong>
                       </div>
                     ) : null}
                     {chatMessages.length > 0 ? (

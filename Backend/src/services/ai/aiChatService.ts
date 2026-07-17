@@ -262,6 +262,63 @@ const buildNoMealPlanSuggestionReply = (message: string, context?: AIChatContext
   ].join('\n\n');
 };
 
+const buildNoWorkoutPlanSuggestionReply = (context?: AIChatContext): string => {
+  const dayLabel = context?.targetDayLabel || 'Hôm nay';
+  const lifestyle = context?.lifestyle || {};
+  const health = context?.health || {};
+  const goal = String((lifestyle as any).fitness_goal || '').trim();
+  const experience = String((lifestyle as any).experience_level || '').trim();
+  const goalText = normalizeVietnameseText(goal);
+  const experienceText = normalizeVietnameseText(experience);
+  const healthNotes = [
+    (health as any).health_condition,
+    (health as any).injuries,
+    (health as any).medical_history,
+  ]
+    .map((value) => normalizeVietnameseText(String(value || '')))
+    .filter((value) => value && !['khong', 'khong co', 'none', 'binh thuong'].includes(value));
+  const hasHealthConstraint = healthNotes.length > 0;
+  const isBeginner = hasAny(experienceText, ['nguoi moi', 'beginner', 'duoi 6 thang']);
+  const wantsFatLoss = hasAny(goalText, ['giam mo', 'giam can', 'fat loss', 'weight loss']);
+  const wantsMuscle = hasAny(goalText, ['tang co', 'muscle', 'strength']);
+
+  if (hasHealthConstraint) {
+    return [
+      `${dayLabel} chưa có lịch tập. Vì hồ sơ có lưu ý sức khỏe, hãy giữ buổi vận động trong ngưỡng không đau:`,
+      '- Đi bộ chậm hoặc bước tại chỗ 5-10 phút nếu cơ thể thấy ổn.',
+      '- Hít thở chậm và giãn cơ rất nhẹ 5 phút, không ép biên độ.',
+      '- Dừng ngay nếu đau tăng, tê, choáng hoặc khó chịu rõ.',
+    ].join('\n');
+  }
+
+  const workoutLines = wantsMuscle
+    ? [
+        '- Squat chạm ghế: 2 hiệp x 8-10 lần, nghỉ 60 giây.',
+        '- Chống đẩy tường: 2 hiệp x 8-10 lần, giữ thân người thẳng.',
+        '- Glute bridge: 2 hiệp x 10-12 lần, tập chậm và kiểm soát.',
+      ]
+    : wantsFatLoss
+      ? [
+          '- Đi bộ nhanh hoặc bước tại chỗ: 10-15 phút ở mức vẫn nói được câu ngắn.',
+          '- Squat chạm ghế: 2 hiệp x 10 lần, nghỉ 60 giây.',
+          isBeginner
+            ? '- Nâng gối tại chỗ: 2 hiệp x 20-30 giây, giữ nhịp vừa sức.'
+            : '- Mountain climber chậm hoặc nâng gối tại chỗ: 2 hiệp x 20-30 giây.',
+        ]
+      : [
+          '- Đi bộ nhẹ hoặc bước tại chỗ: 10 phút để khởi động cơ thể.',
+          '- Squat chạm ghế: 2 hiệp x 8-10 lần, nghỉ 60 giây.',
+          '- Giãn cơ lưng, hông và vai: 5 phút, không cố rướn khi đau.',
+        ];
+  const profileCue = [goal, experience || (isBeginner ? 'người mới' : '')].filter(Boolean).join(' · ');
+
+  return [
+    `${dayLabel} Fitly chưa có lịch tập${profileCue ? `; mình gợi ý buổi nhẹ theo ${profileCue}` : ''}:`,
+    ...workoutLines,
+    '- Kết thúc bằng 2 phút hít thở chậm; nếu thấy đau hoặc chóng mặt thì dừng lại.',
+  ].join('\n');
+};
+
 const buildPlanOverviewReply = (message: string, context?: AIChatContext): string => {
   const normalized = normalizeVietnameseText(message);
   const dayLabel = context?.targetDayLabel || 'Hom nay';
@@ -312,7 +369,7 @@ const buildPlanOverviewReply = (message: string, context?: AIChatContext): strin
         .join('\n');
       sections.push(`${dayLabel} co ${exercises.length} bai tap:\n${lines}`);
     } else {
-      sections.push(`${dayLabel} hien chua co bai tap nao trong lich.`);
+      sections.push(buildNoWorkoutPlanSuggestionReply(context));
     }
   }
 
@@ -333,7 +390,7 @@ const buildPlanOverviewReply = (message: string, context?: AIChatContext): strin
   }
 
   if (sections.length === 0) {
-    return `${dayLabel} hiện chưa có dữ liệu workout hoặc meal plan. Bạn có thể yêu cầu tạo lại lịch hoặc nói rõ mục tiêu hôm nay để mình gợi ý theo tình huống.`;
+    return `${dayLabel} hiện chưa có lịch tập hoặc thực đơn trong Fitly. Mình sẽ bám theo hồ sơ hiện tại của bạn; bạn có thể tạo kế hoạch để Fitly sắp xếp chi tiết.`;
   }
 
   return sections.join('\n\n');
@@ -412,7 +469,7 @@ const buildGeneralHealthReply = (context?: AIChatContext): string => {
   }
 
   const personalCue = notes.length ? ` Mình sẽ tạm dựa trên: ${notes.join('; ')}.` : '';
-  return `${dayLabel} mình chưa thấy đủ lịch tập hoặc thực đơn.${personalCue} Bạn có thể hỏi về dinh dưỡng, phục hồi, hoặc yêu cầu tạo lại kế hoạch để mình hỗ trợ sát hơn.`;
+  return `${dayLabel} mình chưa thấy đủ lịch tập hoặc thực đơn.${personalCue} Mình vẫn sẽ bám theo hồ sơ hiện tại; bạn có thể tạo lại kế hoạch hoặc hỏi điều cần ưu tiên hôm nay.`;
 };
 
 const buildOutOfScopeReply = (): string =>
