@@ -861,10 +861,10 @@ const getAiQuotaUsageCount = async (
   if (quotaKey === 'chatMessages') {
     const chatRes = await applyQuotaWindow(
       supabase
-        .from('ai_chat_messages')
+        .from('ai_quota_usage_events')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('role', 'user'),
+        .eq('quota_key', 'chatMessages'),
       startsAt,
       endsAt
     );
@@ -889,6 +889,13 @@ const getAiQuotaUsageCount = async (
   const usageRes = await applyQuotaWindow(query, startsAt, endsAt);
   if (usageRes.error) throw usageRes.error;
   return usageRes.count || 0;
+};
+
+const recordAiQuotaUsage = async (userId: string, quotaKey: AiQuotaKey) => {
+  const usageInsert = await supabase
+    .from('ai_quota_usage_events')
+    .insert({ user_id: userId, quota_key: quotaKey });
+  if (usageInsert.error) throw usageInsert.error;
 };
 
 const getAiCoachAccessState = async (profile: any, userId: string) => {
@@ -4182,6 +4189,10 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     if (userChatInsert.error) {
       console.warn('Failed to save user ai chat message:', userChatInsert.error.message);
     }
+
+    // This must be independent from ai_chat_messages: users can safely clear
+    // their conversation without resetting their entitlement usage.
+    await recordAiQuotaUsage(authUserId, 'chatMessages');
 
     const payloadValidation = normalizedResponse.actionType
       ? validateActionPayload(normalizedResponse.actionType, normalizedResponse.actionPayload)

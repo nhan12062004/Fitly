@@ -10,6 +10,7 @@ import {
   Settings2,
   Trash2,
   X,
+  Zap,
 } from 'lucide-react';
 import { API_BASE_URL } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
@@ -374,11 +375,11 @@ const inferResponseMode = (
 };
 
 const getAssistantModeLabel = (message: ChatMessage) => {
-  if (message.responseMode === 'plan_edit') return 'Dieu chinh ke hoach';
-  if (message.responseMode === 'support') return 'Dong luc';
-  if (message.responseMode === 'safety') return 'An toan';
-  if (message.responseMode === 'redirect') return 'Pham vi AI Coach';
-  if (message.intent === 'recovery') return 'Phuc hoi';
+  if (message.responseMode === 'plan_edit') return 'Điều chỉnh kế hoạch';
+  if (message.responseMode === 'support') return 'Động lực';
+  if (message.responseMode === 'safety') return 'An toàn';
+  if (message.responseMode === 'redirect') return 'Phạm vi AI Coach';
+  if (message.intent === 'recovery') return 'Phục hồi';
   if (message.intent === 'meal_plan' || message.intent === 'workout_plan') return 'Kế hoạch hôm nay';
   return 'AI Coach';
 };
@@ -1919,9 +1920,9 @@ export default function AICoach() {
                   </div>
                   <div className="ai-coach-header-actions">
                     {chatQuotaSummary ? (
-                      <div className="ai-coach-quota-pill" title={`${chatQuotaSummary.used}/${chatQuotaSummary.limit} tin nhắn đã dùng`}>
-                        <span>Còn</span>
-                        <strong>{chatQuotaSummary.remaining}/{chatQuotaSummary.limit}</strong>
+                      <div className="ai-coach-quota-pill" title={`${chatQuotaSummary.remaining} lượt AI Coach còn lại`}>
+                        <Zap className="h-3 w-3 fill-current" aria-hidden="true" />
+                        <strong>{chatQuotaSummary.remaining} lượt</strong>
                       </div>
                     ) : null}
                     {chatMessages.length > 0 ? (
@@ -1929,11 +1930,12 @@ export default function AICoach() {
                         type="button"
                         onClick={() => void handleClearConversation()}
                         disabled={isSendingChat || isClearingChat}
-                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-xs font-black text-text-primary transition-colors hover:border-danger/40 hover:text-danger disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:gap-2 sm:px-3"
+                        className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-3 text-xs font-black text-text-primary transition-colors hover:border-danger/40 hover:text-danger disabled:cursor-not-allowed disabled:opacity-60"
                         aria-label="Xoá cuộc hội thoại"
+                        title="Xoá cuộc hội thoại"
                       >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">{isClearingChat ? 'Đang xoá' : 'Xoá hội thoại'}</span>
+                        {isClearingChat ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        <span>{isClearingChat ? 'Đang xoá' : 'Xoá hội thoại'}</span>
                       </button>
                     ) : null}
                   </div>
@@ -2018,9 +2020,6 @@ export default function AICoach() {
                     <div className="flex items-start gap-3 justify-start">
                       <div className="ai-chat-bubble-wrap max-w-[76%]">
                         <div className="rounded-[18px] border border-border-primary bg-bg-secondary/75 px-4 py-3 text-sm font-normal leading-6 text-text-secondary shadow-none">
-                          <p className="mb-1 text-[11px] font-black uppercase tracking-[0.12em] text-ai">
-                            AI Coach
-                          </p>
                           <div className="flex h-5 items-center gap-1" aria-label="AI Coach đang soạn">
                             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai [animation-delay:-0.2s]" />
                             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai [animation-delay:-0.1s]" />

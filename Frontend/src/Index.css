@@ -3938,12 +3938,12 @@ svg {
   min-height: 2.25rem;
   align-items: center;
   gap: 0.4rem;
-  border: 1px solid rgb(var(--accent-rgb) / 0.22);
+  border: 1px solid rgb(var(--accent-rgb) / 0.32);
   border-radius: 999px;
-  background: rgb(var(--accent-rgb) / 0.10);
-  padding: 0.35rem 0.65rem;
-  color: var(--text-secondary);
-  font-size: 0.72rem;
+  background: rgb(var(--accent-rgb) / 0.12);
+  padding: 0.35rem 0.75rem;
+  color: var(--accent-primary);
+  font-size: 0.8rem;
   font-weight: 850;
   line-height: 1;
   white-space: nowrap;

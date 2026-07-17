@@ -162,8 +162,8 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
   const Icon = content.icon;
 
   return (
-    <div className="min-h-[100dvh] w-full bg-bg-primary px-3 py-3 text-text-primary sm:px-5 sm:py-5">
-      <main className="mx-auto flex min-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col rounded-lg border border-border-primary bg-bg-primary px-5 py-7 shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:min-h-[calc(100dvh-2.5rem)] sm:px-9 sm:py-9">
+    <div className="flex min-h-[100dvh] w-full items-center justify-center bg-bg-primary px-3 py-3 text-text-primary sm:px-5 sm:py-5">
+      <main className="custom-scrollbar flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-y-auto rounded-lg border border-border-primary bg-bg-primary px-5 py-7 shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:max-h-[calc(100dvh-2.5rem)] sm:px-9 sm:py-8">
         <div className="flex items-center justify-between gap-4 text-xs font-semibold">
           <p className="text-accent">{content.eyebrow}</p>
           <p className="text-text-secondary">{step} / 3</p>
@@ -172,7 +172,7 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
           <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${(step / 3) * 100}%` }} />
         </div>
 
-        <div className="my-auto py-10">
+        <div className="py-8 sm:py-10">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/12 text-accent">
             <Icon className="h-5 w-5" strokeWidth={2.5} />
           </span>

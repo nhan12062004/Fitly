@@ -23,11 +23,13 @@ type IconComponent = typeof Activity;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const formatNumber = (value: number, digits = 0) =>
-  new Intl.NumberFormat('vi-VN', {
+const formatNumber = (value: number, digits = 0) => {
+  const formatted = new Intl.NumberFormat('vi-VN', {
     maximumFractionDigits: digits,
     minimumFractionDigits: digits,
   }).format(value);
+  return digits > 0 ? formatted.replace(',', '.') : formatted;
+};
 
 const formatKg = (value: number) => `${formatNumber(value, 1)} kg`;
 
@@ -214,8 +216,8 @@ export default function SurveyResultScreen({
   const waterMlPerKg = summary.weeklyWorkouts >= 5 ? 40 : summary.weeklyWorkouts >= 3 ? 35 : 30;
   const waterLiters = summary.dailyWaterGoalLiters || Math.round(weightKg * waterMlPerKg) / 1000;
   const waterGlasses = Math.round(waterLiters * 4);
-  const waterBlocks = 12;
-  const activeWaterBlocks = clamp(waterGlasses, 1, waterBlocks);
+  const waterBlocks = 8;
+  const activeWaterBlocks = clamp(Math.round((waterLiters / 3.5) * waterBlocks), 1, 5);
   const bodyFatBar = clamp((leanMass / weightKg) * 100, 0, 100);
   const workoutItems = summary.hasAiWorkoutPreview ? summary.todayExercises : [];
 
@@ -362,17 +364,18 @@ export default function SurveyResultScreen({
                 {formatNumber(estimatedBodyFat)}
                 <span className="ml-1 text-base font-black text-[#cbd5e1]">% mỡ</span>
               </p>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#0a0f16]">
-                <div className="h-full rounded-full bg-[#60a5fa]" style={{ width: `${bodyFatBar}%` }} />
+              <div className="mt-4 flex h-2 gap-1">
+                <span className="h-full min-w-1 rounded-full bg-[#5794dc]" style={{ flex: bodyFatBar }} />
+                <span className="h-full min-w-1 rounded-full bg-[#fb923c]" style={{ flex: 100 - bodyFatBar }} />
               </div>
-              <div className="mt-3 flex justify-between gap-3 text-[10px] font-bold text-[#9ca8ba]">
+              <div className="mt-3 flex justify-between gap-3 text-[10px] font-semibold text-[#9ca8ba]">
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full bg-[#60a5fa]" />
-                  Khối cơ {formatKg(leanMass)}
+                  Khối cơ <strong className="font-black text-[#d7deea]">{formatKg(leanMass)}</strong>
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="h-2 w-2 rounded-full bg-[#fb923c]" />
-                  Mỡ {formatKg(fatMass)}
+                  Mỡ <strong className="font-black text-[#d7deea]">{formatKg(fatMass)}</strong>
                 </span>
               </div>
             </Panel>
@@ -388,11 +391,11 @@ export default function SurveyResultScreen({
                 {formatNumber(waterLiters, 1)}
                 <span className="ml-1 text-base font-black text-[#cbd5e1]">L</span>
               </p>
-              <div className="mt-4 grid grid-cols-10 gap-1">
+              <div className="mt-4 grid h-5 grid-cols-8 items-end gap-1">
                 {Array.from({ length: waterBlocks }).map((_, index) => (
                   <span
                     key={index}
-                    className={`h-4 rounded-[4px] ${index < activeWaterBlocks ? 'bg-[#5b8ed9]' : 'bg-[#18304f]'}`}
+                    className={`rounded-[4px] ${index < activeWaterBlocks ? 'h-5 bg-[#5b8ed9]' : 'h-2.5 bg-[#18304f]'}`}
                   />
                 ))}
               </div>

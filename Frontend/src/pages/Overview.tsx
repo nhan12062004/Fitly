@@ -706,6 +706,7 @@ export default function Overview() {
 
   const featuredExercise = todayExercises[0];
   const hasWorkoutPlan = todayExercises.length > 0;
+  const hasMealPlan = todayMealItems.length > 0;
   const completedWorkoutCount = todayExercises.filter((exercise) => exercise.is_completed).length;
   const workoutCompleted = hasWorkoutPlan && completedWorkoutCount >= todayExercises.length;
   const workoutFocusLabels = Array.from(new Set(
@@ -761,6 +762,7 @@ export default function Overview() {
   ];
   const healthScore = Math.round(healthScoreParts.reduce((sum, value) => sum + value, 0) / healthScoreParts.length);
   const healthScoreLabel = healthScore >= 80 ? 'Rất tốt' : healthScore >= 50 ? 'Đang tiến bộ' : 'Cần cải thiện';
+  const hasProgressData = dailyProgress.waterIntake > 0 || dailyProgress.sleepActual > 0 || completedWorkoutCount > 0;
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
@@ -910,21 +912,24 @@ export default function Overview() {
               </div>
             </>
           ) : (
-            <div className="flex flex-1 flex-col justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
-              <span className="mx-auto inline-flex">
-                <TodayIcon icon={<Sparkles className="h-5 w-5" />} tone="coach" size="sm" />
-              </span>
-              <p className="mx-auto mt-4 max-w-[22rem] text-sm font-semibold leading-6 text-text-secondary">
-                Trợ lý cá nhân có thể tạo lịch tập theo mục tiêu, lịch rảnh và thiết bị của bạn.
-              </p>
+            <>
+              <div className="flex flex-1 flex-col justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/35 px-5 py-8 text-center">
+                <span className="mx-auto inline-flex">
+                  <TodayIcon icon={<Sparkles className="h-5 w-5" />} tone="coach" size="sm" />
+                </span>
+                <p className="mx-auto mt-4 max-w-[22rem] text-sm font-semibold leading-6 text-text-secondary">
+                  Trợ lý cá nhân có thể tạo lịch tập theo mục tiêu, lịch rảnh và thiết bị của bạn.
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => navigate('/smart-planner')}
-                className="mx-auto mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
+                onClick={() => navigate('/exercises')}
+                className="mt-auto inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-5 text-sm font-black text-text-primary transition-colors hover:border-accent/40 hover:text-accent"
               >
-                Tạo kế hoạch
+                Xem bài tập
+                <ChevronRight className="h-4 w-4" />
               </button>
-            </div>
+            </>
           )}
         </article>
 
@@ -963,22 +968,41 @@ export default function Overview() {
             </div>
           </div>
 
-          <div className="flex flex-1 flex-col gap-2">
-            {todayMeals.slice(0, 4).map((meal, index) => (
-              <div key={`${meal.type}-${index}`} className="flex items-center gap-3 rounded-xl border border-border-primary/80 bg-bg-tertiary/35 px-3 py-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-secondary text-xs font-black text-text-tertiary">
-                  {index + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-black text-text-primary">{meal.foods}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-text-tertiary">{meal.label}</p>
+          {hasMealPlan ? (
+            <div className="flex flex-1 flex-col gap-2">
+              {todayMeals.slice(0, 4).map((meal, index) => (
+                <div key={`${meal.type}-${index}`} className="flex items-center gap-3 rounded-xl border border-border-primary/80 bg-bg-tertiary/35 px-3 py-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-secondary text-xs font-black text-text-tertiary">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black text-text-primary">{meal.foods}</p>
+                    <p className="mt-0.5 text-xs font-semibold text-text-tertiary">{meal.label}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-bg-secondary px-2.5 py-1 text-[11px] font-black text-text-secondary">
+                    {formatWholeNumber(meal.kcal)}
+                  </span>
                 </div>
-                <span className="shrink-0 rounded-full bg-bg-secondary px-2.5 py-1 text-[11px] font-black text-text-secondary">
-                  {formatWholeNumber(meal.kcal)}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col gap-2">
+              {todayMeals.map((meal, index) => (
+                <div key={meal.type} className="flex items-center gap-3 rounded-xl border border-border-primary/80 bg-bg-tertiary/20 px-3 py-2.5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-secondary/60 text-xs font-black text-text-tertiary">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black text-text-primary">Chưa lập thực đơn</p>
+                    <p className="mt-0.5 text-xs font-semibold text-text-tertiary">{meal.label}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-bg-secondary/60 px-2.5 py-1 text-[11px] font-black text-text-secondary">
+                    0
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <button
             type="button"
@@ -994,42 +1018,60 @@ export default function Overview() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-warning">Tiến độ</p>
-              <h2 className="mt-3 text-2xl font-black leading-[1.1] text-text-primary">{healthScore}/100</h2>
-              <p className="mt-2 text-sm font-semibold text-text-secondary">Trạng thái hôm nay: {healthScoreLabel}</p>
+              <h2 className="mt-3 text-2xl font-black leading-[1.1] text-text-primary">
+                {hasProgressData ? `${healthScore}/100` : 'Bắt đầu theo dõi'}
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-text-secondary">
+                {hasProgressData ? `Trạng thái hôm nay: ${healthScoreLabel}` : 'Ghi lại hoạt động đầu tiên của bạn hôm nay.'}
+              </p>
             </div>
             <TodayIcon icon={<CheckCircle2 className="h-5 w-5" />} tone="score" size="sm" />
           </div>
 
-          <div className="rounded-xl border border-border-primary/85 bg-bg-tertiary/30 p-4">
-            <div
-              className="mx-auto flex h-28 w-28 items-center justify-center rounded-full"
-              style={{
-                background: `conic-gradient(rgb(var(--warning-rgb)) ${healthScore * 3.6}deg, rgba(148, 163, 184, 0.22) 0deg)`,
-              }}
-            >
-              <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-bg-secondary">
-                <span className="text-2xl font-black text-text-primary">{healthScore}</span>
-                <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">điểm</span>
+          {hasProgressData ? (
+            <>
+              <div className="rounded-xl border border-border-primary/85 bg-bg-tertiary/30 p-4">
+                <div
+                  className="mx-auto flex h-28 w-28 items-center justify-center rounded-full"
+                  style={{
+                    background: `conic-gradient(rgb(var(--warning-rgb)) ${healthScore * 3.6}deg, rgba(148, 163, 184, 0.22) 0deg)`,
+                  }}
+                >
+                  <div className="flex h-20 w-20 flex-col items-center justify-center rounded-full bg-bg-secondary">
+                    <span className="text-2xl font-black text-text-primary">{healthScore}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-text-tertiary">điểm</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div className="space-y-4">
-            {progressRows.map((row) => (
-              <div key={row.label}>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="text-sm font-black text-text-primary">{row.label}</span>
-                  <span className="text-xs font-bold text-text-secondary">{row.value}</span>
-                </div>
-                <div className="macro-progress h-2 overflow-hidden rounded-full bg-bg-tertiary">
-                  <div
-                    className={`macro-progress__fill h-full rounded-full ${row.color}`}
-                    style={{ width: progressBarsActive ? `${row.width}%` : '0%' }}
-                  />
-                </div>
+              <div className="space-y-4">
+                {progressRows.map((row) => (
+                  <div key={row.label}>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="text-sm font-black text-text-primary">{row.label}</span>
+                      <span className="text-xs font-bold text-text-secondary">{row.value}</span>
+                    </div>
+                    <div className="macro-progress h-2 overflow-hidden rounded-full bg-bg-tertiary">
+                      <div
+                        className={`macro-progress__fill h-full rounded-full ${row.color}`}
+                        style={{ width: progressBarsActive ? `${row.width}%` : '0%' }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border-primary bg-bg-tertiary/25 px-5 py-8 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning">
+                <CheckCircle2 className="h-5 w-5" />
+              </span>
+              <p className="mt-4 text-base font-black text-text-primary">Chưa có dữ liệu tiến độ</p>
+              <p className="mt-2 max-w-[19rem] text-sm font-semibold leading-6 text-text-secondary">
+                Hoàn thành bài tập hoặc cập nhật nước, giấc ngủ để Fitly bắt đầu theo dõi hôm nay.
+              </p>
+            </div>
+          )}
 
           <button
             type="button"

@@ -94,7 +94,7 @@ export default function NutritionResultScreen({
         </section>
 
         <button type="button" onClick={onOpenPlan} disabled={isGenerating || !!error} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-300 px-6 py-4 text-sm font-black text-[#071007] disabled:cursor-not-allowed disabled:opacity-60">
-          Về tổng quan <ArrowRight className="h-4 w-4" />
+          Tiếp tục <ArrowRight className="h-4 w-4" />
         </button>
       </main>
     </div>

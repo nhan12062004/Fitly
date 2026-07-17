@@ -68,7 +68,6 @@ export default function Dashboard() {
 
   const [hasShownSurvey, setHasShownSurvey] = useState(false);
   const [surveyPlanSummary, setSurveyPlanSummary] = useState<SurveyPlanSummary | null>(null);
-  const [isMealSurveyOpen, setIsMealSurveyOpen] = useState(false);
   const [isGeneratingSurveyPlan, setIsGeneratingSurveyPlan] = useState(false);
   const [surveyPlanError, setSurveyPlanError] = useState('');
   const [nutritionResult, setNutritionResult] = useState<NutritionResult | null>(null);
@@ -83,7 +82,6 @@ export default function Dashboard() {
     if (!isLoggedIn) {
       setHasShownSurvey(false);
       setSurveyPlanSummary(null);
-      setIsMealSurveyOpen(false);
       setSurveyPlanError('');
       setIsGeneratingSurveyPlan(false);
       setNutritionResult(null);
@@ -187,11 +185,10 @@ export default function Dashboard() {
   };
 
   const continueToMealSurvey = () => {
-    setIsMealSurveyOpen(true);
+    navigate('/assessment/meals');
   };
 
   const completeMealSurvey = async (selection: MealSurveySelection) => {
-    setIsMealSurveyOpen(false);
     setNutritionPlanError('');
     setIsGeneratingNutritionPlan(true);
     setNutritionResult({
@@ -265,9 +262,17 @@ export default function Dashboard() {
     return <LoadingScreen fullScreen />;
   }
 
-  if (isLoggedIn && surveyPlanSummary && location.pathname === '/assessment') {
-    if (isMealSurveyOpen) {
-      return <MealSurveyForm onComplete={completeMealSurvey} onBack={() => setIsMealSurveyOpen(false)} />;
+  if (isLoggedIn && location.pathname === '/assessment/survey') {
+    return (
+      <div className="min-h-[100dvh] w-full overflow-y-auto bg-bg-primary">
+        <SurveyForm onComplete={handleSurveyComplete} />
+      </div>
+    );
+  }
+
+  if (isLoggedIn && surveyPlanSummary && (location.pathname === '/assessment' || location.pathname === '/assessment/meals')) {
+    if (location.pathname === '/assessment/meals') {
+      return <MealSurveyForm onComplete={completeMealSurvey} onBack={() => navigate(-1)} />;
     }
 
     return (
@@ -296,11 +301,7 @@ export default function Dashboard() {
 
   // 2. Nếu đã đăng nhập nhưng chưa có Profile -> Bắt buộc làm Survey
   if (isLoggedIn && !hasProfile) {
-    return (
-      <div className="min-h-[100dvh] w-full bg-bg-primary overflow-y-auto">
-        <SurveyForm onComplete={handleSurveyComplete} />
-      </div>
-    );
+    return <Navigate to="/assessment/survey" replace />;
   }
 
   // 3. Nếu đã có Profile hoặc chưa đăng nhập (guest) -> Hiện Dashboard bình thường
