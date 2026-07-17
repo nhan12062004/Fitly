@@ -997,7 +997,7 @@ function ExerciseThumb({ src, alt }: { src?: string; alt: string }) {
       src={videoUrl}
       aria-label={alt}
       className="h-full w-full object-cover"
-      autoPlay muted loop playsInline preload="metadata"
+      muted playsInline preload="metadata"
     />
   );
 }

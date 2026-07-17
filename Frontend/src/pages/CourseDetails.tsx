@@ -159,7 +159,7 @@ export default function CourseDetails() {
               <div key={ex.id} className="bg-bg-secondary border border-border-primary rounded-xl overflow-hidden hover:border-accent transition-all group flex flex-col cursor-pointer">
                 <div className="themed-image-surface h-40 sm:h-48 w-full relative overflow-hidden shrink-0">
                   {ex.video_url ? (
-                    <video src={ex.video_url} aria-label={ex.name} className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110" autoPlay muted loop playsInline preload="metadata" />
+                    <video src={ex.video_url} aria-label={ex.name} className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110" muted playsInline preload="metadata" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-bg-tertiary text-text-tertiary">
                       No Image

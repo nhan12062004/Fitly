@@ -571,14 +571,14 @@ export const EXERCISE_LABELS = {
     hamstrings: 'Đùi sau',
     glutes: 'Mông',
     calves: 'Bắp chân',
-    core: 'Core',
+    core: 'Cơ bụng',
     full_body: 'Toàn thân',
     mobility: 'Linh hoạt',
   } satisfies Record<BodyPart, string>,
   movementPattern: {
-    squat: 'Squat',
-    hinge: 'Hip hinge',
-    lunge: 'Lunge',
+    squat: 'Ngồi xổm',
+    hinge: 'Gập hông',
+    lunge: 'Chùng chân',
     knee_extension: 'Duỗi gối',
     knee_flexion: 'Gập gối',
     hip_abduction: 'Dang hông',
@@ -589,7 +589,7 @@ export const EXERCISE_LABELS = {
     elbow_flexion: 'Gập khuỷu',
     elbow_extension: 'Duỗi khuỷu',
     calf_raise: 'Nâng bắp chân',
-    core_flexion: 'Gập core',
+    core_flexion: 'Gập bụng',
     anti_extension: 'Chống duỗi',
     anti_rotation: 'Chống xoay',
     rotation: 'Xoay',
@@ -598,6 +598,49 @@ export const EXERCISE_LABELS = {
     mobility: 'Linh hoạt',
   } satisfies Record<MovementPattern, string>,
 } as const;
+
+const TARGET_MUSCLE_LABELS: Record<string, string> = {
+  pectoralis_major: 'Cơ ngực lớn',
+  latissimus_dorsi: 'Cơ xô',
+  trapezius: 'Cơ thang',
+  anterior_deltoid: 'Vai trước',
+  lateral_deltoid: 'Vai giữa',
+  posterior_deltoid: 'Vai sau',
+  biceps: 'Cơ tay trước',
+  triceps: 'Cơ tay sau',
+  forearms: 'Cẳng tay',
+  rectus_abdominis: 'Cơ bụng thẳng',
+  obliques: 'Cơ liên sườn',
+  erector_spinae: 'Cơ dựng sống',
+  quadriceps: 'Cơ đùi trước',
+  hamstrings: 'Cơ đùi sau',
+  gluteus_maximus: 'Cơ mông lớn',
+  gluteus_medius: 'Cơ mông giữa',
+  calves: 'Bắp chân',
+  gastrocnemius: 'Cơ bụng chân',
+  soleus: 'Cơ dép',
+  hip_adductors: 'Cơ khép hông',
+  hip_abductors: 'Cơ dạng hông',
+  hip_flexors: 'Cơ gập hông',
+};
+
+export const formatBodyPartLabel = (value: unknown): string | null => {
+  const bodyPart = normalizeBodyPart(value);
+  return bodyPart ? EXERCISE_LABELS.bodyPart[bodyPart] : TARGET_MUSCLE_LABELS[normalizeTextKey(value)] || null;
+};
+
+export const formatTargetMuscleLabel = (value: unknown): string | null =>
+  TARGET_MUSCLE_LABELS[normalizeTextKey(value)] || formatBodyPartLabel(value);
+
+export const formatEquipmentLabel = (value: unknown): string | null => {
+  const equipment = normalizeEquipment(value);
+  return equipment ? EXERCISE_LABELS.equipment[equipment] : null;
+};
+
+export const formatMovementPatternLabel = (value: unknown): string | null => {
+  const pattern = normalizeMovementPattern(value);
+  return pattern ? EXERCISE_LABELS.movementPattern[pattern] : null;
+};
 
 export const formatTrainingLocations = (locations: unknown): string | null => {
   const normalized = normalizeTrainingLocations(locations, []);

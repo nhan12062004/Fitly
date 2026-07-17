@@ -11,7 +11,13 @@ import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import SurveyForm from '../components/SurveyForm';
-import { formatDifficultyLabel as formatCatalogDifficultyLabel } from '../lib/exerciseCatalog';
+import {
+  formatBodyPartLabel,
+  formatDifficultyLabel as formatCatalogDifficultyLabel,
+  formatEquipmentLabel,
+  formatMovementPatternLabel,
+  formatTargetMuscleLabel,
+} from '../lib/exerciseCatalog';
 
 interface SessionExercise {
   id: string;
@@ -254,7 +260,7 @@ const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; cla
       src={videoUrl}
       aria-label={alt}
       className={className || "w-full h-full object-cover"}
-      autoPlay muted loop playsInline preload="metadata"
+      muted playsInline preload="metadata"
     />
   );
 };
@@ -834,16 +840,17 @@ export default function Exercises() {
   };
   const selectedExerciseStats = useMemo(() => {
     if (!selectedSessionExercise) {
-      return { setsText: '0 hiệp', repsText: '0 lần', weightText: 'Chưa đặt', kcalText: '~0 kcal' };
+      return { setsText: '0 hiệp', repsText: '0 lần', weightText: null, kcalText: '~0 kcal' };
     }
     const sets = Math.max(1, Number(selectedSessionExercise.actual_sets ?? selectedSessionExercise.sets) || 1);
     const reps = Math.max(1, parseRepAverage(String((selectedSessionExercise.actual_reps ?? selectedSessionExercise.reps) || '10')));
     const weightKg = selectedSessionExercise.actual_weight_kg ?? selectedSessionExercise.weight_kg;
+    const isBodyweight = String(selectedSessionExercise.exercises?.equipment || '').trim().toLowerCase() === 'none';
     const kcal = getResolvedExerciseKcal(selectedSessionExercise);
     return {
       setsText: `${sets} hiệp`,
       repsText: `${reps} lần`,
-      weightText: formatWeightKg(weightKg),
+      weightText: !isBodyweight && Number(weightKg) > 0 ? formatWeightKg(weightKg) : null,
       kcalText: `~${kcal} kcal`
     };
   }, [selectedSessionExercise]);
@@ -871,7 +878,10 @@ export default function Exercises() {
       : 0;
     const focusItems = Array.from(new Set(
       session
-        .flatMap((item) => [item.exercises?.target_muscle, item.exercises?.body_part])
+        .flatMap((item) => [
+          formatTargetMuscleLabel(item.exercises?.target_muscle),
+          formatBodyPartLabel(item.exercises?.body_part),
+        ])
         .map((item) => String(item || '').trim())
         .filter(Boolean)
     ));
@@ -1022,12 +1032,12 @@ export default function Exercises() {
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {selectedSessionExercise.exercises?.target_muscle ? (
                         <span className="rounded-full border border-info/20 bg-info/10 px-3 py-1 text-xs font-bold text-info">
-                          {selectedSessionExercise.exercises.target_muscle}
+                          {formatTargetMuscleLabel(selectedSessionExercise.exercises.target_muscle)}
                         </span>
                       ) : null}
                       {selectedSessionExercise.exercises?.body_part ? (
                         <span className="rounded-full border border-warning/20 bg-warning/10 px-3 py-1 text-xs font-bold text-warning">
-                          {selectedSessionExercise.exercises.body_part}
+                          {formatBodyPartLabel(selectedSessionExercise.exercises.body_part)}
                         </span>
                       ) : null}
                     </div>
@@ -1035,7 +1045,9 @@ export default function Exercises() {
                   <div className="today-workout-meta flex flex-wrap items-center gap-2">
                     <span className="today-workout-meta-item">{selectedExerciseStats.setsText}</span>
                     <span className="today-workout-meta-item">{selectedExerciseStats.repsText}</span>
-                    <span className="today-workout-meta-item">{selectedExerciseStats.weightText}</span>
+                    {selectedExerciseStats.weightText ? (
+                      <span className="today-workout-meta-item">{selectedExerciseStats.weightText}</span>
+                    ) : null}
                     <span className="today-workout-meta-item">{selectedExerciseStats.kcalText}</span>
                   </div>
                   <div className="today-workout-actions mt-1 flex flex-wrap items-center justify-start gap-2">
@@ -1137,11 +1149,11 @@ export default function Exercises() {
                   const restSeconds = exercise.actual_rest_seconds ?? exercise.rest_seconds;
                   const kcal = getResolvedExerciseKcal(exercise);
                   const tags = [
-                    exercise.exercises?.target_muscle,
-                    exercise.exercises?.body_part,
-                    exercise.exercises?.equipment,
-                    exercise.exercises?.movement_pattern
-                  ].map((item) => String(item || '').trim()).filter(Boolean).slice(0, 4);
+                    formatTargetMuscleLabel(exercise.exercises?.target_muscle),
+                    formatBodyPartLabel(exercise.exercises?.body_part),
+                    formatEquipmentLabel(exercise.exercises?.equipment),
+                    formatMovementPatternLabel(exercise.exercises?.movement_pattern),
+                  ].filter((item): item is string => Boolean(item)).slice(0, 4);
 
                   return (
                     <button

@@ -91,6 +91,7 @@ const isBodyweightOrCardio = (exercise?: any): boolean => {
   const descriptor = getExerciseDescriptor(exercise);
   const equipment = normalizeText(exercise?.equipment);
   return (
+    equipment === 'none' ||
     includesAny(descriptor, ['cardio', 'aerobic', 'running', 'jump', 'nhay', 'chay']) ||
     includesAny(equipment, ['khong dung cu', 'bodyweight', 'body weight', 'resistance band', 'band', 'day khang luc'])
   );
@@ -239,11 +240,11 @@ const inferWeightKg = async ({
   recentHistory: any[];
 }): Promise<{ weightKg: number | null; recentCompletionRate: number | null }> => {
   const manualWeight = readNumber(suggestedWeightKg);
-  if (forceManualWeight && manualWeight !== null) {
-    return { weightKg: Math.max(0, manualWeight), recentCompletionRate: null };
-  }
   if (isBodyweightOrCardio(exercise)) {
     return { weightKg: 0, recentCompletionRate: null };
+  }
+  if (forceManualWeight && manualWeight !== null) {
+    return { weightKg: Math.max(0, manualWeight), recentCompletionRate: null };
   }
 
   const completedRates = recentHistory
