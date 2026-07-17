@@ -144,6 +144,36 @@ const pickLatestByUpdatedAt = <T extends { updated_at?: string | null; created_a
 const clampList = <T,>(rows: T[] | null | undefined, maxItems: number): T[] => (rows || []).slice(0, maxItems);
 
 const truncateText = (value: unknown, maxLength: number) => String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+
+type AiExerciseCatalog = {
+  text: string;
+  referenceIds: Map<string, string>;
+};
+
+/** UUIDs are easy for a model to mistype; resolve short model references before validation. */
+const buildAiExerciseCatalog = (exercises: any[]): AiExerciseCatalog => {
+  const referenceIds = new Map<string, string>();
+  const text = exercises.map((item, index) => {
+    const reference = `EX${String(index + 1).padStart(2, '0')}`;
+    referenceIds.set(reference, String(item.id));
+    return `${reference}|name=${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|secondary=${truncateText((item.secondary_muscles || []).join(','), 24)}|eq=${truncateText(item.equipment, 14)}|locations=${(item.training_locations || []).join(',')}|difficulty=${truncateText(item.difficulty, 16)}|min_months=${item.min_experience_months}|progression=${item.progression_level}|pattern=${truncateText(item.movement_pattern, 18)}|goals=${truncateText((item.goal_type || []).join(','), 24)}`;
+  }).join('\n');
+  return { text, referenceIds };
+};
+
+const resolveAiExerciseReferences = (proposal: any, referenceIds: Map<string, string>) => {
+  const workout = proposal?.workout_plan || proposal?.workoutPlan || proposal;
+  const days = Array.isArray(workout?.days) ? workout.days : [];
+  days.forEach((day: any) => {
+    if (!Array.isArray(day?.exercises)) return;
+    day.exercises.forEach((exercise: any) => {
+      if (!exercise || typeof exercise !== 'object') return;
+      const exerciseId = referenceIds.get(String(exercise.exercise_id || '').trim().toUpperCase());
+      if (exerciseId) exercise.exercise_id = exerciseId;
+    });
+  });
+  return proposal;
+};
 const normalizeKeywordText = (value: unknown) =>
   String(value || '')
     .toLowerCase()
@@ -1875,9 +1905,7 @@ async function generateWeeklyCoachPlanForUser(params: {
     throw new ApiRequestError(403, buildAiQuotaLimitError(accessState, 'planGenerations'));
   }
 
-  const exerciseCatalog = exercises
-    .map((item) => `${item.id}|${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|secondary=${truncateText(item.secondary_muscles.join(','), 24)}|eq=${truncateText(item.equipment, 14)}|locations=${item.training_locations.join(',')}|difficulty=${truncateText(item.difficulty, 16)}|min_months=${item.min_experience_months}|progression=${item.progression_level}|pattern=${truncateText(item.movement_pattern, 18)}|goals=${truncateText(item.goal_type.join(','), 24)}`)
-    .join('\n');
+  const { text: exerciseCatalog, referenceIds: exerciseReferenceIds } = buildAiExerciseCatalog(exercises);
 
   const foodCatalog = foods
     .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
@@ -1893,7 +1921,7 @@ async function generateWeeklyCoachPlanForUser(params: {
 
   const prompt = `
 Generate one personalized 7-day workout plan and 7-day meal plan.
-Use only ids from EXERCISE_CATALOG and FOOD_CATALOG. Return valid JSON only.
+Use only EX## references from EXERCISE_CATALOG and food ids from FOOD_CATALOG. Return valid JSON only.
 
 USER_PROFILE:
 name=${truncateText(profile.full_name, 40)}
@@ -1943,7 +1971,7 @@ ${foodCatalog}
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
 - Exactly 7 days, day_of_week 0..6 where 0 is Monday.
-- Never create new exercises or foods. Pick only exercise_id values from EXERCISE_CATALOG and food_id values from FOOD_CATALOG.
+- Never create new exercises or foods. Use the EX## reference code from EXERCISE_CATALOG for every exercise_id, and a food_id from FOOD_CATALOG.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
 - Prefer foods whose meal_type, goal_type, allergens, price_level, cooking_time_minutes and region match the user profile.
@@ -1980,7 +2008,7 @@ JSON schema (fixed):
         "duration_minutes": 25,
         "exercises": [
           {
-            "exercise_id": "exact id from catalog",
+            "exercise_id": "EX01",
             "sets": 3,
             "reps": 12,
             "weight_kg": 12.5,
@@ -2042,7 +2070,10 @@ JSON schema (fixed):
     throw toAiProviderRequestError(groqMessage);
   }
 
-  const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
+  const parsed = resolveAiExerciseReferences(
+    parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || ''),
+    exerciseReferenceIds,
+  );
   const proposalValidation = validateExerciseProposal(parsed, eligibilityContext, exercises, {
     allowEmpty: true,
     requireSevenDays: true,
@@ -4890,9 +4921,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'planGenerations'));
     }
 
-    const exerciseCatalog = exercises
-      .map((item) => `${item.id}|${truncateText(item.name, 34)}|body=${truncateText(item.body_part, 12)}|target=${truncateText(item.target_muscle, 16)}|secondary=${truncateText(item.secondary_muscles.join(','), 24)}|eq=${truncateText(item.equipment, 14)}|locations=${item.training_locations.join(',')}|difficulty=${truncateText(item.difficulty, 16)}|min_months=${item.min_experience_months}|progression=${item.progression_level}|pattern=${truncateText(item.movement_pattern, 18)}|goals=${truncateText(item.goal_type.join(','), 24)}`)
-      .join('\n');
+    const { text: exerciseCatalog, referenceIds: exerciseReferenceIds } = buildAiExerciseCatalog(exercises);
 
     const foodCatalog = foods
       .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
@@ -4907,8 +4936,8 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       .join('\n') || 'No recent meal plan history.';
 
     const promptHeader = workoutOnly
-      ? 'Generate one personalized 7-day workout plan only.\nUse only ids from EXERCISE_CATALOG. Return valid JSON only.'
-      : 'Generate one personalized 7-day workout plan and 7-day meal plan.\nUse only ids from EXERCISE_CATALOG and FOOD_CATALOG. Return valid JSON only.';
+      ? 'Generate one personalized 7-day workout plan only.\nUse only EX## references from EXERCISE_CATALOG. Return valid JSON only.'
+      : 'Generate one personalized 7-day workout plan and 7-day meal plan.\nUse only EX## references from EXERCISE_CATALOG and food ids from FOOD_CATALOG. Return valid JSON only.';
     const foodPromptSection = workoutOnly ? '' : `
 RECENT_MEAL_PLAN:
 ${recentEating}
@@ -4920,7 +4949,7 @@ ${foodCatalog}
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
 - Exactly 7 days, day_of_week 0..6 where 0 is Monday.
-- Never create new exercises. Pick only exercise_id values from EXERCISE_CATALOG.
+- Never create new exercises. Use the EX## reference code from EXERCISE_CATALOG for every exercise_id.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
 - Create exactly ${weeklyWorkoutDays} training days. All other days must be rest days with is_rest_day=true and no exercises.
@@ -4932,7 +4961,7 @@ Rules:
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
 - Exactly 7 days, day_of_week 0..6 where 0 is Monday.
-- Never create new exercises or foods. Pick only exercise_id values from EXERCISE_CATALOG and food_id values from FOOD_CATALOG.
+- Never create new exercises or foods. Use the EX## reference code from EXERCISE_CATALOG for every exercise_id, and a food_id from FOOD_CATALOG.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
 - Prefer foods whose meal_type, goal_type, allergens, price_level, cooking_time_minutes and region match the user profile.
@@ -4970,7 +4999,7 @@ JSON schema (fixed):
         "duration_minutes": 25,
         "exercises": [
            {
-             "exercise_id": "exact id from catalog",
+             "exercise_id": "EX01",
              "sets": 3,
              "reps": 12,
              "weight_kg": 12.5,
@@ -4998,7 +5027,7 @@ JSON schema (fixed):
         "duration_minutes": 25,
         "exercises": [
            {
-             "exercise_id": "exact id from catalog",
+             "exercise_id": "EX01",
              "sets": 3,
              "reps": 12,
              "weight_kg": 12.5,
@@ -5108,7 +5137,10 @@ ${jsonSchemaPrompt}
       throw toAiProviderRequestError(groqMessage);
     }
 
-    const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
+    const parsed = resolveAiExerciseReferences(
+      parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || ''),
+      exerciseReferenceIds,
+    );
     const proposalValidation = validateExerciseProposal(parsed, eligibilityContext, exercises, {
       allowEmpty: true,
       requireSevenDays: true,

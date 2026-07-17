@@ -18,11 +18,11 @@ const normalize = (value: unknown) => String(value || '')
 
 const resolveActivityBaseline = (activityLevel: unknown) => {
   const value = normalize(activityLevel);
-  if (value === 'sedentary' || value.includes('it van dong') || /\b2\s*(ngay|buoi)/.test(value)) return 2;
-  if (value === 'lightly_active' || value.includes('van dong nhe') || /\b3\s*(ngay|buoi)/.test(value)) return 3;
-  if (value === 'moderately_active' || value.includes('van dong deu') || /\b4\s*(ngay|buoi)/.test(value)) return 4;
+  // Weekly plans now start at four sessions. Activity level can opt a user
+  // into the five-session version, but must not quietly reduce a plan to
+  // two or three sessions.
   if (value === 'very_active' || value.includes('van dong nhieu') || /\b[5-6]\s*(ngay|buoi)/.test(value)) return 5;
-  return 3;
+  return 4;
 };
 
 const isBeginner = (experienceLevel: unknown) => {
@@ -49,8 +49,8 @@ export const prescribeTrainingSchedule = ({
   let durationMinutes = baseline <= 2 ? 30 : baseline >= 5 ? 60 : 45;
 
   if (isBeginner(experienceLevel)) {
-    if (weeklyWorkouts > 3) reasonCodes.push('beginner_max_3_days');
-    weeklyWorkouts = Math.min(weeklyWorkouts, 3);
+    // Experience affects intensity and duration, not the default four-day
+    // cadence. Health and injury safeguards below may still reduce it.
     durationMinutes = Math.min(durationMinutes, 45);
   }
 

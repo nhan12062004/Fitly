@@ -702,7 +702,10 @@ export default function Exercises() {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload?.error || 'Không thể tạo kế hoạch tập. Vui lòng thử lại.');
+      const details = Array.isArray(payload?.details)
+        ? payload.details.slice(0, 3).join('; ')
+        : '';
+      throw new Error([payload?.error || 'Không thể tạo kế hoạch tập. Vui lòng thử lại.', details].filter(Boolean).join(': '));
     }
 
     const nextLimit = Number(payload?.aiQuota?.limits?.planGenerations);
