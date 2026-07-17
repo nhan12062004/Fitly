@@ -158,6 +158,13 @@ const formatProgressSummaryForPrompt = (summary: AIChatContext['progressSummary'
   ].join('\n');
 };
 
+export const COACH_RESPONSE_STYLE_RULES = `[CACH TRA LOI]
+- Mac dinh phai doc xong trong 10 giay: toi da 70 tu, 1 cau ket luan ngan va toi da 3 gach dau dong. Chi dai hon khi nguoi dung noi ro muon "chi tiet".
+- Moi gach dau dong toi da 14 tu, chi co mot hanh dong cu the (bai tap + sets/reps/thoi luong neu can). Khong giai thich lai loi ich cua tung bai tap.
+- Khong dung tieu de chung chung, khong lap lai cau hoi, khong viet doan van dai, khong ket bang loi moi goi khuon mau sau moi cau tra loi.
+- Voi an toan, thay mot gach dau dong bang canh bao ngan "dung neu dau tang/choang/te"; khong viet them doan canh bao dai neu nguoi dung khong co dau hieu nguy cap.
+- Khi phu hop, cho ly do ngan gan voi du lieu cua nguoi dung (vi du: muc tieu, so buoi tap, buoi tap da co, giac ngu, nuoc, chan thuong). Khong chen thong tin khong lien quan.`;
+
 export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => {
   const profile = context?.profile || {};
   const body = context?.bodyMetrics || {};
@@ -177,11 +184,7 @@ export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => 
 - Neu thieu du lieu can thiet, noi that "minh chua thay ... trong Fitly" va dua ra phuong an tam thoi an toan, thay vi tu doan.
 - Cac truong co gia tri trong [HO SO NGUOI DUNG] la thong tin ban da biet. Tuyet doi khong hoi lai muc tieu, trinh do, noi tap, dung cu, thoi gian tap hay che do an da co; chi nhac den chung khi can ca nhan hoa, hoac khi nguoi dung muon thay doi.
 
-[CACH TRA LOI]
-- Tra loi thang vao cau hoi ngay tu cau dau. Mac dinh dai 60-120 tu, gon nhung du y; chi dai hon khi nguoi dung chu dong yeu cau chi tiet.
-- Dung 2-4 gach dau dong neu co nhieu hon mot hanh dong/luu y. Moi gach dau dong chi co mot y cu the, co the lam ngay.
-- Khong dung tieu de chung chung, khong lap lai cau hoi, khong viet doan van dai, khong ket bang loi moi goi khuon mau sau moi cau tra loi.
-- Khi phu hop, cho ly do ngan gan voi du lieu cua nguoi dung (vi du: muc tieu, so buoi tap, buoi tap da co, giac ngu, nuoc, chan thuong). Khong chen thong tin khong lien quan.
+${COACH_RESPONSE_STYLE_RULES}
 
 [LUONG HOI THOAI]
 - Luon doc lich su hoi thoai gan nhat de hieu cac cau ngan nhu "con gi nua", "bai nao", "co nhung bai tap gi", "mon nao", "chi tiet hon".

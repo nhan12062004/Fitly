@@ -284,38 +284,36 @@ const buildNoWorkoutPlanSuggestionReply = (context?: AIChatContext): string => {
 
   if (hasHealthConstraint) {
     return [
-      `${dayLabel} chưa có lịch tập. Vì hồ sơ có lưu ý sức khỏe, hãy giữ buổi vận động trong ngưỡng không đau:`,
-      '- Đi bộ chậm hoặc bước tại chỗ 5-10 phút nếu cơ thể thấy ổn.',
-      '- Hít thở chậm và giãn cơ rất nhẹ 5 phút, không ép biên độ.',
-      '- Dừng ngay nếu đau tăng, tê, choáng hoặc khó chịu rõ.',
+      `${dayLabel} chưa có lịch; chỉ vận động trong ngưỡng không đau:`,
+      '- Đi bộ chậm hoặc bước tại chỗ: 5-10 phút.',
+      '- Hít thở chậm và giãn cơ rất nhẹ: 5 phút.',
+      '- Dừng nếu đau tăng, tê hoặc choáng.',
     ].join('\n');
   }
 
   const workoutLines = wantsMuscle
     ? [
-        '- Squat chạm ghế: 2 hiệp x 8-10 lần, nghỉ 60 giây.',
-        '- Chống đẩy tường: 2 hiệp x 8-10 lần, giữ thân người thẳng.',
-        '- Glute bridge: 2 hiệp x 10-12 lần, tập chậm và kiểm soát.',
+        '- Squat chạm ghế: 2 hiệp x 8-10 lần.',
+        '- Chống đẩy tường: 2 hiệp x 8-10 lần.',
+        '- Glute bridge: 2 hiệp x 10-12 lần.',
       ]
     : wantsFatLoss
       ? [
-          '- Đi bộ nhanh hoặc bước tại chỗ: 10-15 phút ở mức vẫn nói được câu ngắn.',
-          '- Squat chạm ghế: 2 hiệp x 10 lần, nghỉ 60 giây.',
+          '- Đi bộ nhanh hoặc bước tại chỗ: 10-15 phút.',
+          '- Squat chạm ghế: 2 hiệp x 10 lần.',
           isBeginner
-            ? '- Nâng gối tại chỗ: 2 hiệp x 20-30 giây, giữ nhịp vừa sức.'
-            : '- Mountain climber chậm hoặc nâng gối tại chỗ: 2 hiệp x 20-30 giây.',
+            ? '- Nâng gối tại chỗ: 2 hiệp x 20-30 giây.'
+            : '- Mountain climber chậm: 2 hiệp x 20-30 giây.',
         ]
       : [
-          '- Đi bộ nhẹ hoặc bước tại chỗ: 10 phút để khởi động cơ thể.',
-          '- Squat chạm ghế: 2 hiệp x 8-10 lần, nghỉ 60 giây.',
-          '- Giãn cơ lưng, hông và vai: 5 phút, không cố rướn khi đau.',
+          '- Đi bộ nhẹ hoặc bước tại chỗ: 10 phút.',
+          '- Squat chạm ghế: 2 hiệp x 8-10 lần.',
+          '- Giãn lưng, hông và vai: 5 phút.',
         ];
-  const profileCue = [goal, experience || (isBeginner ? 'người mới' : '')].filter(Boolean).join(' · ');
 
   return [
-    `${dayLabel} Fitly chưa có lịch tập${profileCue ? `; mình gợi ý buổi nhẹ theo ${profileCue}` : ''}:`,
+    `${dayLabel} Fitly chưa có lịch tập; thử buổi nhẹ này:`,
     ...workoutLines,
-    '- Kết thúc bằng 2 phút hít thở chậm; nếu thấy đau hoặc chóng mặt thì dừng lại.',
   ].join('\n');
 };
 
@@ -545,7 +543,7 @@ export const aiChatService = async (
         responseMode,
       },
       history: context?.chatHistory,
-      maxTokens: 420,
+      maxTokens: 260,
       temperature: detectedIntent === 'motivation' ? 0.75 : 0.6,
     });
 

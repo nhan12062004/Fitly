@@ -8,7 +8,7 @@ import {
   buildExerciseEligibilityContext,
   getExerciseEligibilityDecision,
 } from './services/exerciseCatalogService';
-import { callCoachCompletion } from './services/ai/coachConversationService';
+import { callCoachCompletion, COACH_RESPONSE_STYLE_RULES } from './services/ai/coachConversationService';
 import {
   analyzeMealPhotoCalories,
   answerVoiceCoachQuestion,
@@ -2317,17 +2317,16 @@ ${coachDataContext}
 - Khi hỏi thực đơn, dùng thực đơn tuần hiện tại và today_meals/week_meals. Nếu chưa có thực đơn, nói rõ chưa có dữ liệu và đề xuất phương án tạm thời.
 - Khi hỏi chỉ số sức khỏe/cơ thể, dùng body, body_history, health và lifestyle; không tự bịa chỉ số thiếu.
 - Nếu dữ liệu không có trong context, nói "mình chưa thấy dữ liệu này trong Fitly" rồi đề xuất cách ghi/cập nhật.
-[PHONG CÁCH TRẢ LỜI]
-1. Đóng vai coach chuyên nghiệp: rõ ràng, thực tế, không nói lan man.
-2. Ưu tiên dữ liệu thật trong hồ sơ và tiến độ hôm nay; nếu thiếu dữ liệu, nói rõ giả định.
-3. Nếu hệ thống vừa ghi nhận hành động, xác nhận ngắn gọn trước rồi mới tư vấn.
-4. Khi lập bài tập/thực đơn, đưa ra bước cụ thể, sets/reps/rest hoặc khẩu phần/kcal/protein nếu có thể.
-5. Không chẩn đoán bệnh. Với đau ngực, chóng mặt, chấn thương nặng hoặc triệu chứng bất thường, khuyên ngừng tập và gặp bác sĩ.
-6. Tuyệt đối không bảo người dùng tham khảo/hỏi/gặp chuyên gia dinh dưỡng, dietitian, nutritionist hay nutrition expert.
-7. Nếu yêu cầu mơ hồ, hỏi tối đa 1 câu làm rõ; nếu vẫn có thể, đưa phương án mặc định an toàn.
-8. Giữ câu trả lời gọn: 1-3 câu cho câu hỏi đơn giản, tối đa 6-8 gạch đầu dòng cho kế hoạch.
-9. Dùng emoji vừa phải, không dùng markdown phức tạp vì Telegram dễ khó đọc.
-10. Luôn cá nhân hóa dựa trên hồ sơ khách hàng ở trên.`;
+${COACH_RESPONSE_STYLE_RULES}
+
+[PHONG CÁCH BỔ SUNG]
+- Ưu tiên dữ liệu thật trong hồ sơ và tiến độ hôm nay; nếu thiếu dữ liệu, nói rõ giả định.
+- Nếu hệ thống vừa ghi nhận hành động, xác nhận ngắn gọn trước rồi mới tư vấn.
+- Khi lập bài tập/thực đơn, đưa ra bước cụ thể, sets/reps/rest hoặc khẩu phần/kcal/protein nếu có thể.
+- Không chẩn đoán bệnh. Với đau ngực, chóng mặt, chấn thương nặng hoặc triệu chứng bất thường, khuyên ngừng tập và gặp bác sĩ.
+- Tuyệt đối không bảo người dùng tham khảo/hỏi/gặp chuyên gia dinh dưỡng, dietitian, nutritionist hay nutrition expert.
+- Nếu yêu cầu mơ hồ, hỏi tối đa 1 câu làm rõ; nếu vẫn có thể, đưa phương án mặc định an toàn.
+- Luôn cá nhân hóa dựa trên hồ sơ khách hàng ở trên.`;
 
         // Xây dựng messages array với lịch sử hội thoại
         const history = getHistory(chatId);
@@ -2336,7 +2335,7 @@ ${coachDataContext}
           history: history.map((m) => ({ role: m.role, content: m.content })),
           userMessage,
           temperature: 0.7,
-          maxTokens: 1024,
+          maxTokens: 260,
         });
 
         // Lưu cả tin nhắn user và assistant vào bộ nhớ
@@ -2352,6 +2351,7 @@ ${coachDataContext}
         const guestSystemPrompt = `Bạn là "Fitly AI" — Huấn luyện viên cá nhân của ứng dụng Fitly.
 Người dùng này CHƯA liên kết Telegram với tài khoản Fitly.
 Hãy trả lời thân thiện, chuyên nghiệp, ngắn gọn. Nếu họ hỏi về fitness/dinh dưỡng thì vẫn trả lời nhưng nhắc nhẹ rằng nên liên kết tài khoản để được cá nhân hóa tốt hơn.
+${COACH_RESPONSE_STYLE_RULES}
 Tuyệt đối không bảo người dùng tham khảo/hỏi/gặp chuyên gia dinh dưỡng, dietitian, nutritionist hay nutrition expert.
 Không chẩn đoán bệnh; với dấu hiệu nguy hiểm hoặc chấn thương nặng, khuyên gặp bác sĩ.
 ⚠️ HƯỚNG DẪN KẾT NỐI:
@@ -2365,7 +2365,7 @@ Không chẩn đoán bệnh; với dấu hiệu nguy hiểm hoặc chấn thươ
           history: history.map((m) => ({ role: m.role, content: m.content })),
           userMessage,
           temperature: 0.7,
-          maxTokens: 512,
+          maxTokens: 260,
         });
 
         addToHistory(chatId, 'user', userMessage);
