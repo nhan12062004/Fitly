@@ -1981,6 +1981,7 @@ Rules:
 - Use recent meal history to infer the user's preferred categories, protein/carb/vegetable balance, diet style and budget tendency.
 - Repeating a liked food is allowed, but do not over-repeat the same exact food or same limited family more than 2-3 times in a week.
 - Create exactly ${weeklyWorkoutDays} training days. All other days must be rest days with is_rest_day=true and no exercises.
+- Every day must include an exercises array. For every rest day, return "exercises": [].
 - Every training day must have duration_minutes exactly ${trainingPrescription.durationMinutes}; rest days must have duration_minutes=0.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
@@ -4953,6 +4954,7 @@ Rules:
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
 - Create exactly ${weeklyWorkoutDays} training days. All other days must be rest days with is_rest_day=true and no exercises.
+- Every day must include an exercises array. For every rest day, return "exercises": [].
 - Every training day must have duration_minutes exactly ${trainingPrescription.durationMinutes}; rest days must have duration_minutes=0.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
@@ -4971,6 +4973,7 @@ Rules:
 - Use recent meal history to infer the user's preferred categories, protein/carb/vegetable balance, diet style and budget tendency.
 - Repeating a liked food is allowed, but do not over-repeat the same exact food or same limited family more than 2-3 times in a week.
 - Create exactly ${weeklyWorkoutDays} training days. All other days must be rest days with is_rest_day=true and no exercises.
+- Every day must include an exercises array. For every rest day, return "exercises": [].
 - Every training day must have duration_minutes exactly ${trainingPrescription.durationMinutes}; rest days must have duration_minutes=0.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
