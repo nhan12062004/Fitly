@@ -2459,13 +2459,6 @@ app.use(cors({
   credentials: true
 }));
 
-// Lightweight liveness endpoint for Render and external uptime monitors.
-// A 204 response intentionally has no body, so cron services do not need to
-// download or store application data just to keep the service warm.
-app.get('/health', (_req, res) => {
-  res.status(204).end();
-});
-
 app.use(generalLimiter);
 app.use(express.json({ limit: '1mb' }));
 
