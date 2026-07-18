@@ -1376,6 +1376,39 @@ const startMealPlanOnCreationDay = (
   };
 };
 
+// Providers occasionally omit one of the seven meal-plan days. Keep the
+// promise made to the user by filling a missing day from a valid generated
+// day; the normal meal-enrichment step below then completes its meal slots.
+const ensureSevenDayMealPlan = (mealPlan: NormalizedAiPlan['mealPlan']) => {
+  const validDays = mealPlan.days.filter((day) => !day.is_rest_day && day.meals.length > 0);
+  const fallbackDay = validDays[0];
+  if (!fallbackDay) {
+    throw new ApiRequestError(422, { error: 'AI meal proposal must contain meals for all 7 days.' });
+  }
+
+  const daysByIndex = new Map<number, NormalizedAiPlan['mealPlan']['days'][number]>();
+  for (const day of validDays) {
+    if (!daysByIndex.has(day.day_of_week)) daysByIndex.set(day.day_of_week, day);
+  }
+
+  return {
+    ...mealPlan,
+    days: Array.from({ length: 7 }, (_, dayIndex) => {
+      const sourceDay = daysByIndex.get(dayIndex) || fallbackDay;
+      return {
+        ...sourceDay,
+        day_of_week: dayIndex,
+        is_rest_day: false,
+        meals: sourceDay.meals.map((meal) => ({
+          ...meal,
+          food_ids: [...meal.food_ids],
+          quantities: meal.quantities ? [...meal.quantities] : [],
+        })),
+      };
+    }),
+  };
+};
+
 const parseAverageReps = (repsText: string): number => {
   const numbers = String(repsText || '')
     .match(/\d+/g)
@@ -2184,6 +2217,7 @@ JSON schema (fixed):
   }
   normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
   normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
+  normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
   normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
 
   const existingWorkoutPlans = await supabase
@@ -5275,6 +5309,7 @@ ${jsonSchemaPrompt}
     normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
     normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
     if (!workoutOnly) {
+      normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
       normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
     }
 
@@ -5612,6 +5647,7 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
       workout_plan: { days: Array.from({ length: 7 }, (_, day_of_week) => ({ day_of_week, is_rest_day: true, exercises: [] })) },
       meal_plan: parsed?.meal_plan,
     }, { requireMealPlan: true });
+    normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
     normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
 
     const createdPlan = await supabase.from('weekly_food_plans').insert({ user_id: userId, name: 'AI Coach Meal Plan', week_start_date: weekStartKey, plan_status: 'draft', generated_by: 'ai', ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500) }).select('id').single();
