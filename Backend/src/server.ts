@@ -1320,6 +1320,36 @@ const enforceTrainingPrescription = (
   };
 };
 
+// Weekly plans are stored Monday–Sunday so they can be materialized into
+// calendar dates consistently. When a user creates a plan mid-week, rotate
+// the AI's sequence so its first workout lands on today rather than leaving
+// the user with a rest day on their first visit.
+const startWorkoutPlanOnCreationDay = (
+  workoutPlan: NormalizedAiPlan['workoutPlan'],
+  weekStartKey: string,
+) => {
+  const todayKey = getVietnamDateKey();
+  const currentWeekStartKey = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
+  if (weekStartKey !== currentWeekStartKey) return workoutPlan;
+
+  const firstTrainingDay = [...workoutPlan.days]
+    .sort((a, b) => a.day_of_week - b.day_of_week)
+    .find((day) => !day.is_rest_day && day.exercises.length > 0);
+  if (!firstTrainingDay) return workoutPlan;
+
+  const todayDayIndex = getDayIndexFromDateKey(todayKey);
+  const offset = (todayDayIndex - firstTrainingDay.day_of_week + 7) % 7;
+  if (offset === 0) return workoutPlan;
+
+  return {
+    ...workoutPlan,
+    days: workoutPlan.days.map((day) => ({
+      ...day,
+      day_of_week: (day.day_of_week + offset) % 7,
+    })),
+  };
+};
+
 const parseAverageReps = (repsText: string): number => {
   const numbers = String(repsText || '')
     .match(/\d+/g)
@@ -2098,6 +2128,7 @@ JSON schema (fixed):
     });
   }
   normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
+  normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
 
   const existingWorkoutPlans = await supabase
     .from('weekly_plans')
@@ -5167,6 +5198,7 @@ ${jsonSchemaPrompt}
       });
     }
     normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
+    normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
 
     const existingWorkoutPlans = await supabase
       .from('weekly_plans')

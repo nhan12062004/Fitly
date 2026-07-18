@@ -202,7 +202,7 @@ export default function LandingPage() {
               className="inline-flex h-10 items-center justify-center rounded-xl bg-accent px-3 text-xs font-black text-text-inverse transition-colors hover:bg-accent-hover sm:px-5 sm:text-sm"
             >
               <span className="hidden sm:inline">Bắt đầu miễn phí</span>
-              <span className="sm:hidden">Miễn phí</span>
+              <span className="sm:hidden">Đăng kí</span>
             </button>
           </div>
         </div>

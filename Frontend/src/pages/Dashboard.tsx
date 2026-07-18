@@ -191,13 +191,7 @@ export default function Dashboard() {
   const completeMealSurvey = async (selection: MealSurveySelection) => {
     setNutritionPlanError('');
     setIsGeneratingNutritionPlan(true);
-    setNutritionResult({
-      ...selection,
-      targetCalories: null,
-      explanation: '',
-      days: [],
-    });
-    navigate('/nutrition-assessment');
+    setNutritionResult(null);
 
     try {
       const todayKey = getVietnamDateKey();
@@ -241,8 +235,10 @@ export default function Dashboard() {
         days: grouped,
       });
       await refreshProfile();
+      navigate('/nutrition-assessment');
     } catch (err: any) {
       setNutritionPlanError(err?.message || 'Không thể tạo thực đơn AI 7 ngày.');
+      throw err;
     } finally {
       setIsGeneratingNutritionPlan(false);
     }
@@ -259,6 +255,10 @@ export default function Dashboard() {
   }
 
   if (isLoggedIn && surveyPlanSummary && isGeneratingSurveyPlan && location.pathname !== '/assessment') {
+    return <LoadingScreen fullScreen />;
+  }
+
+  if (isLoggedIn && isGeneratingNutritionPlan && location.pathname !== '/nutrition-assessment') {
     return <LoadingScreen fullScreen />;
   }
 

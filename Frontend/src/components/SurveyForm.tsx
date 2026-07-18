@@ -1901,7 +1901,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
                   </>
                 ) : (
                   <>
-                    {isWorkoutPlanDesigner ? 'TẠO KẾ HOẠCH TẬP' : isOpen ? 'CẬP NHẬT HỒ SƠ' : 'TẠO KẾ HOẠCH'}
+                    {isWorkoutPlanDesigner ? 'TẠO KẾ HOẠCH TẬP' : isOpen ? 'CẬP NHẬT HỒ SƠ' : 'TẠO LỊCH TẬP'}
                     <Zap className="h-4 w-4 text-text-inverse" strokeWidth={3} />
                   </>
                 )}
