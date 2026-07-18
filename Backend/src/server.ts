@@ -1810,6 +1810,35 @@ const hasExistingWeeklyCoachPlan = async (userId: string, weekStartKey: string) 
   return Boolean(workoutRes.data?.length || foodRes.data?.length);
 };
 
+const getLatestCoachPlanCycleStart = async (userId: string): Promise<string | null> => {
+  const [workoutRes, foodRes] = await Promise.all([
+    supabase
+      .from('weekly_plans')
+      .select('week_start_date')
+      .eq('user_id', userId)
+      .eq('plan_status', 'active')
+      .order('week_start_date', { ascending: false })
+      .limit(1),
+    supabase
+      .from('weekly_food_plans')
+      .select('week_start_date')
+      .eq('user_id', userId)
+      .eq('plan_status', 'active')
+      .order('week_start_date', { ascending: false })
+      .limit(1),
+  ]);
+  if (workoutRes.error) throw workoutRes.error;
+  if (foodRes.error) throw foodRes.error;
+
+  const cycleStarts = [workoutRes.data?.[0]?.week_start_date, foodRes.data?.[0]?.week_start_date]
+    .map((value) => String(value || '').trim())
+    .filter((value) => DATE_KEY_REGEX.test(value));
+  return cycleStarts.sort().at(-1) || null;
+};
+
+const addDaysToDateKey = (dateKey: string, days: number): string =>
+  getVietnamDateKey(addDays(new Date(`${dateKey}T00:00:00`), days));
+
 async function generateWeeklyCoachPlanForUser(params: {
   userId: string;
   weekStartKey: string;
@@ -2377,6 +2406,7 @@ JSON schema (fixed):
 }
 
 async function runPremiumMondayAutoPlanner() {
+  const todayKey = getVietnamDateKey();
   const weekStartKey = getWeekStartKey(new Date(`${getVietnamDateKey()}T00:00:00`));
   const premiumProfilesRes = await supabase
     .from('profiles')
@@ -2392,6 +2422,8 @@ async function runPremiumMondayAutoPlanner() {
     totalPremium: premiumProfiles.length,
     generated: 0,
     skippedExisting: 0,
+    skippedNotDue: 0,
+    skippedWithoutPriorPlan: 0,
     skippedProfile: 0,
     failed: 0,
     failures: [] as Array<{ userId: string; error: string }>,
@@ -2405,6 +2437,20 @@ async function runPremiumMondayAutoPlanner() {
       const alreadyHasPlan = await hasExistingWeeklyCoachPlan(userId, weekStartKey);
       if (alreadyHasPlan) {
         result.skippedExisting += 1;
+        continue;
+      }
+
+      const latestCycleStart = await getLatestCoachPlanCycleStart(userId);
+      if (!latestCycleStart) {
+        // Plus/Pro continues the seven-day plan the member already received;
+        // it does not silently create a first plan before onboarding is done.
+        result.skippedWithoutPriorPlan += 1;
+        continue;
+      }
+
+      const nextCycleDate = addDaysToDateKey(latestCycleStart, 7);
+      if (todayKey < nextCycleDate) {
+        result.skippedNotDue += 1;
         continue;
       }
 
@@ -2455,6 +2501,8 @@ function schedulePremiumMondayAutoPlanner() {
           totalPremium: result.totalPremium,
           generated: result.generated,
           skippedExisting: result.skippedExisting,
+          skippedNotDue: result.skippedNotDue,
+          skippedWithoutPriorPlan: result.skippedWithoutPriorPlan,
           skippedProfile: result.skippedProfile,
           failed: result.failed,
         }));
