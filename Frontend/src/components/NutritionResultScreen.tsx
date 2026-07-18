@@ -34,6 +34,14 @@ const mealLabels: Record<string, string> = {
   snack: 'Bữa phụ',
 };
 
+const getVietnamTodayDayIndex = () => {
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    weekday: 'short',
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(new Date());
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(weekday);
+};
+
 const formatNumber = (value: number) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(value);
 
@@ -94,7 +102,9 @@ export default function NutritionResultScreen({
   error: string;
   onOpenPlan: () => void;
 }) {
-  const totalMeals = result.days.reduce((total, day) => total + day.meals.length, 0);
+  const todayDayIndex = getVietnamTodayDayIndex();
+  const todayPlan = result.days.find((day) => day.day === todayDayIndex) || result.days[0] || { day: 0, meals: [] };
+  const totalMeals = todayPlan.meals.length;
   const dailyCalories = result.targetCalories ? Math.round(result.targetCalories) : null;
   const caloriesPerMeal = dailyCalories ? Math.round(dailyCalories / Math.max(1, result.mealsPerDay)) : null;
 
@@ -113,10 +123,10 @@ export default function NutritionResultScreen({
           </div>
 
           <h1 className="mt-5 text-[28px] font-black leading-tight tracking-tight text-white sm:text-[32px]">
-            Thực đơn AI 7 ngày
+            Thực đơn hôm nay
           </h1>
           <p className="mt-1 text-xs font-semibold text-[#8390a3] sm:text-sm">
-            AI đã tạo thực đơn từ lựa chọn ăn uống và mục tiêu của bạn.
+            AI đã chuẩn bị các bữa ăn phù hợp với lựa chọn và mục tiêu của bạn.
           </p>
         </header>
 
@@ -134,7 +144,7 @@ export default function NutritionResultScreen({
                 <div className="grid grid-cols-2 gap-2 text-[11px] font-black text-[#cbd5e1] sm:min-w-[190px]">
                   <span className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0b1119] px-3 py-2">
                     <CalendarDays className="h-3.5 w-3.5 text-[#c8ff19]" />
-                    7 ngày
+                    Hôm nay
                   </span>
                   <span className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0b1119] px-3 py-2">
                     <ChefHat className="h-3.5 w-3.5 text-[#2dd4bf]" />
@@ -148,20 +158,19 @@ export default function NutritionResultScreen({
               {isGenerating ? (
                 <div className="flex items-center gap-3 p-4 text-sm font-semibold text-[#9ca8ba] sm:p-5">
                   <Loader2 className="h-5 w-5 animate-spin text-[#c8ff19]" />
-                  AI đang chọn món và cân bằng thực đơn cho 7 ngày.
+                  AI đang chọn món và cân bằng thực đơn cho hôm nay.
                 </div>
               ) : error ? (
                 <div className="p-4 text-sm font-semibold leading-5 text-[#fca5a5] sm:p-5">{error}</div>
               ) : (
-                result.days.map((day) => (
-                  <div key={day.day} className="grid grid-cols-[48px_minmax(0,1fr)] gap-3 p-4 sm:p-5">
+                <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-3 p-4 sm:p-5">
                     <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#c8ff19]/12 text-[#c8ff19]">
                       <CalendarDays className="h-4 w-4" strokeWidth={2.4} />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-white">{days[day.day] || `Ngày ${day.day + 1}`}</p>
+                      <p className="text-sm font-black text-white">{days[todayPlan.day] || 'Hôm nay'}</p>
                       <div className="mt-2 space-y-2">
-                        {day.meals.length > 0 ? day.meals.map((meal, index) => (
+                        {todayPlan.meals.length > 0 ? todayPlan.meals.map((meal, index) => (
                           <p key={`${meal.mealType}-${meal.name}-${index}`} className="text-xs font-semibold leading-5 text-[#9ca8ba]">
                             <span className="mr-2 font-black uppercase text-[#5eead4]">
                               {mealLabels[meal.mealType] || meal.mealType}
@@ -170,12 +179,11 @@ export default function NutritionResultScreen({
                             {meal.quantity !== 1 ? ` x ${meal.quantity}` : ''}
                           </p>
                         )) : (
-                          <p className="text-xs font-semibold leading-5 text-[#fca5a5]">Chưa có món cho ngày này.</p>
+                          <p className="text-xs font-semibold leading-5 text-[#fca5a5]">Chưa có món cho hôm nay.</p>
                         )}
                       </div>
                     </div>
                   </div>
-                ))
               )}
             </div>
           </Panel>
@@ -227,7 +235,7 @@ export default function NutritionResultScreen({
           </Panel>
 
           <Panel className="p-4 text-[11px] font-semibold leading-5 text-[#9ca8ba]">
-            <b className="text-white">Thực đơn 7 ngày</b> được lưu vào kế hoạch của bạn. Bạn có thể xem chi tiết, tick bữa ăn hoàn thành và đổi món trong trang thực đơn.
+            Các bữa ăn cho những ngày tiếp theo đã được lưu trong kế hoạch. Bạn có thể xem chi tiết, tick hoàn thành và đổi món tại trang thực đơn.
           </Panel>
 
           <button

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Apple, ChevronLeft, ChevronRight, CookingPot, Loader2, WalletCards } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Zap } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -45,10 +45,12 @@ const BUDGET_OPTIONS: Choice[] = [
 ];
 
 function ChoiceGrid({
+  name,
   value,
   options,
   onChange,
 }: {
+  name: string;
   value: string;
   options: Choice[];
   onChange: (value: string) => void;
@@ -58,24 +60,27 @@ function ChoiceGrid({
       {options.map((option) => {
         const selected = option.value === value;
         return (
-          <button
+          <label
             key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            className={`rounded-2xl border p-4 text-left transition-colors ${
+            className={`flex min-h-[72px] cursor-pointer flex-col justify-between rounded-2xl border px-3.5 py-3 text-left transition-colors sm:px-4 ${
               selected
-                ? 'border-accent bg-accent/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                : 'border-border-primary bg-bg-secondary hover:border-accent/45 hover:bg-bg-tertiary'
+                ? 'border-accent/50 bg-accent/10 text-text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                : 'border-border-primary bg-bg-primary/65 text-text-secondary hover:border-accent/30 hover:bg-bg-primary'
             }`}
           >
-            <span className="flex items-start justify-between gap-3">
-              <span>
-                <span className="block text-sm font-black text-text-primary">{option.label}</span>
-                <span className="mt-1 block text-xs font-semibold leading-5 text-text-secondary">{option.description}</span>
-              </span>
-              <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${selected ? 'bg-accent' : 'border border-border-primary'}`} />
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={selected}
+              onChange={() => onChange(option.value)}
+              className="sr-only"
+            />
+            <span>
+              <span className="block text-sm font-black text-text-primary">{option.label}</span>
+              <span className="mt-1 block text-xs font-semibold leading-5 text-text-tertiary">{option.description}</span>
             </span>
-          </button>
+          </label>
         );
       })}
     </div>
@@ -133,37 +138,33 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
       eyebrow: 'Bước 1: Sở thích ăn uống',
       title: 'Bạn muốn ăn theo phong cách nào?',
       description: 'Fitly sẽ ưu tiên các món phù hợp với lựa chọn này trong thực đơn.',
-      icon: Apple,
-      body: <ChoiceGrid value={dietPreference} options={DIET_OPTIONS} onChange={setDietPreference} />,
+      body: <ChoiceGrid name="diet-preference" value={dietPreference} options={DIET_OPTIONS} onChange={setDietPreference} />,
     },
     {
       eyebrow: 'Bước 2: Nhịp bữa ăn',
       title: 'Bạn muốn ăn mấy bữa mỗi ngày?',
       description: 'Chọn nhịp bữa ăn gần nhất với lịch sinh hoạt của bạn.',
-      icon: CookingPot,
-      body: <ChoiceGrid value={mealsPerDay} options={MEAL_OPTIONS} onChange={setMealsPerDay} />,
+      body: <ChoiceGrid name="meals-per-day" value={mealsPerDay} options={MEAL_OPTIONS} onChange={setMealsPerDay} />,
     },
     {
       eyebrow: 'Bước 3: Chuẩn bị món ăn',
       title: 'Bạn thường chuẩn bị bữa ăn như thế nào?',
       description: 'Lựa chọn này giúp thực đơn thực tế hơn với thời gian và ngân sách của bạn.',
-      icon: WalletCards,
       body: (
         <div className="space-y-6">
-          <ChoiceGrid value={cookingAbility} options={COOKING_OPTIONS} onChange={setCookingAbility} />
+          <ChoiceGrid name="cooking-ability" value={cookingAbility} options={COOKING_OPTIONS} onChange={setCookingAbility} />
           <div>
             <p className="mb-3 text-xs font-black text-text-primary">Ngân sách thực phẩm</p>
-            <ChoiceGrid value={budgetLevel} options={BUDGET_OPTIONS} onChange={setBudgetLevel} />
+            <ChoiceGrid name="budget-level" value={budgetLevel} options={BUDGET_OPTIONS} onChange={setBudgetLevel} />
           </div>
         </div>
       ),
     },
   ][step - 1];
-  const Icon = content.icon;
 
   return (
     <div className="flex min-h-[100dvh] w-full items-center justify-center bg-bg-primary px-3 py-3 text-text-primary sm:px-5 sm:py-5">
-      <main className="custom-scrollbar flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-y-auto rounded-lg border border-border-primary bg-bg-primary px-5 py-7 shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:max-h-[calc(100dvh-2.5rem)] sm:px-9 sm:py-8">
+      <main className="custom-scrollbar max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-border-primary bg-bg-primary px-5 py-7 shadow-[0_22px_60px_rgba(0,0,0,0.38)] sm:max-h-[calc(100dvh-2.5rem)] sm:px-9 sm:py-9">
         <div className="flex items-center justify-between gap-4 text-xs font-semibold">
           <p className="text-accent">{content.eyebrow}</p>
           <p className="text-text-secondary">{step} / 3</p>
@@ -172,17 +173,14 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
           <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${(step / 3) * 100}%` }} />
         </div>
 
-        <div className="py-8 sm:py-10">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/12 text-accent">
-            <Icon className="h-5 w-5" strokeWidth={2.5} />
-          </span>
-          <h1 className="mt-5 text-2xl font-black leading-tight sm:text-3xl">{content.title}</h1>
+        <div className="mt-9">
+          <h1 className="text-2xl font-black leading-tight sm:text-3xl">{content.title}</h1>
           <p className="mt-3 text-sm font-medium leading-6 text-text-secondary">{content.description}</p>
           <div className="mt-8">{content.body}</div>
           {error ? <p className="mt-5 text-sm font-semibold text-red-400">{error}</p> : null}
         </div>
 
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+        <div className="mt-5 flex flex-col-reverse gap-3 border-t border-border-primary pt-5 sm:mt-6 sm:flex-row sm:justify-between">
           <button
             type="button"
             onClick={step === 1 ? onBack : () => setStep((current) => current - 1)}
@@ -209,7 +207,8 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isSaving ? 'Đang lưu...' : 'Hoàn tất lựa chọn'}
+              {isSaving ? 'Đang tạo thực đơn...' : 'TẠO THỰC ĐƠN'}
+              {!isSaving ? <Zap className="h-4 w-4 text-text-inverse" strokeWidth={3} /> : null}
             </button>
           )}
         </div>

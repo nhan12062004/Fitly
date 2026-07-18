@@ -1350,6 +1350,32 @@ const startWorkoutPlanOnCreationDay = (
   };
 };
 
+const startMealPlanOnCreationDay = (
+  mealPlan: NormalizedAiPlan['mealPlan'],
+  weekStartKey: string,
+) => {
+  const todayKey = getVietnamDateKey();
+  const currentWeekStartKey = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
+  if (weekStartKey !== currentWeekStartKey) return mealPlan;
+
+  const firstMealDay = [...mealPlan.days]
+    .sort((a, b) => a.day_of_week - b.day_of_week)
+    .find((day) => day.meals.length > 0);
+  if (!firstMealDay) return mealPlan;
+
+  const todayDayIndex = getDayIndexFromDateKey(todayKey);
+  const offset = (todayDayIndex - firstMealDay.day_of_week + 7) % 7;
+  if (offset === 0) return mealPlan;
+
+  return {
+    ...mealPlan,
+    days: mealPlan.days.map((day) => ({
+      ...day,
+      day_of_week: (day.day_of_week + offset) % 7,
+    })),
+  };
+};
+
 const parseAverageReps = (repsText: string): number => {
   const numbers = String(repsText || '')
     .match(/\d+/g)
@@ -2158,6 +2184,7 @@ JSON schema (fixed):
   }
   normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
   normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
+  normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
 
   const existingWorkoutPlans = await supabase
     .from('weekly_plans')
@@ -5247,6 +5274,9 @@ ${jsonSchemaPrompt}
     }
     normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
     normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
+    if (!workoutOnly) {
+      normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
+    }
 
     const existingWorkoutPlans = await supabase
       .from('weekly_plans')
@@ -5582,6 +5612,7 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
       workout_plan: { days: Array.from({ length: 7 }, (_, day_of_week) => ({ day_of_week, is_rest_day: true, exercises: [] })) },
       meal_plan: parsed?.meal_plan,
     }, { requireMealPlan: true });
+    normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
 
     const createdPlan = await supabase.from('weekly_food_plans').insert({ user_id: userId, name: 'AI Coach Meal Plan', week_start_date: weekStartKey, plan_status: 'draft', generated_by: 'ai', ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500) }).select('id').single();
     if (createdPlan.error) throw createdPlan.error;
