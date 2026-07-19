@@ -368,7 +368,9 @@ export default function Exercises() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [calendarStatsByDate, setCalendarStatsByDate] = useState<Record<string, CalendarDayStats>>({});
   const [isWorkoutSurveyOpen, setIsWorkoutSurveyOpen] = useState(false);
-  const [workoutPlanQuota, setWorkoutPlanQuota] = useState<WorkoutPlanQuota | null>(null);
+  // Render the free-plan default immediately; the quota API then replaces it
+  // with the user's real usage without a late "—" state in the header.
+  const [workoutPlanQuota, setWorkoutPlanQuota] = useState<WorkoutPlanQuota>({ used: 0, limit: 5 });
   const hasLoadedSessionRef = useRef(Boolean(cacheForToday));
 
   const selectedDate = useMemo(() => getDateFromKey(selectedDateKey), [selectedDateKey]);
@@ -439,7 +441,7 @@ export default function Exercises() {
     let isCancelled = false;
 
     if (!user?.id) {
-      setWorkoutPlanQuota(null);
+      setWorkoutPlanQuota({ used: 0, limit: 5 });
       return undefined;
     }
 
@@ -455,7 +457,7 @@ export default function Exercises() {
           setWorkoutPlanQuota({ used: Math.max(0, used), limit: Math.max(0, limit) });
         }
       } catch {
-        if (!isCancelled) setWorkoutPlanQuota(null);
+        if (!isCancelled) setWorkoutPlanQuota({ used: 0, limit: 5 });
       }
     };
 
@@ -960,7 +962,13 @@ export default function Exercises() {
               <button
                 key={dateKey}
                 type="button"
-                onClick={() => setSelectedDateKey(dateKey)}
+                onClick={() => {
+                  // Clear the previous day's exercises before changing the date.
+                  // Otherwise the calendar briefly assigns those exercises to a rest day.
+                  setSession([]);
+                  setSelectedSessionId(null);
+                  setSelectedDateKey(dateKey);
+                }}
                 className={[
                   'monthly-workout-day',
                   isSelected ? 'monthly-workout-day-selected' : '',
@@ -993,26 +1001,17 @@ export default function Exercises() {
         <div className="today-workout-header">
           <div className="today-workout-title-row">
             <h2 className="today-workout-title">{selectedDayTitle}</h2>
-            <span className="today-workout-date">
-              <Calendar className="h-3.5 w-3.5 shrink-0" />
-              {selectedDayDateLabel}
-            </span>
-            {session.length > 0 ? (
-              <span className="today-workout-status-pill today-workout-status-active">
-                {session.length} bài tập
-              </span>
-            ) : null}
           </div>
           <span className="today-workout-status-pill today-workout-status-active">
-            Lượt sử dụng: {workoutPlanQuota ? `${workoutPlanQuota.used}/${workoutPlanQuota.limit}` : '—'}
+            Lượt sử dụng: {workoutPlanQuota.used}/{workoutPlanQuota.limit}
           </span>
         </div>
 
         <div className="today-workout-content">
           {selectedSessionExercise ? (
-            <article className="today-workout-feature-card">
+            <article className="min-w-0">
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-[176px_minmax(0,560px)] lg:items-stretch lg:gap-5">
-                <div className="themed-image-surface overflow-hidden rounded-xl border border-border-primary h-[184px] lg:h-full">
+                <div className="themed-image-surface overflow-hidden rounded-xl h-[184px] lg:h-full">
                   <ExerciseThumb
                     src={selectedSessionExercise.video_url}
                     alt={selectedSessionExercise.name}

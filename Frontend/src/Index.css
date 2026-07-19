@@ -2360,8 +2360,8 @@ body.landing-scrollbar-visible::-webkit-scrollbar-thumb:hover {
   align-items: center;
   justify-content: center;
   border-radius: 1rem;
-  background: #159f93;
-  color: #ecfeff;
+  background: #16a34a;
+  color: #f0fdf4;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
 }
 
@@ -2535,7 +2535,7 @@ body.landing-scrollbar-visible::-webkit-scrollbar-thumb:hover {
 }
 
 .light .monthly-workout-calendar-icon {
-  background: #0f9f90;
+  background: #16a34a;
 }
 
 .light .monthly-workout-calendar-title p {
@@ -2689,14 +2689,6 @@ body.landing-scrollbar-visible::-webkit-scrollbar-thumb:hover {
   display: grid;
   gap: 1rem;
   padding-top: 0.45rem;
-}
-
-.today-workout-feature-card {
-  min-width: 0;
-  border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 1rem;
-  background: rgba(255,255,255,0.03);
-  padding: 1rem;
 }
 
 .today-workout-empty-state {
@@ -2900,11 +2892,6 @@ body.landing-scrollbar-visible::-webkit-scrollbar-thumb:hover {
   border-color: rgba(15, 23, 42, 0.08);
 }
 
-.light .today-workout-feature-card {
-  border-color: rgba(15, 23, 42, 0.08);
-  background: #ffffff;
-}
-
 .light .today-workout-shell .today-workout-meta-item {
   border-color: rgba(15, 23, 42, 0.08);
   background: #ffffff;
@@ -3066,10 +3053,6 @@ body.landing-scrollbar-visible::-webkit-scrollbar-thumb:hover {
 
   .today-workout-content {
     gap: 0.9rem !important;
-  }
-
-  .today-workout-feature-card {
-    padding: 0.85rem;
   }
 
   .today-workout-empty-state {

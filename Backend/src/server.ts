@@ -78,7 +78,7 @@ type MembershipTier = 'free' | 'plus' | 'pro';
 type AiQuotaKey = 'planGenerations' | 'workoutAdjustments' | 'mealAdjustments' | 'chatMessages';
 const AI_QUOTAS_BY_TIER: Record<MembershipTier, Record<AiQuotaKey, number>> = {
   free: {
-    planGenerations: 1,
+    planGenerations: 5,
     workoutAdjustments: 5,
     mealAdjustments: 5,
     chatMessages: 25
