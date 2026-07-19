@@ -14,6 +14,12 @@ import {
   answerVoiceCoachQuestion,
   transcribeTelegramAudio,
 } from './services/ai/coachMediaService';
+import {
+  buildMealPlanningCatalog,
+  completeAiMealDay,
+  getMealSlotsForCount,
+  resolveMealsPerDay,
+} from './services/mealPlanningService';
 
 dotenv.config();
 
@@ -843,6 +849,55 @@ async function buildWorkoutReport(profile: LinkedProfile) {
   ].join('\n');
 }
 
+async function buildTelegramRuleBasedMealSuggestion(profile: LinkedProfile) {
+  const [profileRes, lifestyleRes, healthRes, foodsRes] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', profile.id).maybeSingle(),
+    supabase.from('lifestyle_settings').select('*').eq('user_id', profile.id).maybeSingle(),
+    supabase.from('health_conditions').select('*').eq('user_id', profile.id).maybeSingle(),
+    supabase
+      .from('foods')
+      .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, is_easy_to_prepare')
+      .limit(320),
+  ]);
+  const error = [profileRes.error, lifestyleRes.error, healthRes.error, foodsRes.error].find(Boolean);
+  if (error) throw error;
+
+  const lifestyle = lifestyleRes.data || {};
+  const health = healthRes.data || {};
+  const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
+  const foods = buildMealPlanningCatalog(foodsRes.data as any[], {
+    profile: profileRes.data || profile,
+    lifestyle,
+    health,
+    mealsPerDay,
+    targetCalories: Number(lifestyle.target_calories || 0),
+  }, 72);
+  const items = completeAiMealDay([], foods, mealsPerDay);
+  const foodById = new Map(foods.map((food: any) => [String(food.id), food]));
+  const slots = Array.from(new Set(getMealSlotsForCount(mealsPerDay)));
+  const lines = slots.flatMap((mealType) => {
+    const names = items
+      .filter((item) => item.meal_type === mealType)
+      .map((item) => {
+        const food = foodById.get(item.food_id);
+        const unit = String(food?.serving_unit || 'phần');
+        const amount = unit.includes('100g') || unit.includes('100 g')
+          ? `${Math.round(item.quantity * 100)}g`
+          : item.quantity === 1 ? unit : `${item.quantity} x ${unit}`;
+        return `${food?.name || 'Món ăn'} (${amount})`;
+      });
+    return names.length ? [`- ${mealType}: ${names.join(' + ')}`] : [];
+  });
+  if (!lines.length) return 'Mình chưa tìm được đủ món an toàn trong catalog để gợi ý hôm nay.';
+
+  return [
+    'Gợi ý tạm thời theo hồ sơ của bạn (chưa lưu thành meal plan):',
+    ...lines,
+    '',
+    'Mở Fitly và chọn “Tạo thực đơn AI” để lưu thực đơn này vào kế hoạch.',
+  ].join('\n');
+}
+
 async function buildMealReport(profile: LinkedProfile) {
   const today = getVietnamDateKey();
   const weekStartKey = getWeekStartKey(today);
@@ -861,7 +916,7 @@ async function buildMealReport(profile: LinkedProfile) {
   )[0];
 
   if (!latestPlan?.id) {
-    return `🍽️ Thực đơn hôm nay\n\nMình chưa thấy thực đơn tuần hiện tại trong Fitly. Bạn có thể tạo meal plan ở AI Coach hoặc hỏi mình gợi ý tạm thời theo mục tiêu.`;
+    return `🍽️ Thực đơn hôm nay\n\nMình chưa thấy thực đơn tuần hiện tại trong Fitly.\n\n${await buildTelegramRuleBasedMealSuggestion(profile)}`;
   }
 
   const itemsRes = await supabase
@@ -873,7 +928,7 @@ async function buildMealReport(profile: LinkedProfile) {
 
   const items = ((itemsRes.data || []) as any[]).filter((item) => !item.is_rest_day);
   if (items.length === 0) {
-    return `🍽️ Thực đơn hôm nay (${today})\n\nHôm nay đang được đánh dấu nghỉ hoặc chưa có món ăn trong meal plan.`;
+    return `🍽️ Thực đơn hôm nay (${today})\n\nHôm nay đang được đánh dấu nghỉ hoặc chưa có món ăn trong meal plan.\n\n${await buildTelegramRuleBasedMealSuggestion(profile)}`;
   }
 
   const totals = items.reduce((sum, item) => {

@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import { useNavigate } from 'react-router-dom';
+import { fetchWithAuth } from '../lib/Api';
 
 interface Food {
   id: string;
@@ -141,73 +142,12 @@ const DEFAULT_CALORIE_TARGET = 2400;
 const DEFAULT_WATER_TARGET = 2.5;
 const DEFAULT_PLAN_NAME = 'Thực đơn';
 
-type FoodGroup = 'protein' | 'carb' | 'vegetable' | 'fruit' | 'dairy' | 'fat' | 'snack' | 'other';
-
 const normalizeFoodText = (value: unknown) =>
   String(value || '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/g, 'd');
-
-const normalizeFoodTokens = (value: unknown) =>
-  normalizeFoodText(value)
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-
-const hasAnyFoodKeyword = (value: string, keywords: string[]) => {
-  const paddedValue = ` ${normalizeFoodTokens(value)} `;
-  return keywords.some((keyword) => {
-    const normalizedKeyword = normalizeFoodTokens(keyword);
-    return !!normalizedKeyword && paddedValue.includes(` ${normalizedKeyword} `);
-  });
-};
-
-const getFoodMealTypes = (food: Pick<Food, 'meal_type'>): MealTypeId[] => {
-  const raw = food.meal_type;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item) => String(item || '').toLowerCase())
-    .filter((item): item is MealTypeId => ['breakfast', 'lunch', 'dinner', 'snack'].includes(item));
-};
-
-const foodMatchesMealType = (food: Pick<Food, 'meal_type'>, mealType: MealTypeId) => {
-  const mealTypes = getFoodMealTypes(food);
-  return mealTypes.length === 0 || mealTypes.includes(mealType);
-};
-
-const getLimitedFoodFamilyKey = (food: Pick<Food, 'name'>) => {
-  const name = normalizeFoodTokens(food.name);
-  return name.startsWith('banh ') ? 'banh' : '';
-};
-
-const classifyFoodGroup = (food: Pick<Food, 'name' | 'category' | 'protein' | 'carbs' | 'fat' | 'calories'>): FoodGroup => {
-  const text = normalizeFoodText(`${food.category || ''} ${food.name || ''}`);
-  if (hasAnyFoodKeyword(text, ['rau', 'cu', 'salad', 'vegetable', 'cai', 'dua leo', 'ca chua'])) return 'vegetable';
-  if (hasAnyFoodKeyword(text, ['trai cay', 'fruit', 'chuoi', 'tao', 'cam', 'dau tay'])) return 'fruit';
-  if (hasAnyFoodKeyword(text, ['carb', 'com', 'gao', 'rice', 'khoai', 'bun', 'pho', 'mi', 'pasta', 'banh mi', 'yen mach', 'oat'])) return 'carb';
-  if (hasAnyFoodKeyword(text, ['dam', 'protein', 'thit', 'ga', 'bo', 'ca ', 'tom', 'trung', 'dau hu', 'tofu', 'tempeh', 'whey'])) return 'protein';
-  if (hasAnyFoodKeyword(text, ['sua', 'yogurt', 'pho mai', 'cheese'])) return food.protein >= food.carbs ? 'protein' : 'dairy';
-  if (hasAnyFoodKeyword(text, ['hat', 'dau olive', 'bo dau phong', 'avocado']) || food.fat >= 10) return 'fat';
-  if (food.protein >= 8 && food.protein >= food.carbs * 0.55) return 'protein';
-  if (food.carbs >= 18 && food.carbs >= food.protein) return 'carb';
-  if (food.calories <= 90 && food.carbs <= 14 && food.protein < 6) return 'vegetable';
-  return 'other';
-};
-
-const getDefaultFoodQuantity = (food: Food, mealType: MealTypeId) => {
-  const group = classifyFoodGroup(food);
-  const unit = normalizeFoodText(food.serving_unit);
-  const isGramUnit = unit.includes('100g') || unit.includes('100 g') || unit === 'g' || unit.includes('gram');
-  if (!isGramUnit) return 1;
-  if (group === 'vegetable') return 2.5;
-  if (group === 'protein') return mealType === 'breakfast' ? 1.2 : 1.5;
-  if (group === 'carb') return mealType === 'breakfast' ? 0.8 : 1.5;
-  if (group === 'fruit') return 1.5;
-  if (group === 'fat') return 0.3;
-  return 1;
-};
 
 const formatFoodQuantity = (item: Pick<PlanFood, 'quantity' | 'serving_unit'>) => {
   const unit = item.serving_unit || '100g';
@@ -296,7 +236,9 @@ const pickLatestPlan = (plans: any[] | null) => {
 
 const roundMacro = (value: number) => Math.round(value * 10) / 10;
 
-const createPlanFood = (food: Food, mealType: MealTypeId, quantity = getDefaultFoodQuantity(food, mealType)): PlanFood => ({
+// Manual additions are intentionally neutral. Portion and meal-balance rules
+// belong to Backend/services/mealPlanningService.ts, never to this page.
+const createPlanFood = (food: Food, mealType: MealTypeId, quantity = 1): PlanFood => ({
   tempId: crypto.randomUUID(),
   weekly_food_item_id: null,
   food_id: food.id,
@@ -312,87 +254,6 @@ const createPlanFood = (food: Food, mealType: MealTypeId, quantity = getDefaultF
   fat: food.fat,
   is_rest_day: false
 });
-
-const getFoodGroupTargetCalories = (group: FoodGroup, mealType: MealTypeId) => {
-  if (group === 'vegetable') return 45;
-  if (group === 'protein') return mealType === 'breakfast' ? 140 : 180;
-  if (group === 'fruit') return 90;
-  if (group === 'fat') return 100;
-  return mealType === 'breakfast' ? 180 : 210;
-};
-
-const pickFoodByGroup = (
-  foods: Food[],
-  group: FoodGroup,
-  mealType: MealTypeId,
-  usedFoodIds: Set<string>,
-  usedLimitedFamilyKeys: Set<string>
-) => {
-  const candidates = foods.filter((food) => !usedFoodIds.has(food.id) && classifyFoodGroup(food) === group);
-  const mealScoped = candidates.filter((food) => foodMatchesMealType(food, mealType));
-  const mealPool = mealScoped.length ? mealScoped : candidates;
-  const familyScoped = mealPool.filter((food) => {
-    const familyKey = getLimitedFoodFamilyKey(food);
-    return !familyKey || !usedLimitedFamilyKeys.has(familyKey);
-  });
-  const pool = familyScoped.length ? familyScoped : mealPool;
-  const targetCalories = getFoodGroupTargetCalories(group, mealType);
-
-  return [...pool].sort((a, b) => {
-    const aMealPenalty = foodMatchesMealType(a, mealType) ? 0 : 160;
-    const bMealPenalty = foodMatchesMealType(b, mealType) ? 0 : 160;
-    const aFamilyPenalty = getLimitedFoodFamilyKey(a) ? 25 : 0;
-    const bFamilyPenalty = getLimitedFoodFamilyKey(b) ? 25 : 0;
-    const aCaloriesGap = Math.abs(Number(a.calories || 0) - targetCalories);
-    const bCaloriesGap = Math.abs(Number(b.calories || 0) - targetCalories);
-    return (aMealPenalty + aFamilyPenalty + aCaloriesGap) - (bMealPenalty + bFamilyPenalty + bCaloriesGap);
-  })[0] || null;
-};
-
-const buildBalancedMealItems = (
-  foods: Food[],
-  mealType: MealTypeId,
-  usedFoodIds: Set<string>,
-  usedLimitedFamilyKeys: Set<string>
-) => {
-  const groups: FoodGroup[] =
-    mealType === 'lunch' || mealType === 'dinner'
-      ? ['carb', 'protein', 'vegetable']
-      : mealType === 'breakfast'
-        ? ['carb', 'protein']
-        : ['fruit'];
-
-  const items: PlanFood[] = [];
-  groups.forEach((group) => {
-    const food = pickFoodByGroup(foods, group, mealType, usedFoodIds, usedLimitedFamilyKeys);
-    if (!food) return;
-    usedFoodIds.add(food.id);
-    const familyKey = getLimitedFoodFamilyKey(food);
-    if (familyKey) usedLimitedFamilyKeys.add(familyKey);
-    items.push(createPlanFood(food, mealType));
-  });
-
-  if (items.length === 0) {
-    const fallback =
-      foods.find((food) => {
-        const familyKey = getLimitedFoodFamilyKey(food);
-        return !usedFoodIds.has(food.id)
-          && foodMatchesMealType(food, mealType)
-          && (!familyKey || !usedLimitedFamilyKeys.has(familyKey));
-      }) ||
-      foods.find((food) => !usedFoodIds.has(food.id) && foodMatchesMealType(food, mealType)) ||
-      foods.find((food) => !usedFoodIds.has(food.id)) ||
-      foods[0];
-    if (fallback) {
-      usedFoodIds.add(fallback.id);
-      const familyKey = getLimitedFoodFamilyKey(fallback);
-      if (familyKey) usedLimitedFamilyKeys.add(familyKey);
-      items.push(createPlanFood(fallback, mealType));
-    }
-  }
-
-  return items;
-};
 
 const resolveFoodImage = (food: Food | undefined, index: number) => {
   const url = String(food?.image_url || '').trim();
@@ -1007,33 +868,61 @@ export default function DietPlan() {
   };
 
   const autoCreateMenu = async () => {
-    if (foods.length === 0) {
-      setFoodPickerOpen(true);
+    if (!user?.id) {
+      toast.error('Vui lòng đăng nhập để tạo thực đơn AI.');
       return;
     }
 
-    const existingItems = (weeklyPlan[selectedDayId] || []).filter((item) => activeMealTypeIds.has(item.meal_type as MealTypeId));
-    const nextItems = hasMenuForSelectedDay ? [] : [...existingItems];
+    setIsSaving(true);
+    try {
+      const response = await fetchWithAuth('/api/ai-coach/generate-meal-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'day',
+          weekStartDate: selectedWeekKey,
+          dayIndex: selectedDayId,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Không thể tạo thực đơn AI cho ngày này.');
 
-    const usedFoodIds = new Set(nextItems.map((item) => item.food_id).filter(Boolean));
-    const usedLimitedFamilyKeys = new Set(nextItems.map(getLimitedFoodFamilyKey).filter(Boolean));
+      const generatedItems = Array.isArray(payload?.data?.mealItems) ? payload.data.mealItems : [];
+      const nextItems: PlanFood[] = generatedItems
+        .filter((item: any) => Number(item?.day_of_week) === selectedDayId)
+        .map((item: any) => ({
+          tempId: crypto.randomUUID(),
+          weekly_food_item_id: null,
+          food_id: String(item.food_id || ''),
+          name: String(item.name || 'Món ăn AI chọn'),
+          image_url: String(item.image_url || ''),
+          category: String(item.category || ''),
+          meal_type: String(item.meal_type || 'lunch'),
+          quantity: Number(item.quantity || 1),
+          serving_unit: String(item.serving_unit || '100g'),
+          calories: Number(item.calories || 0),
+          protein: Number(item.protein || 0),
+          carbs: Number(item.carbs || 0),
+          fat: Number(item.fat || 0),
+          is_rest_day: false,
+        }));
+      if (!nextItems.length) throw new Error('AI chưa trả về món hợp lệ cho ngày này.');
 
-    activeMealTypes.forEach((meal) => {
-      if (nextItems.some((item) => item.meal_type === meal.id)) return;
-      nextItems.push(...buildBalancedMealItems(foods, meal.id, usedFoodIds, usedLimitedFamilyKeys));
-    });
-
-    const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextItems };
-    const nextRestDays = { ...restDays, [selectedDayId]: false };
-
-    setWeeklyPlan(nextWeeklyPlan);
-    setRestDays(nextRestDays);
-
-    await savePlan({
-      weeklyPlanOverride: nextWeeklyPlan,
-      restDaysOverride: nextRestDays,
-      showSuccess: false
-    });
+      const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextItems };
+      const nextRestDays = { ...restDays, [selectedDayId]: false };
+      setWeeklyPlan(nextWeeklyPlan);
+      setRestDays(nextRestDays);
+      await savePlan({
+        weeklyPlanOverride: nextWeeklyPlan,
+        restDaysOverride: nextRestDays,
+        showSuccess: false,
+      });
+      toast.success('Đã tạo thực đơn AI cho ngày đang chọn.');
+    } catch (error: any) {
+      toast.error(error?.message || 'Không thể tạo thực đơn AI cho ngày này.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const saveWaterIntake = async (nextLiters: number) => {
@@ -1408,7 +1297,7 @@ export default function DietPlan() {
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Bot className="h-4 w-4" />
-                    {isSaving ? 'Đang lưu...' : 'Tạo thực đơn AI'}
+                    {isSaving ? 'Đang tạo...' : 'Tạo thực đơn AI'}
                   </button>
                   <button
                     type="button"

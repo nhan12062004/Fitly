@@ -22,7 +22,6 @@ import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
 import { createTelegramLinkToken } from './lib/telegramLinkToken';
 import {
   buildSafetyPromptAddendum,
-  filterSafeFoodsForUser,
   getFoodSafetyDecision,
   sanitizeWorkoutPlanForUser,
 } from './services/ai/personalizationGuardService';
@@ -33,6 +32,14 @@ import {
   rankExercises,
   validateExerciseProposal,
 } from './services/exerciseCatalogService';
+import {
+  buildMealPlanningCatalog,
+  classifyMealFoodComponent,
+  completeAiMealDay,
+  getMealSlotsForCount as getMealPlanningSlots,
+  isMealFoodEligible,
+  resolveMealsPerDay as resolveMealPlanningMealsPerDay,
+} from './services/mealPlanningService';
 import {
   type ExerciseInstructions,
   isExerciseId,
@@ -231,630 +238,6 @@ const requireAdminUserId = async (req: express.Request, res: express.Response): 
 const hasValidCronSecret = (req: express.Request): boolean => {
   const secret = String(req.headers['x-cron-secret'] || '').trim();
   return Boolean(process.env.CRON_SECRET && secret && secret === process.env.CRON_SECRET);
-};
-
-const resolveMealsPerDay = (value: unknown) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 3;
-  return Math.max(2, Math.min(5, Math.round(parsed)));
-};
-
-const getMealSlotsForCount = (mealsPerDay: number) => {
-  if (mealsPerDay <= 2) return ['breakfast', 'dinner'];
-  if (mealsPerDay === 3) return ['breakfast', 'lunch', 'dinner'];
-  if (mealsPerDay === 4) return ['breakfast', 'lunch', 'dinner', 'snack'];
-  return ['breakfast', 'snack', 'lunch', 'snack', 'dinner'];
-};
-
-type MealComponentGroup = 'protein' | 'carb' | 'vegetable' | 'fruit' | 'dairy' | 'fat' | 'snack' | 'other';
-
-const AI_FOOD_COMPONENT_QUOTAS: Array<{ group: MealComponentGroup; maxItems: number }> = [
-  { group: 'protein', maxItems: 42 },
-  { group: 'carb', maxItems: 32 },
-  { group: 'vegetable', maxItems: 32 },
-  { group: 'fruit', maxItems: 20 },
-  { group: 'dairy', maxItems: 14 },
-  { group: 'snack', maxItems: 20 },
-  { group: 'fat', maxItems: 8 },
-  { group: 'other', maxItems: 12 },
-];
-
-type FoodCatalogPreference = {
-  lifestyle?: any;
-  health?: any;
-  mealsPerDay?: number;
-  mealTypes?: string[];
-  recentMeals?: any[];
-  currentFoodId?: string | null;
-  targetCalories?: number | null;
-};
-
-const getFoodMealTypes = (food: any): string[] => {
-  const raw = food?.meal_type;
-  if (Array.isArray(raw)) return raw.map((item) => String(item || '').toLowerCase()).filter(Boolean);
-  return String(raw || '')
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-};
-
-const foodMatchesMealType = (food: any, mealType: string): boolean => {
-  const mealTypes = getFoodMealTypes(food);
-  if (mealTypes.length === 0) return true;
-  return mealTypes.includes(mealType) || mealTypes.includes('all') || mealTypes.includes('any');
-};
-
-const foodMatchesAnyMealType = (food: any, mealTypes: string[]): boolean => {
-  if (mealTypes.length === 0) return true;
-  return mealTypes.some((mealType) => foodMatchesMealType(food, mealType));
-};
-
-const getLimitedFoodFamilyKey = (food: any): string => {
-  const name = normalizeKeywordTokens(food?.name);
-  return name.startsWith('banh ') ? 'banh' : '';
-};
-
-const normalizeFoodGoalText = (food: any): string =>
-  (Array.isArray(food?.goal_type) ? food.goal_type : String(food?.goal_type || '').split(','))
-    .map((item: unknown) => normalizeKeywordText(item))
-    .join('|');
-
-const getUserDietPreferenceKey = (lifestyle: any): 'vegetarian' | 'clean' | 'high_protein' | 'low_carb' | 'normal' => {
-  const text = normalizeKeywordText(`${lifestyle?.diet_preference || ''} ${lifestyle?.current_diet || ''}`);
-  if (includesAnyKeyword(text, ['an chay', 'vegetarian', 'vegan'])) return 'vegetarian';
-  if (includesAnyKeyword(text, ['eat clean', 'clean'])) return 'clean';
-  if (includesAnyKeyword(text, ['nhieu dam', 'high protein', 'protein'])) return 'high_protein';
-  if (includesAnyKeyword(text, ['low carb', 'keto'])) return 'low_carb';
-  return 'normal';
-};
-
-const getUserBudgetPreferenceKey = (lifestyle: any): 'low' | 'medium' | 'high' => {
-  const text = normalizeKeywordText(lifestyle?.budget_level);
-  if (includesAnyKeyword(text, ['tiet kiem', 'sinh vien', 're'])) return 'low';
-  if (includesAnyKeyword(text, ['thoai mai', 'cao cap', 'du loai'])) return 'high';
-  return 'medium';
-};
-
-const getFoodPriceKey = (food: any): 'low' | 'medium' | 'high' => {
-  const text = normalizeKeywordText(food?.price_level);
-  if (includesAnyKeyword(text, ['tiet kiem', 'sinh vien', 're'])) return 'low';
-  if (includesAnyKeyword(text, ['thoai mai', 'cao cap'])) return 'high';
-  return 'medium';
-};
-
-const foodMatchesDietPreference = (food: any, dietKey: ReturnType<typeof getUserDietPreferenceKey>): boolean => {
-  const goals = normalizeFoodGoalText(food);
-  if (dietKey === 'vegetarian') return goals.includes('an chay');
-  if (dietKey === 'clean') return goals.includes('eat clean');
-  if (dietKey === 'high_protein') return goals.includes('nhieu dam') || Number(food?.protein || 0) >= 18;
-  if (dietKey === 'low_carb') return goals.includes('low carb') || Number(food?.carbs || 0) <= 12;
-  return true;
-};
-
-const getRecentFoodContext = (recentMeals: any[] | null | undefined) => {
-  const idCounts = new Map<string, number>();
-  const familyCounts = new Map<string, number>();
-  const categoryCounts = new Map<string, number>();
-  const componentCounts = new Map<MealComponentGroup, number>();
-  const priceCounts = new Map<ReturnType<typeof getFoodPriceKey>, number>();
-  const goalCounts = new Map<string, number>();
-
-  (recentMeals || []).forEach((item) => {
-    const foodId = String(item?.food_id || '').trim();
-    if (foodId) idCounts.set(foodId, (idCounts.get(foodId) || 0) + 1);
-
-    const food = item?.foods || item?.food || item;
-    const familyKey = getLimitedFoodFamilyKey(food);
-    if (familyKey) familyCounts.set(familyKey, (familyCounts.get(familyKey) || 0) + 1);
-
-    const category = normalizeKeywordText(food?.category);
-    if (category) categoryCounts.set(category, (categoryCounts.get(category) || 0) + 1);
-
-    const component = classifyFoodComponent({
-      ...food,
-      calories: food?.calories ?? item?.calories,
-      protein: food?.protein ?? item?.protein,
-      carbs: food?.carbs ?? item?.carbs,
-      fat: food?.fat ?? item?.fat
-    });
-    componentCounts.set(component, (componentCounts.get(component) || 0) + 1);
-
-    if (String(food?.price_level || '').trim()) {
-      const priceKey = getFoodPriceKey(food);
-      priceCounts.set(priceKey, (priceCounts.get(priceKey) || 0) + 1);
-    }
-
-    normalizeFoodGoalText(food)
-      .split('|')
-      .filter(Boolean)
-      .forEach((goal) => goalCounts.set(goal, (goalCounts.get(goal) || 0) + 1));
-  });
-
-  return { idCounts, familyCounts, categoryCounts, componentCounts, priceCounts, goalCounts };
-};
-
-const ALLERGEN_GROUPS = [
-  ['dau phong', 'lac', 'peanut'],
-  ['sua', 'milk', 'lactose', 'dairy'],
-  ['trung', 'egg'],
-  ['tom', 'shrimp', 'shellfish', 'hai san', 'seafood'],
-  ['ca', 'fish'],
-  ['dau nanh', 'soy', 'soya'],
-  ['lua mi', 'wheat', 'gluten'],
-  ['me', 'sesame'],
-  ['hat dieu', 'cashew'],
-  ['hanh nhan', 'almond']
-];
-
-const getFoodAllergenText = (food: any): string =>
-  normalizeKeywordText([
-    food?.name,
-    food?.category,
-    Array.isArray(food?.allergens) ? food.allergens.join(' ') : food?.allergens
-  ].filter(Boolean).join(' '));
-
-const getUserAllergenGroups = (health: any): string[][] => {
-  const text = normalizeKeywordText([
-    health?.allergies,
-    health?.medical_history,
-    health?.health_condition
-  ].filter(Boolean).join(' '));
-  if (!text || includesAnyKeyword(text, ['khong di ung', 'khong co di ung', 'none', 'no allergy'])) return [];
-  return ALLERGEN_GROUPS.filter((group) => includesAnyKeyword(text, group));
-};
-
-const foodConflictsWithUserAllergies = (food: any, preference: FoodCatalogPreference): boolean => {
-  const groups = getUserAllergenGroups(preference.health);
-  if (groups.length === 0) return false;
-  const foodText = getFoodAllergenText(food);
-  return groups.some((group) => includesAnyKeyword(foodText, group));
-};
-
-const getFoodCatalogLimit = (rows: any[], maxItems: number, preference: FoodCatalogPreference): number => {
-  if (maxItems !== AI_FOOD_CATALOG_LIMIT) return Math.max(1, Math.min(maxItems, rows.length || maxItems));
-  const lifestyle = preference.lifestyle || {};
-  const mealsPerDay = resolveMealsPerDay(preference.mealsPerDay || lifestyle?.meals_per_day);
-  const recentCount = (preference.recentMeals || []).length;
-  const dietKey = getUserDietPreferenceKey(lifestyle);
-  let target = mealsPerDay <= 2 ? 130 : mealsPerDay === 3 ? 160 : mealsPerDay === 4 ? 195 : 220;
-  if (recentCount >= 28) target -= 30;
-  else if (recentCount >= 12) target -= 15;
-  else if (recentCount <= 3) target += 15;
-  if (dietKey !== 'normal') target += 15;
-  return Math.max(1, Math.min(maxItems, rows.length || maxItems, Math.round(target)));
-};
-
-const getMacroScoreAdjustment = (food: any, preference: FoodCatalogPreference): number => {
-  const lifestyle = preference.lifestyle || {};
-  const targetCalories = readPositiveNumber(preference.targetCalories, lifestyle?.target_calories);
-  const goalText = normalizeKeywordText(`${lifestyle?.fitness_goal || ''} ${lifestyle?.diet_preference || ''} ${lifestyle?.current_diet || ''}`);
-  const component = classifyFoodComponent(food);
-  const calories = Number(food?.calories || 0);
-  const protein = Number(food?.protein || 0);
-  const carbs = Number(food?.carbs || 0);
-  const fat = Number(food?.fat || 0);
-  const proteinDensity = calories > 0 ? (protein * 100) / calories : 0;
-  let score = 0;
-
-  if (includesAnyKeyword(goalText, ['giam can', 'giam mo', 'fat loss', 'weight loss'])) {
-    if (component === 'vegetable' || component === 'fruit') score += 18;
-    if (proteinDensity >= 8) score += 18;
-    if (calories > 450) score -= 30;
-    if (fat > 18) score -= 12;
-  }
-
-  if (includesAnyKeyword(goalText, ['tang co', 'muscle', 'high protein', 'nhieu dam'])) {
-    if (protein >= 18) score += 26;
-    else if (protein >= 10) score += 12;
-    if (component === 'protein') score += 18;
-  }
-
-  if (includesAnyKeyword(goalText, ['low carb', 'keto'])) {
-    if (carbs <= 12) score += 26;
-    if (carbs > 35) score -= 42;
-  }
-
-  if (targetCalories > 0) {
-    const mealsPerDay = resolveMealsPerDay(preference.mealsPerDay || lifestyle?.meals_per_day);
-    const averageMealCalories = targetCalories / mealsPerDay;
-    const idealByComponent: Record<MealComponentGroup, number> = {
-      protein: Math.min(260, averageMealCalories * 0.35),
-      carb: Math.min(260, averageMealCalories * 0.32),
-      vegetable: Math.min(110, averageMealCalories * 0.16),
-      fruit: Math.min(150, averageMealCalories * 0.18),
-      dairy: Math.min(190, averageMealCalories * 0.22),
-      fat: Math.min(120, averageMealCalories * 0.14),
-      snack: Math.min(220, averageMealCalories * 0.25),
-      other: Math.min(220, averageMealCalories * 0.25)
-    };
-    const ideal = Math.max(40, idealByComponent[component] || 180);
-    score += Math.max(-24, 18 - Math.abs(calories - ideal) / 8);
-  }
-
-  return score;
-};
-
-const getPreparationScoreAdjustment = (food: any, preference: FoodCatalogPreference): number => {
-  const lifestyle = preference.lifestyle || {};
-  const ability = normalizeKeywordText(`${lifestyle?.cooking_ability || ''} ${lifestyle?.workout_time || ''}`);
-  const cookMinutes = Number(food?.cooking_time_minutes || 0);
-  let score = 0;
-  if (food?.is_easy_to_prepare) score += 10;
-  if (includesAnyKeyword(ability, ['khong biet nau', 'ban ron', 'it thoi gian', 'de', 'nhanh'])) {
-    if (cookMinutes > 0 && cookMinutes <= 15) score += 20;
-    else if (cookMinutes > 30) score -= 30;
-  } else if (cookMinutes > 0 && cookMinutes <= 25) {
-    score += 8;
-  }
-  return score;
-};
-
-const applyHardFoodFilters = (rows: any[], maxItems: number, preference: FoodCatalogPreference): any[] => {
-  const lifestyle = preference.lifestyle || {};
-  const mealTypes = preference.mealTypes?.length
-    ? preference.mealTypes
-    : Array.from(new Set(getMealSlotsForCount(resolveMealsPerDay(preference.mealsPerDay || lifestyle?.meals_per_day))));
-  const dietKey = getUserDietPreferenceKey(lifestyle);
-  const budgetKey = getUserBudgetPreferenceKey(lifestyle);
-  const minViable = Math.min(Math.max(40, maxItems), Math.max(1, rows.length));
-
-  let source = rows.filter((food) => !foodConflictsWithUserAllergies(food, preference));
-  if (source.length < minViable) source = rows;
-
-  const mealScoped = source.filter((food) => foodMatchesAnyMealType(food, mealTypes));
-  if (mealScoped.length >= minViable) source = mealScoped;
-
-  if (dietKey === 'vegetarian') {
-    const dietScoped = source.filter((food) => foodMatchesDietPreference(food, dietKey));
-    if (dietScoped.length >= Math.min(minViable, 30)) source = dietScoped;
-  }
-
-  if (budgetKey === 'low') {
-    const budgetScoped = source.filter((food) => getFoodPriceKey(food) !== 'high');
-    if (budgetScoped.length >= minViable) source = budgetScoped;
-  }
-
-  return source;
-};
-
-const getFoodPreferenceScore = (
-  food: any,
-  preference: FoodCatalogPreference,
-  recentContext = getRecentFoodContext(preference.recentMeals)
-) => {
-  const lifestyle = preference.lifestyle || {};
-  const dietKey = getUserDietPreferenceKey(lifestyle);
-  const budgetKey = getUserBudgetPreferenceKey(lifestyle);
-  const priceKey = getFoodPriceKey(food);
-  const mealTypes = preference.mealTypes?.length
-    ? preference.mealTypes
-    : Array.from(new Set(getMealSlotsForCount(resolveMealsPerDay(preference.mealsPerDay || lifestyle?.meals_per_day))));
-  const goals = normalizeFoodGoalText(food);
-  const component = classifyFoodComponent(food);
-  const category = normalizeKeywordText(food?.category);
-  let score = 0;
-
-  if (foodConflictsWithUserAllergies(food, preference)) score -= 10000;
-
-  if (foodMatchesAnyMealType(food, mealTypes)) score += 70;
-  else score -= 90;
-
-  if (dietKey === 'vegetarian') {
-    score += foodMatchesDietPreference(food, dietKey) ? 120 : -1000;
-  } else if (dietKey !== 'normal') {
-    score += foodMatchesDietPreference(food, dietKey) ? 62 : -18;
-  } else if (goals.includes('binh thuong') || goals.includes('giu dang')) {
-    score += 16;
-  }
-
-  if (budgetKey === priceKey) score += 46;
-  else if (budgetKey === 'low') score += priceKey === 'medium' ? -22 : -85;
-  else if (budgetKey === 'medium') score += priceKey === 'low' ? 10 : -18;
-  else score += priceKey === 'medium' ? 18 : 8;
-
-  const foodId = String(food?.id || '');
-  if (foodId && foodId === String(preference.currentFoodId || '')) score -= 1000;
-
-  const foodRepeatCount = foodId ? recentContext.idCounts.get(foodId) || 0 : 0;
-  if (foodRepeatCount === 1) score += 14;
-  else if (foodRepeatCount === 2) score -= 18;
-  else if (foodRepeatCount >= 3) score -= 90;
-
-  const familyKey = getLimitedFoodFamilyKey(food);
-  const familyRepeatCount = familyKey ? recentContext.familyCounts.get(familyKey) || 0 : 0;
-  if (familyRepeatCount === 1) score += 6;
-  else if (familyRepeatCount === 2) score -= 10;
-  else if (familyRepeatCount >= 3) score -= 36;
-
-  if (category) score += Math.min(36, (recentContext.categoryCounts.get(category) || 0) * 8);
-  score += Math.min(24, (recentContext.componentCounts.get(component) || 0) * 5);
-  score += Math.min(22, (recentContext.priceCounts.get(priceKey) || 0) * 5);
-  goals
-    .split('|')
-    .filter(Boolean)
-    .forEach((goal) => {
-      score += Math.min(18, (recentContext.goalCounts.get(goal) || 0) * 4);
-    });
-
-  score += getMacroScoreAdjustment(food, preference);
-  score += getPreparationScoreAdjustment(food, preference);
-
-  return score;
-};
-
-const classifyFoodComponent = (food: any): MealComponentGroup => {
-  const text = normalizeKeywordText(`${food?.category || ''} ${food?.name || ''}`);
-  const protein = Number(food?.protein || 0);
-  const carbs = Number(food?.carbs || 0);
-  const fat = Number(food?.fat || 0);
-  const calories = Number(food?.calories || 0);
-
-  if (includesAnyKeyword(text, ['rau', 'salad', 'vegetable', 'greens', 'broccoli', 'spinach', 'cai', 'dua leo', 'ca chua'])) {
-    return 'vegetable';
-  }
-  if (includesAnyKeyword(text, ['trai cay', 'fruit', 'chuoi', 'tao', 'cam', 'dau tay', 'berries'])) {
-    return 'fruit';
-  }
-  if (includesAnyKeyword(text, ['carb', 'com', 'gao', 'rice', 'khoai', 'bun', 'pho', 'mi', 'pasta', 'banh mi', 'yen mach', 'oat'])) {
-    return 'carb';
-  }
-  if (includesAnyKeyword(text, ['dam', 'protein', 'thit', 'ga', 'bo', 'ca ', 'ca_', 'tom', 'trung', 'dau hu', 'tofu', 'tempeh', 'whey'])) {
-    return 'protein';
-  }
-  if (includesAnyKeyword(text, ['sua', 'yogurt', 'dairy', 'pho mai', 'cheese'])) {
-    return protein >= carbs ? 'protein' : 'dairy';
-  }
-  if (includesAnyKeyword(text, ['hat', 'dau olive', 'bo dau phong', 'avocado']) || fat >= 10) {
-    return 'fat';
-  }
-  if (includesAnyKeyword(text, ['snack', 'bua phu'])) {
-    return 'snack';
-  }
-  if (protein >= 8 && protein >= carbs * 0.55) return 'protein';
-  if (carbs >= 18 && carbs >= protein) return 'carb';
-  if (calories <= 90 && carbs <= 14 && protein < 6) return 'vegetable';
-  return 'other';
-};
-
-const selectBalancedFoodCatalog = (
-  rows: any[] | null | undefined,
-  maxItems = AI_FOOD_CATALOG_LIMIT,
-  preference: FoodCatalogPreference = {}
-) => {
-  const recentContext = getRecentFoodContext(preference.recentMeals);
-  const lifestyle = preference.lifestyle || {};
-  const dietKey = getUserDietPreferenceKey(lifestyle);
-  const baseSource = rows || [];
-  const effectiveMaxItems = getFoodCatalogLimit(baseSource, maxItems, preference);
-  const hardFilteredSource = applyHardFoodFilters(baseSource, effectiveMaxItems, preference);
-  const dietScoped = dietKey === 'vegetarian'
-    ? hardFilteredSource.filter((food) => foodMatchesDietPreference(food, dietKey))
-    : hardFilteredSource;
-  const scopedSource = dietScoped.length >= Math.min(effectiveMaxItems, 40) ? dietScoped : hardFilteredSource;
-  const source = [...scopedSource].sort((a, b) =>
-    getFoodPreferenceScore(b, preference, recentContext) - getFoodPreferenceScore(a, preference, recentContext)
-  );
-  const selected: any[] = [];
-  const selectedIds = new Set<string>();
-  const quotaBaseTotal = AI_FOOD_COMPONENT_QUOTAS.reduce((sum, item) => sum + item.maxItems, 0);
-  const quotaScale = effectiveMaxItems / Math.max(1, quotaBaseTotal);
-
-  const addRows = (candidates: any[], maxCount: number) => {
-    for (const food of candidates) {
-      if (selected.length >= effectiveMaxItems || maxCount <= 0) return;
-      const id = String(food?.id || '');
-      if (!id || selectedIds.has(id)) continue;
-      selected.push(food);
-      selectedIds.add(id);
-      maxCount -= 1;
-    }
-  };
-
-  AI_FOOD_COMPONENT_QUOTAS.forEach(({ group, maxItems: groupMaxItems }) => {
-    addRows(source.filter((food) => classifyFoodComponent(food) === group), Math.max(4, Math.round(groupMaxItems * quotaScale)));
-  });
-
-  addRows(source, effectiveMaxItems - selected.length);
-  return selected.slice(0, effectiveMaxItems);
-};
-
-const getDefaultMealQuantity = (food: any, group: MealComponentGroup, mealType: string): number => {
-  const unit = normalizeKeywordText(food?.serving_unit);
-  const name = normalizeKeywordText(food?.name);
-  const isGramUnit = unit.includes('100g') || unit.includes('100 g') || unit === 'g' || unit.includes('gram');
-  if (!isGramUnit) return 1;
-
-  if (group === 'vegetable') return 2.5; // 250g rau/cu.
-  if (group === 'protein') return mealType === 'breakfast' ? 1.2 : 1.5; // 120-150g thit/ca/trung/dau.
-  if (group === 'carb') {
-    if (includesAnyKeyword(name, ['com', 'rice', 'bun', 'pho', 'mi', 'banh mi'])) return 1.5;
-    return mealType === 'breakfast' ? 0.8 : 1.5;
-  }
-  if (group === 'fruit') return 1.5;
-  if (group === 'fat') return 0.3;
-  return 1;
-};
-
-const getRequiredMealComponents = (mealType: string): MealComponentGroup[] => {
-  if (mealType === 'lunch' || mealType === 'dinner') return ['carb', 'protein', 'vegetable'];
-  if (mealType === 'breakfast') return ['carb', 'protein'];
-  return [];
-};
-
-const pickFoodForComponent = (
-  foods: any[],
-  mealType: string,
-  group: MealComponentGroup,
-  usedFoodIds: Set<string>,
-  usedLimitedFamilyKeys: Set<string> = new Set()
-) => {
-  const candidates = foods.filter((food) => {
-    const id = String(food?.id || '');
-    if (!id || usedFoodIds.has(id)) return false;
-    return classifyFoodComponent(food) === group;
-  });
-  const scoped = candidates.filter((food) => foodMatchesMealType(food, mealType));
-  const mealPool = scoped.length ? scoped : candidates;
-  const familyScoped = mealPool.filter((food) => {
-    const familyKey = getLimitedFoodFamilyKey(food);
-    return !familyKey || !usedLimitedFamilyKeys.has(familyKey);
-  });
-  const pool = familyScoped.length ? familyScoped : mealPool;
-  return [...pool].sort((a, b) => {
-    const aEasy = a?.is_easy_to_prepare ? -8 : 0;
-    const bEasy = b?.is_easy_to_prepare ? -8 : 0;
-    const aMeal = foodMatchesMealType(a, mealType) ? -12 : 0;
-    const bMeal = foodMatchesMealType(b, mealType) ? -12 : 0;
-    const aFamily = getLimitedFoodFamilyKey(a) ? 18 : 0;
-    const bFamily = getLimitedFoodFamilyKey(b) ? 18 : 0;
-    const aCalories = Math.abs(Number(a?.calories || 0) - (group === 'vegetable' ? 45 : group === 'protein' ? 160 : 180));
-    const bCalories = Math.abs(Number(b?.calories || 0) - (group === 'vegetable' ? 45 : group === 'protein' ? 160 : 180));
-    return aEasy + aMeal + aFamily + aCalories - (bEasy + bMeal + bFamily + bCalories);
-  })[0] || null;
-};
-
-const expandAiMealItems = (meals: any[], foodById: Map<string, any>) =>
-  (Array.isArray(meals) ? meals : []).flatMap((meal: any) => {
-    const foodIds = Array.isArray(meal.food_ids) ? meal.food_ids : [];
-    return foodIds.map((foodId: string, index: number) => {
-      const safeFoodId = String(foodId || '');
-      const food = foodById.get(safeFoodId);
-      const mealType = String(meal.meal_type || 'lunch').toLowerCase();
-      const component = classifyFoodComponent(food);
-      const rawQuantity = Array.isArray(meal.quantities) ? Number(meal.quantities[index]) : Number(meal.quantity);
-      return {
-        meal_type: mealType,
-        food_id: safeFoodId,
-        quantity: Number.isFinite(rawQuantity) && rawQuantity > 0
-          ? Math.max(0.25, Math.min(6, rawQuantity))
-          : getDefaultMealQuantity(food, component, mealType),
-        order_index: index
-      };
-    });
-  });
-
-const rebalanceRepeatedFoodFamilies = (
-  meals: any[],
-  foodById: Map<string, any>,
-  foods: any[],
-  usedFoodIds: Set<string>
-) => {
-  const usedLimitedFamilyKeys = new Set<string>();
-
-  return meals.map((item) => {
-    const foodId = String(item?.food_id || '');
-    const food = foodById.get(foodId);
-    const familyKey = getLimitedFoodFamilyKey(food);
-    if (!familyKey) return item;
-    if (!usedLimitedFamilyKeys.has(familyKey)) {
-      usedLimitedFamilyKeys.add(familyKey);
-      return item;
-    }
-
-    const group = classifyFoodComponent(food);
-    const searchUsedFoodIds = new Set(usedFoodIds);
-    searchUsedFoodIds.delete(foodId);
-    const replacement = pickFoodForComponent(
-      foods,
-      String(item.meal_type || 'lunch'),
-      group,
-      searchUsedFoodIds,
-      usedLimitedFamilyKeys
-    );
-    if (!replacement?.id) return item;
-
-    const replacementId = String(replacement.id);
-    usedFoodIds.delete(foodId);
-    usedFoodIds.add(replacementId);
-    const replacementFamilyKey = getLimitedFoodFamilyKey(replacement);
-    if (replacementFamilyKey) usedLimitedFamilyKeys.add(replacementFamilyKey);
-
-    return {
-      ...item,
-      food_id: replacementId,
-      quantity: getDefaultMealQuantity(replacement, classifyFoodComponent(replacement), String(item.meal_type || 'lunch'))
-    };
-  });
-};
-
-const enrichMealComponents = (rawMeals: any[], mealsPerDay: number, foodById: Map<string, any>, foods: any[]) => {
-  const slots = Array.from(new Set(getMealSlotsForCount(mealsPerDay)));
-  let result = (Array.isArray(rawMeals) ? rawMeals : [])
-    .filter((item) => foodById.has(String(item?.food_id || '')))
-    .map((item) => ({
-      ...item,
-      meal_type: String(item.meal_type || 'lunch').toLowerCase()
-    }));
-  const usedFoodIds = new Set(result.map((item) => String(item.food_id || '')).filter(Boolean));
-  result = rebalanceRepeatedFoodFamilies(result, foodById, foods, usedFoodIds);
-  const usedLimitedFamilyKeys = new Set(
-    result
-      .map((item) => getLimitedFoodFamilyKey(foodById.get(String(item.food_id || ''))))
-      .filter(Boolean)
-  );
-
-  const addComponent = (mealType: string, group: MealComponentGroup) => {
-    const candidate = pickFoodForComponent(foods, mealType, group, usedFoodIds, usedLimitedFamilyKeys);
-    if (!candidate?.id) return;
-    const foodId = String(candidate.id);
-    usedFoodIds.add(foodId);
-    const familyKey = getLimitedFoodFamilyKey(candidate);
-    if (familyKey) usedLimitedFamilyKeys.add(familyKey);
-    result.push({
-      meal_type: mealType,
-      food_id: foodId,
-      quantity: getDefaultMealQuantity(candidate, group, mealType),
-      order_index: 99
-    });
-  };
-
-  slots.forEach((mealType) => {
-    const requirements = getRequiredMealComponents(mealType);
-    const existing = () => result.filter((item) => String(item.meal_type) === mealType && foodById.has(String(item.food_id || '')));
-    requirements.forEach((group) => {
-      if (!existing().some((item) => classifyFoodComponent(foodById.get(String(item.food_id))) === group)) {
-        addComponent(mealType, group);
-      }
-    });
-
-    if (mealType === 'snack' && existing().length === 0) {
-      addComponent(mealType, 'fruit');
-      if (existing().length === 0) addComponent(mealType, 'protein');
-    }
-  });
-
-  return result;
-};
-
-const normalizeDayMeals = (rawMeals: any[], mealsPerDay: number, foodById: Map<string, any>) => {
-  const slots = getMealSlotsForCount(mealsPerDay);
-  const meals = Array.isArray(rawMeals) ? rawMeals : [];
-  const validMeals = meals.filter((item) => foodById.has(String(item?.food_id || '')));
-  if (validMeals.length === 0) return [];
-
-  const normalized: any[] = [];
-  const slotsSeen = new Set<string>();
-  slots.forEach((mealType) => {
-    if (slotsSeen.has(mealType)) return;
-    slotsSeen.add(mealType);
-    validMeals
-      .filter((item) => String(item?.meal_type || '') === mealType)
-      .forEach((source) => {
-        normalized.push({
-          ...source,
-          meal_type: mealType,
-          order_index: normalized.length
-        });
-      });
-  });
-
-  if (normalized.length > 0) return normalized;
-
-  return validMeals.map((source, index) => ({
-    ...source,
-    meal_type: slots[Math.min(index, slots.length - 1)] || 'lunch',
-    order_index: index
-  }));
 };
 
 const normalizeMembershipTier = (value: unknown): MembershipTier => {
@@ -1975,7 +1358,7 @@ async function generateWeeklyCoachPlanForUser(params: {
   health = trainingContext.health;
   const { safetyContext, trainingPrescription } = trainingContext;
   const eligibilityContext = buildExerciseEligibilityContext(safetyContext);
-  const recentExerciseIds = new Set(
+  const recentExerciseIds: Set<string> = new Set<string>(
     (recentSessionsRes.data || []).map((item: any) => String(item.exercise_id || '')).filter(Boolean)
   );
   const exercises = rankExercises(
@@ -1990,17 +1373,16 @@ async function generateWeeklyCoachPlanForUser(params: {
     ...((recentMealsRes.data || []) as any[])
   ];
   const weeklyWorkoutDays = trainingPrescription.weeklyWorkouts;
-  const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
-  const mealSlots = getMealSlotsForCount(mealsPerDay);
-  const safeFoodSource = filterSafeFoodsForUser(foodCatalogRes.data as any[], safetyContext);
-  const foods = selectBalancedFoodCatalog(safeFoodSource, AI_FOOD_CATALOG_LIMIT, {
+  const mealsPerDay = resolveMealPlanningMealsPerDay(lifestyle.meals_per_day);
+  const mealSlots = getMealPlanningSlots(mealsPerDay);
+  const foods = buildMealPlanningCatalog(foodCatalogRes.data as any[], {
+    profile,
     lifestyle,
     health,
     mealsPerDay,
-    mealTypes: Array.from(new Set(mealSlots)),
-    recentMeals: recentMealHistory,
-    targetCalories: Number(lifestyle.target_calories || 0)
-  });
+    targetCalories: Number(lifestyle.target_calories || 0),
+    recentMealFoodIds: recentMealHistory.map((item: any) => String(item.food_id || '')).filter(Boolean),
+  }, AI_FOOD_CATALOG_LIMIT);
   const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
   const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
   const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
@@ -2028,7 +1410,7 @@ async function generateWeeklyCoachPlanForUser(params: {
   const { text: exerciseCatalog, referenceIds: exerciseReferenceIds } = buildAiExerciseCatalog(exercises);
 
   const foodCatalog = foods
-    .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
+    .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyMealFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
     .join('\n');
 
   const recentTraining = clampList(recentSessionsRes.data as any[], 6)
@@ -2349,10 +1731,7 @@ JSON schema (fixed):
       continue;
     }
 
-    const expandedMeals = expandAiMealItems(day.meals || [], foodById);
-    const enrichedMeals = enrichMealComponents(expandedMeals, mealsPerDay, foodById, foods);
-    const normalizedMeals = normalizeDayMeals(enrichedMeals, mealsPerDay, foodById);
-    normalizedMeals.forEach((item: any, index: number) => {
+    completeAiMealDay(day.meals || [], foods, mealsPerDay).forEach((item, index) => {
       const foodId = String(item.food_id || '');
       const food = foodById.get(foodId);
       if (!food) return;
@@ -4268,18 +3647,18 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .order('created_at', { ascending: false })
         .limit(300);
       if (candidateFoodsRes.error) throw candidateFoodsRes.error;
-      const safeCandidateFoodSource = filterSafeFoodsForUser(candidateFoodsRes.data as any[], chatSafetyContext);
-      const candidateFoods = selectBalancedFoodCatalog(safeCandidateFoodSource, 24, {
+      const candidateFoods = buildMealPlanningCatalog(candidateFoodsRes.data as any[], {
+        profile: profileRes.data || {},
         lifestyle: normalizedChatLifestyle,
         health: healthRes.data || {},
         mealsPerDay: Number(normalizedChatLifestyle.meals_per_day || 3),
-        mealTypes: [mealType],
-        recentMeals: [
+        recentMealFoodIds: [
           ...((recentMealLogsRes.data || []) as any[]),
-          ...mealRows
-        ],
-        currentFoodId: currentMeal?.food_id || null
-      });
+          ...mealRows,
+        ]
+          .map((item: any) => String(item.food_id || ''))
+          .filter((foodId) => foodId && foodId !== String(currentMeal?.food_id || '')),
+      }, 24);
 
       aiResponse = await mealAdjusterService({
         dayOfWeek: dayIndex,
@@ -4800,6 +4179,11 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
           error: `Adjustment blocked by food safety guard: ${foodSafety.reasons.join(', ')}`
         });
       }
+      if (!isMealFoodEligible(foodRes.data as any, mealType, applySafetyContext)) {
+        return res.status(400).json({
+          error: 'Adjustment food is not eligible for this meal slot or profile.'
+        });
+      }
 
       const updateMealRes = await supabase
         .from('weekly_food_items')
@@ -5018,7 +4402,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     health = trainingContext.health;
     const { safetyContext, trainingPrescription } = trainingContext;
     const eligibilityContext = buildExerciseEligibilityContext(safetyContext);
-    const recentExerciseIds = new Set(
+    const recentExerciseIds: Set<string> = new Set<string>(
       (recentSessionsRes.data || []).map((item: any) => String(item.exercise_id || '')).filter(Boolean)
     );
     const exercises = rankExercises(
@@ -5033,17 +4417,16 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       ...((recentMealsRes.data || []) as any[])
     ];
     const weeklyWorkoutDays = trainingPrescription.weeklyWorkouts;
-    const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
-    const mealSlots = getMealSlotsForCount(mealsPerDay);
-    const safeFoodSource = filterSafeFoodsForUser(foodCatalogRes.data as any[], safetyContext);
-    const foods = selectBalancedFoodCatalog(safeFoodSource, AI_FOOD_CATALOG_LIMIT, {
+    const mealsPerDay = resolveMealPlanningMealsPerDay(lifestyle.meals_per_day);
+    const mealSlots = getMealPlanningSlots(mealsPerDay);
+    const foods = buildMealPlanningCatalog(foodCatalogRes.data as any[], {
+      profile,
       lifestyle,
       health,
       mealsPerDay,
-      mealTypes: Array.from(new Set(mealSlots)),
-      recentMeals: recentMealHistory,
-      targetCalories: Number(lifestyle.target_calories || 0)
-    });
+      targetCalories: Number(lifestyle.target_calories || 0),
+      recentMealFoodIds: recentMealHistory.map((item: any) => String(item.food_id || '')).filter(Boolean),
+    }, AI_FOOD_CATALOG_LIMIT);
     const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
     const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
     const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
@@ -5063,7 +4446,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const { text: exerciseCatalog, referenceIds: exerciseReferenceIds } = buildAiExerciseCatalog(exercises);
 
     const foodCatalog = foods
-      .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
+      .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyMealFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
       .join('\n');
 
     const recentTraining = clampList(recentSessionsRes.data as any[], 6)
@@ -5461,10 +4844,7 @@ ${jsonSchemaPrompt}
           continue;
         }
 
-        const expandedMeals = expandAiMealItems(day.meals || [], foodById);
-        const enrichedMeals = enrichMealComponents(expandedMeals, mealsPerDay, foodById, foods);
-        const normalizedMeals = normalizeDayMeals(enrichedMeals, mealsPerDay, foodById);
-        normalizedMeals.forEach((item: any, index: number) => {
+        completeAiMealDay(day.meals || [], foods, mealsPerDay).forEach((item, index) => {
           const foodId = String(item.food_id || '');
           const food = foodById.get(foodId);
           if (!food) return;
@@ -5599,6 +4979,146 @@ ${jsonSchemaPrompt}
   }
 });
 
+type AiMealGenerationScope = 'day' | 'week';
+
+// Shared meal-generation primitive. The survey asks it for a whole week while
+// the Diet page asks for just the selected day; both use the same user context,
+// safety filters, food catalog, prompt rules, and result normalisation.
+const generateAiMealDraft = async (params: {
+  userId: string;
+  weekStartKey: string;
+  scope: AiMealGenerationScope;
+  targetDayIndex?: number;
+}) => {
+  const { userId, weekStartKey, scope } = params;
+  const targetDayIndex = Math.max(0, Math.min(6, Number(params.targetDayIndex) || 0));
+  if (!process.env.GROQ_API_KEY) {
+    throw new ApiRequestError(500, { error: 'Missing GROQ_API_KEY in server config' });
+  }
+
+  const [profileRes, lifestyleRes, healthRes, foodRes] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+    supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
+    supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
+    supabase
+      .from('foods')
+      .select('id, name, category, calories, protein, carbs, fat, serving_unit, image_url, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
+      .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
+  ]);
+  const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodRes.error].find(Boolean);
+  if (firstError) throw firstError;
+  if (!profileRes.data?.id) {
+    throw new ApiRequestError(403, { code: 'PROFILE_REQUIRED', error: 'Vui lòng hoàn thành hồ sơ trước.' });
+  }
+
+  const lifestyle = lifestyleRes.data || {};
+  const health = healthRes.data || {};
+  const safetyContext = { profile: profileRes.data || {}, lifestyle, health };
+  const mealsPerDay = resolveMealPlanningMealsPerDay(lifestyle.meals_per_day);
+  const mealSlots = getMealPlanningSlots(mealsPerDay);
+  const foods = buildMealPlanningCatalog(foodRes.data as any[], {
+    profile: profileRes.data || {},
+    lifestyle,
+    health,
+    mealsPerDay,
+    targetCalories: Number(lifestyle.target_calories || 0),
+  }, AI_FOOD_CATALOG_LIMIT);
+  const foodById = new Map(foods.map((food: any) => [String(food.id), food]));
+  const foodCatalog = foods
+    .map((food: any) => `${food.id}|${truncateText(food.name, 30)}|g=${classifyMealFoodComponent(food)}|k=${food.calories || 0}|p=${food.protein || 0}|c=${food.carbs || 0}|f=${food.fat || 0}|meal=${(food.meal_type || []).join(',')}`)
+    .join('\n');
+  const dayRule = scope === 'week'
+    ? 'exactly 7 days indexed 0..6'
+    : `exactly one day with day_of_week=${targetDayIndex}`;
+  const requestLabel = scope === 'week' ? 'a 7-day meal plan' : `the meal plan for day index ${targetDayIndex}`;
+  const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: diet=${lifestyle.diet_preference || ''}; cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; only FOOD_CATALOG ids; lunch/dinner need carb+protein+vegetable; breakfast needs carb+protein; avoid allergens; do not repeat a food family excessively.\nFOOD_CATALOG:\n${foodCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","food_ids":["catalog id"],"quantities":[1]}]}]}}`;
+  const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }],
+      temperature: 0.35,
+      max_tokens: scope === 'week' ? 1800 : 700,
+      response_format: { type: 'json_object' },
+    }),
+  });
+  const groqResult: any = await groqResponse.json();
+  if (!groqResponse.ok || groqResult.error) {
+    throw toAiProviderRequestError(groqResult?.error?.message || 'Groq AI request failed');
+  }
+
+  const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
+  const normalizedPlan = normalizeAiPlanPayload({
+    workout_plan: { days: [{ day_of_week: 0, is_rest_day: true, exercises: [] }] },
+    meal_plan: parsed?.meal_plan,
+  }, { requireMealPlan: true });
+  if (scope === 'week') {
+    normalizedPlan.mealPlan = startMealPlanOnCreationDay(ensureSevenDayMealPlan(normalizedPlan.mealPlan), weekStartKey);
+  } else {
+    const generatedDay = normalizedPlan.mealPlan.days.find((day) => day.meals.length > 0);
+    if (!generatedDay) {
+      throw new ApiRequestError(422, { error: 'AI meal proposal must contain meals for the selected day.' });
+    }
+    normalizedPlan.mealPlan = {
+      ...normalizedPlan.mealPlan,
+      days: [{ ...generatedDay, day_of_week: targetDayIndex, is_rest_day: false }],
+    };
+  }
+
+  const rows: any[] = [];
+  for (const day of normalizedPlan.mealPlan.days) {
+    const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
+    completeAiMealDay(day.meals || [], foods, mealsPerDay).forEach((item, index) => {
+      const food = foodById.get(String(item.food_id));
+      if (!food) return;
+      rows.push({
+        day_of_week: dayIndex,
+        meal_type: item.meal_type,
+        food_id: item.food_id,
+        name: food.name || '',
+        image_url: food.image_url || '',
+        category: food.category || '',
+        serving_unit: food.serving_unit || '100g',
+        quantity: Math.max(0.25, Math.min(6, Number(item.quantity) || 1)),
+        calories: Number(food.calories || 0),
+        protein: Number(food.protein || 0),
+        carbs: Number(food.carbs || 0),
+        fat: Number(food.fat || 0),
+        order_index: index,
+        is_rest_day: false,
+      });
+    });
+  }
+  if (!rows.length) throw new ApiRequestError(422, { error: 'AI meal proposal did not contain valid foods.' });
+  return { mealPlan: normalizedPlan.mealPlan, rows };
+};
+
+app.post('/api/ai-coach/generate-meal-plan', aiLimiter, async (req, res) => {
+  try {
+    const userId = await getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const scope: AiMealGenerationScope = String(req.body?.scope || '').toLowerCase() === 'week' ? 'week' : 'day';
+    const weekStartKey = req.body?.weekStartDate || getVietnamDateKey();
+    const targetDayIndex = Math.max(0, Math.min(6, Number(req.body?.dayIndex) || 0));
+    const draft = await generateAiMealDraft({ userId, weekStartKey, scope, targetDayIndex });
+    return res.json({
+      success: true,
+      data: {
+        scope,
+        weekStartDate: weekStartKey,
+        dayIndex: scope === 'day' ? targetDayIndex : null,
+        mealItems: draft.rows,
+        ai_json: { meal_plan: draft.mealPlan },
+      },
+    });
+  } catch (error: any) {
+    console.error('[ai-coach-generate-meal] failed:', error?.message || 'unknown_error');
+    if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
+    return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI lúc này.' });
+  }
+});
+
 // The onboarding flow deliberately generates meals in a second, smaller request.
 // Workout generation already happened after the training survey; regenerating it
 // here wastes Groq tokens and replaces a plan the user has just reviewed.
@@ -5609,67 +5129,73 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     if (!process.env.GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
 
     const weekStartKey = req.body?.weekStartDate || getVietnamDateKey();
-    const [profileRes, lifestyleRes, healthRes, foodRes, workoutPlanRes, foodPlanRes] = await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-      supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
-      supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
-      supabase.from('foods').select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare').limit(AI_FOOD_CATALOG_FETCH_LIMIT),
+    const [workoutPlanRes, foodPlanRes] = await Promise.all([
       supabase.from('weekly_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),
       supabase.from('weekly_food_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),
     ]);
-    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodRes.error, workoutPlanRes.error, foodPlanRes.error].find(Boolean);
+    const firstError = [workoutPlanRes.error, foodPlanRes.error].find(Boolean);
     if (firstError) throw firstError;
-    if (!profileRes.data?.id) return res.status(403).json({ code: 'PROFILE_REQUIRED', error: 'Vui lòng hoàn thành hồ sơ trước.' });
-    if (!workoutPlanRes.data?.[0]?.id) return res.status(409).json({ error: 'Lịch tập 7 ngày chưa sẵn sàng.' });
-    if (foodPlanRes.data?.[0]?.id) return res.status(409).json({ error: 'Thực đơn 7 ngày đã được tạo.' });
-
-    const lifestyle = lifestyleRes.data || {};
-    const health = healthRes.data || {};
-    const safetyContext = { profile: profileRes.data || {}, lifestyle, health };
-    const mealsPerDay = resolveMealsPerDay(lifestyle.meals_per_day);
-    const mealSlots = getMealSlotsForCount(mealsPerDay);
-    const foods = selectBalancedFoodCatalog(filterSafeFoodsForUser(foodRes.data as any[], safetyContext), AI_FOOD_CATALOG_LIMIT, {
-      lifestyle, health, mealsPerDay, mealTypes: mealSlots, targetCalories: Number(lifestyle.target_calories || 0),
-    });
-    const foodById = new Map(foods.map((food: any) => [String(food.id), food]));
-    const foodCatalog = foods.map((food: any) => `${food.id}|${truncateText(food.name, 30)}|g=${classifyFoodComponent(food)}|k=${food.calories || 0}|p=${food.protein || 0}|c=${food.carbs || 0}|f=${food.fat || 0}|meal=${(food.meal_type || []).join(',')}`).join('\n');
-    const prompt = `Generate a 7-day meal plan only. Return valid JSON only.\nUSER: diet=${lifestyle.diet_preference || ''}; cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: exactly 7 days indexed 0..6; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; only FOOD_CATALOG ids; lunch/dinner need carb+protein+vegetable; breakfast needs carb+protein; avoid allergens; do not repeat a food family excessively.\nFOOD_CATALOG:\n${foodCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":0,"meals":[{"meal_type":"breakfast","food_ids":["catalog id"],"quantities":[1]}]}]}}`;
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST', headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile', messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }], temperature: 0.35, max_tokens: 1800, response_format: { type: 'json_object' } }),
-    });
-    const groqResult: any = await groqResponse.json();
-    if (!groqResponse.ok || groqResult.error) throw toAiProviderRequestError(groqResult?.error?.message || 'Groq AI request failed');
-    const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
-    const normalizedPlan = normalizeAiPlanPayload({
-      workout_plan: { days: Array.from({ length: 7 }, (_, day_of_week) => ({ day_of_week, is_rest_day: true, exercises: [] })) },
-      meal_plan: parsed?.meal_plan,
-    }, { requireMealPlan: true });
-    normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
-    normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
-
-    const createdPlan = await supabase.from('weekly_food_plans').insert({ user_id: userId, name: 'AI Coach Meal Plan', week_start_date: weekStartKey, plan_status: 'draft', generated_by: 'ai', ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500) }).select('id').single();
-    if (createdPlan.error) throw createdPlan.error;
-    const foodPlanId = createdPlan.data.id;
-    const rows: any[] = [];
-    for (const day of normalizedPlan.mealPlan.days) {
-      const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
-      const expanded = expandAiMealItems(day.meals || [], foodById);
-      const enriched = enrichMealComponents(expanded, mealsPerDay, foodById, foods);
-      normalizeDayMeals(enriched, mealsPerDay, foodById).forEach((item: any, index: number) => {
-        const food = foodById.get(String(item.food_id));
-        if (!food) return;
-        rows.push({ food_plan_id: foodPlanId, day_of_week: dayIndex, meal_type: item.meal_type, food_id: item.food_id, quantity: Math.max(0.25, Math.min(6, Number(item.quantity) || 1)), calories: Number(food.calories || 0), protein: Number(food.protein || 0), carbs: Number(food.carbs || 0), fat: Number(food.fat || 0), order_index: index, is_rest_day: false });
-      });
+    if (!workoutPlanRes.data?.[0]?.id) {
+      return res.status(409).json({ error: 'Weekly workout plan is not ready.' });
     }
-    if (!rows.length) throw new Error('AI meal plan did not contain valid foods.');
-    const insertRows = await supabase.from('weekly_food_items').insert(rows);
-    if (insertRows.error) throw insertRows.error;
-    const activate = await supabase.from('weekly_food_plans').update({ plan_status: 'active', updated_at: new Date().toISOString() }).eq('id', foodPlanId).eq('plan_status', 'draft');
-    if (activate.error) throw activate.error;
-    const adjustment = await supabase.from('ai_plan_adjustments').insert({ user_id: userId, plan_type: 'meal', source_type: 'onboarding_meal_generate', old_plan_id: null, new_plan_id: workoutPlanRes.data[0].id, old_data: {}, new_data: { workout_plan_id: workoutPlanRes.data[0].id, food_plan_id: foodPlanId, target_calories: normalizedPlan.mealPlan.target_calories }, reason: truncateText(normalizedPlan.mealPlan.explanation || 'AI created onboarding meal plan.', 300), created_by: 'ai', status: 'applied', applied_at: new Date().toISOString() });
+    if (foodPlanRes.data?.[0]?.id) {
+      return res.status(409).json({ error: 'Weekly meal plan already exists.' });
+    }
+
+    const draft = await generateAiMealDraft({ userId, weekStartKey, scope: 'week' });
+    const generatedPlan = await supabase
+      .from('weekly_food_plans')
+      .insert({
+        user_id: userId,
+        name: 'AI Coach Meal Plan',
+        week_start_date: weekStartKey,
+        plan_status: 'draft',
+        generated_by: 'ai',
+        ai_explanation: truncateText(draft.mealPlan.explanation || '', 500),
+      })
+      .select('id')
+      .single();
+    if (generatedPlan.error) throw generatedPlan.error;
+    const foodPlanId = generatedPlan.data.id;
+    const insertedItems = await supabase.from('weekly_food_items').insert(
+      draft.rows.map(({ name, image_url, category, serving_unit, ...row }) => ({ ...row, food_plan_id: foodPlanId }))
+    );
+    if (insertedItems.error) throw insertedItems.error;
+    const activatedPlan = await supabase
+      .from('weekly_food_plans')
+      .update({ plan_status: 'active', updated_at: new Date().toISOString() })
+      .eq('id', foodPlanId)
+      .eq('plan_status', 'draft');
+    if (activatedPlan.error) throw activatedPlan.error;
+    const adjustment = await supabase.from('ai_plan_adjustments').insert({
+      user_id: userId,
+      plan_type: 'meal',
+      source_type: 'onboarding_meal_generate',
+      old_plan_id: null,
+      new_plan_id: workoutPlanRes.data[0].id,
+      old_data: {},
+      new_data: {
+        workout_plan_id: workoutPlanRes.data[0].id,
+        food_plan_id: foodPlanId,
+        target_calories: draft.mealPlan.target_calories,
+      },
+      reason: truncateText(draft.mealPlan.explanation || 'AI created onboarding meal plan.', 300),
+      created_by: 'ai',
+      status: 'applied',
+      applied_at: new Date().toISOString(),
+    });
     if (adjustment.error) console.warn('Failed to store onboarding meal adjustment:', adjustment.error.message);
-    return res.json({ success: true, data: { weeklyPlanId: workoutPlanRes.data[0].id, foodPlanId, mealItems: rows.length, weekStartDate: weekStartKey, ai_json: { meal_plan: normalizedPlan.mealPlan } } });
+    return res.json({
+      success: true,
+      data: {
+        weeklyPlanId: workoutPlanRes.data[0].id,
+        foodPlanId,
+        mealItems: draft.rows.length,
+        weekStartDate: weekStartKey,
+        ai_json: { meal_plan: draft.mealPlan },
+      },
+    });
+
   } catch (error: any) {
     console.error('[ai-coach-onboarding-meal] failed:', error?.message || 'unknown_error');
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
