@@ -1,8 +1,12 @@
 import {
+  Apple,
   ArrowRight,
   CalendarDays,
   ChefHat,
+  Coffee,
   Loader2,
+  Moon,
+  Sun,
   Utensils,
 } from 'lucide-react';
 
@@ -37,6 +41,15 @@ const mealLabels: Record<string, string> = {
   snack: 'Bữa phụ',
 };
 
+const mealPresentation = {
+  breakfast: { label: 'Bữa sáng', icon: Coffee, color: '#fbbf24', background: 'rgba(251,191,36,0.12)' },
+  lunch: { label: 'Bữa trưa', icon: Sun, color: '#5eead4', background: 'rgba(45,212,191,0.12)' },
+  dinner: { label: 'Bữa tối', icon: Moon, color: '#a78bfa', background: 'rgba(167,139,250,0.12)' },
+  snack: { label: 'Bữa phụ', icon: Apple, color: '#fb923c', background: 'rgba(251,146,60,0.12)' },
+} as const;
+
+const mealTypeOrder = ['breakfast', 'lunch', 'dinner', 'snack'];
+
 const formatNumber = (value: number) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(value);
 
@@ -67,6 +80,15 @@ export default function NutritionResultScreen({
 }) {
   const todayPlan = result.days.find((day) => day.day === 0) || { day: 0, meals: [] };
   const totalMeals = todayPlan.meals.length;
+  const mealsByType = todayPlan.meals.reduce<Record<string, NutritionPlanDay['meals']>>((groups, meal) => {
+    const mealType = meal.mealType || 'other';
+    (groups[mealType] ||= []).push(meal);
+    return groups;
+  }, {});
+  const todayMealGroups = [
+    ...mealTypeOrder.filter((mealType) => mealsByType[mealType]?.length),
+    ...Object.keys(mealsByType).filter((mealType) => !mealTypeOrder.includes(mealType)),
+  ].map((mealType) => ({ mealType, meals: mealsByType[mealType] }));
   const macroTargets = result.macroTargets;
   const displayedCalories = macroTargets?.calorieTarget || null;
   const macroDistribution = [
@@ -156,27 +178,65 @@ export default function NutritionResultScreen({
               ) : error ? (
                 <div className="p-4 text-sm font-semibold leading-5 text-[#fca5a5] sm:p-5">{error}</div>
               ) : (
-                <div className="grid grid-cols-[48px_minmax(0,1fr)] gap-3 p-4 sm:p-5">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#c8ff19]/12 text-[#c8ff19]">
-                      <CalendarDays className="h-4 w-4" strokeWidth={2.4} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-white">Hôm nay</p>
-                      <div className="mt-2 space-y-2">
-                        {todayPlan.meals.length > 0 ? todayPlan.meals.map((meal, index) => (
-                          <p key={`${meal.mealType}-${meal.name}-${index}`} className="text-xs font-semibold leading-5 text-[#9ca8ba]">
-                            <span className="mr-2 font-black uppercase text-[#5eead4]">
-                              {mealLabels[meal.mealType] || meal.mealType}
-                            </span>
-                            {meal.name}
-                            {meal.quantity !== 1 ? ` x ${meal.quantity}` : ''}
-                          </p>
-                        )) : (
-                          <p className="text-xs font-semibold leading-5 text-[#fca5a5]">Chưa có món cho hôm nay.</p>
-                        )}
+                <div className="p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#c8ff19]/12 text-[#c8ff19]">
+                        <CalendarDays className="h-4 w-4" strokeWidth={2.4} />
+                      </span>
+                      <div>
+                        <p className="text-sm font-black text-white">Thực đơn hôm nay</p>
+                        <p className="mt-0.5 text-[11px] font-semibold text-[#7d8899]">Được AI sắp xếp theo từng bữa</p>
                       </div>
                     </div>
+                    <span className="rounded-full border border-[#2a3340] bg-[#0b1119] px-2.5 py-1 text-[10px] font-black text-[#cbd5e1]">
+                      {totalMeals} món
+                    </span>
                   </div>
+
+                  {todayMealGroups.length > 0 ? (
+                    <div className="mt-4 space-y-3">
+                      {todayMealGroups.map(({ mealType, meals }) => {
+                        const presentation = mealPresentation[mealType as keyof typeof mealPresentation] || {
+                          label: mealLabels[mealType] || mealType,
+                          icon: Utensils,
+                          color: '#94a3b8',
+                          background: 'rgba(148,163,184,0.12)',
+                        };
+                        const Icon = presentation.icon;
+
+                        return (
+                          <section key={mealType} className="overflow-hidden rounded-[14px] border border-[#273140] bg-[#0b1119]/70">
+                            <div className="flex items-center justify-between gap-3 border-b border-[#273140] px-3.5 py-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <span
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg"
+                                  style={{ backgroundColor: presentation.background, color: presentation.color }}
+                                >
+                                  <Icon className="h-3.5 w-3.5" strokeWidth={2.4} />
+                                </span>
+                                <p className="text-xs font-black text-white">{presentation.label}</p>
+                              </div>
+                              <span className="text-[10px] font-bold text-[#7d8899]">{meals.length} món</span>
+                            </div>
+                            <ul className="divide-y divide-[#202a38] px-3.5">
+                              {meals.map((meal, index) => (
+                                <li key={`${mealType}-${meal.name}-${index}`} className="flex items-center justify-between gap-3 py-2.5">
+                                  <span className="min-w-0 text-xs font-semibold leading-5 text-[#cbd5e1]">{meal.name}</span>
+                                  {meal.quantity !== 1 ? (
+                                    <span className="shrink-0 rounded-md bg-[#151a23] px-1.5 py-0.5 text-[10px] font-black text-[#8c98aa]">x{meal.quantity}</span>
+                                  ) : null}
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-xs font-semibold leading-5 text-[#fca5a5]">Chưa có món cho hôm nay.</p>
+                  )}
+                </div>
               )}
             </div>
           </Panel>
@@ -229,10 +289,6 @@ export default function NutritionResultScreen({
                 ))}
               </div>
             </div>
-          </Panel>
-
-          <Panel className="p-4 text-[11px] font-semibold leading-5 text-[#9ca8ba]">
-            Các bữa ăn cho những ngày tiếp theo đã được lưu trong kế hoạch. Bạn có thể xem chi tiết, tick hoàn thành và đổi món tại trang thực đơn.
           </Panel>
 
           <button

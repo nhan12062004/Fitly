@@ -50,6 +50,13 @@ export type NutritionMacroTargets = {
   fat: NutritionMacroTarget;
 };
 
+export type MealNutritionTotals = {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const COMPONENT_QUOTAS: Array<{ component: MealComponent; max: number }> = [
   { component: 'protein', max: 42 },
@@ -103,33 +110,41 @@ export const calculateNutritionMacroTargets = ({
   targetCalories,
   fitnessGoal,
   dietPreference,
+  weightKg,
 }: {
   targetCalories: unknown;
   fitnessGoal?: unknown;
   dietPreference?: unknown;
+  weightKg?: unknown;
 }): NutritionMacroTargets => {
   const calorieTarget = Math.max(0, Math.round(asNumber(targetCalories)));
   const goalText = normalizeText(fitnessGoal);
   const dietText = normalizeText(dietPreference);
   let profile = { protein: 0.25, carbs: 0.5, fat: 0.25 };
   let summary = 'Duy trì cân bằng';
+  let proteinPerKg = 0;
 
   if (hasAny(goalText, ['giam mo', 'giam can', 'fat loss', 'weight loss'])) {
     profile = { protein: 0.35, carbs: 0.4, fat: 0.25 };
     summary = 'Giảm mỡ (-350 kcal/ngày)';
+    proteinPerKg = 2;
   } else if (hasAny(goalText, ['tang co', 'muscle gain', 'muscle'])) {
     // At 3,082 kcal this yields the reference target: 158g P, 420g C, 86g F.
     profile = { protein: 0.205, carbs: 0.545, fat: 0.25 };
     summary = 'Tăng cơ (+250 kcal/ngày)';
+    proteinPerKg = 1.8;
   } else if (hasAny(goalText, ['suc manh', 'strength'])) {
     profile = { protein: 0.25, carbs: 0.5, fat: 0.25 };
     summary = 'Sức mạnh (+150 kcal/ngày)';
+    proteinPerKg = 1.8;
   } else if (hasAny(goalText, ['suc ben', 'endurance'])) {
     profile = { protein: 0.2, carbs: 0.55, fat: 0.25 };
     summary = 'Sức bền';
+    proteinPerKg = 1.6;
   } else if (hasAny(goalText, ['phuc hoi', 'recovery'])) {
     profile = { protein: 0.25, carbs: 0.45, fat: 0.3 };
     summary = 'Phục hồi & tái tạo';
+    proteinPerKg = 1.6;
   }
 
   if (hasAny(dietText, ['keto', 'low carb'])) {
@@ -138,24 +153,57 @@ export const calculateNutritionMacroTargets = ({
   } else if (hasAny(dietText, ['high protein', 'nhieu dam'])) {
     profile = { protein: 0.35, carbs: 0.4, fat: 0.25 };
     summary = `${summary} · Nhiều đạm`;
+    proteinPerKg = Math.max(proteinPerKg, 2);
   }
 
-  const buildMacro = (ratio: number, caloriesPerGram: number): NutritionMacroTarget => {
-    const calories = Math.round(calorieTarget * ratio);
+  const safeWeightKg = Math.max(0, asNumber(weightKg));
+  const proteinCaloriesFromWeight = safeWeightKg > 0 && proteinPerKg > 0
+    ? safeWeightKg * proteinPerKg * 4
+    : 0;
+  // Prevent a very high stored bodyweight from consuming the whole calorie budget.
+  const proteinCalories = proteinCaloriesFromWeight > 0
+    ? Math.min(calorieTarget * 0.4, proteinCaloriesFromWeight)
+    : calorieTarget * profile.protein;
+  const fatCalories = calorieTarget * profile.fat;
+  const carbCalories = Math.max(0, calorieTarget - proteinCalories - fatCalories);
+  const macroCalories = {
+    protein: proteinCalories,
+    carbs: carbCalories,
+    fat: fatCalories,
+  };
+
+  const buildMacro = (calories: number, caloriesPerGram: number): NutritionMacroTarget => {
     return {
-      calories,
+      calories: Math.round(calories),
       grams: Math.round(calories / caloriesPerGram),
-      percentage: ratio * 100,
+      percentage: calorieTarget ? (calories / calorieTarget) * 100 : 0,
     };
   };
 
   return {
     calorieTarget,
     summary,
-    protein: buildMacro(profile.protein, 4),
-    carbs: buildMacro(profile.carbs, 4),
-    fat: buildMacro(profile.fat, 9),
+    protein: buildMacro(macroCalories.protein, 4),
+    carbs: buildMacro(macroCalories.carbs, 4),
+    fat: buildMacro(macroCalories.fat, 9),
   };
+};
+
+export const calculateMealNutritionTotals = (
+  items: GeneratedMealItem[] | null | undefined,
+  foods: MealPlanningFood[] | null | undefined,
+): MealNutritionTotals => {
+  const foodById = new Map((foods || []).map((food) => [String(food.id || ''), food]));
+  return (items || []).reduce<MealNutritionTotals>((totals, item) => {
+    const food = foodById.get(String(item.food_id || ''));
+    const quantity = Math.max(0, asNumber(item.quantity));
+    return {
+      calories: totals.calories + asNumber(food?.calories) * quantity,
+      protein: totals.protein + asNumber(food?.protein) * quantity,
+      carbs: totals.carbs + asNumber(food?.carbs) * quantity,
+      fat: totals.fat + asNumber(food?.fat) * quantity,
+    };
+  }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
 };
 
 export const classifyMealFoodComponent = (food: MealPlanningFood | null | undefined): MealComponent => {
@@ -222,6 +270,112 @@ export const getDefaultMealQuantity = (food: MealPlanningFood, mealType: MealTyp
   if (component === 'fruit') return 1.5;
   if (component === 'fat') return 0.3;
   return 1;
+};
+
+const getQuantityBounds = (food: MealPlanningFood | null | undefined): { min: number; max: number } => {
+  switch (classifyMealFoodComponent(food)) {
+    case 'vegetable': return { min: 1, max: 3 };
+    case 'protein': return { min: 0.5, max: 2.5 };
+    case 'carb': return { min: 0.5, max: 2.5 };
+    case 'fruit': return { min: 0.5, max: 2 };
+    case 'dairy': return { min: 0.5, max: 2 };
+    case 'fat': return { min: 0.25, max: 1 };
+    default: return { min: 0.5, max: 2 };
+  }
+};
+
+const getMealCalorieShares = (mealsPerDay: unknown): Partial<Record<MealType, number>> => {
+  const meals = resolveMealsPerDay(mealsPerDay);
+  if (meals <= 2) return { breakfast: 0.4, dinner: 0.6 };
+  if (meals === 3) return { breakfast: 0.25, lunch: 0.4, dinner: 0.35 };
+  if (meals === 4) return { breakfast: 0.25, lunch: 0.35, dinner: 0.25, snack: 0.15 };
+  return { breakfast: 0.2, lunch: 0.35, dinner: 0.25, snack: 0.2 };
+};
+
+const getNutritionTargetError = (
+  items: GeneratedMealItem[],
+  foods: MealPlanningFood[],
+  targets: NutritionMacroTargets,
+  mealsPerDay: unknown,
+) => {
+  const totals = calculateMealNutritionTotals(items, foods);
+  if (!targets.calorieTarget) return 0;
+  const normalizedSquare = (actual: number, target: number) => {
+    if (!target) return 0;
+    return ((actual - target) / target) ** 2;
+  };
+  let error =
+    normalizedSquare(totals.calories, targets.calorieTarget) * 2.2 +
+    normalizedSquare(totals.protein, targets.protein.grams) * 2.1 +
+    normalizedSquare(totals.carbs, targets.carbs.grams) * 1.2 +
+    normalizedSquare(totals.fat, targets.fat.grams) * 1.2;
+
+  const foodById = new Map(foods.map((food) => [String(food.id || ''), food]));
+  const mealShares = getMealCalorieShares(mealsPerDay);
+  Object.entries(mealShares).forEach(([mealType, share]) => {
+    const mealCalories = items
+      .filter((item) => item.meal_type === mealType)
+      .reduce((sum, item) => {
+        const food = foodById.get(String(item.food_id || ''));
+        return sum + asNumber(food?.calories) * Math.max(0, asNumber(item.quantity));
+      }, 0);
+    error += normalizedSquare(mealCalories, targets.calorieTarget * Number(share)) * 0.35;
+  });
+  return error;
+};
+
+/**
+ * Balances the portions selected by AI against the user's calorie and macro targets.
+ * It never adds an unsafe food: it only adjusts amounts of already validated items.
+ */
+export const optimizeMealPlanQuantities = (
+  source: GeneratedMealItem[] | null | undefined,
+  foods: MealPlanningFood[] | null | undefined,
+  targets: NutritionMacroTargets,
+  mealsPerDay: unknown,
+): GeneratedMealItem[] => {
+  const catalog = foods || [];
+  const foodById = new Map(catalog.map((food) => [String(food.id || ''), food]));
+  const items = (source || []).map((item) => ({
+    ...item,
+    quantity: Math.max(0.25, Math.min(6, asNumber(item.quantity) || 1)),
+  }));
+  const hasNutrition = items.some((item) => {
+    const food = foodById.get(String(item.food_id || ''));
+    return asNumber(food?.calories) > 0 || asNumber(food?.protein) > 0 || asNumber(food?.carbs) > 0 || asNumber(food?.fat) > 0;
+  });
+  if (!targets.calorieTarget || !hasNutrition) return items;
+
+  for (let pass = 0; pass < 8; pass += 1) {
+    let changed = false;
+    for (let index = 0; index < items.length; index += 1) {
+      const food = foodById.get(String(items[index].food_id || ''));
+      const { min, max } = getQuantityBounds(food);
+      let bestQuantity = items[index].quantity;
+      let bestError = getNutritionTargetError(items, catalog, targets, mealsPerDay);
+
+      for (let quantity = min; quantity <= max + 0.001; quantity += 0.25) {
+        const candidateQuantity = Math.round(quantity * 100) / 100;
+        if (candidateQuantity === items[index].quantity) continue;
+        const candidate = items.map((item, candidateIndex) => (
+          candidateIndex === index ? { ...item, quantity: candidateQuantity } : item
+        ));
+        const candidateError = getNutritionTargetError(candidate, catalog, targets, mealsPerDay);
+        if (candidateError + 0.000001 < bestError) {
+          bestError = candidateError;
+          bestQuantity = candidateQuantity;
+        }
+      }
+
+      if (bestQuantity !== items[index].quantity) {
+        items[index] = { ...items[index], quantity: bestQuantity };
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+
+  return items.map((item, order_index) => ({ ...item, order_index }));
 };
 
 const getGoalText = (context: MealPlanningContext) => normalizeText([

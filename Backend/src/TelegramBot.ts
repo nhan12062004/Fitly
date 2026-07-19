@@ -16,8 +16,10 @@ import {
 } from './services/ai/coachMediaService';
 import {
   buildMealPlanningCatalog,
+  calculateNutritionMacroTargets,
   completeAiMealDay,
   getMealSlotsForCount,
+  optimizeMealPlanQuantities,
   resolveMealsPerDay,
 } from './services/mealPlanningService';
 
@@ -850,8 +852,9 @@ async function buildWorkoutReport(profile: LinkedProfile) {
 }
 
 async function buildTelegramRuleBasedMealSuggestion(profile: LinkedProfile) {
-  const [profileRes, lifestyleRes, healthRes, foodsRes] = await Promise.all([
+  const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, foodsRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', profile.id).maybeSingle(),
+    supabase.from('body_metrics').select('weight').eq('user_id', profile.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('lifestyle_settings').select('*').eq('user_id', profile.id).maybeSingle(),
     supabase.from('health_conditions').select('*').eq('user_id', profile.id).maybeSingle(),
     supabase
@@ -859,7 +862,7 @@ async function buildTelegramRuleBasedMealSuggestion(profile: LinkedProfile) {
       .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, is_easy_to_prepare')
       .limit(320),
   ]);
-  const error = [profileRes.error, lifestyleRes.error, healthRes.error, foodsRes.error].find(Boolean);
+  const error = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodsRes.error].find(Boolean);
   if (error) throw error;
 
   const lifestyle = lifestyleRes.data || {};
@@ -872,7 +875,18 @@ async function buildTelegramRuleBasedMealSuggestion(profile: LinkedProfile) {
     mealsPerDay,
     targetCalories: Number(lifestyle.target_calories || 0),
   }, 72);
-  const items = completeAiMealDay([], foods, mealsPerDay);
+  const nutritionTargets = calculateNutritionMacroTargets({
+    targetCalories: lifestyle.target_calories,
+    fitnessGoal: lifestyle.fitness_goal,
+    dietPreference: lifestyle.diet_preference,
+    weightKg: bodyMetricsRes.data?.weight,
+  });
+  const items = optimizeMealPlanQuantities(
+    completeAiMealDay([], foods, mealsPerDay),
+    foods,
+    nutritionTargets,
+    mealsPerDay,
+  );
   const foodById = new Map(foods.map((food: any) => [String(food.id), food]));
   const slots = Array.from(new Set(getMealSlotsForCount(mealsPerDay)));
   const lines = slots.flatMap((mealType) => {

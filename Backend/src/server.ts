@@ -39,6 +39,7 @@ import {
   completeAiMealDay,
   getMealSlotsForCount as getMealPlanningSlots,
   isMealFoodEligible,
+  optimizeMealPlanQuantities,
   resolveMealsPerDay as resolveMealPlanningMealsPerDay,
 } from './services/mealPlanningService';
 import {
@@ -1602,6 +1603,9 @@ JSON schema (fixed):
   }
   normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
   normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
+  if (Number(lifestyle.target_calories || 0) > 0) {
+    normalizedPlan.mealPlan = { ...normalizedPlan.mealPlan, target_calories: Math.round(Number(lifestyle.target_calories)) };
+  }
   normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
   normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
 
@@ -1732,7 +1736,14 @@ JSON schema (fixed):
       continue;
     }
 
-    completeAiMealDay(day.meals || [], foods, mealsPerDay).forEach((item, index) => {
+    const nutritionTargets = calculateNutritionMacroTargets({
+      targetCalories: normalizedPlan.mealPlan.target_calories || lifestyle.target_calories,
+      fitnessGoal: lifestyle.fitness_goal,
+      dietPreference: lifestyle.diet_preference,
+      weightKg: bodyMetrics.weight,
+    });
+    const completedMeals = completeAiMealDay(day.meals || [], foods, mealsPerDay);
+    optimizeMealPlanQuantities(completedMeals, foods, nutritionTargets, mealsPerDay).forEach((item, index) => {
       const foodId = String(item.food_id || '');
       const food = foodById.get(foodId);
       if (!food) return;
@@ -4691,6 +4702,9 @@ ${jsonSchemaPrompt}
     normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
     normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
     if (!workoutOnly) {
+      if (Number(lifestyle.target_calories || 0) > 0) {
+        normalizedPlan.mealPlan = { ...normalizedPlan.mealPlan, target_calories: Math.round(Number(lifestyle.target_calories)) };
+      }
       normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
       normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
     }
@@ -4845,7 +4859,14 @@ ${jsonSchemaPrompt}
           continue;
         }
 
-        completeAiMealDay(day.meals || [], foods, mealsPerDay).forEach((item, index) => {
+        const nutritionTargets = calculateNutritionMacroTargets({
+          targetCalories: normalizedPlan.mealPlan.target_calories || lifestyle.target_calories,
+          fitnessGoal: lifestyle.fitness_goal,
+          dietPreference: lifestyle.diet_preference,
+          weightKg: bodyMetrics.weight,
+        });
+        const completedMeals = completeAiMealDay(day.meals || [], foods, mealsPerDay);
+        optimizeMealPlanQuantities(completedMeals, foods, nutritionTargets, mealsPerDay).forEach((item, index) => {
           const foodId = String(item.food_id || '');
           const food = foodById.get(foodId);
           if (!food) return;
@@ -4997,8 +5018,9 @@ const generateAiMealDraft = async (params: {
     throw new ApiRequestError(500, { error: 'Missing GROQ_API_KEY in server config' });
   }
 
-  const [profileRes, lifestyleRes, healthRes, foodRes] = await Promise.all([
+  const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, foodRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+    supabase.from('body_metrics').select('weight').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
     supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
     supabase
@@ -5006,7 +5028,7 @@ const generateAiMealDraft = async (params: {
       .select('id, name, category, calories, protein, carbs, fat, serving_unit, image_url, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
   ]);
-  const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodRes.error].find(Boolean);
+  const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodRes.error].find(Boolean);
   if (firstError) throw firstError;
   if (!profileRes.data?.id) {
     throw new ApiRequestError(403, { code: 'PROFILE_REQUIRED', error: 'Vui lòng hoàn thành hồ sơ trước.' });
@@ -5067,10 +5089,27 @@ const generateAiMealDraft = async (params: {
     };
   }
 
+  // The user's prescribed calorie target is authoritative; the model may only
+  // choose foods and meal structure, never replace this personal target.
+  const prescribedCalories = Number(lifestyle.target_calories || 0);
+  if (prescribedCalories > 0) {
+    normalizedPlan.mealPlan = {
+      ...normalizedPlan.mealPlan,
+      target_calories: Math.round(prescribedCalories),
+    };
+  }
+
+  const nutritionTargets = calculateNutritionMacroTargets({
+    targetCalories: normalizedPlan.mealPlan.target_calories || lifestyle.target_calories,
+    fitnessGoal: lifestyle.fitness_goal,
+    dietPreference: lifestyle.diet_preference,
+    weightKg: bodyMetricsRes.data?.weight,
+  });
   const rows: any[] = [];
   for (const day of normalizedPlan.mealPlan.days) {
     const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
-    completeAiMealDay(day.meals || [], foods, mealsPerDay).forEach((item, index) => {
+    const completedMeals = completeAiMealDay(day.meals || [], foods, mealsPerDay);
+    optimizeMealPlanQuantities(completedMeals, foods, nutritionTargets, mealsPerDay).forEach((item, index) => {
       const food = foodById.get(String(item.food_id));
       if (!food) return;
       rows.push({
@@ -5092,11 +5131,6 @@ const generateAiMealDraft = async (params: {
     });
   }
   if (!rows.length) throw new ApiRequestError(422, { error: 'AI meal proposal did not contain valid foods.' });
-  const nutritionTargets = calculateNutritionMacroTargets({
-    targetCalories: normalizedPlan.mealPlan.target_calories || lifestyle.target_calories,
-    fitnessGoal: lifestyle.fitness_goal,
-    dietPreference: lifestyle.diet_preference,
-  });
   return { mealPlan: normalizedPlan.mealPlan, rows, nutritionTargets };
 };
 
