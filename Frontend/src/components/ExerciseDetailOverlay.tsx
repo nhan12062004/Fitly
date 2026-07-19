@@ -62,6 +62,26 @@ const normalizeMediaUrl = (value: unknown): string => {
   return url;
 };
 
+const CONTRAINDICATION_LABELS: Record<string, string> = {
+  acute_ankle_pain: 'Đau cổ chân cấp tính',
+  acute_elbow_pain: 'Đau khuỷu tay cấp tính',
+  acute_hip_pain: 'Đau hông cấp tính',
+  acute_knee_pain: 'Đau đầu gối cấp tính',
+  acute_lower_back_pain: 'Đau thắt lưng cấp tính',
+  acute_neck_pain: 'Đau cổ cấp tính',
+  acute_shoulder_pain: 'Đau vai cấp tính',
+  acute_spine_pain: 'Đau cột sống cấp tính',
+  acute_wrist_pain: 'Đau cổ tay cấp tính',
+  balance_limitation: 'Hạn chế thăng bằng',
+  grip_limitation: 'Hạn chế lực nắm',
+  hip_flexor_pain: 'Đau cơ gập hông',
+};
+
+const formatContraindication = (value: unknown): string => {
+  const key = String(value || '').trim().toLowerCase();
+  return CONTRAINDICATION_LABELS[key] || 'Cần lưu ý an toàn khi thực hiện bài tập này';
+};
+
 const bodyPartLabel = (value: unknown): string | null => {
   const bodyPart = normalizeBodyPart(value);
   return bodyPart ? EXERCISE_LABELS.bodyPart[bodyPart] : null;
@@ -158,7 +178,7 @@ export default function ExerciseDetailOverlay({
     { key: 'body-part', label: 'Nhóm cơ', value: bodyPartLabel(normalizedExercise.body_part) || 'Chưa cập nhật' },
     { key: 'locations', label: 'Nơi tập phù hợp', value: locations || 'Chưa cập nhật' },
     { key: 'experience', label: 'Kinh nghiệm tối thiểu', value: formatExperienceRequirement(normalizedExercise.min_experience_months) || 'Chưa cập nhật' },
-    { key: 'progression', label: 'Cấp độ progression', value: `Cấp ${normalizedExercise.progression_level || 1}/5` },
+    { key: 'progression', label: 'Cấp độ tiến triển', value: `Cấp ${normalizedExercise.progression_level || 1}/5` },
   ];
 
   useEffect(() => {
@@ -289,7 +309,7 @@ export default function ExerciseDetailOverlay({
                 <div>
                   <h3 className="font-black">Cảnh báo / chống chỉ định</h3>
                   <ul className="mt-2 space-y-1.5 text-text-secondary">
-                    {contraindications.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+                    {contraindications.map((item, index) => <li key={`${item}-${index}`}>{formatContraindication(item)}</li>)}
                   </ul>
                 </div>
               </div>
@@ -300,11 +320,11 @@ export default function ExerciseDetailOverlay({
             <InstructionSection title="Chuẩn bị" items={instructions.setup} />
             <InstructionSection title="Các bước thực hiện" items={instructions.steps} ordered />
             <InstructionSection title="Nhịp thở" items={instructions.breathing} />
-            <InstructionSection title="Coaching cues" items={instructions.coaching_cues} />
+            <InstructionSection title="Lưu ý kỹ thuật" items={instructions.coaching_cues} />
             <InstructionSection title="Lỗi thường gặp" items={instructions.common_mistakes} />
             {linkedVariations.length > 0 ? (
               <section className="rounded-xl border border-border-primary bg-bg-secondary/85 p-4 md:p-5">
-                <h3 className="text-lg font-black text-text-primary">Biến thể progression</h3>
+                <h3 className="text-lg font-black text-text-primary">Biến thể tiến triển</h3>
                 <div className="mt-3 space-y-2">
                   {linkedVariations.map((variation) => (
                     <button
