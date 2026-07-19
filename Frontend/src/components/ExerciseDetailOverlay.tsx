@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   ChevronRight,
-  Dumbbell,
   ImageOff,
   Play,
   Plus,
@@ -12,14 +11,10 @@ import {
 import { supabase } from '../lib/Supabase';
 import {
   EXERCISE_LABELS,
-  formatDifficultyLabel,
   formatExperienceRequirement,
   formatTrainingLocations,
   normalizeBodyPart,
-  normalizeEquipment,
   normalizeExercise,
-  normalizeGoalType,
-  normalizeMovementPattern,
   type ExerciseInstructions,
 } from '../lib/exerciseCatalog';
 
@@ -54,26 +49,9 @@ interface ExerciseDetailOverlayProps {
   embedded?: boolean;
 }
 
-type RelatedExercise = {
-  id: string;
-  name: string;
-  primaryMuscle: string;
-  videoUrl: string;
-};
-
 type VariationExercise = {
   id: string;
   name: string;
-};
-
-const GOAL_LABELS: Record<string, string> = {
-  general_fitness: 'Thể lực tổng quát',
-  weight_loss: 'Giảm mỡ',
-  muscle_gain: 'Tăng cơ',
-  strength: 'Sức mạnh',
-  endurance: 'Sức bền',
-  mobility: 'Linh hoạt',
-  recovery: 'Phục hồi',
 };
 
 const normalizeMediaUrl = (value: unknown): string => {
@@ -84,36 +62,10 @@ const normalizeMediaUrl = (value: unknown): string => {
   return url;
 };
 
-const formatDuration = (seconds: number | null): string | null => {
-  if (!seconds || seconds <= 0) return null;
-  const minutes = Math.round(seconds / 60);
-  return minutes > 0 ? `${minutes} phút` : `${seconds} giây`;
-};
-
 const bodyPartLabel = (value: unknown): string | null => {
   const bodyPart = normalizeBodyPart(value);
   return bodyPart ? EXERCISE_LABELS.bodyPart[bodyPart] : null;
 };
-
-const equipmentLabel = (value: unknown): string | null => {
-  const equipment = normalizeEquipment(value);
-  return equipment ? EXERCISE_LABELS.equipment[equipment] : null;
-};
-
-const movementPatternLabel = (value: unknown): string | null => {
-  const pattern = normalizeMovementPattern(value);
-  return pattern ? EXERCISE_LABELS.movementPattern[pattern] : null;
-};
-
-const goalLabels = (values: string[]): string[] => values
-  .map((value) => normalizeGoalType(value))
-  .filter((value): value is NonNullable<ReturnType<typeof normalizeGoalType>> => value !== null)
-  .map((value) => GOAL_LABELS[value])
-  .filter(Boolean);
-
-const secondaryMuscleLabels = (values: string[]): string[] => values
-  .map(bodyPartLabel)
-  .filter((value): value is string => Boolean(value));
 
 export const toExerciseDetailItem = (
   value: unknown,
@@ -131,26 +83,6 @@ export const toExerciseDetailItem = (
     video_url: normalizeMediaUrl(normalized.video_url ?? fallback.video_url ?? ''),
     description: fallback.description || '',
   };
-};
-
-const ExerciseThumb = ({ src, alt }: { src?: string | null; alt: string }) => {
-  const videoUrl = normalizeMediaUrl(src);
-  if (!videoUrl) {
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-bg-tertiary text-text-tertiary">
-        <ImageOff className="h-6 w-6" />
-      </div>
-    );
-  }
-
-  return (
-    <video
-      src={videoUrl}
-      aria-label={alt}
-      className="h-full w-full object-cover"
-      autoPlay muted loop playsInline preload="metadata"
-    />
-  );
 };
 
 function InstructionSection({
@@ -203,7 +135,6 @@ export default function ExerciseDetailOverlay({
   embedded = false,
 }: ExerciseDetailOverlayProps) {
   const [activeExercise, setActiveExercise] = useState<ExerciseDetailItem>(() => toExerciseDetailItem(exercise));
-  const [relatedExercises, setRelatedExercises] = useState<RelatedExercise[]>([]);
   const [variationExercises, setVariationExercises] = useState<Record<string, VariationExercise>>({});
   const [isGifModalOpen, setIsGifModalOpen] = useState(false);
 
@@ -219,30 +150,16 @@ export default function ExerciseDetailOverlay({
   const instructions: ExerciseInstructions = normalizedExercise.instructions;
   const videoSrc = normalizeMediaUrl(normalizedExercise.video_url);
   const locations = formatTrainingLocations(normalizedExercise.training_locations);
-  const secondaryMuscles = secondaryMuscleLabels(normalizedExercise.secondary_muscles);
-  const goals = goalLabels(normalizedExercise.goal_type);
   const contraindications = normalizedExercise.contraindications;
   const variationIds = [instructions.easier_variation_id, instructions.harder_variation_id]
     .filter((id): id is string => Boolean(id));
 
   const metadataItems = [
-    { key: 'body-part', label: 'Nhóm cơ', value: bodyPartLabel(normalizedExercise.body_part) },
-    { key: 'target-muscle', label: 'Cơ chính', value: bodyPartLabel(normalizedExercise.target_muscle) },
-    { key: 'secondary-muscles', label: 'Cơ phụ', value: secondaryMuscles.join(', ') || null },
-    { key: 'equipment', label: 'Dụng cụ', value: equipmentLabel(normalizedExercise.equipment) },
-    { key: 'locations', label: 'Nơi tập phù hợp', value: locations },
-    { key: 'difficulty', label: 'Độ khó', value: formatDifficultyLabel(normalizedExercise.difficulty) },
-    { key: 'experience', label: 'Kinh nghiệm tối thiểu', value: formatExperienceRequirement(normalizedExercise.min_experience_months) },
-    { key: 'progression', label: 'Cấp độ progression', value: `Cấp ${normalizedExercise.progression_level}/5` },
-    { key: 'pattern', label: 'Mẫu chuyển động', value: movementPatternLabel(normalizedExercise.movement_pattern) },
-    { key: 'goals', label: 'Mục tiêu', value: goals.join(', ') || null },
-    { key: 'duration', label: 'Thời lượng ước tính', value: formatDuration(normalizedExercise.estimated_duration_seconds) },
-    {
-      key: 'calories',
-      label: 'Calories/phút',
-      value: normalizedExercise.calories_per_minute === null ? null : `${normalizedExercise.calories_per_minute} kcal`,
-    },
-  ].filter((item): item is { key: string; label: string; value: string } => Boolean(item.value));
+    { key: 'body-part', label: 'Nhóm cơ', value: bodyPartLabel(normalizedExercise.body_part) || 'Chưa cập nhật' },
+    { key: 'locations', label: 'Nơi tập phù hợp', value: locations || 'Chưa cập nhật' },
+    { key: 'experience', label: 'Kinh nghiệm tối thiểu', value: formatExperienceRequirement(normalizedExercise.min_experience_months) || 'Chưa cập nhật' },
+    { key: 'progression', label: 'Cấp độ progression', value: `Cấp ${normalizedExercise.progression_level || 1}/5` },
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -271,70 +188,6 @@ export default function ExerciseDetailOverlay({
       cancelled = true;
     };
   }, [activeExercise.id, instructions.easier_variation_id, instructions.harder_variation_id]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadRelated = async () => {
-      const targetMuscle = String(activeExercise.target_muscle || '').trim();
-      const bodyPart = String(activeExercise.body_part || '').trim();
-      if (!targetMuscle && !bodyPart) {
-        if (!cancelled) setRelatedExercises([]);
-        return;
-      }
-
-      const fields = 'id, name, target_muscle, body_part, video_url';
-      let rows: unknown[] = [];
-      if (targetMuscle) {
-        const { data } = await supabase
-          .from('exercises')
-          .select(fields)
-          .neq('id', activeExercise.id)
-          .eq('target_muscle', targetMuscle)
-          .limit(12);
-        rows = Array.isArray(data) ? data : [];
-      }
-      if (rows.length < 4 && bodyPart) {
-        const { data } = await supabase
-          .from('exercises')
-          .select(fields)
-          .neq('id', activeExercise.id)
-          .eq('body_part', bodyPart)
-          .limit(12);
-        const seen = new Set(rows.map((row) => toExerciseDetailItem(row).id));
-        for (const row of Array.isArray(data) ? data : []) {
-          const id = toExerciseDetailItem(row).id;
-          if (id && !seen.has(id)) {
-            rows.push(row);
-            seen.add(id);
-          }
-        }
-      }
-      if (rows.length === 0) {
-        const { data } = await supabase
-          .from('exercises')
-          .select(fields)
-          .neq('id', activeExercise.id)
-          .limit(12);
-        rows = Array.isArray(data) ? data : [];
-      }
-      if (cancelled) return;
-
-      setRelatedExercises(rows.map((row) => {
-        const item = toExerciseDetailItem(row);
-        return {
-          id: item.id,
-          name: item.name,
-          primaryMuscle: bodyPartLabel(item.target_muscle) || bodyPartLabel(item.body_part) || 'Cơ chính',
-          videoUrl: normalizeMediaUrl(item.video_url),
-        };
-      }).filter((item) => Boolean(item.id)));
-    };
-
-    void loadRelated();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeExercise.id, activeExercise.target_muscle, activeExercise.body_part]);
 
   const loadExerciseDetailById = async (exerciseId: string) => {
     const { data } = await supabase
@@ -365,7 +218,7 @@ export default function ExerciseDetailOverlay({
 
         <div className="space-y-4">
           <section className="rounded-2xl border border-border-primary bg-bg-secondary/85 p-3 md:p-4 lg:p-5">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.94fr)_minmax(360px,1.06fr)] lg:items-stretch lg:gap-6">
+            <div className="grid gap-4 lg:grid-cols-[minmax(360px,520px)_minmax(0,1fr)] lg:items-start lg:gap-6">
               <div className="themed-image-surface relative overflow-hidden rounded-2xl border border-border-primary/70 p-3 sm:p-4">
                 <button
                   type="button"
@@ -382,7 +235,7 @@ export default function ExerciseDetailOverlay({
                     src={videoSrc}
                     aria-label={activeExercise.name}
                     className="h-[180px] w-full object-contain sm:h-[220px] lg:h-[260px]"
-                    autoPlay muted loop playsInline preload="metadata"
+                    playsInline preload="metadata"
                   />
                 ) : (
                   <div className="flex h-[180px] w-full items-center justify-center text-text-tertiary sm:h-[220px] lg:h-[260px]">
@@ -472,35 +325,6 @@ export default function ExerciseDetailOverlay({
             ) : null}
           </div>
 
-          <section className="rounded-xl border border-border-primary bg-bg-secondary/85 p-4 md:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Dumbbell className="h-5 w-5 text-accent" />
-              <h3 className="text-xl font-black text-text-primary">Bài tập liên quan</h3>
-            </div>
-            {relatedExercises.length > 0 ? (
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                {relatedExercises.slice(0, 4).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => void loadExerciseDetailById(item.id)}
-                    className="flex items-center gap-2.5 rounded-lg border border-border-primary bg-bg-secondary px-2.5 py-2 text-left hover:border-border-secondary"
-                  >
-                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border-primary bg-bg-tertiary">
-                      <ExerciseThumb src={item.videoUrl} alt={item.name} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-bold text-text-primary">{item.name}</p>
-                      <p className="mt-0.5 truncate text-[11px] text-text-tertiary">Cơ chính: {item.primaryMuscle}</p>
-                    </div>
-                    <ChevronRight className="h-3.5 w-3.5 text-text-tertiary" />
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-text-secondary">Chưa có bài tập liên quan trong catalog.</p>
-            )}
-          </section>
         </div>
       </div>
 

@@ -998,12 +998,12 @@ export default function Exercises() {
         <div className="today-workout-content">
           {selectedSessionExercise ? (
             <article className="min-w-0">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[176px_minmax(0,560px)] lg:items-stretch lg:gap-5">
-                <div className="themed-image-surface overflow-hidden rounded-xl h-[184px] lg:h-full">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[260px_minmax(0,560px)] lg:items-center lg:gap-5">
+                <div className="themed-image-surface aspect-[4/3] w-full overflow-hidden rounded-xl">
                   <ExerciseThumb
                     src={selectedSessionExercise.video_url}
                     alt={selectedSessionExercise.name}
-                    className="w-full h-full object-contain p-2"
+                    className="h-full w-full object-cover"
                   />
                 </div>
                 <div className="today-workout-feature flex flex-col justify-center gap-3.5 min-w-0 max-w-[580px]">
