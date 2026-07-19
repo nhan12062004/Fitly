@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Plus, AlertCircle, Calendar, ImageOff, Bot,
+  Plus, AlertCircle, Calendar, ImageOff,
   Play, Eye, Moon, ChevronRight, Shield
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -825,6 +825,8 @@ export default function Exercises() {
   }, [session, selectedDateKey, selectedMonthStartKey, selectedMonthEndKey]);
 
   const selectedSessionExercise = session.find((s) => s.id === selectedSessionId) || null;
+  const selectedTargetMuscleLabel = formatTargetMuscleLabel(selectedSessionExercise?.exercises?.target_muscle);
+  const selectedBodyPartLabel = formatBodyPartLabel(selectedSessionExercise?.exercises?.body_part);
   const selectedSessionDetailExercise = useMemo<ExerciseDetailItem | null>(() => {
     if (!selectedSessionExercise) return null;
     return {
@@ -856,20 +858,6 @@ export default function Exercises() {
       kcalText: `~${kcal} kcal`
     };
   }, [selectedSessionExercise]);
-
-  const openAiWorkoutSwap = () => {
-    const params = new URLSearchParams();
-    const exerciseText = selectedSessionExercise
-      ? `bài "${selectedSessionExercise.name}"`
-      : 'buổi tập';
-    params.set(
-      'prompt',
-      `Đổi ${exerciseText} trong lịch tập ${selectedDayDateLabel}. Hãy đề xuất phương án phù hợp hơn với mục tiêu, thiết bị và sức của tôi.`
-    );
-    params.set('day', String(selectedDayId));
-    params.set('auto', '1');
-    navigate(`/smart-planner?${params.toString()}`);
-  };
 
   const workoutOrderSummary = useMemo(() => {
     const completed = session.filter((item) => item.is_completed).length;
@@ -1029,14 +1017,14 @@ export default function Exercises() {
                     </div>
                     <h2 className="text-2xl font-black text-text-primary leading-tight md:text-[1.75rem] md:leading-[1.08] line-clamp-2">{selectedSessionExercise.name}</h2>
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {selectedSessionExercise.exercises?.target_muscle ? (
+                      {selectedTargetMuscleLabel ? (
                         <span className="rounded-full border border-info/20 bg-info/10 px-3 py-1 text-xs font-bold text-info">
-                          {formatTargetMuscleLabel(selectedSessionExercise.exercises.target_muscle)}
+                          {selectedTargetMuscleLabel}
                         </span>
                       ) : null}
-                      {selectedSessionExercise.exercises?.body_part ? (
+                      {selectedBodyPartLabel ? (
                         <span className="rounded-full border border-warning/20 bg-warning/10 px-3 py-1 text-xs font-bold text-warning">
-                          {formatBodyPartLabel(selectedSessionExercise.exercises.body_part)}
+                          {selectedBodyPartLabel}
                         </span>
                       ) : null}
                     </div>
@@ -1064,14 +1052,6 @@ export default function Exercises() {
                     >
                       <Play className="w-4 h-4" />
                       {selectedSessionExercise.is_completed ? 'Mở lại buổi tập' : 'Bắt đầu buổi tập'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={openAiWorkoutSwap}
-                      className="ai-swap-action inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-black transition-colors"
-                    >
-                      <Bot className="w-4 h-4" />
-                      Đổi bằng AI
                     </button>
                     <button
                       type="button"

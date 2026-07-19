@@ -2653,7 +2653,7 @@ body.landing-scrollbar-visible::-webkit-scrollbar-thumb:hover {
   margin: 0;
   color: var(--text-primary);
   font-size: clamp(1.35rem, 2vw, 1.55rem);
-  font-weight: 950;
+  font-weight: 800;
   line-height: 1.1;
 }
 
