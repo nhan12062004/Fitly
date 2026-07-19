@@ -1144,8 +1144,21 @@ export default function Exercises() {
                     <button
                       key={exercise.id}
                       type="button"
-                      onClick={() => setSelectedSessionId(exercise.id)}
+                      onClick={() => {
+                        if (!isActive) {
+                          setSelectedSessionId(exercise.id);
+                          return;
+                        }
+                        navigate('/exercises/session', {
+                          state: {
+                            session,
+                            selectedSessionId: exercise.id,
+                            logDate: selectedDateKey,
+                          },
+                        });
+                      }}
                       className={`workout-order-item ${isActive ? 'workout-order-item-active' : ''}`}
+                      aria-label={isActive ? `Bắt đầu từ bài ${exercise.name}` : `Chọn bài ${exercise.name}`}
                     >
                       <div className="workout-order-thumb-wrap">
                         <div className="workout-order-thumb">
@@ -1180,7 +1193,7 @@ export default function Exercises() {
                         </p>
                       </div>
 
-                      <span className={`workout-order-action ${isActive ? 'workout-order-action-play' : ''}`}>
+                      <span className={`workout-order-action ${isActive ? 'workout-order-action-play' : ''}`} aria-hidden="true">
                         {isActive ? <Play className="h-4 w-4 fill-current" /> : <ChevronRight className="h-4 w-4" />}
                       </span>
                     </button>
