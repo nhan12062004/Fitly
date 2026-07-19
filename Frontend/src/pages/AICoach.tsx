@@ -1302,7 +1302,7 @@ export default function AICoach() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ weekStartDate: weekStartKey }),
+        body: JSON.stringify({ weekStartDate: todayDateKey }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {

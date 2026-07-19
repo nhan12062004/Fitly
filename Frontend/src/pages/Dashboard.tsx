@@ -27,21 +27,6 @@ const getVietnamDateKey = (date = new Date()): string => {
   return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-const getWeekStartKey = (baseDate: Date): string => {
-  const day = baseDate.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const date = new Date(baseDate);
-  date.setDate(baseDate.getDate() + diff);
-  return getVietnamDateKey(date);
-};
-
-const getVietnamDayIndex = () => {
-  const todayKey = getVietnamDateKey();
-  const today = new Date(`${todayKey}T00:00:00`);
-  const day = today.getDay();
-  return day === 0 ? 6 : day - 1;
-};
-
 const formatNumber = (value: number) =>
   Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
 
@@ -92,8 +77,8 @@ export default function Dashboard() {
 
   const generateSevenDayWorkoutPreview = async (summary: SurveyPlanSummary) => {
     const todayKey = getVietnamDateKey();
-    const weekStartKey = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
-    const todayDayIndex = getVietnamDayIndex();
+    const weekStartKey = todayKey;
+    const todayDayIndex = 0;
 
     const response = await fetchWithAuth('/api/ai-coach/generate-weekly-plan', {
       method: 'POST',
@@ -195,7 +180,7 @@ export default function Dashboard() {
 
     try {
       const todayKey = getVietnamDateKey();
-      const weekStartDate = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
+      const weekStartDate = todayKey;
       const response = await fetchWithAuth('/api/ai-coach/generate-onboarding-meal-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

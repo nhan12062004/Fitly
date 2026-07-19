@@ -52,16 +52,10 @@ function normalizeExerciseMediaUrl(raw: string): string {
   return url;
 }
 
-const getVietnamWeekRange = (date = new Date()) => {
-  const todayKey = getVietnamDateKey(date);
-  const todayDate = new Date(`${todayKey}T00:00:00`);
-  const day = todayDate.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const weekStart = new Date(todayDate);
-  weekStart.setDate(todayDate.getDate() + diffToMonday);
-  return {
-    weekStartKey: getVietnamDateKey(weekStart)
-  };
+const addDaysToDateKey = (dateKey: string, days: number) => {
+  const date = new Date(`${dateKey}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return getVietnamDateKey(date);
 };
 
 const initialStats = {
@@ -403,7 +397,6 @@ export default function Overview() {
         const today = new Date();
         const todayStr = getVietnamDateKey(today);
         const streakHistoryStart = getStreakHistoryStartKey(todayStr);
-        const { weekStartKey } = getVietnamWeekRange(today);
         const [
           lifestyleRes,
           progressLogRes,
@@ -420,7 +413,7 @@ export default function Overview() {
           supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, video_url, instructions, target_muscle, body_part, difficulty)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
           supabase.from('daily_meal_logs').select('calories, protein, carbs, fat, quantity, is_completed').eq('user_id', user.id).eq('log_date', todayStr).eq('is_completed', true),
           supabase.from('health_conditions').select('sleep_hours').eq('user_id', user.id).maybeSingle(),
-          supabase.from('weekly_food_plans').select('id').eq('user_id', user.id).eq('week_start_date', weekStartKey).eq('plan_status', 'active').order('updated_at', { ascending: false }).limit(1),
+          supabase.from('weekly_food_plans').select('id, week_start_date').eq('user_id', user.id).gte('week_start_date', addDaysToDateKey(todayStr, -6)).lte('week_start_date', todayStr).eq('plan_status', 'active').order('week_start_date', { ascending: false }).limit(1),
           supabase.from('daily_exercise_sessions').select('log_date, is_completed').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr),
           supabase.from('daily_meal_logs').select('log_date, is_completed').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr),
           supabase.from('daily_progress_logs').select('log_date, water_intake_ml, sleep_hours').eq('user_id', user.id).gte('log_date', streakHistoryStart).lte('log_date', todayStr)
@@ -533,8 +526,7 @@ export default function Overview() {
         const plans = plansRes.data;
 
         if (plans && plans.length > 0) {
-          const dayOfWeek = new Date(`${todayStr}T00:00:00`).getDay();
-          const todayDayOfWeek = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+          const todayDayOfWeek = Math.max(0, Math.min(6, Math.round((Date.parse(`${todayStr}T00:00:00Z`) - Date.parse(`${plans[0].week_start_date}T00:00:00Z`)) / (24 * 60 * 60 * 1000))));
           const { data: foodItems } = await supabase
             .from('weekly_food_items')
             .select('food_id, calories, protein, carbs, fat, quantity, meal_type, foods:food_id(name, calories, protein, carbs, fat, image_url)')

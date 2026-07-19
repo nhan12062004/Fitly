@@ -126,6 +126,12 @@ const getDateKeyFromWeekStartAndDayIndex = (weekStartKey: string, dayIndex: numb
   return getVietnamDateKey(addDays(baseDate, safeDayIndex));
 };
 
+const getDayOffsetBetweenDateKeys = (startDateKey: string, endDateKey: string): number => {
+  const start = Date.parse(`${startDateKey}T00:00:00Z`);
+  const end = Date.parse(`${endDateKey}T00:00:00Z`);
+  return Math.round((end - start) / (24 * 60 * 60 * 1000));
+};
+
 const getDayIndexFromDateKey = (dateKey: string): number => {
   const date = new Date(`${dateKey}T00:00:00`);
   const day = date.getDay();
@@ -1326,19 +1332,17 @@ const enforceTrainingPrescription = (
 // the user with a rest day on their first visit.
 const startWorkoutPlanOnCreationDay = (
   workoutPlan: NormalizedAiPlan['workoutPlan'],
-  weekStartKey: string,
+  planStartKey: string,
 ) => {
   const todayKey = getVietnamDateKey();
-  const currentWeekStartKey = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
-  if (weekStartKey !== currentWeekStartKey) return workoutPlan;
+  if (planStartKey !== todayKey) return workoutPlan;
 
   const firstTrainingDay = [...workoutPlan.days]
     .sort((a, b) => a.day_of_week - b.day_of_week)
     .find((day) => !day.is_rest_day && day.exercises.length > 0);
   if (!firstTrainingDay) return workoutPlan;
 
-  const todayDayIndex = getDayIndexFromDateKey(todayKey);
-  const offset = (todayDayIndex - firstTrainingDay.day_of_week + 7) % 7;
+  const offset = (7 - firstTrainingDay.day_of_week) % 7;
   if (offset === 0) return workoutPlan;
 
   return {
@@ -1352,19 +1356,17 @@ const startWorkoutPlanOnCreationDay = (
 
 const startMealPlanOnCreationDay = (
   mealPlan: NormalizedAiPlan['mealPlan'],
-  weekStartKey: string,
+  planStartKey: string,
 ) => {
   const todayKey = getVietnamDateKey();
-  const currentWeekStartKey = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
-  if (weekStartKey !== currentWeekStartKey) return mealPlan;
+  if (planStartKey !== todayKey) return mealPlan;
 
   const firstMealDay = [...mealPlan.days]
     .sort((a, b) => a.day_of_week - b.day_of_week)
     .find((day) => day.meals.length > 0);
   if (!firstMealDay) return mealPlan;
 
-  const todayDayIndex = getDayIndexFromDateKey(todayKey);
-  const offset = (todayDayIndex - firstMealDay.day_of_week + 7) % 7;
+  const offset = (7 - firstMealDay.day_of_week) % 7;
   if (offset === 0) return mealPlan;
 
   return {
@@ -2088,7 +2090,7 @@ ${foodCatalog}
 
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
-- Exactly 7 days, day_of_week 0..6 where 0 is Monday.
+- Exactly 7 days, day_of_week 0..6 where 0 is the plan start date.
 - Never create new exercises or foods. Use the EX## reference code from EXERCISE_CATALOG for every exercise_id, and a food_id from FOOD_CATALOG.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
@@ -2468,7 +2470,7 @@ JSON schema (fixed):
 
 async function runPremiumMondayAutoPlanner() {
   const todayKey = getVietnamDateKey();
-  const weekStartKey = getWeekStartKey(new Date(`${getVietnamDateKey()}T00:00:00`));
+  const weekStartKey = todayKey;
   const premiumProfilesRes = await supabase
     .from('profiles')
     .select('id, full_name')
@@ -2539,7 +2541,7 @@ async function runPremiumMondayAutoPlanner() {
   return result;
 }
 
-const PREMIUM_AUTO_PLAN_CRON = process.env.PREMIUM_AUTO_PLAN_CRON || '5 0 * * 1';
+const PREMIUM_AUTO_PLAN_CRON = process.env.PREMIUM_AUTO_PLAN_CRON || '5 0 * * *';
 let premiumAutoPlannerScheduled = false;
 
 function schedulePremiumMondayAutoPlanner() {
@@ -2553,7 +2555,7 @@ function schedulePremiumMondayAutoPlanner() {
   cron.schedule(
     PREMIUM_AUTO_PLAN_CRON,
     async () => {
-      console.log(`[premium-auto-planner] Running Monday auto generation at ${new Date().toISOString()}`);
+      console.log(`[premium-auto-planner] Checking completed plan cycles at ${new Date().toISOString()}`);
       try {
         const result = await runPremiumMondayAutoPlanner();
         console.log('[premium-auto-planner] Result:', JSON.stringify({
@@ -3394,22 +3396,6 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
       return res.status(400).json({ error: 'logDate must be YYYY-MM-DD' });
     }
 
-    const requestedWeekStart = String(req.body?.weekStartDate || '').trim();
-    const weekStartKey = DATE_KEY_REGEX.test(requestedWeekStart)
-      ? requestedWeekStart
-      : getWeekStartKey(new Date(`${logDate}T00:00:00`));
-    const requestedDayIndex = Number(req.body?.dayIndex);
-    const dayIndex = isValidDayIndex(requestedDayIndex)
-      ? requestedDayIndex
-      : getDayIndexFromDateKey(logDate);
-    const expectedWeekStartKey = getWeekStartKey(new Date(`${logDate}T00:00:00`));
-    const expectedDayIndex = getDayIndexFromDateKey(logDate);
-    if (weekStartKey !== expectedWeekStartKey || dayIndex !== expectedDayIndex) {
-      return res.status(400).json({
-        error: 'weekStartDate and dayIndex must match logDate for weekly-plan materialization.',
-      });
-    }
-
     const existingDailyRes = await supabase
       .from('daily_exercise_sessions')
       .select(DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT)
@@ -3427,14 +3413,24 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
 
     const planRes = await supabase
       .from('weekly_plans')
-      .select('id, created_at, updated_at')
+      .select('id, week_start_date, created_at, updated_at')
       .eq('user_id', authUserId)
-      .eq('week_start_date', weekStartKey)
+      .gte('week_start_date', addDaysToDateKey(logDate, -6))
+      .lte('week_start_date', logDate)
       .eq('plan_status', 'active')
       .limit(20);
     if (planRes.error) throw planRes.error;
 
-    const plan = pickLatestByUpdatedAt(planRes.data as any[]);
+    const plan = [...((planRes.data || []) as any[])]
+      .filter((item) => {
+        const planStartKey = String(item.week_start_date || '');
+        const dayOffset = getDayOffsetBetweenDateKeys(planStartKey, logDate);
+        return DATE_KEY_REGEX.test(planStartKey) && dayOffset >= 0 && dayOffset <= 6;
+      })
+      .sort((a, b) => {
+        const startComparison = String(b.week_start_date || '').localeCompare(String(a.week_start_date || ''));
+        return startComparison || new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime();
+      })[0];
     if (!plan?.id) {
       return res.json({
         exercises: [],
@@ -3443,6 +3439,8 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
         source: 'no_plan'
       });
     }
+
+    const dayIndex = getDayOffsetBetweenDateKeys(String(plan.week_start_date), logDate);
 
     const planExercisesRes = await supabase
       .from('weekly_plan_exercises')
@@ -4950,7 +4948,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
     }
 
-    const weekStartKey = weekStartDate || getWeekStartKey(new Date(`${getVietnamDateKey()}T00:00:00`));
+    const weekStartKey = weekStartDate || getVietnamDateKey();
 
     const [
       profileRes,
@@ -5089,7 +5087,7 @@ ${foodCatalog}
     const rulesPrompt = workoutOnly ? `
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
-- Exactly 7 days, day_of_week 0..6 where 0 is Monday.
+- Exactly 7 days, day_of_week 0..6 where 0 is the plan start date.
 - Never create new exercises. Use the EX## reference code from EXERCISE_CATALOG for every exercise_id.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
@@ -5102,7 +5100,7 @@ Rules:
 ` : `
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
-- Exactly 7 days, day_of_week 0..6 where 0 is Monday.
+- Exactly 7 days, day_of_week 0..6 where 0 is the plan start date.
 - Never create new exercises or foods. Use the EX## reference code from EXERCISE_CATALOG for every exercise_id, and a food_id from FOOD_CATALOG.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.
@@ -5610,7 +5608,7 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     if (!process.env.GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
 
-    const weekStartKey = req.body?.weekStartDate || getWeekStartKey(new Date(`${getVietnamDateKey()}T00:00:00`));
+    const weekStartKey = req.body?.weekStartDate || getVietnamDateKey();
     const [profileRes, lifestyleRes, healthRes, foodRes, workoutPlanRes, foodPlanRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),

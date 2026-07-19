@@ -702,7 +702,7 @@ export default function Exercises() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        weekStartDate: getWeekStartKey(new Date(`${vnToday}T00:00:00`)),
+        weekStartDate: vnToday,
         planScope: 'workout_only'
       })
     });

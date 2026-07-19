@@ -26,20 +26,11 @@ export type NutritionResult = {
 
 type IconComponent = typeof Utensils;
 
-const days = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
 const mealLabels: Record<string, string> = {
   breakfast: 'Sáng',
   lunch: 'Trưa',
   dinner: 'Tối',
   snack: 'Bữa phụ',
-};
-
-const getVietnamTodayDayIndex = () => {
-  const weekday = new Intl.DateTimeFormat('en-US', {
-    weekday: 'short',
-    timeZone: 'Asia/Ho_Chi_Minh',
-  }).format(new Date());
-  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(weekday);
 };
 
 const formatNumber = (value: number) =>
@@ -102,8 +93,7 @@ export default function NutritionResultScreen({
   error: string;
   onOpenPlan: () => void;
 }) {
-  const todayDayIndex = getVietnamTodayDayIndex();
-  const todayPlan = result.days.find((day) => day.day === todayDayIndex) || result.days[0] || { day: 0, meals: [] };
+  const todayPlan = result.days.find((day) => day.day === 0) || { day: 0, meals: [] };
   const totalMeals = todayPlan.meals.length;
   const dailyCalories = result.targetCalories ? Math.round(result.targetCalories) : null;
   const caloriesPerMeal = dailyCalories ? Math.round(dailyCalories / Math.max(1, result.mealsPerDay)) : null;
@@ -168,7 +158,7 @@ export default function NutritionResultScreen({
                       <CalendarDays className="h-4 w-4" strokeWidth={2.4} />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-white">{days[todayPlan.day] || 'Hôm nay'}</p>
+                      <p className="text-sm font-black text-white">Hôm nay</p>
                       <div className="mt-2 space-y-2">
                         {todayPlan.meals.length > 0 ? todayPlan.meals.map((meal, index) => (
                           <p key={`${meal.mealType}-${meal.name}-${index}`} className="text-xs font-semibold leading-5 text-[#9ca8ba]">

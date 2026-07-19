@@ -698,7 +698,7 @@ export default function DietPlan() {
       }),
     [selectedDayDate]
   );
-  const isTodaySelected = isCurrentWeek && selectedDayId === getTodayDayIndex();
+  const isTodaySelected = toDateKey(selectedDayDate) === todayKey;
   const currentMealType = getCurrentMealType();
   const highlightedMealId = isTodaySelected && activeMealTypeIds.has(currentMealType) ? currentMealType : null;
   const mealSummaries = useMemo(
@@ -874,14 +874,34 @@ export default function DietPlan() {
             .from('weekly_food_plans')
             .select('*')
             .eq('user_id', user.id)
-            .eq('week_start_date', selectedWeekKey)
+            .gte('week_start_date', toDateKey(addDays(selectedWeekStart, -6)))
+            .lte('week_start_date', toDateKey(addDays(selectedWeekStart, 6)))
             .eq('plan_status', 'active')
+            .order('week_start_date', { ascending: false })
             .limit(20);
 
           if (error) throw error;
-          const plan = pickLatestPlan(plans);
+          const todayPlanStartKey = toDateKey(addDays(getVietnamTodayDate(), -6));
+          const todayKey = getVietnamDateKey();
+          const plan = [...(plans || [])]
+            .filter((item: any) => {
+              const startKey = String(item.week_start_date || '');
+              return startKey >= todayPlanStartKey && startKey <= todayKey;
+            })
+            .sort((a: any, b: any) => String(b.week_start_date || '').localeCompare(String(a.week_start_date || '')))[0]
+            || pickLatestPlan(plans);
 
           if (plan) {
+            const planStartKey = String(plan.week_start_date || '');
+            if (planStartKey && planStartKey !== selectedWeekKey) {
+              const planStartDate = new Date(`${planStartKey}T00:00:00`);
+              const todayOffset = Math.max(0, Math.min(6, Math.round((getVietnamTodayDate().getTime() - planStartDate.getTime()) / (24 * 60 * 60 * 1000))));
+              if (!cancelled) {
+                setSelectedWeekStart(planStartDate);
+                setSelectedDayId(todayOffset);
+              }
+              return;
+            }
             nextPlanId = plan.id;
             nextPlanName = plan.name === 'Kế hoạch ăn uống tuần' ? DEFAULT_PLAN_NAME : (plan.name || DEFAULT_PLAN_NAME);
 
@@ -1243,7 +1263,7 @@ export default function DietPlan() {
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="flex min-w-0 flex-wrap items-center gap-3">
                 <h1 className="text-xl font-black text-text-primary md:text-2xl">
-                  {isTodaySelected ? 'Thực đơn hôm nay' : `Thực đơn ${DAYS[selectedDayId]?.full.toLowerCase()}`}
+                  {isTodaySelected ? 'Thực đơn hôm nay' : `Thực đơn ${selectedDayDate.toLocaleDateString('vi-VN', { weekday: 'long' }).toLowerCase()}`}
                 </h1>
                 <div className="flex items-center gap-1.5 text-xs text-text-tertiary md:text-sm">
                   <Calendar className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
@@ -1268,7 +1288,8 @@ export default function DietPlan() {
                   const isToday = toDateKey(dayDate) === todayKey;
                   const isSelected = selectedDayId === day.id;
                   const isTodayLabel = isCurrentWeek && isToday;
-                  const label = isTodayLabel ? 'Hôm nay' : day.label;
+                  const weekdayLabel = dayDate.toLocaleDateString('vi-VN', { weekday: 'short' }).replace('.', '');
+                  const label = isTodayLabel ? 'Hôm nay' : weekdayLabel;
 
                   return (
                     <button
@@ -1281,9 +1302,9 @@ export default function DietPlan() {
                       className={`inline-flex min-h-[40px] min-w-0 items-center justify-center whitespace-nowrap rounded-lg px-1 text-[10px] font-black uppercase transition sm:px-2 sm:text-[11px] sm:tracking-[0.08em] ${
                         isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
                       }`}
-                      title={`${day.full} - ${dayDate.toLocaleDateString('vi-VN')}`}
+                      title={dayDate.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })}
                     >
-                      <span className="sm:hidden">{isTodayLabel ? 'Nay' : day.label.replace(' ', '')}</span>
+                      <span className="sm:hidden">{isTodayLabel ? 'Nay' : weekdayLabel.replace(' ', '')}</span>
                       <span className="hidden sm:inline">{label}</span>
                     </button>
                   );
