@@ -943,7 +943,7 @@ const buildWorkoutSessionExerciseRow = ({
 
 const DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT = `
   *,
-  exercises:exercise_id (name, video_url, target_muscle, body_part, instructions)
+  exercises:exercise_id (name, video_url, image_url, target_muscle, body_part, instructions)
 `;
 
 const getLatestBodyWeightKg = async (userId: string): Promise<number> => {

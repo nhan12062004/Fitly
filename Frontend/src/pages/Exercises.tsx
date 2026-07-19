@@ -47,6 +47,7 @@ interface SessionExercise {
   exercises?: {
     name?: string;
     video_url?: string;
+    image_url?: string;
     target_muscle?: string;
     body_part?: string;
     equipment?: string;
@@ -243,8 +244,9 @@ const pickLatestPlan = (plans: any[] | null | undefined) => {
 
 
 // === Components ===
-const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; className?: string }) => {
+const ExerciseThumb = ({ src, poster, alt, className }: { src?: string; poster?: string; alt: string; className?: string }) => {
   const videoUrl = normalizeVideoUrl(src);
+  const posterUrl = normalizeVideoUrl(poster);
   const hasError = !videoUrl;
 
   if (hasError) {
@@ -258,9 +260,10 @@ const ExerciseThumb = ({ src, alt, className }: { src?: string; alt: string; cla
   return (
     <video
       src={videoUrl}
+      poster={posterUrl || undefined}
       aria-label={alt}
       className={className || "w-full h-full object-cover"}
-      muted playsInline preload="metadata"
+      muted playsInline preload="auto"
     />
   );
 };
@@ -592,7 +595,7 @@ export default function Exercises() {
         .from('daily_exercise_sessions')
         .select(`
           *,
-          exercises:exercise_id (name, video_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions)
+          exercises:exercise_id (name, video_url, image_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions)
         `)
         .eq('user_id', user?.id)
         .eq('log_date', selectedDateKey)
@@ -609,7 +612,9 @@ export default function Exercises() {
         setSession([]);
         await clonePlanToSelectedDate(selectedDateKey, selectedDayId);
       }
-      await loadCalendarStats(true);
+      // Calendar statistics are independent of today's session. Do not keep
+      // the exercise cards and their media behind these extra queries.
+      void loadCalendarStats(true);
     } catch (e) {
       console.error('Error loading session:', e);
     } finally {
@@ -1002,6 +1007,7 @@ export default function Exercises() {
                 <div className="themed-image-surface aspect-[4/3] w-full overflow-hidden rounded-xl">
                   <ExerciseThumb
                     src={selectedSessionExercise.video_url}
+                    poster={selectedSessionExercise.exercises?.image_url}
                     alt={selectedSessionExercise.name}
                     className="h-full w-full object-cover"
                   />
@@ -1145,6 +1151,7 @@ export default function Exercises() {
                         <div className="workout-order-thumb">
                           <ExerciseThumb
                             src={exercise.video_url}
+                            poster={exercise.exercises?.image_url}
                             alt={exercise.name}
                             className="h-full w-full object-cover"
                           />
