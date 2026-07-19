@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildMealPlanningCatalog,
+  calculateNutritionMacroTargets,
   classifyMealFoodComponent,
   completeAiMealDay,
   getMealSlotsForCount,
@@ -35,6 +36,18 @@ test('meal planning slots follow the configured number of meals', () => {
   assert.deepEqual(getMealSlotsForCount(2), ['breakfast', 'dinner']);
   assert.deepEqual(getMealSlotsForCount(3), ['breakfast', 'lunch', 'dinner']);
   assert.deepEqual(getMealSlotsForCount(4), ['breakfast', 'lunch', 'dinner', 'snack']);
+});
+
+test('nutrition macro targets adapt to the fitness goal on the backend', () => {
+  const gain = calculateNutritionMacroTargets({ targetCalories: 3082, fitnessGoal: 'Tăng cơ' });
+  const loss = calculateNutritionMacroTargets({ targetCalories: 2000, fitnessGoal: 'Giảm mỡ' });
+
+  assert.equal(gain.protein.grams, 158);
+  assert.equal(gain.carbs.grams, 420);
+  assert.equal(gain.fat.grams, 86);
+  assert.equal(gain.summary, 'Tăng cơ (+250 kcal/ngày)');
+  assert.equal(loss.protein.percentage, 35);
+  assert.notEqual(loss.protein.percentage, gain.protein.percentage);
 });
 
 test('meal planning catalog applies backend safety before sending foods to AI', () => {

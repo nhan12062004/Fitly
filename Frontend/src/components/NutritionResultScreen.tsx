@@ -2,16 +2,21 @@ import {
   ArrowRight,
   CalendarDays,
   ChefHat,
-  Flame,
-  Info,
   Loader2,
   Utensils,
-  WalletCards,
 } from 'lucide-react';
 
 export type NutritionPlanDay = {
   day: number;
   meals: Array<{ mealType: string; name: string; quantity: number }>;
+};
+
+export type NutritionMacroTargets = {
+  calorieTarget: number;
+  summary: string;
+  protein: { grams: number; calories: number; percentage: number };
+  carbs: { grams: number; calories: number; percentage: number };
+  fat: { grams: number; calories: number; percentage: number };
 };
 
 export type NutritionResult = {
@@ -22,9 +27,8 @@ export type NutritionResult = {
   targetCalories: number | null;
   explanation: string;
   days: NutritionPlanDay[];
+  macroTargets: NutritionMacroTargets | null;
 };
-
-type IconComponent = typeof Utensils;
 
 const mealLabels: Record<string, string> = {
   breakfast: 'Sáng',
@@ -50,38 +54,6 @@ function Panel({
   );
 }
 
-function MetricCard({
-  icon: Icon,
-  value,
-  label,
-  caption,
-  color,
-  background,
-}: {
-  icon: IconComponent;
-  value: string;
-  label: string;
-  caption: string;
-  color: string;
-  background: string;
-}) {
-  return (
-    <Panel className="p-4 text-center">
-      <span
-        className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl"
-        style={{ backgroundColor: background, color }}
-      >
-        <Icon className="h-4 w-4" strokeWidth={2.4} />
-      </span>
-      <p className="mt-3 text-2xl font-black leading-none" style={{ color }}>
-        {value}
-      </p>
-      <p className="mt-1 text-[11px] font-bold text-[#cbd5e1]">{label}</p>
-      <p className="mt-1 text-[9px] font-black uppercase text-[#7b8798]">{caption}</p>
-    </Panel>
-  );
-}
-
 export default function NutritionResultScreen({
   result,
   isGenerating,
@@ -95,8 +67,39 @@ export default function NutritionResultScreen({
 }) {
   const todayPlan = result.days.find((day) => day.day === 0) || { day: 0, meals: [] };
   const totalMeals = todayPlan.meals.length;
-  const dailyCalories = result.targetCalories ? Math.round(result.targetCalories) : null;
-  const caloriesPerMeal = dailyCalories ? Math.round(dailyCalories / Math.max(1, result.mealsPerDay)) : null;
+  const macroTargets = result.macroTargets;
+  const displayedCalories = macroTargets?.calorieTarget || null;
+  const macroDistribution = [
+    {
+      label: 'Protein',
+      description: 'Xây cơ & phục hồi',
+      percentage: macroTargets?.protein.percentage || 0,
+      grams: macroTargets?.protein.grams || null,
+      color: '#60a5fa',
+    },
+    {
+      label: 'Carbs',
+      description: 'Năng lượng tập',
+      percentage: macroTargets?.carbs.percentage || 0,
+      grams: macroTargets?.carbs.grams || null,
+      color: '#a3e635',
+    },
+    {
+      label: 'Chất béo',
+      description: 'Hormone & vitamin',
+      percentage: macroTargets?.fat.percentage || 0,
+      grams: macroTargets?.fat.grams || null,
+      color: '#fb923c',
+    },
+  ];
+  let donutOffset = 0;
+  const donutGradient = macroTargets
+    ? `conic-gradient(${macroDistribution.map((macro) => {
+        const start = donutOffset;
+        donutOffset += macro.percentage;
+        return `${macro.color} ${start}% ${donutOffset}%`;
+      }).join(', ')})`
+    : '#273140';
 
   return (
     <div className="relative min-h-[100dvh] w-full bg-[#090d13] px-4 py-10 text-white sm:px-5">
@@ -178,48 +181,52 @@ export default function NutritionResultScreen({
             </div>
           </Panel>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <MetricCard
-              icon={Flame}
-              value={dailyCalories ? formatNumber(dailyCalories) : '--'}
-              label="kcal/ngày"
-              caption="Mục tiêu"
-              color="#fb923c"
-              background="rgba(251,146,60,0.13)"
-            />
-            <MetricCard
-              icon={Utensils}
-              value={formatNumber(result.mealsPerDay)}
-              label="bữa/ngày"
-              caption="Nhịp ăn"
-              color="#2dd4bf"
-              background="rgba(45,212,191,0.13)"
-            />
-            <MetricCard
-              icon={WalletCards}
-              value={caloriesPerMeal ? formatNumber(caloriesPerMeal) : '--'}
-              label="kcal/bữa"
-              caption="Ước tính"
-              color="#60a5fa"
-              background="rgba(96,165,250,0.13)"
-            />
-          </div>
-
           <Panel className="p-4 sm:p-5">
-            <div className="flex gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#14b8a6]/15 text-[#2dd4bf]">
-                <Info className="h-4 w-4" strokeWidth={2.4} />
-              </span>
-              <div>
-                <h2 className="text-sm font-black text-white">Mục tiêu dinh dưỡng mỗi ngày</h2>
-                <p className="mt-1 text-xs font-semibold leading-5 text-[#a2adbd]">
-                  {dailyCalories
-                    ? `${formatNumber(dailyCalories)} kcal/ngày, chia theo ${result.mealsPerDay} bữa để dễ bám sát.`
-                    : 'AI đã tạo thực đơn, mục tiêu kcal chi tiết sẽ được cập nhật trong kế hoạch.'}
-                </p>
-                {result.explanation ? (
-                  <p className="mt-1 text-[11px] font-semibold leading-5 text-[#7d8899]">{result.explanation}</p>
-                ) : null}
+            <div>
+              <h2 className="text-base font-black text-white">Phân bổ dinh dưỡng</h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#8c98aa]">
+                {macroTargets?.summary || 'Đang chờ mục tiêu dinh dưỡng từ hệ thống'}
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
+              <div
+                className="relative mx-auto flex h-[100px] w-[100px] shrink-0 items-center justify-center rounded-full sm:mx-0"
+                style={{
+                  background: donutGradient,
+                }}
+                aria-label={displayedCalories ? `${formatNumber(displayedCalories)} kcal từ thực đơn hôm nay` : 'Chưa có dữ liệu dinh dưỡng'}
+                role="img"
+              >
+                <div className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full bg-[#151a23] text-center">
+                  <span className="text-[15px] font-black leading-none text-white">
+                    {displayedCalories ? formatNumber(displayedCalories) : '--'}
+                  </span>
+                  <span className="mt-1 text-[8px] font-bold text-[#8c98aa]">kcal thực đơn</span>
+                </div>
+              </div>
+
+              <div className="min-w-0 flex-1 space-y-3.5">
+                {macroDistribution.map((macro) => (
+                  <div key={macro.label}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="min-w-0 text-xs font-black text-white">
+                        {macro.label}
+                        <span className="ml-1.5 text-[9px] font-semibold text-[#7d8899]">{macro.description}</span>
+                      </p>
+                      <p className="shrink-0 text-right text-sm font-black" style={{ color: macro.color }}>
+                        {macro.grams ? `${formatNumber(macro.grams)}g` : '--'}
+                        <span className="ml-1 text-[9px] font-bold text-[#7d8899]">{Math.round(macro.percentage)}%</span>
+                      </p>
+                    </div>
+                    <div className="mt-1.5 h-1 rounded-full bg-[#080d14]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: macro.color, width: `${macro.percentage}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </Panel>

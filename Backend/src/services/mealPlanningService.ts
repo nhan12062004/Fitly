@@ -36,6 +36,20 @@ export type MealPlanningContext = PersonalizationContext & {
   recentMealFoodIds?: Iterable<string>;
 };
 
+export type NutritionMacroTarget = {
+  grams: number;
+  calories: number;
+  percentage: number;
+};
+
+export type NutritionMacroTargets = {
+  calorieTarget: number;
+  summary: string;
+  protein: NutritionMacroTarget;
+  carbs: NutritionMacroTarget;
+  fat: NutritionMacroTarget;
+};
+
 const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const COMPONENT_QUOTAS: Array<{ component: MealComponent; max: number }> = [
   { component: 'protein', max: 42 },
@@ -79,6 +93,69 @@ export const getMealSlotsForCount = (value: unknown): MealType[] => {
   if (mealsPerDay === 3) return ['breakfast', 'lunch', 'dinner'];
   if (mealsPerDay === 4) return ['breakfast', 'lunch', 'dinner', 'snack'];
   return ['breakfast', 'snack', 'lunch', 'snack', 'dinner'];
+};
+
+/**
+ * The single nutrition-target rule shared by meal generation surfaces.
+ * Values are targets, not a sum of the foods that happened to be selected.
+ */
+export const calculateNutritionMacroTargets = ({
+  targetCalories,
+  fitnessGoal,
+  dietPreference,
+}: {
+  targetCalories: unknown;
+  fitnessGoal?: unknown;
+  dietPreference?: unknown;
+}): NutritionMacroTargets => {
+  const calorieTarget = Math.max(0, Math.round(asNumber(targetCalories)));
+  const goalText = normalizeText(fitnessGoal);
+  const dietText = normalizeText(dietPreference);
+  let profile = { protein: 0.25, carbs: 0.5, fat: 0.25 };
+  let summary = 'Duy trì cân bằng';
+
+  if (hasAny(goalText, ['giam mo', 'giam can', 'fat loss', 'weight loss'])) {
+    profile = { protein: 0.35, carbs: 0.4, fat: 0.25 };
+    summary = 'Giảm mỡ (-350 kcal/ngày)';
+  } else if (hasAny(goalText, ['tang co', 'muscle gain', 'muscle'])) {
+    // At 3,082 kcal this yields the reference target: 158g P, 420g C, 86g F.
+    profile = { protein: 0.205, carbs: 0.545, fat: 0.25 };
+    summary = 'Tăng cơ (+250 kcal/ngày)';
+  } else if (hasAny(goalText, ['suc manh', 'strength'])) {
+    profile = { protein: 0.25, carbs: 0.5, fat: 0.25 };
+    summary = 'Sức mạnh (+150 kcal/ngày)';
+  } else if (hasAny(goalText, ['suc ben', 'endurance'])) {
+    profile = { protein: 0.2, carbs: 0.55, fat: 0.25 };
+    summary = 'Sức bền';
+  } else if (hasAny(goalText, ['phuc hoi', 'recovery'])) {
+    profile = { protein: 0.25, carbs: 0.45, fat: 0.3 };
+    summary = 'Phục hồi & tái tạo';
+  }
+
+  if (hasAny(dietText, ['keto', 'low carb'])) {
+    profile = { protein: 0.25, carbs: 0.1, fat: 0.65 };
+    summary = `${summary} · Low Carb`;
+  } else if (hasAny(dietText, ['high protein', 'nhieu dam'])) {
+    profile = { protein: 0.35, carbs: 0.4, fat: 0.25 };
+    summary = `${summary} · Nhiều đạm`;
+  }
+
+  const buildMacro = (ratio: number, caloriesPerGram: number): NutritionMacroTarget => {
+    const calories = Math.round(calorieTarget * ratio);
+    return {
+      calories,
+      grams: Math.round(calories / caloriesPerGram),
+      percentage: ratio * 100,
+    };
+  };
+
+  return {
+    calorieTarget,
+    summary,
+    protein: buildMacro(profile.protein, 4),
+    carbs: buildMacro(profile.carbs, 4),
+    fat: buildMacro(profile.fat, 9),
+  };
 };
 
 export const classifyMealFoodComponent = (food: MealPlanningFood | null | undefined): MealComponent => {

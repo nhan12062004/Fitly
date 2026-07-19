@@ -218,6 +218,7 @@ export default function Dashboard() {
         targetCalories: Number(payload?.data?.ai_json?.meal_plan?.target_calories) || null,
         explanation: String(payload?.data?.ai_json?.meal_plan?.explanation || ''),
         days: grouped,
+        macroTargets: payload?.data?.nutritionTargets || null,
       });
       await refreshProfile();
       navigate('/nutrition-assessment');

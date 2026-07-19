@@ -34,6 +34,7 @@ import {
 } from './services/exerciseCatalogService';
 import {
   buildMealPlanningCatalog,
+  calculateNutritionMacroTargets,
   classifyMealFoodComponent,
   completeAiMealDay,
   getMealSlotsForCount as getMealPlanningSlots,
@@ -5091,7 +5092,12 @@ const generateAiMealDraft = async (params: {
     });
   }
   if (!rows.length) throw new ApiRequestError(422, { error: 'AI meal proposal did not contain valid foods.' });
-  return { mealPlan: normalizedPlan.mealPlan, rows };
+  const nutritionTargets = calculateNutritionMacroTargets({
+    targetCalories: normalizedPlan.mealPlan.target_calories || lifestyle.target_calories,
+    fitnessGoal: lifestyle.fitness_goal,
+    dietPreference: lifestyle.diet_preference,
+  });
+  return { mealPlan: normalizedPlan.mealPlan, rows, nutritionTargets };
 };
 
 app.post('/api/ai-coach/generate-meal-plan', aiLimiter, async (req, res) => {
@@ -5109,6 +5115,7 @@ app.post('/api/ai-coach/generate-meal-plan', aiLimiter, async (req, res) => {
         weekStartDate: weekStartKey,
         dayIndex: scope === 'day' ? targetDayIndex : null,
         mealItems: draft.rows,
+        nutritionTargets: draft.nutritionTargets,
         ai_json: { meal_plan: draft.mealPlan },
       },
     });
@@ -5192,6 +5199,7 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
         foodPlanId,
         mealItems: draft.rows.length,
         weekStartDate: weekStartKey,
+        nutritionTargets: draft.nutritionTargets,
         ai_json: { meal_plan: draft.mealPlan },
       },
     });
