@@ -15,7 +15,7 @@ import { workoutAdjusterService } from './services/ai/workoutAdjusterService';
 import { mealAdjusterService } from './services/ai/mealAdjusterService';
 import { progressAnalyzerService } from './services/ai/progressAnalyzerService';
 import { AIChatContext, AIChatResponse, AIIntent } from './services/ai/types';
-import { WorkoutPrescription, prescribeWorkoutExercise } from './services/workoutPrescriptionService';
+import { WorkoutPrescription, estimateWorkoutKcal, prescribeWorkoutExercise } from './services/workoutPrescriptionService';
 import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservability';
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
@@ -806,35 +806,6 @@ const parseAverageReps = (repsText: string): number => {
   return Math.round((numbers[0] + numbers[numbers.length - 1]) / 2);
 };
 
-const estimatePlannedExerciseKcal = ({
-  exercise,
-  bodyWeightKg,
-  sets,
-  repsText,
-  weightKg,
-  restSeconds
-}: {
-  exercise?: any;
-  bodyWeightKg: number;
-  sets: number;
-  repsText: string;
-  weightKg: number;
-  restSeconds: number;
-}): number => {
-  const safeSets = Math.max(1, Number(sets) || 1);
-  const safeReps = Math.max(1, parseAverageReps(repsText));
-  const safeWeightKg = Math.max(0, Number(weightKg) || 0);
-  const safeBodyWeightKg = Math.max(40, Number(bodyWeightKg) || 70);
-  const workSeconds = safeSets * safeReps * (safeWeightKg > 0 ? 3.2 : 2.6);
-  const pauseSeconds = Math.max(0, safeSets - 1) * Math.max(0, Number(restSeconds) || 0);
-  const totalMinutes = Math.max(1, (workSeconds + pauseSeconds) / 60);
-  const basePerMinute = Math.max(2.5, Number(exercise?.calories_per_minute) || 5.5);
-  const relativeLoad = safeWeightKg / safeBodyWeightKg;
-  const loadFactor = Math.min(1.35, Math.max(0.9, 0.95 + relativeLoad * 1.1));
-  const densityFactor = Math.min(1.2, Math.max(0.92, 0.9 + (workSeconds / Math.max(1, workSeconds + pauseSeconds)) * 0.32));
-  return Math.max(6, Math.min(300, Math.round(basePerMinute * totalMinutes * loadFactor * densityFactor)));
-};
-
 const buildWeeklyWorkoutPlanRow = ({
   weeklyPlanId,
   dayIndex,
@@ -857,7 +828,7 @@ const buildWeeklyWorkoutPlanRow = ({
   const plannedWeightKg = prescription?.weightKg ?? Math.max(0, Number(item.weight_kg) || 0);
   const plannedRestSeconds = prescription?.restSeconds ?? Math.max(30, Math.min(180, Number(item.rest_seconds) || 60));
   const targetRpe = prescription?.targetRpe ?? Math.max(5, Math.min(10, Number(item.target_rpe) || 7));
-  const estimatedKcal = prescription?.estimatedKcal ?? estimatePlannedExerciseKcal({
+  const estimatedKcal = prescription?.estimatedKcal ?? estimateWorkoutKcal({
     exercise,
     bodyWeightKg,
     sets: plannedSets,
@@ -998,6 +969,42 @@ const getExerciseMetaForKcal = async (exerciseId: string) => {
     throw new ApiRequestError(404, { error: 'Exercise not found' });
   }
   return exerciseRes.data;
+};
+
+const calculateCompletedExerciseKcal = async ({
+  userId,
+  session,
+  completedSets,
+  restSeconds,
+}: {
+  userId: string;
+  session: any;
+  completedSets: number;
+  restSeconds?: number;
+}): Promise<number> => {
+  const safeCompletedSets = Math.max(0, Number(completedSets) || 0);
+  if (safeCompletedSets === 0) return 0;
+
+  const actualWeightKg =
+    session.actual_weight_kg === null || session.actual_weight_kg === undefined
+      ? Math.max(0, Number(session.weight_kg) || 0)
+      : Math.max(0, Number(session.actual_weight_kg) || 0);
+  const effectiveRestSeconds = restSeconds === undefined
+    ? Math.max(0, Number(session.actual_rest_seconds ?? session.rest_seconds) || 0)
+    : Math.max(0, Number(restSeconds) || 0);
+  const [bodyWeightKg, exerciseMeta] = await Promise.all([
+    getLatestBodyWeightKg(userId),
+    getExerciseMetaForKcal(String(session.exercise_id || '')),
+  ]);
+
+  return estimateWorkoutKcal({
+    exercise: exerciseMeta,
+    bodyWeightKg,
+    sets: safeCompletedSets,
+    repsText: String(session.actual_reps ?? session.reps ?? '10'),
+    weightKg: actualWeightKg,
+    restSeconds: effectiveRestSeconds,
+  });
 };
 
 const suggestManualStartingWeightKg = ({
@@ -2895,7 +2902,7 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
       const plannedKcal = Math.max(0, Number(item.estimated_kcal) || 0);
       const estimatedKcal = plannedKcal > 0
         ? plannedKcal
-        : estimatePlannedExerciseKcal({
+        : estimateWorkoutKcal({
             exercise: item.exercises,
             bodyWeightKg,
             sets: plannedSets,
@@ -3109,7 +3116,7 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, r
       getLatestBodyWeightKg(authUserId),
       getExerciseMetaForKcal(String(existingSession.exercise_id || ''))
     ]);
-    const estimatedKcal = estimatePlannedExerciseKcal({
+    const estimatedKcal = estimateWorkoutKcal({
       exercise: exerciseMeta,
       bodyWeightKg,
       sets: nextSets,
@@ -3117,10 +3124,16 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, r
       weightKg: nextWeightKg ?? 0,
       restSeconds: nextRestSeconds
     });
-    const nextActualKcal = Math.max(
-      0,
-      Math.round(estimatedKcal * (nextCompletedSetCount / Math.max(1, nextSets)))
-    );
+    const nextActualKcal = nextCompletedSetCount > 0
+      ? estimateWorkoutKcal({
+          exercise: exerciseMeta,
+          bodyWeightKg,
+          sets: nextCompletedSetCount,
+          repsText: nextReps,
+          weightKg: nextWeightKg ?? 0,
+          restSeconds: nextRestSeconds,
+        })
+      : 0;
 
     const updateRes = await supabase
       .from('daily_exercise_sessions')
@@ -3177,9 +3190,14 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (re
     const isCompleted = req.body?.isCompleted === true;
     const existingSession = await loadDailyExerciseSessionWithExerciseMeta(exerciseSessionId, authUserId);
     const totalSets = Math.max(1, Number(existingSession.actual_sets ?? existingSession.sets) || 1);
-    const estimatedKcal = Math.max(0, Number(existingSession.estimated_kcal) || 0);
     const nextCompletedSets = isCompleted ? totalSets : 0;
-    const nextActualKcal = isCompleted ? estimatedKcal : 0;
+    const nextActualKcal = isCompleted
+      ? await calculateCompletedExerciseKcal({
+          userId: authUserId,
+          session: existingSession,
+          completedSets: nextCompletedSets,
+        })
+      : 0;
 
     const updateRes = await supabase
       .from('daily_exercise_sessions')
@@ -3212,7 +3230,7 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (re
         updatedSession.planned_weight_kg === null || updatedSession.planned_weight_kg === undefined
           ? updatedSession.weight_kg ?? null
           : Math.max(0, Number(updatedSession.planned_weight_kg) || 0);
-      const setEstimatedKcal = Math.max(1, Math.round(estimatedKcal / Math.max(1, totalSets)));
+      const setEstimatedKcal = Math.max(1, Math.round(nextActualKcal / Math.max(1, totalSets)));
       const setRows = Array.from({ length: totalSets }).map((_, index) => ({
         daily_exercise_session_id: updatedSession.id,
         workout_session_exercise_id: workoutSessionExercise?.id || null,
@@ -3263,10 +3281,12 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (
     const existingSession = await loadDailyExerciseSessionWithExerciseMeta(exerciseSessionId, authUserId);
     const totalSets = Math.max(1, Number(existingSession.actual_sets ?? existingSession.sets) || 1);
     const nextCompletedSets = Math.min(totalSets, Math.max(0, Number(existingSession.completed_sets) || 0) + 1);
-    const nextActualKcal = Math.max(
-      0,
-      Math.round((Math.max(0, Number(existingSession.estimated_kcal) || 0) * nextCompletedSets) / Math.max(1, totalSets))
-    );
+    const previousActualKcal = Math.max(0, Number(existingSession.actual_kcal_estimated) || 0);
+    const nextActualKcal = await calculateCompletedExerciseKcal({
+      userId: authUserId,
+      session: existingSession,
+      completedSets: nextCompletedSets,
+    });
     const nextIsCompleted = nextCompletedSets >= totalSets;
 
     const updateRes = await supabase
@@ -3299,10 +3319,7 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (
       updatedSession.planned_weight_kg === null || updatedSession.planned_weight_kg === undefined
         ? updatedSession.weight_kg ?? null
         : Math.max(0, Number(updatedSession.planned_weight_kg) || 0);
-    const setEstimatedKcal = Math.max(
-      1,
-      Math.round((Math.max(0, Number(updatedSession.estimated_kcal) || 0)) / Math.max(1, totalSets))
-    );
+    const setEstimatedKcal = Math.max(1, nextActualKcal - previousActualKcal);
 
     const setLogRes = await supabase
       .from('daily_exercise_set_logs')

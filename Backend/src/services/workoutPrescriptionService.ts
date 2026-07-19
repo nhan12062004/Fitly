@@ -76,12 +76,31 @@ export const estimateWorkoutKcal = ({
   const safeBodyWeightKg = Math.max(40, Number(bodyWeightKg) || 70);
   const workSeconds = safeSets * safeReps * (safeWeightKg > 0 ? 3.2 : 2.6);
   const pauseSeconds = Math.max(0, safeSets - 1) * Math.max(0, Number(restSeconds) || 0);
-  const totalMinutes = Math.max(1, (workSeconds + pauseSeconds) / 60);
-  const basePerMinute = Math.max(2.5, Number(exercise?.calories_per_minute) || 5.5);
-  const relativeLoad = safeWeightKg / safeBodyWeightKg;
-  const loadFactor = Math.min(1.35, Math.max(0.9, 0.95 + relativeLoad * 1.1));
-  const densityFactor = Math.min(1.2, Math.max(0.92, 0.9 + (workSeconds / Math.max(1, workSeconds + pauseSeconds)) * 0.32));
-  return Math.max(6, Math.min(300, Math.round(basePerMinute * totalMinutes * loadFactor * densityFactor)));
+  const descriptor = getExerciseDescriptor(exercise);
+  const difficulty = normalizeText(exercise?.difficulty);
+  const catalogCaloriesPerMinute = Number(exercise?.calories_per_minute);
+  const isCardioOrBodyweight = isBodyweightOrCardio(exercise) || includesAny(descriptor, ['locomotion', 'mountain climber']);
+  const isMobilityOrRecovery = includesAny(descriptor, ['mobility', 'stretch', 'recovery', 'gi an', 'keo gian']);
+
+  // MET lets the estimate scale with the member's body mass. A catalog value,
+  // when present, remains authoritative and is converted from a 70 kg baseline.
+  let activeMet = Number.isFinite(catalogCaloriesPerMinute) && catalogCaloriesPerMinute > 0
+    ? (catalogCaloriesPerMinute * 200) / (3.5 * 70)
+    : isMobilityOrRecovery
+      ? 3
+      : isCardioOrBodyweight
+        ? 6.5
+        : 5;
+  if (includesAny(difficulty, ['hard', 'advanced', 'kho'])) activeMet += 1.25;
+  if (includesAny(difficulty, ['easy', 'beginner', 'de'])) activeMet -= 0.75;
+  activeMet += Math.min(1.5, (safeWeightKg / safeBodyWeightKg) * 1.5);
+
+  const activeMinutes = workSeconds / 60;
+  const restMinutes = pauseSeconds / 60;
+  const activeCaloriesPerMinute = Math.max(1, (Math.max(2.5, activeMet) * 3.5 * safeBodyWeightKg) / 200);
+  const restCaloriesPerMinute = (1.5 * 3.5 * safeBodyWeightKg) / 200;
+  const calories = activeMinutes * activeCaloriesPerMinute + restMinutes * restCaloriesPerMinute;
+  return Math.max(1, Math.min(300, Math.round(calories)));
 };
 
 const getExerciseDescriptor = (exercise?: any): string =>

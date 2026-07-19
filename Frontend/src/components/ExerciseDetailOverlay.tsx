@@ -156,9 +156,11 @@ export default function ExerciseDetailOverlay({
 }: ExerciseDetailOverlayProps) {
   const [activeExercise, setActiveExercise] = useState<ExerciseDetailItem>(() => toExerciseDetailItem(exercise));
   const [variationExercises, setVariationExercises] = useState<Record<string, VariationExercise>>({});
+  const [isDetailReady, setIsDetailReady] = useState(false);
   const [isGifModalOpen, setIsGifModalOpen] = useState(false);
 
   useEffect(() => {
+    setIsDetailReady(false);
     setActiveExercise(toExerciseDetailItem(exercise));
   }, [exercise.id, exercise.name, exercise.video_url]);
 
@@ -184,23 +186,32 @@ export default function ExerciseDetailOverlay({
   useEffect(() => {
     let cancelled = false;
     const loadVariations = async () => {
+      setIsDetailReady(false);
+      setVariationExercises({});
+
       if (variationIds.length === 0) {
-        if (!cancelled) setVariationExercises({});
+        if (!cancelled) setIsDetailReady(true);
         return;
       }
 
-      const { data } = await supabase
-        .from('exercises')
-        .select('id, name')
-        .in('id', variationIds);
-      if (cancelled) return;
+      try {
+        const { data } = await supabase
+          .from('exercises')
+          .select('id, name')
+          .in('id', variationIds);
+        if (cancelled) return;
 
-      const next: Record<string, VariationExercise> = {};
-      for (const row of Array.isArray(data) ? data : []) {
-        const item = toExerciseDetailItem(row);
-        if (item.id) next[item.id] = { id: item.id, name: item.name };
+        const next: Record<string, VariationExercise> = {};
+        for (const row of Array.isArray(data) ? data : []) {
+          const item = toExerciseDetailItem(row);
+          if (item.id) next[item.id] = { id: item.id, name: item.name };
+        }
+        setVariationExercises(next);
+      } catch {
+        if (!cancelled) setVariationExercises({});
+      } finally {
+        if (!cancelled) setIsDetailReady(true);
       }
-      setVariationExercises(next);
     };
 
     void loadVariations();
@@ -210,12 +221,18 @@ export default function ExerciseDetailOverlay({
   }, [activeExercise.id, instructions.easier_variation_id, instructions.harder_variation_id]);
 
   const loadExerciseDetailById = async (exerciseId: string) => {
-    const { data } = await supabase
-      .from('exercises')
-      .select('*')
-      .eq('id', exerciseId)
-      .maybeSingle();
-    if (data) setActiveExercise(toExerciseDetailItem(data));
+    setIsDetailReady(false);
+    try {
+      const { data } = await supabase
+        .from('exercises')
+        .select('*')
+        .eq('id', exerciseId)
+        .maybeSingle();
+      if (data) setActiveExercise(toExerciseDetailItem(data));
+      else setIsDetailReady(true);
+    } catch {
+      setIsDetailReady(true);
+    }
   };
 
   const linkedVariations = [
@@ -225,6 +242,24 @@ export default function ExerciseDetailOverlay({
     const resolved = variation.id ? variationExercises[variation.id] : null;
     return resolved ? [{ ...variation, exercise: resolved }] : [];
   });
+
+  if (!isDetailReady) {
+    return (
+      <div className={embedded ? 'h-full w-full overflow-y-auto custom-scrollbar' : 'fixed inset-0 z-[130] overflow-y-auto bg-bg-primary'}>
+        <div className={embedded ? 'mx-auto w-full max-w-[1700px] px-0 py-0' : 'mx-auto min-h-[100dvh] w-full max-w-[1700px] px-4 py-4 md:px-6 md:py-6'}>
+          <div className="-mt-1 mb-3 flex items-center gap-2 text-sm text-text-tertiary">
+            <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 hover:text-text-primary">
+              <ArrowLeft className="h-4 w-4" />
+              Bài tập
+            </button>
+          </div>
+          <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-border-primary bg-bg-secondary/85 text-sm text-text-secondary" role="status" aria-live="polite">
+            Đang tải thông tin bài tập...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={embedded ? 'h-full w-full overflow-y-auto custom-scrollbar' : 'fixed inset-0 z-[130] overflow-y-auto bg-bg-primary'}>
@@ -238,30 +273,32 @@ export default function ExerciseDetailOverlay({
 
         <div className="space-y-4">
           <section className="rounded-2xl border border-border-primary bg-bg-secondary/85 p-3 md:p-4 lg:p-5">
-            <div className="grid gap-4 lg:grid-cols-[minmax(360px,520px)_minmax(0,1fr)] lg:items-start lg:gap-6">
-              <div className="themed-image-surface relative overflow-hidden rounded-2xl border border-border-primary/70 p-3 sm:p-4">
-                <button
-                  type="button"
-                  onClick={() => setIsGifModalOpen(true)}
-                  disabled={!videoSrc}
-                  className="absolute right-3 top-3 z-10 inline-flex h-8 items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary/90 px-3 text-xs font-semibold text-text-primary backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Play className="h-3.5 w-3.5" />
-                  Xem video
-                </button>
-                {videoSrc ? (
-                  <video
-                    key={videoSrc}
-                    src={videoSrc}
-                    aria-label={activeExercise.name}
-                    className="h-[180px] w-full object-contain sm:h-[220px] lg:h-[260px]"
-                    playsInline preload="metadata"
-                  />
-                ) : (
-                  <div className="flex h-[180px] w-full items-center justify-center text-text-tertiary sm:h-[220px] lg:h-[260px]">
-                    <ImageOff className="h-6 w-6" />
-                  </div>
-                )}
+            <div className="grid gap-4 lg:grid-cols-[minmax(360px,520px)_minmax(0,1fr)] lg:items-center lg:gap-6">
+              <div className="relative flex h-[180px] items-center justify-center overflow-hidden sm:h-[220px] lg:h-[260px]">
+                <div className="relative h-full max-w-full aspect-video">
+                  <button
+                    type="button"
+                    onClick={() => setIsGifModalOpen(true)}
+                    disabled={!videoSrc}
+                    className="absolute right-3 top-3 z-10 inline-flex h-8 items-center gap-1.5 rounded-full border border-border-primary bg-bg-secondary/90 px-3 text-xs font-semibold text-text-primary backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                    Xem video
+                  </button>
+                  {videoSrc ? (
+                    <video
+                      key={videoSrc}
+                      src={videoSrc}
+                      aria-label={activeExercise.name}
+                      className="h-full w-full rounded-xl object-contain"
+                      playsInline preload="metadata"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-text-tertiary">
+                      <ImageOff className="h-6 w-6" />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col justify-between">
