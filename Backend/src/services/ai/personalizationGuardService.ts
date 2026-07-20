@@ -348,7 +348,6 @@ const ALLERGEN_GROUPS = [
 const getContextText = (context: PersonalizationContext): string =>
   normalizeText([
     context.profile?.gender,
-    context.profile?.job,
     context.lifestyle?.fitness_goal,
     context.lifestyle?.diet_preference,
     context.lifestyle?.current_diet,

@@ -66,7 +66,6 @@ type AdminUser = {
   id: string;
   full_name: string | null;
   email: string | null;
-  phone: string | null;
   role: string | null;
   membership_tier: string | null;
   membership_expires_at?: string | null;
@@ -1100,7 +1099,7 @@ function UsersTab({ users }: { users: AdminUser[] }) {
               <tr key={user.id} className="hover:bg-bg-tertiary/35">
                 <td className="px-4 py-3">
                   <p className="font-black text-text-primary">{user.full_name || user.email || 'Chưa có tên'}</p>
-                  <p className="text-xs text-text-tertiary">{user.email || user.phone || user.id}</p>
+                  <p className="text-xs text-text-tertiary">{user.email || user.id}</p>
                 </td>
                 <td className="px-4 py-3">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-black ${['plus', 'pro', 'premium'].includes(String(user.membership_tier || '')) ? 'bg-warning/10 text-warning' : 'bg-bg-tertiary text-text-secondary'}`}>

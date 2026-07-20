@@ -42,7 +42,7 @@ export default function ProfileCompletionNudge({ onOpenProfile }: ProfileComplet
       const [profileRes, bodyRes, lifestyleRes, healthRes] = await Promise.all([
         supabase
           .from('profiles')
-          .select('phone, birthday, job')
+          .select('birthday')
           .eq('id', userId)
           .maybeSingle(),
         supabase

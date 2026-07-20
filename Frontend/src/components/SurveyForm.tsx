@@ -874,11 +874,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
     // Tầng 1: thông tin tối thiểu cho kế hoạch đầu tiên
     full_name: user?.user_metadata?.full_name || '',
     email: user?.email || '',
-    phone: '',
     gender: 'Nam',
     birthday: '',
     age: '28',
-    job: '',
 
     // Giá trị nâng cao vẫn giữ mặc định để không làm thiếu payload backend
     height: '170',
@@ -960,11 +958,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           setFormData(prev => ({
             ...prev,
             full_name: p.data.full_name || prev.full_name,
-            phone: p.data.phone || '',
             gender: normalizeGender(p.data.gender),
             birthday: p.data.birthday || '',
             age: birthdayToAge(p.data.birthday) || prev.age,
-            job: p.data.job || '',
             height: b.data?.height?.toString() || prev.height,
             weight: b.data?.weight?.toString() || prev.weight,
             target_weight: b.data?.target_weight?.toString() || prev.target_weight,
@@ -1240,10 +1236,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           id: user.id,
           full_name: resolvedFullName,
           email: formData.email,
-          phone: formData.phone,
           gender: formData.gender,
           birthday: resolvedBirthday,
-          job: formData.job,
           updated_at: new Date().toISOString()
         });
 

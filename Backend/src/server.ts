@@ -943,7 +943,7 @@ const buildWorkoutSessionExerciseRow = ({
 
 const DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT = `
   *,
-  exercises:exercise_id (name, video_url, image_url, target_muscle, body_part, instructions)
+  exercises:exercise_id (name, video_url, target_muscle, body_part, instructions)
 `;
 
 const getLatestBodyWeightKg = async (userId: string): Promise<number> => {
@@ -1438,7 +1438,6 @@ USER_PROFILE:
 name=${truncateText(profile.full_name, 40)}
 gender=${truncateText(profile.gender, 12)}
 birthday=${truncateText(profile.birthday, 20)}
-job=${truncateText(profile.job, 30)}
 weight_kg=${bodyMetrics.weight || ''}
 height_cm=${bodyMetrics.height || ''}
 target_weight_kg=${bodyMetrics.target_weight || ''}
@@ -2062,7 +2061,7 @@ app.get('/api/profiles', async (req, res) => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, phone, gender, birthday, job, role, membership_tier, telegram_chat_id, created_at, updated_at');
+      .select('id, full_name, email, gender, birthday, role, membership_tier, telegram_chat_id, created_at, updated_at');
 
     if (error) {
       console.error('[profiles] query failed:', error.message);
@@ -2584,14 +2583,14 @@ app.get('/api/admin/users', async (req, res) => {
         .limit(limit);
 
       if (query) {
-        request = request.or(`full_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`);
+        request = request.or(`full_name.ilike.%${query}%,email.ilike.%${query}%`);
       }
 
       return request;
     };
 
-    const fullColumns = 'id, full_name, email, phone, gender, birthday, job, role, membership_tier, membership_expires_at, telegram_chat_id, created_at, updated_at';
-    const fallbackColumns = 'id, full_name, email, phone, role, membership_tier, created_at, updated_at';
+    const fullColumns = 'id, full_name, email, gender, birthday, role, membership_tier, membership_expires_at, telegram_chat_id, created_at, updated_at';
+    const fallbackColumns = 'id, full_name, email, role, membership_tier, created_at, updated_at';
     let { data, error } = await buildProfilesRequest(fullColumns);
 
     if (error) {
@@ -4012,7 +4011,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
     }
     const dayOfWeek = Number(newData.day_of_week);
     const [applyProfileRes, applyLifestyleRes, applyHealthRes] = await Promise.all([
-      supabase.from('profiles').select('id, gender, birthday, job, membership_tier').eq('id', authUserId).maybeSingle(),
+      supabase.from('profiles').select('id, gender, birthday, membership_tier').eq('id', authUserId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle()
     ]);
@@ -4621,7 +4620,6 @@ USER_PROFILE:
 name=${truncateText(profile.full_name, 40)}
 gender=${truncateText(profile.gender, 12)}
 birthday=${truncateText(profile.birthday, 20)}
-job=${truncateText(profile.job, 30)}
 weight_kg=${bodyMetrics.weight || ''}
 height_cm=${bodyMetrics.height || ''}
 target_weight_kg=${bodyMetrics.target_weight || ''}

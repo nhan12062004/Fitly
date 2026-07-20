@@ -47,7 +47,6 @@ interface SessionExercise {
   exercises?: {
     name?: string;
     video_url?: string;
-    image_url?: string;
     target_muscle?: string;
     body_part?: string;
     equipment?: string;
@@ -595,7 +594,7 @@ export default function Exercises() {
         .from('daily_exercise_sessions')
         .select(`
           *,
-          exercises:exercise_id (name, video_url, image_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions)
+          exercises:exercise_id (name, video_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions)
         `)
         .eq('user_id', user?.id)
         .eq('log_date', selectedDateKey)
@@ -1007,7 +1006,6 @@ export default function Exercises() {
                 <div className="themed-image-surface aspect-[4/3] w-full overflow-hidden rounded-xl">
                   <ExerciseThumb
                     src={selectedSessionExercise.video_url}
-                    poster={selectedSessionExercise.exercises?.image_url}
                     alt={selectedSessionExercise.name}
                     className="h-full w-full object-cover"
                   />
@@ -1164,7 +1162,6 @@ export default function Exercises() {
                         <div className="workout-order-thumb">
                           <ExerciseThumb
                             src={exercise.video_url}
-                            poster={exercise.exercises?.image_url}
                             alt={exercise.name}
                             className="h-full w-full object-cover"
                           />
