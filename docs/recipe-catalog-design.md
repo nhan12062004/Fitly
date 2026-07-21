@@ -37,3 +37,24 @@ Dietary semantic validation is metadata-first: `animal_source`, `ingredient_meta
 ## Publishing and security
 
 Draft recipes may omit nutrition while `is_active = false`. Application code must run `validateRecipeForActivation` before publishing an active recipe. Authenticated users can read only active recipes and their ingredients; catalog writes are restricted to admins (and service-role server access).
+
+## Official catalog import contract
+
+The future official input is a JSON array of `RecipeCatalogItem` from `shared/recipeCatalogImport.ts`. Each item contains the canonical recipe fields plus an `ingredients` array. The source-of-truth template is [Backend/catalog/recipe-catalog.template.json](../Backend/catalog/recipe-catalog.template.json); it intentionally contains only `[]` and is a valid no-op catalog, not a seed.
+
+Catalog IDs are stable lowercase kebab-case identifiers. Active catalog records need at least one meal type, a non-negative nutrition/cost profile, at least one ingredient, and at least two instruction steps. Food links are optional for a free-form ingredient, but use `food_id` when a known ingredient exists. `--check-food-ids` asks the validator to load those food IDs from the database and enables metadata-based vegetarian/vegan checks.
+
+```bash
+cd Backend
+npm run recipes:validate -- --file path/to/recipes.json
+npm run recipes:validate -- --file path/to/recipes.json --expected-count 200 --check-food-ids
+npm run recipes:upsert -- --file path/to/recipes.json --dry-run --check-food-ids
+npm run recipes:upsert -- --file path/to/recipes.json --check-food-ids
+npm run recipes:verify
+```
+
+Validation reports distributions for meal type, restrictions, styles, budget and cooking difficulty; average ingredient count; unlinked ingredients; warnings; and errors. It exits `0` only when valid and `1` for invalid input.
+
+`recipes:upsert` validates before any write. `--dry-run` never writes and reports inserts, updates, and ingredient changes. Real upserts use the stable `recipes.id`; ingredients are replaced only for the specific recipe being imported. The script never truncates `recipes`, never deletes another recipe, and does not touch legacy `weekly_food_items.food_id` rows. Supabase client writes are per recipe rather than a cross-table SQL transaction, so use staging and the verify command before production.
+
+Recommended workflow: create catalog → validate → dry-run → import staging → verify → manual QA (Diet Plan/detail/Admin) → production import. Roll back by importing the previously versioned catalog, or deactivate a specific recipe through Admin; never use a destructive catalog-wide delete.

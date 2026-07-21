@@ -118,6 +118,9 @@ npm run db:push
 npm run exercises:validate -- --file catalog/exercise-catalog.template.json
 npm run exercises:upsert -- --file path/to/exercises.json
 npm run exercises:upsert -- --file catalog/exercise-catalog.template.json --allow-empty
+npm run recipes:validate -- --file catalog/recipe-catalog.template.json
+npm run recipes:upsert -- --file path/to/recipes.json --dry-run
+npm run recipes:verify
 ```
 
 The official 100-exercise SQL seed is [supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql](supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql). Its taxonomy is `easy` (Dễ), `medium` (Trung bình), and `hard` (Khó); `min_experience_months` remains the hard eligibility rule.
@@ -127,6 +130,8 @@ The official 100-exercise SQL seed is [supabase/seeds/fitly_exercise_catalog_100
 </details>
 
 Exercise catalog validation and import details are in [docs/exercise-catalog-design.md](docs/exercise-catalog-design.md).
+
+Recipe catalog validation/import details are in [docs/recipe-catalog-design.md](docs/recipe-catalog-design.md). The recipe template is intentionally empty; it does not seed or import production data.
 
 ## Ghi Chú
 
