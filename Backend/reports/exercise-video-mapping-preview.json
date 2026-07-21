@@ -1,0 +1,906 @@
+{
+  "bucket": "exercises",
+  "prefix": "",
+  "mappings": [
+    {
+      "id": "wall-push-up",
+      "sourceId": "wall-push-up",
+      "englishName": "Wall Push-Up",
+      "vietnameseName": "Chống đẩy tường",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Wall%20Push%20Up.mp4",
+      "matchedObjectPath": "Wall Push Up.mp4",
+      "match": "id"
+    },
+    {
+      "id": "countertop-incline-push-up",
+      "sourceId": "countertop-incline-push-up",
+      "englishName": "Countertop Incline Push-Up",
+      "vietnameseName": "Chống đẩy nghiêng trên bàn cao",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Countertop%20Incline%20Push-Up.mp4",
+      "matchedObjectPath": "Countertop Incline Push-Up.mp4",
+      "match": "id"
+    },
+    {
+      "id": "bench-incline-push-up",
+      "sourceId": "bench-incline-push-up",
+      "englishName": "Bench Incline Push-Up",
+      "vietnameseName": "Chống đẩy nghiêng trên ghế",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Bench%20Incline%20Push%20Up.mp4",
+      "matchedObjectPath": "Bench Incline Push Up.mp4",
+      "match": "id"
+    },
+    {
+      "id": "knee-push-up",
+      "sourceId": "knee-push-up",
+      "englishName": "Knee Push-Up",
+      "vietnameseName": "Chống đẩy quỳ gối",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Knee%20Push%20Up.mp4",
+      "matchedObjectPath": "Knee Push Up.mp4",
+      "match": "id"
+    },
+    {
+      "id": "standard-push-up",
+      "sourceId": "standard-push-up",
+      "englishName": "Standard Push-Up",
+      "vietnameseName": "Chống đẩy tiêu chuẩn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Standard%20Push%20Up.mp4",
+      "matchedObjectPath": "Standard Push Up.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dumbbell-floor-press",
+      "sourceId": "dumbbell-floor-press",
+      "englishName": "Dumbbell Floor Press",
+      "vietnameseName": "Đẩy ngực với tạ đơn trên sàn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Floor%20Press.mp4",
+      "matchedObjectPath": "Dumbbell Floor Press.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-chest-press",
+      "sourceId": "resistance-band-chest-press",
+      "englishName": "Resistance Band Chest Press",
+      "vietnameseName": "Đẩy ngực với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Chest%20Press.mp4",
+      "matchedObjectPath": "Resistance Band Chest Press.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-chest-press",
+      "sourceId": "machine-chest-press",
+      "englishName": "Machine Chest Press",
+      "vietnameseName": "Đẩy ngực bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Chest%20Press.mp4",
+      "matchedObjectPath": "Machine Chest Press.mp4",
+      "match": "id"
+    },
+    {
+      "id": "cable-standing-chest-press",
+      "sourceId": "cable-standing-chest-press",
+      "englishName": "Standing Cable Chest Press",
+      "vietnameseName": "Đẩy ngực đứng với cáp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Standing%20Cable%20Chest%20Press.mp4",
+      "matchedObjectPath": "Standing Cable Chest Press.mp4",
+      "match": "name"
+    },
+    {
+      "id": "dumbbell-floor-chest-fly",
+      "sourceId": "dumbbell-floor-chest-fly",
+      "englishName": "Dumbbell Floor Chest Fly",
+      "vietnameseName": "Ép ngực với tạ đơn trên sàn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Floor%20Chest%20Fly.mp4",
+      "matchedObjectPath": "Dumbbell Floor Chest Fly.mp4",
+      "match": "id"
+    },
+    {
+      "id": "prone-lat-pulldown",
+      "sourceId": "prone-lat-pulldown",
+      "englishName": "Prone Lat Pulldown",
+      "vietnameseName": "Kéo xô chữ W nằm sấp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Prone%20Lat%20Pulldown.mp4",
+      "matchedObjectPath": "Prone Lat Pulldown.mp4",
+      "match": "id"
+    },
+    {
+      "id": "reverse-snow-angel",
+      "sourceId": "reverse-snow-angel",
+      "englishName": "Reverse Snow Angel",
+      "vietnameseName": "Quét tay ngược nằm sấp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Reverse%20Snow%20Angel.mp4",
+      "matchedObjectPath": "Reverse Snow Angel.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-seated-row",
+      "sourceId": "resistance-band-seated-row",
+      "englishName": "Seated Resistance Band Row",
+      "vietnameseName": "Kéo dây kháng lực ngồi",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Seated%20Resistance%20Band%20Row.mp4",
+      "matchedObjectPath": "Seated Resistance Band Row.mp4",
+      "match": "name"
+    },
+    {
+      "id": "resistance-band-lat-pulldown",
+      "sourceId": "resistance-band-lat-pulldown",
+      "englishName": "Resistance Band Lat Pulldown",
+      "vietnameseName": "Kéo xô với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Lat%20Pulldown.mp4",
+      "matchedObjectPath": "Resistance Band Lat Pulldown.mp4",
+      "match": "id"
+    },
+    {
+      "id": "one-arm-dumbbell-row",
+      "sourceId": "one-arm-dumbbell-row",
+      "englishName": "One-Arm Dumbbell Row",
+      "vietnameseName": "Kéo tạ đơn một tay",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/One%20Arm%20Dumbbell%20Row.mp4",
+      "matchedObjectPath": "One Arm Dumbbell Row.mp4",
+      "match": "id"
+    },
+    {
+      "id": "standing-resistance-band-row",
+      "sourceId": "standing-resistance-band-row",
+      "englishName": "Standing Resistance Band Row",
+      "vietnameseName": "Kéo dây kháng lực đứng",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Standing%20Resistance%20Band%20Row.mp4",
+      "matchedObjectPath": "Standing Resistance Band Row.mp4",
+      "match": "id"
+    },
+    {
+      "id": "cable-seated-row",
+      "sourceId": "cable-seated-row",
+      "englishName": "Seated Cable Row",
+      "vietnameseName": "Kéo cáp ngồi",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Seated%20Cable%20Row.mp4",
+      "matchedObjectPath": "Seated Cable Row.mp4",
+      "match": "name"
+    },
+    {
+      "id": "cable-straight-arm-pulldown",
+      "sourceId": "cable-straight-arm-pulldown",
+      "englishName": "Straight-Arm Cable Pulldown",
+      "vietnameseName": "Kéo cáp tay thẳng",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Straight%20Arm%20Cable%20Pulldown.mp4",
+      "matchedObjectPath": "Straight Arm Cable Pulldown.mp4",
+      "match": "name"
+    },
+    {
+      "id": "machine-lat-pulldown",
+      "sourceId": "machine-lat-pulldown",
+      "englishName": "Machine Lat Pulldown",
+      "vietnameseName": "Kéo xô bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Lat%20Pulldown.mp4",
+      "matchedObjectPath": "Machine Lat Pulldown.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-seated-row",
+      "sourceId": "machine-seated-row",
+      "englishName": "Machine Seated Row",
+      "vietnameseName": "Kéo lưng ngồi bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Seated%20Row.mp4",
+      "matchedObjectPath": "Machine Seated Row.mp4",
+      "match": "id"
+    },
+    {
+      "id": "assisted-pull-up-machine",
+      "sourceId": "assisted-pull-up-machine",
+      "englishName": "Assisted Pull-Up Machine",
+      "vietnameseName": "Kéo xà bằng máy hỗ trợ",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Assisted%20Pull-Up%20Machine.mp4",
+      "matchedObjectPath": "Assisted Pull-Up Machine.mp4",
+      "match": "id"
+    },
+    {
+      "id": "pull-up-bar-scapular-pull-up",
+      "sourceId": "pull-up-bar-scapular-pull-up",
+      "englishName": "Scapular Pull-Up",
+      "vietnameseName": "Kéo bả vai trên xà",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Scapular%20Pull%20Up.mp4",
+      "matchedObjectPath": "Scapular Pull Up.mp4",
+      "match": "name"
+    },
+    {
+      "id": "wall-shoulder-flexion",
+      "sourceId": "wall-shoulder-flexion",
+      "englishName": "Wall Shoulder Flexion",
+      "vietnameseName": "Nâng tay sát tường",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Wall%20Shoulder%20Flexion.mp4",
+      "matchedObjectPath": "Wall Shoulder Flexion.mp4",
+      "match": "id"
+    },
+    {
+      "id": "wall-angel",
+      "sourceId": "wall-angel",
+      "englishName": "Wall Angel",
+      "vietnameseName": "Trượt tay chữ W trên tường",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Wall%20Angel.mp4",
+      "matchedObjectPath": "Wall Angel.mp4",
+      "match": "id"
+    },
+    {
+      "id": "incline-y-raise",
+      "sourceId": "incline-y-raise",
+      "englishName": "Incline Y-Raise",
+      "vietnameseName": "Nâng tay chữ Y trên ghế nghiêng",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Incline%20Y-Raise.mp4",
+      "matchedObjectPath": "Incline Y-Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dumbbell-front-raise",
+      "sourceId": "dumbbell-front-raise",
+      "englishName": "Dumbbell Front Raise",
+      "vietnameseName": "Nâng tạ đơn phía trước",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Front%20Raise.mp4",
+      "matchedObjectPath": "Dumbbell Front Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dumbbell-lateral-raise",
+      "sourceId": "dumbbell-lateral-raise",
+      "englishName": "Dumbbell Lateral Raise",
+      "vietnameseName": "Nâng tạ đơn sang ngang",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Lateral%20Raise.mp4",
+      "matchedObjectPath": "Dumbbell Lateral Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "standing-dumbbell-shoulder-press",
+      "sourceId": "standing-dumbbell-shoulder-press",
+      "englishName": "Standing Dumbbell Shoulder Press",
+      "vietnameseName": "Đẩy vai đứng với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Standing%20Dumbbell%20Shoulder%20Press.mp4",
+      "matchedObjectPath": "Standing Dumbbell Shoulder Press.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-shoulder-press",
+      "sourceId": "resistance-band-shoulder-press",
+      "englishName": "Resistance Band Shoulder Press",
+      "vietnameseName": "Đẩy vai với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Shoulder%20Press.mp4",
+      "matchedObjectPath": "Resistance Band Shoulder Press.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-pull-apart",
+      "sourceId": "resistance-band-pull-apart",
+      "englishName": "Resistance Band Pull-Apart",
+      "vietnameseName": "Kéo dây ngang ngực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Pull-Apart.mp4",
+      "matchedObjectPath": "Resistance Band Pull-Apart.mp4",
+      "match": "id"
+    },
+    {
+      "id": "cable-lateral-raise",
+      "sourceId": "cable-lateral-raise",
+      "englishName": "Cable Lateral Raise",
+      "vietnameseName": "Nâng vai ngang với cáp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Cable%20Lateral%20Raise.mp4",
+      "matchedObjectPath": "Cable Lateral Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-reverse-fly",
+      "sourceId": "machine-reverse-fly",
+      "englishName": "Machine Reverse Fly",
+      "vietnameseName": "Dang vai sau bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Reverse%20Fly.mp4",
+      "matchedObjectPath": "Machine Reverse Fly.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-biceps-curl",
+      "sourceId": "resistance-band-biceps-curl",
+      "englishName": "Resistance Band Biceps Curl",
+      "vietnameseName": "Cuốn tay trước với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Biceps%20Curl.mp4",
+      "matchedObjectPath": "Resistance Band Biceps Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "standing-dumbbell-biceps-curl",
+      "sourceId": "standing-dumbbell-biceps-curl",
+      "englishName": "Standing Dumbbell Biceps Curl",
+      "vietnameseName": "Cuốn tay trước đứng với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Standing%20Dumbbell%20Biceps%20Curl.mp4",
+      "matchedObjectPath": "Standing Dumbbell Biceps Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dumbbell-hammer-curl",
+      "sourceId": "dumbbell-hammer-curl",
+      "englishName": "Dumbbell Hammer Curl",
+      "vietnameseName": "Cuốn búa với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Hammer%20Curl.mp4",
+      "matchedObjectPath": "Dumbbell Hammer Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "seated-concentration-curl",
+      "sourceId": "seated-concentration-curl",
+      "englishName": "Seated Concentration Curl",
+      "vietnameseName": "Cuốn tạ tập trung ngồi",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Seated%20Concentration%20Curl.mp4",
+      "matchedObjectPath": "Seated Concentration Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "cable-biceps-curl",
+      "sourceId": "cable-biceps-curl",
+      "englishName": "Cable Biceps Curl",
+      "vietnameseName": "Cuốn tay trước với cáp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Cable%20Biceps%20Curl.mp4",
+      "matchedObjectPath": "Cable Biceps Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-preacher-curl",
+      "sourceId": "machine-preacher-curl",
+      "englishName": "Machine Preacher Curl",
+      "vietnameseName": "Cuốn tay trước ghế Scott bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Preacher%20Curl.mp4",
+      "matchedObjectPath": "Machine Preacher Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "wall-triceps-push-up",
+      "sourceId": "wall-triceps-push-up",
+      "englishName": "Wall Triceps Push-Up",
+      "vietnameseName": "Chống đẩy tay sau trên tường",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Wall%20Triceps%20Push-Up.mp4",
+      "matchedObjectPath": "Wall Triceps Push-Up.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-triceps-pressdown",
+      "sourceId": "resistance-band-triceps-pressdown",
+      "englishName": "Resistance Band Triceps Pressdown",
+      "vietnameseName": "Đẩy tay sau với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Triceps%20Pressdown.mp4",
+      "matchedObjectPath": "Resistance Band Triceps Pressdown.mp4",
+      "match": "id"
+    },
+    {
+      "id": "seated-dumbbell-overhead-triceps-extension",
+      "sourceId": "seated-dumbbell-overhead-triceps-extension",
+      "englishName": "Seated Dumbbell Overhead Triceps Extension",
+      "vietnameseName": "Duỗi tay sau qua đầu với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Seated%20Dumbbell%20Overhead%20Triceps%20Extension.mp4",
+      "matchedObjectPath": "Seated Dumbbell Overhead Triceps Extension.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dumbbell-triceps-kickback",
+      "sourceId": "dumbbell-triceps-kickback",
+      "englishName": "Dumbbell Triceps Kickback",
+      "vietnameseName": "Duỗi tay sau với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Triceps%20Kickback.mp4",
+      "matchedObjectPath": "Dumbbell Triceps Kickback.mp4",
+      "match": "id"
+    },
+    {
+      "id": "cable-triceps-pressdown",
+      "sourceId": "cable-triceps-pressdown",
+      "englishName": "Cable Triceps Pressdown",
+      "vietnameseName": "Đẩy tay sau với cáp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Cable%20Triceps%20Pressdown.mp4",
+      "matchedObjectPath": "Cable Triceps Pressdown.mp4",
+      "match": "id"
+    },
+    {
+      "id": "assisted-dip-machine",
+      "sourceId": "assisted-dip-machine",
+      "englishName": "Assisted Dip Machine",
+      "vietnameseName": "Nhúng tay sau bằng máy hỗ trợ",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Assisted%20Dip%20Machine.mp4",
+      "matchedObjectPath": "Assisted Dip Machine.mp4",
+      "match": "id"
+    },
+    {
+      "id": "chair-sit-to-stand",
+      "sourceId": "chair-sit-to-stand",
+      "englishName": "Chair Sit-to-Stand",
+      "vietnameseName": "Đứng lên ngồi xuống ghế",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Chair%20Sit%20to%20Stand.mp4",
+      "matchedObjectPath": "Chair Sit to Stand.mp4",
+      "match": "id"
+    },
+    {
+      "id": "chair-box-squat",
+      "sourceId": "chair-box-squat",
+      "englishName": "Chair Box Squat",
+      "vietnameseName": "Squat chạm ghế",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Chair%20Box%20Squat.mp4",
+      "matchedObjectPath": "Chair Box Squat.mp4",
+      "match": "id"
+    },
+    {
+      "id": "bodyweight-squat",
+      "sourceId": "bodyweight-squat",
+      "englishName": "Bodyweight Squat",
+      "vietnameseName": "Squat không tạ",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Bodyweight%20Squat.mp4",
+      "matchedObjectPath": "Bodyweight Squat.mp4",
+      "match": "id"
+    },
+    {
+      "id": "wall-sit",
+      "sourceId": "wall-sit",
+      "englishName": "Wall Sit",
+      "vietnameseName": "Ngồi dựa tường",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Wall%20Sit.mp4",
+      "matchedObjectPath": "Wall Sit.mp4",
+      "match": "id"
+    },
+    {
+      "id": "assisted-split-squat",
+      "sourceId": "assisted-split-squat",
+      "englishName": "Assisted Split Squat",
+      "vietnameseName": "Split Squat có hỗ trợ",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Assisted%20Split%20Squat.mp4",
+      "matchedObjectPath": "Assisted Split Squat.mp4",
+      "match": "id"
+    },
+    {
+      "id": "reverse-lunge",
+      "sourceId": "reverse-lunge",
+      "englishName": "Reverse Lunge",
+      "vietnameseName": "Chùng chân lùi",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Reverse%20Lunge.mp4",
+      "matchedObjectPath": "Reverse Lunge.mp4",
+      "match": "id"
+    },
+    {
+      "id": "goblet-squat",
+      "sourceId": "goblet-squat",
+      "englishName": "Dumbbell Goblet Squat",
+      "vietnameseName": "Goblet Squat với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Goblet%20Squat.mp4",
+      "matchedObjectPath": "Dumbbell Goblet Squat.mp4",
+      "match": "name"
+    },
+    {
+      "id": "machine-leg-press",
+      "sourceId": "machine-leg-press",
+      "englishName": "Machine Leg Press",
+      "vietnameseName": "Đạp đùi bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Leg%20Press.mp4",
+      "matchedObjectPath": "Machine Leg Press.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-leg-extension",
+      "sourceId": "machine-leg-extension",
+      "englishName": "Machine Leg Extension",
+      "vietnameseName": "Duỗi gối bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Leg%20Extension.mp4",
+      "matchedObjectPath": "Machine Leg Extension.mp4",
+      "match": "id"
+    },
+    {
+      "id": "bench-step-up",
+      "sourceId": "bench-step-up",
+      "englishName": "Bench Step-Up",
+      "vietnameseName": "Bước lên bục thấp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Bench%20Step-Up.mp4",
+      "matchedObjectPath": "Bench Step-Up.mp4",
+      "match": "id"
+    },
+    {
+      "id": "standing-hamstring-curl",
+      "sourceId": "standing-hamstring-curl",
+      "englishName": "Standing Hamstring Curl",
+      "vietnameseName": "Gập gối đứng",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Standing%20Hamstring%20Curl.mp4",
+      "matchedObjectPath": "Standing Hamstring Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "bodyweight-hip-hinge",
+      "sourceId": "bodyweight-hip-hinge",
+      "englishName": "Bodyweight Hip Hinge",
+      "vietnameseName": "Gập hông không tạ",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Bodyweight%20Hip%20Hinge.mp4",
+      "matchedObjectPath": "Bodyweight Hip Hinge.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-good-morning",
+      "sourceId": "resistance-band-good-morning",
+      "englishName": "Resistance Band Good Morning",
+      "vietnameseName": "Good Morning với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Good%20Morning.mp4",
+      "matchedObjectPath": "Resistance Band Good Morning.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dumbbell-romanian-deadlift",
+      "sourceId": "dumbbell-romanian-deadlift",
+      "englishName": "Dumbbell Romanian Deadlift",
+      "vietnameseName": "Romanian Deadlift với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Romanian%20Deadlift.mp4",
+      "matchedObjectPath": "Dumbbell Romanian Deadlift.mp4",
+      "match": "id"
+    },
+    {
+      "id": "glute-bridge-walkout",
+      "sourceId": "glute-bridge-walkout",
+      "englishName": "Glute Bridge Walkout",
+      "vietnameseName": "Nâng hông kết hợp bước chân ra",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Glute%20Bridge%20Walkout.mp4",
+      "matchedObjectPath": "Glute Bridge Walkout.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-seated-leg-curl",
+      "sourceId": "machine-seated-leg-curl",
+      "englishName": "Machine Seated Leg Curl",
+      "vietnameseName": "Gập đùi sau ngồi bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Seated%20Leg%20Curl.mp4",
+      "matchedObjectPath": "Machine Seated Leg Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-lying-leg-curl",
+      "sourceId": "machine-lying-leg-curl",
+      "englishName": "Machine Lying Leg Curl",
+      "vietnameseName": "Gập đùi sau nằm bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Lying%20Leg%20Curl.mp4",
+      "matchedObjectPath": "Machine Lying Leg Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "stability-ball-hamstring-curl",
+      "sourceId": "stability-ball-hamstring-curl",
+      "englishName": "Stability Ball Hamstring Curl",
+      "vietnameseName": "Gập đùi sau với bóng",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Stability%20Ball%20Hamstring%20Curl.mp4",
+      "matchedObjectPath": "Stability Ball Hamstring Curl.mp4",
+      "match": "id"
+    },
+    {
+      "id": "glute-bridge",
+      "sourceId": "glute-bridge",
+      "englishName": "Glute Bridge",
+      "vietnameseName": "Nâng hông cơ bản",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Glute%20Bridge.mp4",
+      "matchedObjectPath": "Glute Bridge.mp4",
+      "match": "id"
+    },
+    {
+      "id": "frog-pump",
+      "sourceId": "frog-pump",
+      "englishName": "Frog Pump",
+      "vietnameseName": "Frog Pump",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Frog%20Pump.mp4",
+      "matchedObjectPath": "Frog Pump.mp4",
+      "match": "id"
+    },
+    {
+      "id": "side-lying-clamshell",
+      "sourceId": "side-lying-clamshell",
+      "englishName": "Side-Lying Clamshell",
+      "vietnameseName": "Mở gối nằm nghiêng",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Side-Lying%20Clamshell.mp4",
+      "matchedObjectPath": "Side-Lying Clamshell.mp4",
+      "match": "id"
+    },
+    {
+      "id": "quadruped-fire-hydrant",
+      "sourceId": "quadruped-fire-hydrant",
+      "englishName": "Quadruped Fire Hydrant",
+      "vietnameseName": "Nâng gối ngang tư thế bò",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Quadruped%20Fire%20Hydrant.mp4",
+      "matchedObjectPath": "Quadruped Fire Hydrant.mp4",
+      "match": "id"
+    },
+    {
+      "id": "quadruped-donkey-kick",
+      "sourceId": "quadruped-donkey-kick",
+      "englishName": "Quadruped Donkey Kick",
+      "vietnameseName": "Đá chân sau tư thế bò",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Quadruped%20Donkey%20Kick.mp4",
+      "matchedObjectPath": "Quadruped Donkey Kick.mp4",
+      "match": "id"
+    },
+    {
+      "id": "side-lying-hip-abduction",
+      "sourceId": "side-lying-hip-abduction",
+      "englishName": "Side-Lying Hip Abduction",
+      "vietnameseName": "Nâng chân ngang nằm nghiêng",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Side-Lying%20Hip%20Abduction.mp4",
+      "matchedObjectPath": "Side-Lying Hip Abduction.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-lateral-walk",
+      "sourceId": "resistance-band-lateral-walk",
+      "englishName": "Resistance Band Lateral Walk",
+      "vietnameseName": "Đi ngang với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Lateral%20Walk.mp4",
+      "matchedObjectPath": "Resistance Band Lateral Walk.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-glute-bridge",
+      "sourceId": "resistance-band-glute-bridge",
+      "englishName": "Resistance Band Glute Bridge",
+      "vietnameseName": "Nâng hông với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Glute%20Bridge.mp4",
+      "matchedObjectPath": "Resistance Band Glute Bridge.mp4",
+      "match": "id"
+    },
+    {
+      "id": "cable-glute-kickback",
+      "sourceId": "cable-glute-kickback",
+      "englishName": "Cable Glute Kickback",
+      "vietnameseName": "Đá chân sau với cáp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Cable%20Glute%20Kickback.mp4",
+      "matchedObjectPath": "Cable Glute Kickback.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-hip-abduction",
+      "sourceId": "machine-hip-abduction",
+      "englishName": "Machine Hip Abduction",
+      "vietnameseName": "Dang hông bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Hip%20Abduction.mp4",
+      "matchedObjectPath": "Machine Hip Abduction.mp4",
+      "match": "id"
+    },
+    {
+      "id": "two-leg-standing-calf-raise",
+      "sourceId": "two-leg-standing-calf-raise",
+      "englishName": "Two-Leg Standing Calf Raise",
+      "vietnameseName": "Nhón bắp chân hai chân",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Two%20Leg%20Standing%20Calf%20Raise.mp4",
+      "matchedObjectPath": "Two Leg Standing Calf Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "wall-supported-single-leg-calf-raise",
+      "sourceId": "wall-supported-single-leg-calf-raise",
+      "englishName": "Wall-Supported Single-Leg Calf Raise",
+      "vietnameseName": "Nhón bắp chân một chân có hỗ trợ",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Wall%20Supported%20Single%20Leg%20Calf%20Raise.mp4",
+      "matchedObjectPath": "Wall Supported Single Leg Calf Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "seated-bodyweight-calf-raise",
+      "sourceId": "seated-bodyweight-calf-raise",
+      "englishName": "Seated Bodyweight Calf Raise",
+      "vietnameseName": "Nhón bắp chân ngồi không tạ",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Seated%20Bodyweight%20Calf%20Raise.mp4",
+      "matchedObjectPath": "Seated Bodyweight Calf Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dumbbell-standing-calf-raise",
+      "sourceId": "dumbbell-standing-calf-raise",
+      "englishName": "Dumbbell Standing Calf Raise",
+      "vietnameseName": "Nhón bắp chân đứng với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Standing%20Calf%20Raise.mp4",
+      "matchedObjectPath": "Dumbbell Standing Calf Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "machine-seated-calf-raise",
+      "sourceId": "machine-seated-calf-raise",
+      "englishName": "Machine Seated Calf Raise",
+      "vietnameseName": "Nhón bắp chân ngồi bằng máy",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Machine%20Seated%20Calf%20Raise.mp4",
+      "matchedObjectPath": "Machine Seated Calf Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "supine-abdominal-bracing",
+      "sourceId": "supine-abdominal-bracing",
+      "englishName": "Supine Abdominal Bracing",
+      "vietnameseName": "Siết cơ bụng nằm ngửa",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Supine%20Abdominal%20Bracing.mp4",
+      "matchedObjectPath": "Supine Abdominal Bracing.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dead-bug",
+      "sourceId": "dead-bug",
+      "englishName": "Dead Bug",
+      "vietnameseName": "Dead Bug",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dead%20Bug.mp4",
+      "matchedObjectPath": "Dead Bug.mp4",
+      "match": "id"
+    },
+    {
+      "id": "alternating-heel-tap",
+      "sourceId": "alternating-heel-tap",
+      "englishName": "Alternating Heel Tap",
+      "vietnameseName": "Chạm gót luân phiên",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Alternating%20Heel%20Tap.mp4",
+      "matchedObjectPath": "Alternating Heel Tap.mp4",
+      "match": "id"
+    },
+    {
+      "id": "bent-knee-leg-lower",
+      "sourceId": "bent-knee-leg-lower",
+      "englishName": "Bent-Knee Leg Lower",
+      "vietnameseName": "Hạ chân co gối",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Bent%20Knee%20Leg%20Lower.mp4",
+      "matchedObjectPath": "Bent Knee Leg Lower.mp4",
+      "match": "id"
+    },
+    {
+      "id": "bird-dog",
+      "sourceId": "bird-dog",
+      "englishName": "Bird Dog",
+      "vietnameseName": "Bird Dog",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Bird%20Dog.mp4",
+      "matchedObjectPath": "Bird Dog.mp4",
+      "match": "id"
+    },
+    {
+      "id": "kneeling-forearm-plank",
+      "sourceId": "kneeling-forearm-plank",
+      "englishName": "Kneeling Forearm Plank",
+      "vietnameseName": "Plank khuỷu tay quỳ gối",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Kneeling%20Forearm%20Plank.mp4",
+      "matchedObjectPath": "Kneeling Forearm Plank.mp4",
+      "match": "id"
+    },
+    {
+      "id": "forearm-plank",
+      "sourceId": "forearm-plank",
+      "englishName": "Forearm Plank",
+      "vietnameseName": "Plank khuỷu tay",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Forearm%20Plank.mp4",
+      "matchedObjectPath": "Forearm Plank.mp4",
+      "match": "id"
+    },
+    {
+      "id": "kneeling-side-plank",
+      "sourceId": "kneeling-side-plank",
+      "englishName": "Kneeling Side Plank",
+      "vietnameseName": "Side Plank quỳ gối",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Kneeling%20Side%20Plank.mp4",
+      "matchedObjectPath": "Kneeling Side Plank.mp4",
+      "match": "id"
+    },
+    {
+      "id": "resistance-band-pallof-press",
+      "sourceId": "resistance-band-pallof-press",
+      "englishName": "Resistance Band Pallof Press",
+      "vietnameseName": "Pallof Press với dây kháng lực",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Resistance%20Band%20Pallof%20Press.mp4",
+      "matchedObjectPath": "Resistance Band Pallof Press.mp4",
+      "match": "id"
+    },
+    {
+      "id": "cable-pallof-press",
+      "sourceId": "cable-pallof-press",
+      "englishName": "Cable Pallof Press",
+      "vietnameseName": "Pallof Press với cáp",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Cable%20Pallof%20Press.mp4",
+      "matchedObjectPath": "Cable Pallof Press.mp4",
+      "match": "id"
+    },
+    {
+      "id": "standing-knee-raise",
+      "sourceId": "standing-knee-raise",
+      "englishName": "Standing Knee Raise",
+      "vietnameseName": "Nâng gối đứng",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Standing%20Knee%20Raise.mp4",
+      "matchedObjectPath": "Standing Knee Raise.mp4",
+      "match": "id"
+    },
+    {
+      "id": "basic-crunch",
+      "sourceId": "basic-crunch",
+      "englishName": "Basic Crunch",
+      "vietnameseName": "Gập bụng cơ bản",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Basic%20Crunch.mp4",
+      "matchedObjectPath": "Basic Crunch.mp4",
+      "match": "id"
+    },
+    {
+      "id": "reverse-crunch",
+      "sourceId": "reverse-crunch",
+      "englishName": "Reverse Crunch",
+      "vietnameseName": "Gập bụng ngược",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Reverse%20Crunch.mp4",
+      "matchedObjectPath": "Reverse Crunch.mp4",
+      "match": "id"
+    },
+    {
+      "id": "march-in-place",
+      "sourceId": "march-in-place",
+      "englishName": "March in Place",
+      "vietnameseName": "Đi bộ nâng gối tại chỗ",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/March%20in%20Place.mp4",
+      "matchedObjectPath": "March in Place.mp4",
+      "match": "id"
+    },
+    {
+      "id": "low-impact-step-jack",
+      "sourceId": "low-impact-step-jack",
+      "englishName": "Low-Impact Step Jack",
+      "vietnameseName": "Step Jack ít tác động",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Low%20Impact%20Step%20Jack.mp4",
+      "matchedObjectPath": "Low Impact Step Jack.mp4",
+      "match": "id"
+    },
+    {
+      "id": "incline-mountain-climber",
+      "sourceId": "incline-mountain-climber",
+      "englishName": "Incline Mountain Climber",
+      "vietnameseName": "Mountain Climber chống tay trên ghế",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Incline%20Mountain%20Climber.mp4",
+      "matchedObjectPath": "Incline Mountain Climber.mp4",
+      "match": "id"
+    },
+    {
+      "id": "squat-to-overhead-reach",
+      "sourceId": "squat-to-overhead-reach",
+      "englishName": "Squat to Overhead Reach",
+      "vietnameseName": "Squat kết hợp vươn tay",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Squat%20to%20Overhead%20Reach.mp4",
+      "matchedObjectPath": "Squat to Overhead Reach.mp4",
+      "match": "id"
+    },
+    {
+      "id": "dumbbell-farmer-carry",
+      "sourceId": "dumbbell-farmer-carry",
+      "englishName": "Dumbbell Farmer Carry",
+      "vietnameseName": "Farmer Carry với tạ đơn",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Dumbbell%20Farmer%20Carry.mp4",
+      "matchedObjectPath": "Dumbbell Farmer Carry.mp4",
+      "match": "id"
+    },
+    {
+      "id": "kettlebell-deadlift",
+      "sourceId": "kettlebell-deadlift",
+      "englishName": "Kettlebell Deadlift",
+      "vietnameseName": "Deadlift với tạ chuông",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Kettlebell%20Deadlift.mp4",
+      "matchedObjectPath": "Kettlebell Deadlift.mp4",
+      "match": "id"
+    },
+    {
+      "id": "cat-cow",
+      "sourceId": "cat-cow",
+      "englishName": "Cat–Cow",
+      "vietnameseName": "Cat–Cow",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Cat%20Cow.mp4",
+      "matchedObjectPath": "Cat Cow.mp4",
+      "match": "id"
+    },
+    {
+      "id": "open-book-thoracic-rotation",
+      "sourceId": "open-book-thoracic-rotation",
+      "englishName": "Open Book Thoracic Rotation",
+      "vietnameseName": "Xoay cột sống ngực kiểu Open Book",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Open%20Book%20Thoracic%20Rotation.mp4",
+      "matchedObjectPath": "Open Book Thoracic Rotation.mp4",
+      "match": "id"
+    },
+    {
+      "id": "ninety-ninety-hip-switch",
+      "sourceId": "ninety-ninety-hip-switch",
+      "englishName": "90/90 Hip Switch",
+      "vietnameseName": "Chuyển hông 90/90",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/90%2090%20Hip%20Switch.mp4",
+      "matchedObjectPath": "90 90 Hip Switch.mp4",
+      "match": "name"
+    },
+    {
+      "id": "wall-ankle-dorsiflexion",
+      "sourceId": "wall-ankle-dorsiflexion",
+      "englishName": "Wall Ankle Dorsiflexion",
+      "vietnameseName": "Gập cổ chân sát tường",
+      "videoUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/exercises/Wall%20Ankle%20Dorsiflexion.mp4",
+      "matchedObjectPath": "Wall Ankle Dorsiflexion.mp4",
+      "match": "id"
+    }
+  ]
+}

@@ -18,9 +18,11 @@ import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/Page
 import { useToast } from '../components/ToastProvider';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../lib/Api';
+import { RecipeDetailModal } from '../components/RecipeDetailModal';
 
 interface Food {
   id: string;
+  catalog_type?: 'food' | 'recipe';
   name: string;
   category: string;
   calories: number;
@@ -32,16 +34,25 @@ interface Food {
   meal_type?: string[];
 }
 
-interface FoodIngredient {
+interface RecipeIngredient {
   ingredient_name: string;
   amount: number | null;
   unit: string | null;
+  preparation_note?: string | null;
+  food?: {
+    calories?: number | null;
+    protein?: number | null;
+    carbs?: number | null;
+    fat?: number | null;
+    serving_unit?: string | null;
+  } | null;
 }
 
 interface PlanFood {
   tempId: string;
   weekly_food_item_id?: string | null;
   food_id: string | null;
+  recipe_id?: string | null;
   name: string;
   image_url: string;
   category: string;
@@ -53,7 +64,8 @@ interface PlanFood {
   protein: number;
   carbs: number;
   fat: number;
-  ingredients?: FoodIngredient[];
+  estimated_cost_min_vnd?: number | null;
+  ingredients?: RecipeIngredient[];
   is_rest_day: boolean;
 }
 
@@ -171,10 +183,12 @@ const formatFoodQuantity = (item: Pick<PlanFood, 'quantity' | 'serving_unit'>) =
   return `${roundMacro(quantity)} x ${unit}`;
 };
 
-const formatIngredientAmount = (ingredient: FoodIngredient) =>
-  ingredient.amount === null || ingredient.amount === undefined
-    ? ingredient.unit || 'Vừa đủ'
-    : `${roundMacro(ingredient.amount)}${ingredient.unit ? ` ${ingredient.unit}` : ''}`;
+const formatIngredientAmount = (ingredient: RecipeIngredient) => {
+  if (ingredient.amount === null || ingredient.amount === undefined) return ingredient.unit || 'Vừa đủ';
+  return `${roundMacro(ingredient.amount)}${ingredient.unit ? ` ${ingredient.unit}` : ''}`;
+};
+
+const formatVnd = (value: number) => `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(value)))}đ`;
 
 let dietPlanFoodCache: Food[] | null = null;
 const dietPlanPageCache = new Map<string, DietPlanPageCache>();
@@ -257,10 +271,11 @@ const roundMacro = (value: number) => Math.round(value * 10) / 10;
 const createPlanFood = (food: Food, mealType: MealTypeId, quantity = 1): PlanFood => ({
   tempId: crypto.randomUUID(),
   weekly_food_item_id: null,
-  food_id: food.id,
+  food_id: food.catalog_type === 'recipe' ? null : food.id,
+  recipe_id: food.catalog_type === 'recipe' ? food.id : null,
   name: food.name,
   image_url: food.image_url,
-  category: food.category,
+  category: food.category || (food.catalog_type === 'recipe' ? 'Món ăn' : ''),
   meal_type: mealType,
   quantity,
   serving_unit: food.serving_unit,
@@ -482,6 +497,7 @@ export default function DietPlan() {
   const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
   const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const [foods, setFoods] = useState<Food[]>(() => initialDietCache?.foods || dietPlanFoodCache || []);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(() => initialDietCache?.selectedDayId ?? getTodayDayIndex());
   const [weeklyPlan, setWeeklyPlan] = useState<Record<number, PlanFood[]>>(() => initialDietCache?.weeklyPlan || {});
   const [restDays, setRestDays] = useState<Record<number, boolean>>(() => initialDietCache?.restDays || {});
@@ -660,20 +676,24 @@ export default function DietPlan() {
     let cancelled = false;
 
     async function fetchFoods() {
-      if (dietPlanFoodCache?.some((item) => item.category === 'Món ăn')) {
+      if (dietPlanFoodCache?.some((item) => item.catalog_type === 'recipe')) {
         setFoods(dietPlanFoodCache);
         return;
       }
 
-      const { data, error } = await supabase.from('foods').select('*').eq('is_active', true).order('name');
-      if (error) {
-        console.error(error);
+      const [foodsResult, recipesResult] = await Promise.all([
+        supabase.from('foods').select('*').order('name'),
+        supabase.from('recipes').select('id, name, image_url, calories, protein, carbs, fat, serving_unit, meal_type').eq('is_active', true).order('name')
+      ]);
+      if (foodsResult.error || recipesResult.error) {
+        console.error(foodsResult.error || recipesResult.error);
         return;
       }
 
       if (!cancelled) {
-        const normalizedFoods = (data || []).map((food: any) => ({
+        const normalizedFoods = (foodsResult.data || []).map((food: any) => ({
           id: food.id,
+          catalog_type: 'food' as const,
           name: food.name || '',
           category: food.category || '',
           calories: Number(food.calories || 0),
@@ -686,8 +706,24 @@ export default function DietPlan() {
             ? food.meal_type.map((item: unknown) => String(item || '').toLowerCase()).filter(Boolean)
             : []
         }));
-        dietPlanFoodCache = normalizedFoods;
-        setFoods(normalizedFoods);
+        const normalizedRecipes = (recipesResult.data || []).map((recipe: any) => ({
+          id: recipe.id,
+          catalog_type: 'recipe' as const,
+          name: recipe.name || '',
+          category: 'Món ăn',
+          calories: Number(recipe.calories || 0),
+          protein: Number(recipe.protein || 0),
+          carbs: Number(recipe.carbs || 0),
+          fat: Number(recipe.fat || 0),
+          serving_unit: recipe.serving_unit || 'phần',
+          image_url: recipe.image_url || '',
+          meal_type: Array.isArray(recipe.meal_type)
+            ? recipe.meal_type.map((item: unknown) => String(item || '').toLowerCase()).filter(Boolean)
+            : []
+        }));
+        const catalog = [...normalizedRecipes, ...normalizedFoods];
+        dietPlanFoodCache = catalog;
+        setFoods(catalog);
       }
     }
 
@@ -784,7 +820,7 @@ export default function DietPlan() {
 
             const { data: items, error: itemsError } = await supabase
               .from('weekly_food_items')
-              .select('*, foods:food_id (name, image_url, category, calories, protein, carbs, fat, serving_unit, food_ingredients(ingredient_name, amount, unit, order_index))')
+              .select('*, foods:food_id (name, image_url, category, calories, protein, carbs, fat, serving_unit), recipes:recipe_id (name, image_url, calories, protein, carbs, fat, estimated_cost_min_vnd, serving_unit, recipe_ingredients(ingredient_name, amount, unit, preparation_note, foods:food_id(calories, protein, carbs, fat, serving_unit)))')
               .eq('food_plan_id', plan.id)
               .order('order_index');
 
@@ -797,12 +833,13 @@ export default function DietPlan() {
                 return;
               }
 
-              const joinedFood = item.foods || {};
+              const joinedFood = item.recipe_id ? (item.recipes || {}) : (item.foods || {});
               if (!nextWeek[day]) nextWeek[day] = [];
               nextWeek[day].push({
                 tempId: item.id || crypto.randomUUID(),
                 weekly_food_item_id: item.id || null,
                 food_id: item.food_id,
+                recipe_id: item.recipe_id || null,
                 name: joinedFood.name || 'Món ăn',
                 image_url: joinedFood.image_url || '',
                 category: joinedFood.category || '',
@@ -813,11 +850,14 @@ export default function DietPlan() {
                 protein: Number(joinedFood.protein ?? item.protein ?? 0),
                 carbs: Number(joinedFood.carbs ?? item.carbs ?? 0),
                 fat: Number(joinedFood.fat ?? item.fat ?? 0),
-                ingredients: (joinedFood.food_ingredients || []).map((ingredient: any) => ({
+                estimated_cost_min_vnd: joinedFood.estimated_cost_min_vnd === null || joinedFood.estimated_cost_min_vnd === undefined ? null : Number(joinedFood.estimated_cost_min_vnd),
+                ingredients: item.recipe_id ? (joinedFood.recipe_ingredients || []).map((ingredient: any) => ({
                   ingredient_name: String(ingredient.ingredient_name || 'Nguyên liệu'),
                   amount: ingredient.amount === null || ingredient.amount === undefined ? null : Number(ingredient.amount),
                   unit: ingredient.unit || null,
-                })),
+                  preparation_note: ingredient.preparation_note || null,
+                  food: ingredient.foods || null
+                })) : [],
                 is_rest_day: false
               });
             });
@@ -919,7 +959,8 @@ export default function DietPlan() {
         .map((item: any) => ({
           tempId: crypto.randomUUID(),
           weekly_food_item_id: null,
-          food_id: String(item.food_id || '') || null,
+          food_id: item.recipe_id ? null : (String(item.food_id || '') || null),
+          recipe_id: String(item.recipe_id || '') || null,
           name: String(item.name || 'Món ăn AI chọn'),
           image_url: String(item.image_url || ''),
           category: String(item.category || ''),
@@ -980,10 +1021,11 @@ export default function DietPlan() {
     setIsSaving(true);
     try {
       const foodIds = Object.values(planToSave).flatMap((items) => items.map((item) => item.food_id).filter((id): id is string => Boolean(id)));
+      const recipeIds = Object.values(planToSave).flatMap((items) => items.map((item) => item.recipe_id).filter((id): id is string => Boolean(id)));
       const validationResponse = await fetchWithAuth('/api/meal-plans/validate-foods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ food_ids: foodIds }),
+        body: JSON.stringify({ food_ids: foodIds, recipe_ids: recipeIds }),
       });
       if (!validationResponse.ok) {
         const payload = await validationResponse.json().catch(() => ({}));
@@ -1039,6 +1081,7 @@ export default function DietPlan() {
             day_of_week: dayIndex,
             meal_type: item.meal_type,
             food_id: item.food_id,
+            recipe_id: item.recipe_id || null,
             quantity: item.quantity,
             calories: item.calories,
             protein: item.protein,
@@ -1378,7 +1421,7 @@ export default function DietPlan() {
                             <FoodImage src={resolveFoodImage(item, itemIndex + meal.mealIndex)} alt={item.name} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <h4 className="truncate text-[15px] font-black text-text-primary">{item.name}</h4>
+                            {item.recipe_id ? <button type="button" onClick={() => setSelectedRecipeId(item.recipe_id || null)} className="block max-w-full truncate text-left text-[15px] font-black text-text-primary underline-offset-2 hover:text-accent hover:underline" aria-label={`Xem chi tiết ${item.name}`}>{item.name}</button> : <h4 className="truncate text-[15px] font-black text-text-primary">{item.name}</h4>}
                             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-text-tertiary">
                               <span className="inline-flex items-center gap-1 font-black text-[var(--meal-accent)]"><Flame className="h-3.5 w-3.5" />{Math.round(item.calories * item.quantity)} kcal</span>
                               <span>{roundMacro(item.protein * item.quantity)}g đạm</span>
@@ -1407,19 +1450,27 @@ export default function DietPlan() {
                           </div>
                         </div>
 
-                        {item.ingredients?.length ? (
-                          <div className="diet-food-ingredients" aria-label={`Nguyên liệu của ${item.name}`}>
-                            {item.ingredients.map((ingredient, ingredientIndex) => (
-                              <div className="diet-food-ingredient-row" key={`${ingredient.ingredient_name}-${ingredientIndex}`}>
-                                <span className="truncate">{ingredient.ingredient_name}</span>
-                                <span>{formatIngredientAmount(ingredient)}</span>
-                              </div>
-                            ))}
+                        {item.recipe_id && item.ingredients?.length ? (
+                          <div className="diet-recipe-ingredients" aria-label={`Nguyên liệu của ${item.name}`}>
+                            {item.ingredients.map((ingredient, ingredientIndex) => {
+                              const totalAmount = item.ingredients?.reduce((sum, entry) => sum + Math.max(0, Number(entry.amount || 0)), 0) || 0;
+                              const share = totalAmount > 0 ? Math.max(0, Number(ingredient.amount || 0)) / totalAmount : 1 / Math.max(1, item.ingredients?.length || 1);
+                              const ingredientCalories = Math.round(item.calories * item.quantity * share);
+                              const ingredientCost = item.estimated_cost_min_vnd ? item.estimated_cost_min_vnd * item.quantity * share : 0;
+                              return (
+                                <div className="diet-recipe-ingredient-row" key={`${ingredient.ingredient_name}-${ingredientIndex}`}>
+                                  <span className="truncate">{ingredient.ingredient_name}</span>
+                                  <span>{formatIngredientAmount(ingredient)}</span>
+                                  <strong>{ingredientCalories} kcal</strong>
+                                  <span>{ingredientCost ? formatVnd(ingredientCost) : '—'}</span>
+                                </div>
+                              );
+                            })}
                             <button
                               type="button"
                               onClick={() => void removeFoodFromPlan(item)}
                               disabled={isSaving}
-                              className="diet-food-remove diet-ingredient-remove"
+                              className="diet-food-remove diet-recipe-remove"
                               aria-label={`Xóa ${item.name}`}
                               title="Xóa món"
                             >
@@ -1427,7 +1478,7 @@ export default function DietPlan() {
                             </button>
                           </div>
                         ) : (
-                        <div className="diet-food-detail-row">
+                          <div className="diet-food-detail-row">
                             <span className="truncate">{item.category || 'Khẩu phần'}</span>
                             <span>{formatFoodQuantity(item)}</span>
                             <strong>{Math.round(item.calories * item.quantity)} kcal</strong>
@@ -1442,7 +1493,7 @@ export default function DietPlan() {
                             >
                               <Trash2 />
                             </button>
-                        </div>
+                          </div>
                         )}
                       </article>
                     ))}
@@ -1469,6 +1520,7 @@ export default function DietPlan() {
         onFilterCat={setFilterCat}
         onSelect={(food) => addFoodToPlan(food)}
       />
+      <RecipeDetailModal recipeId={selectedRecipeId} onClose={() => setSelectedRecipeId(null)} />
     </div>
   );
 }
