@@ -53,6 +53,7 @@ import {
   normalizeMovementPattern,
   normalizeTrainingLocation,
 } from '../../shared/exerciseCatalog';
+import { normalizeAllergies } from '../../shared/dietaryPreferences';
 import {
   buildCoachDataContext,
   buildTodayStatus,
@@ -1320,7 +1321,7 @@ async function generateWeeklyCoachPlanForUser(params: {
       .limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
     supabase
       .from('foods')
-      .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
+      .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
       .order('created_at', { ascending: false })
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
     supabase
@@ -2471,7 +2472,13 @@ const sanitizeFoodPayload = (raw: any) => {
   if (goalType !== undefined) payload.goal_type = goalType;
 
   const allergens = parseStringArrayInput(raw?.allergens);
-  if (allergens !== undefined) payload.allergens = allergens;
+  if (allergens !== undefined) payload.allergens = normalizeAllergies(allergens);
+
+  ['dietary_tags', 'ingredient_metadata', 'animal_source'].forEach((field) => {
+    const values = parseStringArrayInput(raw?.[field]);
+    if (values !== undefined) payload[field] = values;
+  });
+  if (raw?.is_active !== undefined) payload.is_active = Boolean(raw.is_active);
 
   if (raw?.is_easy_to_prepare !== undefined) {
     payload.is_easy_to_prepare = Boolean(raw.is_easy_to_prepare);
@@ -2693,6 +2700,42 @@ app.delete('/api/admin/exercises/:id', async (req, res) => {
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ error: error?.message || 'Failed to delete exercise' });
+  }
+});
+
+// Diet Plan's manual picker calls this before persisting. This closes the
+// former direct-client write path with the same hard eligibility rules used by AI.
+app.post('/api/meal-plans/validate-foods', async (req, res) => {
+  try {
+    const userId = await getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const foodIds: string[] = Array.from(new Set<string>(
+      (Array.isArray(req.body?.food_ids) ? req.body.food_ids : [])
+        .map((value: unknown) => String(value || '').trim())
+        .filter(Boolean),
+    ));
+    if (foodIds.length === 0) return res.json({ success: true });
+
+    const [profileRes, lifestyleRes, healthRes, foodsRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+      supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
+      supabase.from('foods').select('id, name, category, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, goal_type').in('id', foodIds),
+    ]);
+    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodsRes.error].find(Boolean);
+    if (firstError) throw firstError;
+    const context = { profile: profileRes.data || {}, lifestyle: lifestyleRes.data || {}, health: healthRes.data || {} };
+    const byId = new Map((foodsRes.data || []).map((food: any) => [String(food.id), food]));
+    const rejected = foodIds.flatMap((foodId) => {
+      const decision = getFoodSafetyDecision(byId.get(foodId), context);
+      return decision.allowed ? [] : [{ food_id: foodId, reasons: decision.reasons }];
+    });
+    if (rejected.length > 0) {
+      return res.status(422).json({ error: 'One or more foods violate hard dietary or safety constraints.', rejected });
+    }
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message || 'Failed to validate meal foods' });
   }
 });
 
@@ -3825,7 +3868,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       const mealType = String(currentMeal?.meal_type || 'dinner');
       const candidateFoodsRes = await supabase
         .from('foods')
-        .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
+        .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
         .contains('meal_type', [mealType])
         .order('created_at', { ascending: false })
         .limit(300);
@@ -4349,7 +4392,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
 
       const foodRes = await supabase
         .from('foods')
-        .select('id, name, category, calories, protein, carbs, fat, allergens, price_level, goal_type')
+        .select('id, name, category, calories, protein, carbs, fat, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, goal_type')
         .eq('id', newFoodId)
         .maybeSingle();
       if (foodRes.error) throw foodRes.error;
@@ -4795,7 +4838,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       .limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
       supabase
         .from('foods')
-        .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
+        .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
         .order('created_at', { ascending: false })
         .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
       supabase
@@ -5452,7 +5495,7 @@ const generateAiMealDraft = async (params: {
     supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
     supabase
       .from('foods')
-      .select('id, name, category, calories, protein, carbs, fat, serving_unit, image_url, meal_type, goal_type, allergens, price_level, cooking_time_minutes, region, is_easy_to_prepare')
+      .select('id, name, category, calories, protein, carbs, fat, serving_unit, image_url, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
   ]);
   const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodRes.error].find(Boolean);

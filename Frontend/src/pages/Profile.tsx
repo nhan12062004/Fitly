@@ -60,6 +60,12 @@ import {
   type Equipment,
   type TrainingLocation,
 } from '../lib/exerciseCatalog';
+import {
+  normalizeAllergies,
+  normalizeBudgetLevel,
+  normalizeDietaryRestrictions,
+  normalizeDietStyles,
+} from '../lib/dietaryPreferences';
 
 const emptyForm = {
   full_name: '',
@@ -77,7 +83,9 @@ const emptyForm = {
   medications: 'Không sử dụng thuốc',
   fitness_goal: 'Giảm mỡ',
   diet_preference: 'Bình thường',
-  budget_level: 'Trung bình',
+  dietary_restrictions: [] as string[],
+  diet_styles: ['balanced'] as string[],
+  budget_level: 'medium',
   workout_location: 'home',
   equipment_available: 'none',
   experience_level: 'absolute_beginner',
@@ -183,12 +191,17 @@ const DIET_PREFERENCE_DESCRIPTIONS: Record<string, string> = {
   'Ăn chay': 'Không dùng thịt cá, ưu tiên nguồn đạm thực vật phù hợp.',
   Keto: 'Giảm tinh bột, tăng chất béo tốt và kiểm soát năng lượng chặt hơn.',
 };
-const MEAL_BUDGET_OPTIONS = ['Tiết kiệm', 'Trung bình', 'Thoải mái'];
+const MEAL_BUDGET_OPTIONS = ['low', 'medium', 'high'];
+const MEAL_BUDGET_LABELS: Record<string, string> = { low: 'Tiết kiệm', medium: 'Bình thường', high: 'Thoải mái' };
 const MEAL_BUDGET_DESCRIPTIONS: Record<string, string> = {
-  'Tiết kiệm': 'Ưu tiên nguyên liệu phổ biến, dễ mua và chi phí thấp.',
-  'Trung bình': 'Cân bằng giữa chi phí, độ tiện lợi và chất lượng bữa ăn.',
-  'Thoải mái': 'Linh hoạt hơn với nguyên liệu đa dạng và món ăn phong phú.',
+  low: 'Ưu tiên nguyên liệu phổ biến, dễ mua và chi phí thấp.',
+  medium: 'Cân bằng giữa chi phí, độ tiện lợi và chất lượng bữa ăn.',
+  high: 'Linh hoạt hơn với nguyên liệu đa dạng và món ăn phong phú.',
 };
+const DIETARY_RESTRICTION_OPTIONS = ['vegetarian', 'vegan'];
+const DIET_STYLE_OPTIONS = ['clean', 'high_protein', 'low_carb', 'balanced'];
+const DIETARY_RESTRICTION_LABELS: Record<string, string> = { vegetarian: 'Ăn chay', vegan: 'Thuần chay' };
+const DIET_STYLE_LABELS: Record<string, string> = { clean: 'Eat clean', high_protein: 'Giàu protein', low_carb: 'Low carb', balanced: 'Cân bằng' };
 const GENDER_OPTIONS = ['Nam', 'Nữ'];
 const GENDER_ICONS: Record<string, ReactNode> = {
   Nam: <Mars className="h-6 w-6" strokeWidth={2.4} />,
@@ -397,11 +410,13 @@ export default function Profile() {
           body_fat: toInput(b.body_fat || b.body_fat_percentage),
           health_condition: h.health_condition || '',
           injuries: h.injuries || '',
-          allergies: h.medical_history || '',
+          allergies: Array.isArray(h.allergies) && h.allergies.length > 0 ? h.allergies.join(', ') : h.medical_history || '',
           medications: h.medications || 'Không sử dụng thuốc',
           fitness_goal: normalizeFitnessGoal(lifestyleRes.data?.fitness_goal),
           diet_preference: lifestyleRes.data?.diet_preference || 'Bình thường',
-          budget_level: lifestyleRes.data?.budget_level || 'Trung bình',
+          dietary_restrictions: normalizeDietaryRestrictions(lifestyleRes.data?.dietary_restrictions, lifestyleRes.data?.diet_preference, lifestyleRes.data?.current_diet),
+          diet_styles: normalizeDietStyles(lifestyleRes.data?.diet_styles, lifestyleRes.data?.diet_preference, lifestyleRes.data?.current_diet),
+          budget_level: normalizeBudgetLevel(lifestyleRes.data?.budget_level) || 'medium',
           workout_location: normalizeWorkoutLocation(lifestyleRes.data?.workout_location),
           equipment_available: normalizeAvailableEquipment(lifestyleRes.data?.equipment_available),
           experience_level: normalizeExperienceLevel(lifestyleRes.data?.experience_level),
@@ -673,6 +688,10 @@ export default function Profile() {
     setSaving(true);
     setError('');
     try {
+      const dietaryRestrictions = normalizeDietaryRestrictions(formData.dietary_restrictions);
+      const dietStyles = normalizeDietStyles(formData.diet_styles);
+      const normalizedBudget = normalizeBudgetLevel(formData.budget_level);
+      const normalizedAllergies = normalizeAllergies(formData.allergies);
       const [profileRes, bodyRes, healthRes, lifestyleRes] = await Promise.all([
         supabase.from('profiles').upsert({
           id: user.id,
@@ -694,14 +713,18 @@ export default function Profile() {
           health_condition: formData.health_condition.trim(),
           injuries: formData.injuries.trim(),
           medical_history: formData.allergies.trim(),
+          allergies: normalizedAllergies,
           medications: formData.medications.trim(),
           updated_at: new Date().toISOString(),
         }),
         supabase.from('lifestyle_settings').upsert({
           user_id: user.id,
           fitness_goal: formData.fitness_goal,
-          diet_preference: formData.diet_preference,
-          budget_level: formData.budget_level,
+          // The scalar remains for legacy clients; the arrays are authoritative.
+          diet_preference: dietaryRestrictions[0] || dietStyles[0] || formData.diet_preference,
+          dietary_restrictions: dietaryRestrictions,
+          diet_styles: dietStyles,
+          budget_level: normalizedBudget || formData.budget_level,
           workout_location: normalizeWorkoutLocation(formData.workout_location),
           equipment_available: normalizeAvailableEquipment(formData.equipment_available),
           experience_level: normalizeExperienceLevel(formData.experience_level),
@@ -854,13 +877,19 @@ export default function Profile() {
           <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
             <SectionTitle icon={<Apple className="h-4 w-4" />} title="Thực đơn & ngân sách" helper="Các lựa chọn chính để Fitly gợi ý bữa ăn phù hợp hơn." />
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <OptionButtonGroup
-                label="Kiểu ăn"
-                value={formData.diet_preference}
-                options={DIET_PREFERENCE_OPTIONS}
-                onChange={(value) => setFormData((prev) => ({ ...prev, diet_preference: value }))}
-                columns="sm:grid-cols-2 xl:grid-cols-3"
-                descriptions={DIET_PREFERENCE_DESCRIPTIONS}
+              <MultiOptionButtonGroup
+                label="Hạn chế ăn uống"
+                values={formData.dietary_restrictions}
+                options={DIETARY_RESTRICTION_OPTIONS}
+                optionLabels={DIETARY_RESTRICTION_LABELS}
+                onChange={(values) => setFormData((prev) => ({ ...prev, dietary_restrictions: values }))}
+              />
+              <MultiOptionButtonGroup
+                label="Phong cách ăn"
+                values={formData.diet_styles}
+                options={DIET_STYLE_OPTIONS}
+                optionLabels={DIET_STYLE_LABELS}
+                onChange={(values) => setFormData((prev) => ({ ...prev, diet_styles: values }))}
               />
               <div className="md:col-span-2">
                 <OptionButtonGroup
@@ -869,6 +898,7 @@ export default function Profile() {
                   options={MEAL_BUDGET_OPTIONS}
                   onChange={(value) => setFormData((prev) => ({ ...prev, budget_level: value }))}
                   columns="sm:grid-cols-3"
+                  optionLabels={MEAL_BUDGET_LABELS}
                   descriptions={MEAL_BUDGET_DESCRIPTIONS}
                 />
               </div>
@@ -1577,6 +1607,41 @@ function EquipmentPreferenceGroup({
               }`}
             >
               {EQUIPMENT_LABELS[equipment]}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MultiOptionButtonGroup({
+  label,
+  values,
+  options,
+  optionLabels,
+  onChange,
+}: {
+  label: string;
+  values: string[];
+  options: string[];
+  optionLabels: Record<string, string>;
+  onChange: (values: string[]) => void;
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-sm font-semibold text-text-primary">{label}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((option) => {
+          const selected = values.includes(option);
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onChange(selected ? values.filter((item) => item !== option) : [...values, option])}
+              className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${selected ? 'border-accent bg-accent/15 text-accent' : 'border-border-primary bg-bg-tertiary text-text-secondary hover:border-accent/50'}`}
+            >
+              {optionLabels[option] || option}
             </button>
           );
         })}

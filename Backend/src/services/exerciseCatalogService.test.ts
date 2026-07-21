@@ -240,7 +240,7 @@ test('official SQL catalog contains 100 unique exercises using the new difficult
   const seedPath = path.resolve(process.cwd(), '../supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql');
   const sql = readFileSync(seedPath, 'utf8');
   const rows = Array.from(sql.matchAll(
-    /insert into public\.exercises \([\s\S]*?\) values \(\n  '([^']+)',[\s\S]*?\n  '(easy|medium|hard)',\n  \d+,\n  \d+,/gi,
+    /insert into public\.exercises \([\s\S]*?\) values \(\r?\n  '([^']+)',[\s\S]*?\r?\n  '(easy|medium|hard)',\r?\n  \d+,\r?\n  \d+,/gi,
   ));
   assert.equal(rows.length, 100);
   assert.equal(new Set(rows.map((row) => row[1])).size, 100);

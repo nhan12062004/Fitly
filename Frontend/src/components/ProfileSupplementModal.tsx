@@ -20,6 +20,12 @@ import {
   normalizeMotivation,
 } from '../lib/MotivationOptions';
 import { useToast } from './ToastProvider';
+import {
+  normalizeAllergies,
+  normalizeBudgetLevel,
+  normalizeDietaryRestrictions,
+  normalizeDietStyles,
+} from '../lib/dietaryPreferences';
 
 type ProfileSupplementModalProps = {
   isOpen: boolean;
@@ -280,7 +286,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
           stress_level: health.stress_level || prev.stress_level,
           health_condition: health.health_condition || '',
           injuries: health.injuries || '',
-          allergies: health.medical_history || '',
+          allergies: Array.isArray(health.allergies) && health.allergies.length > 0 ? health.allergies.join(', ') : health.medical_history || '',
           medications: health.medications || prev.medications,
         }));
       } catch (err: any) {
@@ -349,7 +355,9 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
           user_id: user.id,
           current_diet: formData.current_diet.trim(),
           cooking_ability: formData.cooking_ability,
-          budget_level: formData.budget_level,
+          dietary_restrictions: normalizeDietaryRestrictions(formData.current_diet),
+          diet_styles: normalizeDietStyles(formData.current_diet),
+          budget_level: normalizeBudgetLevel(formData.budget_level) || formData.budget_level,
           workout_time: formData.workout_time,
           daily_water_goal: parseNumberOrNull(formData.daily_water_goal) || 2,
           motivation: formData.motivation,
@@ -361,6 +369,7 @@ export default function ProfileSupplementModal({ isOpen, onClose }: ProfileSuppl
           health_condition: formData.health_condition.trim(),
           injuries: formData.injuries.trim(),
           medical_history: formData.allergies.trim(),
+          allergies: normalizeAllergies(formData.allergies),
           medications: formData.medications.trim(),
           sleep_hours: parseNumberOrNull(formData.sleep_hours) || 7,
           sleep_quality: formData.sleep_quality,

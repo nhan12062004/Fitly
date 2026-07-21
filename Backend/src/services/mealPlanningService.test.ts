@@ -10,6 +10,7 @@ import {
   isMealFoodEligible,
   optimizeMealPlanQuantities,
 } from './mealPlanningService';
+import { normalizeDietaryRestrictions, normalizeDietStyles } from '../../../shared/dietaryPreferences';
 
 const food = (id: string, name: string, category: string, overrides: Record<string, unknown> = {}) => ({
   id,
@@ -71,19 +72,20 @@ test('nutrition optimizer adjusts portions toward the daily target without chang
   assert.ok(optimized.every((item) => item.quantity >= 0.25 && item.quantity <= 3));
 });
 
-test('meal planning catalog applies backend safety before sending foods to AI', () => {
+test('budget affects ranking but never turns a safe food into an ineligible food', () => {
   const eligible = buildMealPlanningCatalog(catalog, {
-    lifestyle: { budget_level: 'Sinh viên' },
+    lifestyle: { budget_level: 'low' },
     mealsPerDay: 3,
   });
   assert.ok(eligible.some((item) => item.id === 'chicken'));
-  assert.ok(!eligible.some((item) => item.id === 'lobster'));
+  assert.ok(eligible.some((item) => item.id === 'lobster'));
+  assert.ok(eligible.findIndex((item) => item.id === 'chicken') < eligible.findIndex((item) => item.id === 'lobster'));
 });
 
 test('meal replacements must fit both the meal slot and the safety profile', () => {
   assert.ok(isMealFoodEligible(catalog[0], 'lunch', {}));
   assert.ok(!isMealFoodEligible(catalog[5], 'dinner', {}));
-  assert.ok(!isMealFoodEligible(catalog[6], 'lunch', { lifestyle: { budget_level: 'Sinh viên' } }));
+  assert.ok(isMealFoodEligible(catalog[6], 'lunch', { lifestyle: { budget_level: 'low' } }));
 });
 
 test('meal planning completes missing dinner components using the backend catalog', () => {
@@ -97,4 +99,41 @@ test('meal planning completes missing dinner components using the backend catalo
   assert.ok(dinnerComponents.includes('carb'));
   assert.ok(dinnerComponents.includes('protein'));
   assert.ok(dinnerComponents.includes('vegetable'));
+});
+
+test('vegetarian restriction and clean style coexist without allowing meat', () => {
+  const foods = [
+    food('animal', 'Animal protein', 'Protein', { protein: 30, animal_source: ['meat'] }),
+    food('plant', 'Plant protein', 'Protein', { protein: 24, dietary_tags: ['vegetarian', 'clean'] }),
+  ];
+  const eligible = buildMealPlanningCatalog(foods, {
+    lifestyle: { dietary_restrictions: ['vegetarian'], diet_styles: ['clean'] },
+    mealsPerDay: 3,
+  });
+  assert.deepEqual(eligible.map((item) => item.id), ['plant']);
+});
+
+test('vegan and high-protein coexist without falling back to animal foods', () => {
+  const foods = [
+    food('animal', 'Animal protein', 'Protein', { protein: 30, animal_source: ['meat'] }),
+    food('plant', 'Plant protein', 'Protein', { protein: 24, dietary_tags: ['vegan'] }),
+  ];
+  const eligible = buildMealPlanningCatalog(foods, {
+    lifestyle: { dietary_restrictions: ['vegan'], diet_styles: ['high_protein'] },
+    mealsPerDay: 3,
+  });
+  assert.deepEqual(eligible.map((item) => item.id), ['plant']);
+});
+
+test('allergies are absolute hard filters even when the candidate pool is small', () => {
+  const foods = [food('peanut', 'Peanut butter', 'Fat', { allergens: ['peanut'] })];
+  const eligible = buildMealPlanningCatalog(foods, { health: { allergies: ['peanut'] }, mealsPerDay: 3 });
+  assert.deepEqual(eligible, []);
+  assert.deepEqual(completeAiMealDay([{ meal_type: 'lunch', food_ids: ['peanut'] }], eligible, 3), []);
+});
+
+test('legacy diet preference normalizes every valid preference and unknown values remain harmless', () => {
+  assert.deepEqual(normalizeDietaryRestrictions('vegetarian; mystery'), ['vegetarian']);
+  assert.deepEqual(normalizeDietStyles('vegetarian; clean; high protein; unknown'), ['clean', 'high_protein']);
+  assert.doesNotThrow(() => buildMealPlanningCatalog(catalog, { lifestyle: { diet_preference: 'mystery-style' } }));
 });

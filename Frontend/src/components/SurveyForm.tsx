@@ -33,6 +33,12 @@ import {
   normalizeMotivation,
 } from '../lib/MotivationOptions';
 import { useToast } from './ToastProvider';
+import {
+  normalizeAllergies,
+  normalizeBudgetLevel,
+  normalizeDietaryRestrictions,
+  normalizeDietStyles,
+} from '../lib/dietaryPreferences';
 
 // The backend prescription engine owns the final duration. This is only the
 // neutral value persisted while the survey is being saved.
@@ -992,7 +998,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
             meals_per_day: l.data?.meals_per_day?.toString() || prev.meals_per_day,
             daily_water_goal: l.data?.daily_water_goal?.toString() || prev.daily_water_goal,
             health_condition: h.data?.health_condition || '',
-            allergies: h.data?.medical_history || prev.allergies,
+            allergies: Array.isArray(h.data?.allergies) && h.data.allergies.length > 0 ? h.data.allergies.join(', ') : h.data?.medical_history || prev.allergies,
             injuries: h.data?.injuries || 'Không',
             medications: medType,
             medications_extra: medExtra,
@@ -1267,7 +1273,6 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           fitness_goal: formData.fitness_goal,
           diet_preference: formData.diet_preference,
           cooking_ability: formData.cooking_ability,
-          budget_level: formData.budget_level,
           current_diet: formData.current_diet,
           workout_location: formData.workout_location,
           workout_time: formData.workout_time,
@@ -1279,6 +1284,9 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           target_calories: estimatedTargetCalories,
           motivation: formData.motivation,
           expectations: formData.expectations,
+          dietary_restrictions: normalizeDietaryRestrictions(formData.diet_preference, formData.current_diet),
+          diet_styles: normalizeDietStyles(formData.diet_preference, formData.current_diet),
+          budget_level: normalizeBudgetLevel(formData.budget_level) || formData.budget_level,
           updated_at: new Date().toISOString()
         });
 
@@ -1295,6 +1303,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           user_id: user.id,
           health_condition: formData.health_condition,
           medical_history: formData.allergies,
+          allergies: normalizeAllergies(formData.allergies),
           injuries: formData.injuries,
           medications: finalMedications,
           smoke_drink: formData.smoke_drink,

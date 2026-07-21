@@ -1,6 +1,7 @@
 import { askFitlyCoach } from './coachConversationService';
 import { getResponseModeForIntent, normalizeVietnameseText } from './aiRouterService';
 import { AIChatContext, AIChatMealSummary, AIChatResponse, AIIntent } from './types';
+import { normalizeAllergies, normalizeDietaryRestrictions } from '../../../../shared/dietaryPreferences';
 
 const getMealTypeLabel = (mealType?: string | null): string => {
   const key = String(mealType || '').toLowerCase();
@@ -185,13 +186,26 @@ const buildNoMealPlanSuggestionReply = (message: string, context?: AIChatContext
   const body = context?.bodyMetrics || {};
   const goalText = normalizeVietnameseText(String((lifestyle as any).fitness_goal || ''));
   const dietText = normalizeVietnameseText(String((lifestyle as any).diet_preference || (lifestyle as any).current_diet || ''));
+  const restrictions = normalizeDietaryRestrictions(
+    (lifestyle as any).dietary_restrictions,
+    (lifestyle as any).diet_preference,
+    (lifestyle as any).current_diet,
+  );
   const isMuscleGain = goalText.includes('tang co') || goalText.includes('muscle');
   const isWeightLoss = goalText.includes('giam') || goalText.includes('loss');
-  const isVegetarian = dietText.includes('chay') || dietText.includes('vegetarian') || dietText.includes('vegan');
+  const isVegan = restrictions.includes('vegan');
+  const isVegetarian = isVegan || restrictions.includes('vegetarian') || dietText.includes('chay') || dietText.includes('vegetarian');
   const targetCalories = readNumber((lifestyle as any).target_calories);
   const mealsPerDay = Math.max(2, Math.min(5, Math.round(Number((lifestyle as any).meals_per_day || 3))));
   const perMealCalories = targetCalories ? Math.round(targetCalories / mealsPerDay / 50) * 50 : 0;
   const weight = readNumber((body as any).weight, (context?.profile as any)?.weight);
+
+  // Free-form chat is not allowed to improvise food choices for vegan or
+  // allergy-constrained profiles. The catalog-backed meal generator performs
+  // the required hard filtering and post-generation validation instead.
+  if (isVegan || normalizeAllergies((context?.health as any)?.allergies, (context?.health as any)?.medical_history).length > 0) {
+    return `Mình chưa có thực đơn catalog an toàn cho ${mealDisplayLabel}. Hãy tạo thực đơn trong Fitly để hệ thống lọc chính xác dị ứng và chế độ ăn trước khi gợi ý món.`;
+  }
 
   const options =
     isVegetarian

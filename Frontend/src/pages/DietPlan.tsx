@@ -960,6 +960,16 @@ export default function DietPlan() {
 
     setIsSaving(true);
     try {
+      const foodIds = Object.values(planToSave).flatMap((items) => items.map((item) => item.food_id));
+      const validationResponse = await fetchWithAuth('/api/meal-plans/validate-foods', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ food_ids: foodIds }),
+      });
+      if (!validationResponse.ok) {
+        const payload = await validationResponse.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Một số món không phù hợp với hồ sơ ăn uống của bạn.');
+      }
       let nextPlanId = planId;
 
       if (!nextPlanId) {

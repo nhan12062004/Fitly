@@ -1,5 +1,6 @@
 import {
   filterSafeFoodsForUser,
+  getFoodPreferenceScore,
   type PersonalizationContext,
 } from './ai/personalizationGuardService';
 
@@ -19,6 +20,10 @@ export type MealPlanningFood = {
   goal_type?: string[] | string | null;
   price_level?: string | null;
   allergens?: unknown;
+  dietary_tags?: unknown;
+  ingredient_metadata?: unknown;
+  animal_source?: unknown;
+  is_active?: boolean | null;
   is_easy_to_prepare?: boolean | null;
   [key: string]: unknown;
 };
@@ -382,6 +387,7 @@ const getGoalText = (context: MealPlanningContext) => normalizeText([
   context.lifestyle?.fitness_goal,
   context.lifestyle?.diet_preference,
   context.lifestyle?.current_diet,
+  ...(Array.isArray(context.lifestyle?.diet_styles) ? context.lifestyle.diet_styles : []),
 ].filter(Boolean).join(' '));
 
 const scoreFood = (food: MealPlanningFood, context: MealPlanningContext, recentIds: Set<string> = new Set()) => {
@@ -390,7 +396,7 @@ const scoreFood = (food: MealPlanningFood, context: MealPlanningContext, recentI
   const calories = asNumber(food.calories);
   const protein = asNumber(food.protein);
   const carbs = asNumber(food.carbs);
-  let score = food.is_easy_to_prepare ? 8 : 0;
+  let score = (food.is_easy_to_prepare ? 8 : 0) + getFoodPreferenceScore(food, context);
   if (recentIds.has(String(food.id || ''))) score -= 24;
   if (hasAny(goalText, ['giam can', 'giam mo', 'fat loss', 'weight loss'])) {
     if (component === 'vegetable' || component === 'fruit') score += 14;

@@ -859,7 +859,7 @@ async function buildTelegramRuleBasedMealSuggestion(profile: LinkedProfile) {
     supabase.from('health_conditions').select('*').eq('user_id', profile.id).maybeSingle(),
     supabase
       .from('foods')
-      .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, price_level, is_easy_to_prepare')
+      .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, is_easy_to_prepare')
       .limit(320),
   ]);
   const error = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodsRes.error].find(Boolean);

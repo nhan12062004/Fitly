@@ -107,6 +107,10 @@ type FoodRow = {
   meal_type?: string[] | null;
   goal_type?: string[] | null;
   allergens?: string[] | null;
+  dietary_tags?: string[] | null;
+  ingredient_metadata?: string[] | null;
+  animal_source?: string[] | null;
+  is_active?: boolean | null;
   price_level?: string | null;
   cooking_time_minutes?: number | null;
   region?: string | null;
@@ -162,6 +166,10 @@ type FoodForm = {
   meal_type: string;
   goal_type: string;
   allergens: string;
+  dietary_tags: string;
+  ingredient_metadata: string;
+  animal_source: string;
+  is_active: boolean;
   price_level: string;
   cooking_time_minutes: string;
   region: string;
@@ -208,6 +216,10 @@ const emptyFoodForm: FoodForm = {
   meal_type: '',
   goal_type: '',
   allergens: '',
+  dietary_tags: '',
+  ingredient_metadata: '',
+  animal_source: '',
+  is_active: true,
   price_level: '',
   cooking_time_minutes: '',
   region: 'Vietnam',
@@ -530,10 +542,14 @@ const toFoodForm = (row?: FoodRow | null): FoodForm => {
     meal_type: formatList(row.meal_type),
     goal_type: formatList(row.goal_type),
     allergens: formatList(row.allergens),
+    dietary_tags: formatList(row.dietary_tags),
+    ingredient_metadata: formatList(row.ingredient_metadata),
+    animal_source: formatList(row.animal_source),
     price_level: row.price_level || '',
     cooking_time_minutes: row.cooking_time_minutes ? String(row.cooking_time_minutes) : '',
     region: row.region || 'Vietnam',
-    is_easy_to_prepare: row.is_easy_to_prepare !== false
+    is_easy_to_prepare: row.is_easy_to_prepare !== false,
+    is_active: row.is_active !== false
   };
 };
 
@@ -1803,6 +1819,9 @@ function FoodFormPanel({
           <Field label="Meal type" value={form.meal_type} onChange={(value) => onChange({ meal_type: value })} />
           <Field label="Goal type" value={form.goal_type} onChange={(value) => onChange({ goal_type: value })} />
           <Field label="Allergens" value={form.allergens} onChange={(value) => onChange({ allergens: value })} />
+          <Field label="Dietary tags" value={form.dietary_tags} onChange={(value) => onChange({ dietary_tags: value })} />
+          <Field label="Ingredient metadata" value={form.ingredient_metadata} onChange={(value) => onChange({ ingredient_metadata: value })} />
+          <Field label="Animal source" value={form.animal_source} onChange={(value) => onChange({ animal_source: value })} />
           <Field label="Price level" value={form.price_level} onChange={(value) => onChange({ price_level: value })} />
           <Field label="Thời gian nấu" type="number" value={form.cooking_time_minutes} onChange={(value) => onChange({ cooking_time_minutes: value })} />
           <Field label="Region" value={form.region} onChange={(value) => onChange({ region: value })} />
@@ -1814,6 +1833,15 @@ function FoodFormPanel({
               className="h-4 w-4 accent-accent"
             />
             <span className="text-sm font-semibold text-text-primary">Dễ chuẩn bị</span>
+          </label>
+          <label className="flex items-center gap-3 rounded-xl border border-border-primary bg-bg-tertiary px-3 py-3 md:col-span-2">
+            <input
+              type="checkbox"
+              checked={form.is_active}
+              onChange={(event) => onChange({ is_active: event.target.checked })}
+              className="h-4 w-4 accent-accent"
+            />
+            <span className="text-sm font-semibold text-text-primary">Có hiệu lực trong catalog</span>
           </label>
         </div>
         <PanelFooter saving={saving} onClose={onClose} />

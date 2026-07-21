@@ -1,3 +1,10 @@
+import {
+  normalizeAllergies,
+  normalizeBudgetLevel,
+  normalizeDietaryRestrictions,
+  normalizeDietStyles,
+} from '../../../../shared/dietaryPreferences';
+
 export type PersonalizationContext = {
   profile?: Record<string, unknown> | null;
   lifestyle?: Record<string, unknown> | null;
@@ -15,6 +22,7 @@ export type SafetyProfile = {
   fractureOrSurgery: boolean;
   lowBudget: boolean;
   vegetarian: boolean;
+  vegan: boolean;
   rpeCap: number;
   maxSets: number;
   minRestSeconds: number;
@@ -59,6 +67,11 @@ type FoodLike = {
   allergens?: unknown;
   price_level?: string | null;
   goal_type?: unknown;
+  dietary_tags?: unknown;
+  ingredient_metadata?: unknown;
+  animal_source?: unknown;
+  is_active?: boolean | null;
+  excluded?: boolean | null;
 };
 
 type WorkoutPlanLike = {
@@ -307,6 +320,8 @@ const EXPENSIVE_FOOD_TERMS = [
 ];
 
 const NON_VEGETARIAN_FOOD_TERMS = [
+  'meat',
+  'poultry',
   'thit',
   'thit bo',
   'thit ga',
@@ -372,8 +387,15 @@ export const buildUserSafetyProfile = (context: PersonalizationContext = {}): Sa
   const lowerBodyLimited = injurySignal && hasAny(rawText, LOWER_BODY_TERMS);
   const upperBodyLimited = injurySignal && hasAny(rawText, UPPER_BODY_TERMS);
   const spineOrCoreLimited = injurySignal && hasAny(rawText, SPINE_CORE_TERMS);
-  const lowBudget = hasAny(rawText, ['sinh vien', 'tiet kiem', 'gia re', 'low budget', 'cheap']) || /\bre\b/.test(rawText);
-  const vegetarian = hasAny(rawText, ['an chay', 'vegetarian', 'vegan']);
+  const budget = normalizeBudgetLevel(context.lifestyle?.budget_level);
+  const restrictions = normalizeDietaryRestrictions(
+    context.lifestyle?.dietary_restrictions,
+    context.lifestyle?.diet_preference,
+    context.lifestyle?.current_diet,
+  );
+  const lowBudget = budget === 'low';
+  const vegan = restrictions.includes('vegan');
+  const vegetarian = vegan || restrictions.includes('vegetarian');
   const highRisk = cardiacRisk || acuteWarningSigns || postpartumOrPregnancy;
 
   const notes: string[] = [];
@@ -385,6 +407,7 @@ export const buildUserSafetyProfile = (context: PersonalizationContext = {}): Sa
   if (spineOrCoreLimited) notes.push('spine_or_core_limited');
   if (lowBudget) notes.push('low_budget_foods_only');
   if (vegetarian) notes.push('vegetarian_foods_only');
+  if (vegan) notes.push('vegan_foods_only');
 
   return {
     rawText,
@@ -397,6 +420,7 @@ export const buildUserSafetyProfile = (context: PersonalizationContext = {}): Sa
     fractureOrSurgery,
     lowBudget,
     vegetarian,
+    vegan,
     rpeCap: highRisk ? 6 : (lowerBodyLimited || upperBodyLimited || spineOrCoreLimited ? 7 : 8),
     maxSets: highRisk ? 2 : (lowerBodyLimited || upperBodyLimited || spineOrCoreLimited ? 3 : 5),
     minRestSeconds: highRisk ? 90 : 60,
@@ -573,6 +597,9 @@ const getFoodText = (food?: FoodLike | null): string =>
     food?.category,
     asTextList(food?.allergens).join(' '),
     asTextList(food?.goal_type).join(' '),
+    asTextList(food?.dietary_tags).join(' '),
+    asTextList(food?.ingredient_metadata).join(' '),
+    asTextList(food?.animal_source).join(' '),
     food?.price_level,
   ].filter(Boolean).join(' '));
 
@@ -583,21 +610,37 @@ const getFoodAllergenText = (food?: FoodLike | null): string =>
     asTextList(food?.allergens).join(' '),
   ].filter(Boolean).join(' '));
 
-const getAllergenGroupsForUser = (context: PersonalizationContext): string[][] => {
-  const text = normalizeText([
-    context.health?.allergies,
-    context.health?.medical_history,
-    context.health?.health_condition,
-  ].filter(Boolean).join(' '));
-  if (!text || hasAny(text, ['khong di ung', 'khong co di ung', 'none', 'no allergy'])) return [];
-  const groups = ALLERGEN_GROUPS.filter((group) => hasAny(text, group));
-  if (/\bca\b/.test(text) && !groups.some((group) => group.includes('fish'))) {
-    groups.push(['ca hoi', 'ca ngu', 'ca thu', 'fish', 'salmon']);
-  }
-  return groups;
+const getUserAllergies = (context: PersonalizationContext): string[] => normalizeAllergies(
+  context.health?.allergies,
+  context.health?.medical_history,
+  // Medical conditions with a clear, established food safety mapping are
+  // handled as allergies; unrelated conditions remain outside food filtering.
+  normalizeText(context.health?.health_condition).includes('celiac') ? 'wheat' : '',
+  normalizeText(context.health?.health_condition).includes('lactose intoler') ? 'milk' : '',
+);
+
+const isExplicitlyExcluded = (food: FoodLike, context: PersonalizationContext): boolean => {
+  const excluded = [context.health?.food_exclusions, context.lifestyle?.food_exclusions]
+    .flatMap(asTextList);
+  if (!excluded.length) return food.excluded === true;
+  const id = normalizeText(food.id);
+  const text = getFoodText(food);
+  return food.excluded === true || excluded.some((value) => value === id || (value.length >= 3 && text.includes(value)));
+};
+
+const foodConflictsWithAllergy = (food: FoodLike, allergies: string[]): boolean => {
+  if (!allergies.length) return false;
+  const explicit = normalizeAllergies(food.allergens);
+  if (allergies.some((allergy) => explicit.includes(allergy))) return true;
+  // Legacy catalog rows may have no structured allergen array, so compare
+  // cautiously against the same known taxonomy only.
+  const text = getFoodAllergenText(food);
+  return ALLERGEN_GROUPS.some((group) => allergies.some((allergy) => group.includes(allergy)) && hasAny(text, group));
 };
 
 const getFoodPriceKey = (food: FoodLike): 'low' | 'medium' | 'high' => {
+  const canonical = normalizeBudgetLevel(food.price_level);
+  if (canonical) return canonical;
   const text = normalizeText([food.price_level, food.name].filter(Boolean).join(' '));
   if (hasAny(text, ['tiet kiem', 'sinh vien', 'gia re', 'low budget', 'cheap']) || /\bre\b/.test(text)) return 'low';
   if (hasAny(text, ['thoai mai', 'cao cap', 'premium', ...EXPENSIVE_FOOD_TERMS])) return 'high';
@@ -610,29 +653,39 @@ export const getFoodSafetyDecision = (
 ): FoodSafetyDecision => {
   const safety = buildUserSafetyProfile(context);
   const foodText = getFoodText(food);
-  const allergenText = getFoodAllergenText(food);
   const reasons: string[] = [];
 
   if (!food || !String(food.id || '').trim()) {
     return { allowed: false, reasons: ['missing_food_id'] };
   }
+  if (food.is_active === false) reasons.push('inactive_food');
+  if (isExplicitlyExcluded(food, context)) reasons.push('explicit_user_exclusion');
 
-  for (const group of getAllergenGroupsForUser(context)) {
-    if (hasAny(allergenText, group)) {
-      reasons.push('allergen_conflict');
-      break;
-    }
-  }
+  if (foodConflictsWithAllergy(food, getUserAllergies(context))) reasons.push('allergen_conflict');
 
-  if (safety.lowBudget && getFoodPriceKey(food) === 'high') reasons.push('low_budget_blocks_high_price_food');
-  if (safety.lowBudget && hasAny(foodText, EXPENSIVE_FOOD_TERMS)) reasons.push('low_budget_blocks_expensive_food_name');
-
-  if (safety.vegetarian) {
-    const explicitVegetarian = hasAny(foodText, ['an chay', 'vegetarian', 'vegan', 'tofu', 'dau hu', 'tempeh']);
-    if (!explicitVegetarian && hasAny(foodText, NON_VEGETARIAN_FOOD_TERMS)) reasons.push('vegetarian_conflict');
-  }
+  const animalSignals = hasAny(foodText, NON_VEGETARIAN_FOOD_TERMS);
+  const veganSignals = animalSignals || hasAny(foodText, ['milk', 'dairy', 'sua', 'cheese', 'yogurt', 'honey', 'mat ong']);
+  if (safety.vegan && veganSignals) reasons.push('vegan_conflict');
+  else if (safety.vegetarian && animalSignals) reasons.push('vegetarian_conflict');
 
   return { allowed: reasons.length === 0, reasons };
+};
+
+/** Soft ranking only: a low budget must never make an otherwise safe food ineligible. */
+export const getFoodPreferenceScore = (food: FoodLike, context: PersonalizationContext = {}): number => {
+  const styles = normalizeDietStyles(
+    context.lifestyle?.diet_styles,
+    context.lifestyle?.diet_preference,
+    context.lifestyle?.current_diet,
+  );
+  const budget = normalizeBudgetLevel(context.lifestyle?.budget_level);
+  const text = getFoodText(food);
+  let score = 0;
+  if (budget === 'low') score += getFoodPriceKey(food) === 'low' ? 16 : getFoodPriceKey(food) === 'high' ? -16 : 0;
+  if (styles.includes('clean') && hasAny(text, ['fresh', 'tuoi', 'whole', 'vegetable', 'rau'])) score += 8;
+  if (styles.includes('high_protein') && hasAny(text, ['protein', 'dau hu', 'tofu', 'tempeh'])) score += 8;
+  if (styles.includes('low_carb') && hasAny(text, ['rice', 'com', 'gao', 'bun', 'pho', 'mi', 'pasta', 'bread', 'banh'])) score -= 10;
+  return score;
 };
 
 export const filterSafeFoodsForUser = <T extends FoodLike>(
@@ -666,8 +719,9 @@ export const buildSafetyPromptAddendum = (context: PersonalizationContext = {}):
   if (safety.lowerBodyLimited) rules.push('- Lower-body injury/fracture: avoid leg loading, squats, lunges, running, jumping, and lower-body impact.');
   if (safety.upperBodyLimited) rules.push('- Upper-body injury: avoid loading the painful/injured shoulder, elbow, wrist, arm, chest, or hand area.');
   if (safety.spineOrCoreLimited) rules.push('- Back/spine/core issue: avoid axial loading, heavy hinges, twisting, crunches, and hard planks.');
-  if (safety.lowBudget) rules.push('- Low/student budget: choose low/medium price foods only; never choose Kobe, Wagyu, sashimi, caviar, lobster, or premium foods.');
+  if (safety.lowBudget) rules.push('- Low/student budget: rank low-price foods first; budget is a preference and never overrides food-safety restrictions.');
   if (safety.vegetarian) rules.push('- Vegetarian preference: choose vegetarian-safe foods only.');
+  if (safety.vegan) rules.push('- Vegan restriction: exclude meat, poultry, fish, shellfish, egg, milk/dairy, and honey.');
 
   return rules.join('\n');
 };
