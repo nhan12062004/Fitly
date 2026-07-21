@@ -50,7 +50,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import { getUserChallenges, type ChallengeSummary } from '../lib/Challenges';
-import { API_BASE_URL } from '../lib/Api';
+import { API_BASE_URL, fetchWithAuth } from '../lib/Api';
 import {
   EQUIPMENT_TYPES,
   TRAINING_LOCATIONS,
@@ -345,7 +345,7 @@ export default function Profile() {
       setLoading(true);
       setError('');
       try {
-        const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, aiRes] = await Promise.all([
+        const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, aiQuotaPayload] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
           supabase
             .from('body_metrics')
@@ -360,7 +360,9 @@ export default function Profile() {
             .from('daily_progress_logs')
             .select('log_date', { count: 'exact', head: false })
             .eq('user_id', userId),
-          supabase.from('ai_usage').select('*').eq('user_id', userId).maybeSingle(),
+          fetchWithAuth('/api/ai/quota')
+            .then(async (response) => response.ok ? response.json() : null)
+            .catch(() => null),
         ]);
 
         // Load challenges đã hoàn thành riêng — bỏ qua nếu lỗi
@@ -430,10 +432,11 @@ export default function Profile() {
           setStreakCount(streak);
         }
 
-        if (aiRes.data) {
-          setAiUsed(aiRes.data.total_used ?? 0);
-          setAiSwapWorkout(aiRes.data.swap_workout ?? 0);
-          setAiSwapMeal(aiRes.data.swap_meal ?? 0);
+        const quotaUsage = aiQuotaPayload?.aiQuota?.usage;
+        if (quotaUsage) {
+          setAiUsed(Math.max(0, Number(quotaUsage.chatMessages) || 0));
+          setAiSwapWorkout(Math.max(0, Number(quotaUsage.workoutAdjustments) || 0));
+          setAiSwapMeal(Math.max(0, Number(quotaUsage.mealAdjustments) || 0));
         }
       } catch (err: any) {
         if (!cancelled) setError(err?.message || 'Không thể tải thông tin cá nhân.');
@@ -1281,7 +1284,7 @@ export default function Profile() {
           {aiLimit !== Infinity && (
             <div className="mt-3">
               <div className="flex justify-between mb-1.5">
-                <p className="text-xs font-semibold text-text-secondary">Lượt AI đã dùng</p>
+                <p className="text-xs font-semibold text-text-secondary">Tin nhắn AI Coach đã dùng</p>
                 <p className="text-xs font-black text-text-primary">{aiUsed} / {aiLimit}</p>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">

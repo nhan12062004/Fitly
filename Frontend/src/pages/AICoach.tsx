@@ -379,7 +379,9 @@ const readAiQuota = (storageKey: string | null): AiQuotaSnapshot | null => {
   if (!storageKey || typeof window === 'undefined') return null;
   try {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) || 'null');
-    if (!parsed || typeof parsed !== 'object' || Date.now() - Number(parsed.savedAt || 0) > 10 * 60 * 1000) return null;
+    // Keep the last server-confirmed value so the quota is visible immediately
+    // when the Coach opens. A background request below always refreshes it.
+    if (!parsed || typeof parsed !== 'object') return null;
     const quota = parsed.quota;
     if (!quota || typeof quota !== 'object' || !quota.limits || !quota.usage || !quota.remaining) return null;
     return quota as AiQuotaSnapshot;
@@ -1104,7 +1106,7 @@ export default function AICoach() {
           writeAiQuota(aiQuotaStorageKey, nextQuota);
         }
       } catch {
-        if (!cancelled) setAiQuota(null);
+        // Keep the cached quota visible if the refresh request is unavailable.
       }
     };
 

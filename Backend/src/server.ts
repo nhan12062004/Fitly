@@ -2972,6 +2972,161 @@ app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
   }
 });
 
+app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, async (req, res) => {
+  try {
+    const authUserId = await getAuthUserId(req);
+    if (!authUserId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const exerciseSessionId = String(req.params.exerciseSessionId || '').trim();
+    if (!exerciseSessionId) return res.status(400).json({ error: 'exercise session id is required' });
+
+    const currentSessionRes = await supabase
+      .from('daily_exercise_sessions')
+      .select('id, user_id, log_date, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, actual_sets, actual_reps, actual_weight_kg, actual_rest_seconds, target_rpe, is_completed, completed_sets')
+      .eq('id', exerciseSessionId)
+      .eq('user_id', authUserId)
+      .maybeSingle();
+    if (currentSessionRes.error) throw currentSessionRes.error;
+    const currentSession = currentSessionRes.data;
+    if (!currentSession) return res.status(404).json({ error: 'Exercise session not found' });
+    if (currentSession.is_completed || Number(currentSession.completed_sets || 0) > 0) {
+      return res.status(409).json({ error: 'Không thể đổi bài đã bắt đầu hoặc hoàn thành.' });
+    }
+
+    const [profileRes, lifestyleRes, healthRes, sameDayRes, catalogRes] = await Promise.all([
+      supabase.from('profiles').select('id, gender, birthday, membership_tier').eq('id', authUserId).maybeSingle(),
+      supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
+      supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle(),
+      supabase.from('daily_exercise_sessions').select('exercise_id').eq('user_id', authUserId).eq('log_date', currentSession.log_date),
+      supabase.from('exercises').select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern').limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
+    ]);
+    const dataError = [profileRes.error, lifestyleRes.error, healthRes.error, sameDayRes.error, catalogRes.error].find(Boolean);
+    if (dataError) throw dataError;
+
+    const accessState = await getAiCoachAccessState(profileRes.data || {}, authUserId);
+    if (!accessState.canUseWorkoutAdjustment) {
+      return res.status(403).json(buildAiQuotaLimitError(accessState, 'workoutAdjustments'));
+    }
+
+    const sourceExercise = (catalogRes.data || []).find((exercise: any) => String(exercise.id) === String(currentSession.exercise_id));
+    if (!sourceExercise) return res.status(404).json({ error: 'Original exercise is no longer in the catalog.' });
+
+    const eligibilityContext = buildExerciseEligibilityContext({
+      profile: profileRes.data || null,
+      lifestyle: lifestyleRes.data || null,
+      health: healthRes.data || null,
+    });
+    const occupiedExerciseIds = new Set((sameDayRes.data || []).map((item: any) => String(item.exercise_id || '')).filter(Boolean));
+    const sourceTarget = normalizeKeywordText(sourceExercise.target_muscle);
+    const sourceBodyPart = normalizeKeywordText(sourceExercise.body_part);
+    const sourceMovement = normalizeKeywordText(sourceExercise.movement_pattern);
+    const candidate = getEligibleExercises(catalogRes.data as unknown[], eligibilityContext)
+      .filter((exercise: any) => !occupiedExerciseIds.has(String(exercise.id)))
+      .map((exercise: any) => {
+        const sameTarget = sourceTarget && normalizeKeywordText(exercise.target_muscle) === sourceTarget;
+        const sameBodyPart = sourceBodyPart && normalizeKeywordText(exercise.body_part) === sourceBodyPart;
+        const sameMovement = sourceMovement && normalizeKeywordText(exercise.movement_pattern) === sourceMovement;
+        return { exercise, score: (sameTarget ? 100 : 0) + (sameBodyPart ? 20 : 0) + (sameMovement ? 8 : 0) };
+      })
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score || String(a.exercise.name || '').localeCompare(String(b.exercise.name || '')))[0]?.exercise;
+    if (!candidate) {
+      return res.status(422).json({ error: 'Không tìm thấy bài thay thế cùng nhóm cơ, an toàn và không trùng trong buổi này.' });
+    }
+
+    const prescription = await prescribeWorkoutExercise({
+      userId: authUserId,
+      exerciseId: String(candidate.id),
+      exercise: candidate,
+      source: 'manual_add',
+      suggestedSets: currentSession.actual_sets ?? currentSession.planned_sets ?? currentSession.sets,
+      suggestedReps: currentSession.actual_reps ?? currentSession.planned_reps ?? currentSession.reps,
+      suggestedWeightKg: currentSession.actual_weight_kg ?? currentSession.planned_weight_kg ?? currentSession.weight_kg,
+      suggestedRestSeconds: currentSession.actual_rest_seconds ?? currentSession.planned_rest_seconds ?? currentSession.rest_seconds,
+      suggestedTargetRpe: currentSession.target_rpe,
+    });
+
+    const updateValues = {
+      exercise_id: String(candidate.id),
+      sets: prescription.sets,
+      reps: prescription.reps,
+      weight_kg: prescription.weightKg,
+      rest_seconds: prescription.restSeconds,
+      planned_sets: prescription.sets,
+      planned_reps: prescription.reps,
+      planned_weight_kg: prescription.weightKg,
+      planned_rest_seconds: prescription.restSeconds,
+      actual_sets: prescription.sets,
+      actual_reps: prescription.reps,
+      actual_weight_kg: prescription.weightKg,
+      actual_rest_seconds: prescription.restSeconds,
+      target_rpe: prescription.targetRpe,
+      estimated_kcal: prescription.estimatedKcal,
+      actual_kcal_estimated: 0,
+      completed_sets: 0,
+      is_completed: false,
+      load_adjustment_note: prescription.loadInstruction,
+    };
+    const updateRes = await supabase
+      .from('daily_exercise_sessions')
+      .update(updateValues)
+      .eq('id', currentSession.id)
+      .eq('user_id', authUserId)
+      .select(DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT)
+      .single();
+    if (updateRes.error) throw updateRes.error;
+
+    const snapshotRes = await supabase
+      .from('daily_workout_session_exercises')
+      .update({
+        exercise_id: String(candidate.id),
+        sets: prescription.sets,
+        reps: prescription.reps,
+        weight_kg: prescription.weightKg,
+        rest_seconds: prescription.restSeconds,
+        planned_sets: prescription.sets,
+        planned_reps: prescription.reps,
+        planned_weight_kg: prescription.weightKg,
+        planned_rest_seconds: prescription.restSeconds,
+        actual_sets: prescription.sets,
+        actual_reps: prescription.reps,
+        actual_weight_kg: prescription.weightKg,
+        actual_rest_seconds: prescription.restSeconds,
+        target_rpe: prescription.targetRpe,
+        estimated_kcal: prescription.estimatedKcal,
+        actual_kcal_estimated: 0,
+        completed_sets: 0,
+        is_completed: false,
+      })
+      .eq('daily_exercise_session_id', currentSession.id);
+    if (snapshotRes.error) throw snapshotRes.error;
+
+    const auditRes = await supabase.from('ai_plan_adjustments').insert({
+      user_id: authUserId,
+      plan_type: 'workout',
+      source_type: 'chat',
+      source_id: currentSession.id,
+      old_data: { log_date: currentSession.log_date, exercise_id: currentSession.exercise_id },
+      new_data: { log_date: currentSession.log_date, exercise_id: candidate.id },
+      reason: `Quick exercise replacement: ${sourceExercise.name} -> ${candidate.name}`.slice(0, 300),
+      created_by: 'ai',
+      status: 'applied',
+      applied_at: new Date().toISOString(),
+    });
+    if (auditRes.error) throw auditRes.error;
+
+    return res.json({
+      success: true,
+      exercise: updateRes.data,
+      replacedExerciseName: sourceExercise.name,
+      aiQuota: buildAiQuotaSnapshot(accessState, 'workoutAdjustments'),
+    });
+  } catch (error: any) {
+    console.error('[workout/replace-daily-exercise] failed:', error?.message || error);
+    return res.status(500).json({ error: error?.message || 'Không thể đổi bài tập.' });
+  }
+});
+
 app.post('/api/workout/daily-exercises', async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);

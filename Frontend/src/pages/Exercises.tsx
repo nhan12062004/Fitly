@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Plus, AlertCircle, Calendar, ImageOff,
-  Play, Eye, Moon, ChevronRight, Shield
+  Play, Eye, Moon, ChevronRight, Shield, RefreshCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../lib/Api';
@@ -397,6 +397,7 @@ export default function Exercises() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [calendarStatsByDate, setCalendarStatsByDate] = useState<Record<string, CalendarDayStats>>({});
   const [isWorkoutSurveyOpen, setIsWorkoutSurveyOpen] = useState(false);
+  const [replacingSessionId, setReplacingSessionId] = useState<string | null>(null);
   // Use the last server-confirmed quota while the fresh quota is loading.
   const [workoutPlanQuota, setWorkoutPlanQuota] = useState<WorkoutPlanQuota | null>(() => readCachedWorkoutPlanQuota(user?.id));
   const hasLoadedSessionRef = useRef(Boolean(cacheForToday));
@@ -759,6 +760,26 @@ export default function Exercises() {
     await loadSession(true);
     await loadCalendarStats(true);
     toast.success('Lịch tập hôm nay đã được tạo.');
+  };
+
+  const replaceExercise = async (exercise: SessionExercise) => {
+    if (replacingSessionId) return;
+    setReplacingSessionId(exercise.id);
+    try {
+      const response = await fetchWithAuth(`/api/workout/daily-exercises/${exercise.id}/replace`, {
+        method: 'POST',
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String(payload?.error || 'Không thể đổi bài tập.'));
+      }
+      await loadSession(true);
+      toast.success(`Đã đổi ${exercise.name} sang ${payload?.exercise?.exercises?.name || 'bài tập phù hợp'}.`);
+    } catch (error: any) {
+      toast.error(error?.message || 'Không thể đổi bài tập.');
+    } finally {
+      setReplacingSessionId(null);
+    }
   };
 
   const toggleComplete = async (id: string, currentStatus: boolean) => {
@@ -1163,27 +1184,31 @@ export default function Exercises() {
                     formatEquipmentLabel(exercise.exercises?.equipment),
                     formatMovementPatternLabel(exercise.exercises?.movement_pattern),
                   ].filter((item): item is string => Boolean(item)).slice(0, 4);
+                  const openExercise = () => {
+                    if (!isActive) {
+                      setSelectedSessionId(exercise.id);
+                      return;
+                    }
+                    navigate('/exercises/session', {
+                      state: {
+                        session,
+                        selectedSessionId: exercise.id,
+                        logDate: selectedDateKey,
+                      },
+                    });
+                  };
 
                   return (
-                    <button
+                    <div
                       key={exercise.id}
-                      type="button"
-                      onClick={() => {
-                        if (!isActive) {
-                          setSelectedSessionId(exercise.id);
-                          return;
-                        }
-                        navigate('/exercises/session', {
-                          state: {
-                            session,
-                            selectedSessionId: exercise.id,
-                            logDate: selectedDateKey,
-                          },
-                        });
-                      }}
                       className={`workout-order-item ${isActive ? 'workout-order-item-active' : ''}`}
-                      aria-label={isActive ? `Bắt đầu từ bài ${exercise.name}` : `Chọn bài ${exercise.name}`}
                     >
+                      <button
+                        type="button"
+                        onClick={openExercise}
+                        className="workout-order-select"
+                        aria-label={isActive ? `Bắt đầu từ bài ${exercise.name}` : `Chọn bài ${exercise.name}`}
+                      >
                       <div className="workout-order-thumb-wrap">
                         <div className="workout-order-thumb">
                           <ExerciseThumb
@@ -1215,11 +1240,29 @@ export default function Exercises() {
                           <span>{kcal} kcal</span>
                         </p>
                       </div>
+                      </button>
 
-                      <span className={`workout-order-action ${isActive ? 'workout-order-action-play' : ''}`} aria-hidden="true">
-                        {isActive ? <Play className="h-4 w-4 fill-current" /> : <ChevronRight className="h-4 w-4" />}
-                      </span>
-                    </button>
+                      <div className="workout-order-actions">
+                        <button
+                          type="button"
+                          className="workout-order-action workout-order-action-swap"
+                          onClick={() => void replaceExercise(exercise)}
+                          disabled={Boolean(replacingSessionId)}
+                          aria-label={`Đổi bài ${exercise.name}`}
+                          title="Đổi sang bài cùng nhóm cơ"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${replacingSessionId === exercise.id ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`workout-order-action ${isActive ? 'workout-order-action-play' : ''}`}
+                          onClick={openExercise}
+                          aria-label={isActive ? `Bắt đầu từ bài ${exercise.name}` : `Chọn bài ${exercise.name}`}
+                        >
+                          {isActive ? <Play className="h-4 w-4 fill-current" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
