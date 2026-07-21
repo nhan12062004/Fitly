@@ -22,7 +22,6 @@ import { fetchWithAuth } from '../lib/Api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ToastProvider';
 import { getApiErrorMessage } from '../lib/ErrorMessage';
-import { AdminRecipesPanel, type AdminRecipe } from '../components/AdminRecipesPanel';
 import {
   BODY_PARTS,
   EQUIPMENT_TYPES,
@@ -45,7 +44,7 @@ import {
   type ExerciseInstructions,
 } from '../lib/exerciseCatalog';
 
-type AdminTab = 'overview' | 'users' | 'exercises' | 'foods' | 'recipes';
+type AdminTab = 'overview' | 'users' | 'exercises' | 'foods';
 
 type OverviewStats = {
   users: number;
@@ -232,7 +231,6 @@ const tabs: Array<{ id: AdminTab; label: string; icon: ElementType }> = [
   { id: 'users', label: 'Người dùng', icon: Users },
   { id: 'exercises', label: 'Bài tập', icon: Dumbbell },
   { id: 'foods', label: 'Thực đơn', icon: Utensils }
-  ,{ id: 'recipes', label: 'Recipes', icon: Utensils }
 ];
 const ADMIN_TABLE_PAGE_SIZE = 8;
 
@@ -567,7 +565,6 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
   const [foods, setFoods] = useState<FoodRow[]>([]);
-  const [recipes, setRecipes] = useState<AdminRecipe[]>([]);
   const [exercisePage, setExercisePage] = useState(1);
   const [foodPage, setFoodPage] = useState(1);
   const [editingExercise, setEditingExercise] = useState<ExerciseRow | null>(null);
@@ -633,14 +630,6 @@ export default function AdminPanel() {
       if (activeTab === 'foods') {
         setFoods(await requestJson<FoodRow[]>(`/api/admin/foods${querySuffix}`));
         setFoodPage(1);
-      }
-      if (activeTab === 'recipes') {
-        const [recipeRows, foodRows] = await Promise.all([
-          requestJson<AdminRecipe[]>(`/api/admin/recipes${querySuffix}`),
-          requestJson<FoodRow[]>('/api/admin/foods?limit=300'),
-        ]);
-        setRecipes(recipeRows);
-        setFoods(foodRows);
       }
     } catch (err: any) {
       setError(err?.message || 'Không thể tải dữ liệu quản trị');
@@ -886,7 +875,6 @@ export default function AdminPanel() {
               saving={saving}
             />
           )}
-          {activeTab === 'recipes' && <AdminRecipesPanel rows={recipes} foods={foods} onChanged={loadData} />}
         </>
       )}
 

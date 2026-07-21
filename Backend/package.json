@@ -15,6 +15,8 @@
         "recipes:validate": "tsx src/scripts/validateRecipeCatalog.ts",
         "recipes:upsert": "tsx src/scripts/upsertRecipeCatalog.ts",
         "recipes:import-verified-sql": "tsx src/scripts/importVerifiedSqlRecipeCatalog.ts",
+        "recipes:sync-to-foods": "tsx src/scripts/syncRecipesToFoods.ts",
+        "foods:import-ingredients": "tsx src/scripts/importFoodIngredientsFromSql.ts",
         "recipes:verify": "tsx src/scripts/verifyRecipeCatalog.ts",
         "db:migration:list": "npx supabase migration list --workdir ..",
         "db:migration:repair:normalize-rls": "npx supabase migration repair 20260602110000 --status applied --linked --workdir ..",

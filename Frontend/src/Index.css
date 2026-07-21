@@ -4921,7 +4921,7 @@ svg {
   font-weight: 650;
 }
 
-.diet-recipe-ingredients {
+.diet-food-ingredients {
   position: relative;
   display: grid;
   gap: 0;
@@ -4932,9 +4932,9 @@ svg {
   background: color-mix(in srgb, var(--bg-tertiary) 58%, transparent);
 }
 
-.diet-recipe-ingredient-row {
+.diet-food-ingredient-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.6rem;
   min-height: 1.6rem;
@@ -4945,42 +4945,24 @@ svg {
   font-weight: 650;
 }
 
-.diet-recipe-ingredient-row:last-of-type {
+.diet-food-ingredient-row:last-of-type {
   border-bottom: 0;
 }
 
-.diet-recipe-ingredient-row > span:nth-child(2) {
+.diet-food-ingredient-row > span:nth-child(2) {
   color: var(--text-secondary);
   white-space: nowrap;
 }
 
-.diet-recipe-ingredient-row > span:nth-child(3) {
-  color: var(--text-muted);
-  text-align: right;
-}
-
-.diet-recipe-ingredient-row strong {
-  color: var(--meal-accent, var(--accent-primary));
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.diet-recipe-ingredient-row > span:last-child {
-  min-width: 3.6rem;
-  color: var(--text-muted);
-  text-align: right;
-  white-space: nowrap;
-}
-
-.diet-recipe-remove {
+.diet-ingredient-remove {
   position: absolute;
   right: 0.35rem;
   top: 0.15rem;
   opacity: 0;
 }
 
-.diet-recipe-ingredients:hover .diet-recipe-remove,
-.diet-recipe-ingredients:focus-within .diet-recipe-remove {
+.diet-food-ingredients:hover .diet-ingredient-remove,
+.diet-food-ingredients:focus-within .diet-ingredient-remove {
   opacity: 1;
 }
 
@@ -5054,19 +5036,16 @@ svg {
     padding-inline: 0.65rem;
   }
 
-  .diet-recipe-ingredients {
+  .diet-food-ingredients {
     margin: 0 0.65rem 0.65rem;
   }
 
-  .diet-recipe-ingredient-row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+  .diet-food-ingredient-row {
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.42rem;
     padding-inline: 0.55rem;
   }
 
-  .diet-recipe-ingredient-row > span:last-child {
-    display: none;
-  }
 
   .diet-food-detail-row > span:nth-of-type(3) {
     display: none;

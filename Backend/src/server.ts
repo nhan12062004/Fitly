@@ -1326,7 +1326,6 @@ async function generateWeeklyCoachPlanForUser(params: {
     healthRes,
     exerciseCatalogRes,
     foodCatalogRes,
-    recipeCatalogRes,
     recentSessionsRes,
     recentMealsRes,
     recentMealLogsRes
@@ -1345,11 +1344,6 @@ async function generateWeeklyCoachPlanForUser(params: {
       .order('created_at', { ascending: false })
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
     supabase
-      .from('recipes')
-      .select('id, name, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, calories, protein, carbs, fat, serving_unit, cooking_time_minutes, cooking_difficulty, allergens, instructions, image_url, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source, calories, protein, carbs, fat, serving_unit))')
-      .eq('is_active', true)
-      .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
-    supabase
       .from('daily_exercise_sessions')
       .select('log_date, exercise_id, sets, reps, weight_kg, rest_seconds, is_completed, exercises:exercise_id(name, body_part, target_muscle)')
       .eq('user_id', userId)
@@ -1357,7 +1351,7 @@ async function generateWeeklyCoachPlanForUser(params: {
       .limit(20),
     supabase
       .from('weekly_food_items')
-      .select('day_of_week, meal_type, food_id, recipe_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level), recipes:recipe_id(name, meal_type, price_level)')
+      .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
       .eq('weekly_food_plans.user_id', userId)
       .eq('weekly_food_plans.plan_status', 'active')
       .order('created_at', { ascending: false })
@@ -1370,6 +1364,7 @@ async function generateWeeklyCoachPlanForUser(params: {
       .limit(40)
   ]);
 
+  const recipeCatalogRes = { data: [], error: null };
   const firstError = [
     profileRes.error,
     bodyMetricsRes.error,
@@ -1377,7 +1372,6 @@ async function generateWeeklyCoachPlanForUser(params: {
     healthRes.error,
     exerciseCatalogRes.error,
     foodCatalogRes.error,
-    recipeCatalogRes.error,
     recentSessionsRes.error,
     recentMealsRes.error,
     recentMealLogsRes.error
@@ -2792,33 +2786,21 @@ app.post('/api/meal-plans/validate-foods', async (req, res) => {
         .map((value: unknown) => String(value || '').trim())
         .filter(Boolean),
     ));
-    const recipeIds: string[] = Array.from(new Set<string>(
-      (Array.isArray(req.body?.recipe_ids) ? req.body.recipe_ids : [])
-        .map((value: unknown) => String(value || '').trim())
-        .filter(Boolean),
-    ));
-    if (foodIds.length === 0 && recipeIds.length === 0) return res.json({ success: true });
+    if (foodIds.length === 0) return res.json({ success: true });
 
-    const [profileRes, lifestyleRes, healthRes, foodsRes, recipesRes] = await Promise.all([
+    const [profileRes, lifestyleRes, healthRes, foodsRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('foods').select('id, name, category, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, goal_type').in('id', foodIds),
-      supabase.from('recipes').select('id, name, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, calories, protein, carbs, fat, cooking_time_minutes, cooking_difficulty, allergens, instructions, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source))').in('id', recipeIds),
     ]);
-    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodsRes.error, recipesRes.error].find(Boolean);
+    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodsRes.error].find(Boolean);
     if (firstError) throw firstError;
     const context = { profile: profileRes.data || {}, lifestyle: lifestyleRes.data || {}, health: healthRes.data || {} };
     const byId = new Map((foodsRes.data || []).map((food: any) => [String(food.id), food]));
     const rejected = foodIds.flatMap((foodId) => {
       const decision = getFoodSafetyDecision(byId.get(foodId), context);
       return decision.allowed ? [] : [{ food_id: foodId, reasons: decision.reasons }];
-    });
-    const recipeContext = buildRecipeEligibilityContext(context);
-    const recipeById = new Map((recipesRes.data || []).map((recipe: any) => [String(recipe.id), recipe]));
-    recipeIds.forEach((recipeId) => {
-      const decision = filterEligibleRecipes([recipeById.get(recipeId)].filter(Boolean), recipeContext);
-      if (decision.length !== 1) rejected.push({ food_id: recipeId, reasons: ['ineligible_recipe'] });
     });
     if (rejected.length > 0) {
       return res.status(422).json({ error: 'One or more foods violate hard dietary or safety constraints.', rejected });
@@ -5704,7 +5686,7 @@ const generateAiMealDraft = async (params: {
     throw new ApiRequestError(500, { error: 'Missing GROQ_API_KEY in server config' });
   }
 
-  const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, foodRes, recipeRes] = await Promise.all([
+  const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, foodRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('body_metrics').select('weight').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
@@ -5713,13 +5695,9 @@ const generateAiMealDraft = async (params: {
       .from('foods')
       .select('id, name, category, calories, protein, carbs, fat, serving_unit, image_url, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
-    supabase
-      .from('recipes')
-      .select('id, name, name_en, description, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, estimated_cost_min_vnd, estimated_cost_max_vnd, calories, protein, carbs, fat, serving_size, serving_unit, cooking_time_minutes, cooking_difficulty, allergens, instructions, image_url, region, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source, calories, protein, carbs, fat, serving_unit))')
-      .eq('is_active', true)
-      .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
   ]);
-  const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodRes.error, recipeRes.error].find(Boolean);
+  const recipeRes = { data: [], error: null };
+  const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodRes.error].find(Boolean);
   if (firstError) throw firstError;
   if (!profileRes.data?.id) {
     throw new ApiRequestError(403, { code: 'PROFILE_REQUIRED', error: 'Vui lòng hoàn thành hồ sơ trước.' });
