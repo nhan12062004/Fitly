@@ -87,11 +87,20 @@ const bodyPartLabel = (value: unknown): string | null => {
   return bodyPart ? EXERCISE_LABELS.bodyPart[bodyPart] : null;
 };
 
+const hasOwnField = (value: unknown, field: string): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && Object.prototype.hasOwnProperty.call(value, field);
+
 export const toExerciseDetailItem = (
   value: unknown,
   fallback: Partial<ExerciseDetailItem> = {},
 ): ExerciseDetailItem => {
   const normalized = normalizeExercise(value);
+  // normalizeExercise intentionally infers a requirement for incomplete legacy
+  // records. Detail views must not show that inference as catalog data: a
+  // compact workout-session payload often omits this field entirely.
+  const hasMinimumExperience = hasOwnField(value, 'min_experience_months')
+    && value.min_experience_months !== null
+    && value.min_experience_months !== undefined;
   return {
     ...fallback,
     ...normalized,
@@ -101,6 +110,9 @@ export const toExerciseDetailItem = (
     target_muscle: normalized.target_muscle ?? fallback.target_muscle ?? null,
     equipment: normalized.equipment ?? fallback.equipment ?? null,
     video_url: normalizeMediaUrl(normalized.video_url ?? fallback.video_url ?? ''),
+    min_experience_months: hasMinimumExperience
+      ? normalized.min_experience_months
+      : fallback.min_experience_months ?? null,
     description: fallback.description || '',
   };
 };

@@ -124,7 +124,10 @@ export default function ExerciseDetails() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
   const [saveStatus, setSaveStatus] = useState<'success' | 'error' | ''>('');
-  const [isPageLoading, setIsPageLoading] = useState(() => !initialExerciseDetail);
+  // A route can carry a compact session item. Wait for the catalog record so
+  // metadata such as min_experience_months is never rendered from an inferred
+  // fallback value.
+  const [isPageLoading, setIsPageLoading] = useState(() => !cachedExercise && Boolean(state.exercise?.id));
 
   const getVietnamDateKey = (date = new Date()): string => {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -229,7 +232,7 @@ export default function ExerciseDetails() {
       if (cached) {
         setExerciseDetail(cached);
       }
-      setIsPageLoading(!cached && !state.exercise);
+      setIsPageLoading(!cached);
       setIsRefreshing(!!cached || !!state.exercise);
       try {
         const { data } = await supabase
