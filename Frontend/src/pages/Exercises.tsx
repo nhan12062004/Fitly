@@ -704,13 +704,10 @@ export default function Exercises() {
   };
 
   const handleWorkoutSurveyComplete = async () => {
-    const response = await fetchWithAuth('/api/ai-coach/generate-weekly-plan', {
+    const response = await fetchWithAuth('/api/ai-coach/generate-daily-workout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        weekStartDate: vnToday,
-        planScope: 'workout_only'
-      })
+      body: JSON.stringify({ logDate: selectedDateKey })
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -730,7 +727,7 @@ export default function Exercises() {
     setIsWorkoutSurveyOpen(false);
     await loadSession(true);
     await loadCalendarStats(true);
-    toast.success('Đã tạo kế hoạch tập cho tuần này.');
+    toast.success('Lịch tập hôm nay đã được tạo.');
   };
 
   const toggleComplete = async (id: string, currentStatus: boolean) => {
@@ -1081,7 +1078,7 @@ export default function Exercises() {
               </p>
               {isTodaySelected ? (
                 <p className="today-workout-empty-note">
-                  Tạo kế hoạch để Fitly sắp xếp bài tập, số hiệp và lần lặp phù hợp với mục tiêu của bạn.
+                  Tạo lịch tập hôm nay để Fitly sắp xếp bài tập, số hiệp và lần lặp phù hợp với mục tiêu của bạn.
                 </p>
               ) : null}
               {isTodaySelected ? (
@@ -1093,7 +1090,7 @@ export default function Exercises() {
                     className="today-workout-empty-action"
                   >
                     <Plus className="h-4 w-4" />
-                    Tạo kế hoạch
+                    Tạo lịch tập hôm nay
                   </button>
                 </div>
               ) : null}

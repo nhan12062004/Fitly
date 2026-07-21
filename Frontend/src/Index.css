@@ -4730,9 +4730,11 @@ svg {
   }
 }
 
-/* Daily meals: a compact, meal-by-meal feed. */
+/* Daily meals fill the available content panel instead of leaving an empty
+   right-hand column on wide screens. */
 .diet-meal-list {
-  max-width: 58rem;
+  width: 100%;
+  max-width: none;
 }
 
 .diet-meal-group + .diet-meal-group {

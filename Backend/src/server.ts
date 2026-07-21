@@ -4347,6 +4347,262 @@ app.get('/api/ai/metrics', async (req, res) => {
   });
 });
 
+app.post('/api/ai-coach/generate-daily-workout', aiLimiter, async (req, res) => {
+  let createdWorkoutSessionId: string | null = null;
+  let createdDailyExerciseIds: string[] = [];
+  try {
+    const authUserId = await getAuthUserId(req);
+    if (!authUserId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const logDate = String(req.body?.logDate || getVietnamDateKey()).trim();
+    if (!DATE_KEY_REGEX.test(logDate)) {
+      return res.status(400).json({ error: 'logDate must be YYYY-MM-DD' });
+    }
+    if (!process.env.GROQ_API_KEY) {
+      return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
+    }
+
+    const existingRes = await supabase
+      .from('daily_exercise_sessions')
+      .select(DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT)
+      .eq('user_id', authUserId)
+      .eq('log_date', logDate)
+      .order('order_index', { ascending: true });
+    if (existingRes.error) throw existingRes.error;
+    if ((existingRes.data || []).length > 0) {
+      return res.json({ success: true, data: { exercises: existingRes.data, logDate, source: 'existing' } });
+    }
+
+    const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, catalogRes, recentRes] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle(),
+      supabase.from('body_metrics').select('*').eq('user_id', authUserId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
+      supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle(),
+      supabase.from('exercises').select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern').limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
+      supabase.from('daily_exercise_sessions').select('exercise_id').eq('user_id', authUserId).order('log_date', { ascending: false }).limit(20),
+    ]);
+    const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, catalogRes.error, recentRes.error].find(Boolean);
+    if (firstError) throw firstError;
+    if (!profileRes.data?.id) {
+      return res.status(403).json({ code: 'PROFILE_REQUIRED', error: 'Vui long hoan thanh ho so truoc khi tao lich tap.' });
+    }
+
+    let profile = profileRes.data || {};
+    let lifestyle = lifestyleRes.data || {};
+    let health = healthRes.data || {};
+    const trainingContext = await synchronizeTrainingProfileContext({ userId: authUserId, profile, lifestyle, health });
+    profile = trainingContext.profile;
+    lifestyle = trainingContext.lifestyle;
+    health = trainingContext.health;
+    const accessState = await getAiCoachAccessState(profile, authUserId);
+    if (!accessState.canGenerate) {
+      return res.status(403).json(buildAiQuotaLimitError(accessState, 'planGenerations'));
+    }
+
+    const eligibilityContext = buildExerciseEligibilityContext(trainingContext.safetyContext);
+    const recentExerciseIds = new Set((recentRes.data || []).map((item: any) => String(item.exercise_id || '')).filter(Boolean));
+    const exercises = rankExercises(
+      getEligibleExercises(catalogRes.data as unknown[], eligibilityContext),
+      eligibilityContext,
+      { recentExerciseIds },
+    ).slice(0, AI_EXERCISE_CATALOG_LIMIT).map(({ exercise }) => exercise);
+    if (exercises.length === 0) {
+      return res.status(422).json({ error: 'Khong co bai tap nao phu hop voi ho so va dieu kien an toan hien tai.' });
+    }
+
+    const { text: exerciseCatalog, referenceIds: exerciseReferenceIds } = buildAiExerciseCatalog(exercises);
+    const durationMinutes = trainingContext.trainingPrescription.durationMinutes;
+    const prompt = `
+Generate exactly one personalized workout session for ${logDate}. Return valid JSON only.
+
+USER_PROFILE:
+gender=${truncateText(profile.gender, 12)}
+fitness_goal=${truncateText(lifestyle.fitness_goal, 40)}
+experience_level=${truncateText(lifestyle.experience_level, 20)}
+workout_location=${truncateText(lifestyle.workout_location, 24)}
+equipment_available=${truncateText(lifestyle.equipment_available, 60)}
+injuries=${truncateText(health.injuries, 80)}
+health_condition=${truncateText(health.health_condition, 80)}
+target_duration_minutes=${durationMinutes}
+
+${buildSafetyPromptAddendum(trainingContext.safetyContext)}
+
+EXERCISE_CATALOG:
+${exerciseCatalog}
+
+Rules:
+- Return exactly one entry in workout_plan.days; do not create a weekly plan.
+- Use only EX## references from EXERCISE_CATALOG. Never invent exercises.
+- Select 4 to 6 eligible exercises, suitable for the goal, equipment and safety constraints.
+- duration_minutes must be exactly ${durationMinutes}.
+- Every exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction and order_index.
+- Use conservative weight_kg; use 0 for bodyweight exercises.
+
+JSON schema:
+{
+  "workout_plan": {
+    "plan_name": "Lich tap hom nay",
+    "explanation": "short Vietnamese explanation",
+    "days": [{
+      "day_of_week": 0,
+      "type": "workout",
+      "duration_minutes": ${durationMinutes},
+      "exercises": [{
+        "exercise_id": "EX01", "sets": 3, "reps": "10-12", "weight_kg": 0,
+        "rest_seconds": 60, "target_rpe": 7, "load_instruction": "short cue", "order_index": 0
+      }]
+    }]
+  }
+}`;
+
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.35,
+        max_tokens: 1400,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    const groqResult: any = await groqResponse.json();
+    if (!groqResponse.ok || groqResult.error) {
+      throw toAiProviderRequestError(groqResult?.error?.message || 'Groq AI request failed');
+    }
+
+    const parsed = resolveAiExerciseReferences(
+      parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || ''),
+      exerciseReferenceIds,
+    );
+    const proposalValidation = validateExerciseProposal(parsed, eligibilityContext, exercises);
+    if (!proposalValidation.valid) {
+      return res.status(422).json({ error: 'AI workout proposal contains an ineligible or invalid exercise.', details: proposalValidation.errors });
+    }
+    const normalizedPlan = normalizeAiPlanPayload(parsed, { requireMealPlan: false });
+    if (normalizedPlan.workoutPlan.days.length !== 1) {
+      return res.status(422).json({ error: 'AI must return exactly one workout day.' });
+    }
+    const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
+    const guardedWorkout = sanitizeWorkoutPlanForUser(normalizedPlan.workoutPlan, trainingContext.safetyContext, exerciseById);
+    if (guardedWorkout.removedCount > 0) {
+      return res.status(422).json({ error: 'AI workout proposal failed safety revalidation.', details: guardedWorkout.warnings });
+    }
+    const workoutDay = guardedWorkout.workoutPlan.days[0];
+    if (workoutDay.is_rest_day || workoutDay.exercises.length === 0) {
+      return res.status(422).json({ error: 'AI must create at least one exercise for this daily workout.' });
+    }
+
+    const dailyWorkoutRes = await supabase
+      .from('daily_workout_sessions')
+      .insert({
+        user_id: authUserId,
+        weekly_plan_id: null,
+        log_date: logDate,
+        title: truncateText(guardedWorkout.workoutPlan.plan_name || 'AI Daily Workout', 120),
+        duration_minutes: durationMinutes,
+        calories_burned: 0,
+        status: 'planned',
+      })
+      .select('id')
+      .single();
+    if (dailyWorkoutRes.error) throw dailyWorkoutRes.error;
+    createdWorkoutSessionId = String(dailyWorkoutRes.data.id);
+
+    const bodyWeightKg = Number(bodyMetricsRes.data?.weight || 70);
+    const dailyRows = await Promise.all(workoutDay.exercises.map(async (item: any, index: number) => {
+      const exerciseId = String(item.exercise_id || '');
+      const exercise = exerciseById.get(exerciseId);
+      if (!exercise) throw new ApiRequestError(422, { error: `AI selected an invalid exercise id: ${exerciseId}` });
+      const prescription = await prescribeWorkoutExercise({
+        userId: authUserId,
+        exerciseId,
+        exercise,
+        source: 'ai_plan',
+        suggestedSets: item.sets,
+        suggestedReps: item.reps,
+        suggestedWeightKg: item.weight_kg,
+        suggestedRestSeconds: item.rest_seconds,
+        suggestedTargetRpe: item.target_rpe,
+      });
+      return buildDailyExerciseSessionRow({
+        userId: authUserId,
+        logDate,
+        exerciseId,
+        orderIndex: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : index,
+        plannedSets: prescription.sets,
+        plannedReps: prescription.reps,
+        plannedWeightKg: prescription.weightKg,
+        plannedRestSeconds: prescription.restSeconds,
+        targetRpe: prescription.targetRpe,
+        estimatedKcal: prescription.estimatedKcal || estimateWorkoutKcal({ exercise, bodyWeightKg, sets: prescription.sets, repsText: prescription.reps, weightKg: prescription.weightKg || 0, restSeconds: prescription.restSeconds }),
+        loadAdjustmentNote: prescription.loadInstruction || String(item.load_instruction || item.note || '').slice(0, 160) || null,
+      });
+    }));
+    const insertedDailyRes = await supabase.from('daily_exercise_sessions').insert(dailyRows).select('*');
+    if (insertedDailyRes.error) throw insertedDailyRes.error;
+    createdDailyExerciseIds = (insertedDailyRes.data || []).map((item: any) => String(item.id));
+
+    const snapshotRes = await supabase.from('daily_workout_session_exercises').insert(
+      (insertedDailyRes.data || []).map((dailyExerciseSession: any) => buildWorkoutSessionExerciseRow({
+        sessionId: createdWorkoutSessionId!,
+        dailyExerciseSession,
+      })),
+    );
+    if (snapshotRes.error) throw snapshotRes.error;
+
+    const quotaRes = await supabase.from('ai_plan_adjustments').insert({
+      user_id: authUserId,
+      plan_type: 'workout',
+      source_type: 'ai_coach_generate',
+      source_id: createdWorkoutSessionId,
+      old_data: { log_date: logDate },
+      new_data: { log_date: logDate, daily_workout_session_id: createdWorkoutSessionId },
+      reason: truncateText(guardedWorkout.workoutPlan.explanation || 'AI created a daily workout.', 300),
+      created_by: 'ai',
+      status: 'applied',
+      applied_at: new Date().toISOString(),
+    });
+    if (quotaRes.error) throw quotaRes.error;
+
+    const dailyRowsRes = await supabase
+      .from('daily_exercise_sessions')
+      .select(DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT)
+      .eq('user_id', authUserId)
+      .eq('log_date', logDate)
+      .order('order_index', { ascending: true });
+    if (dailyRowsRes.error) throw dailyRowsRes.error;
+    const nextAccessState = await getAiCoachAccessState(profile, authUserId);
+    return res.json({
+      success: true,
+      data: {
+        exercises: dailyRowsRes.data || [],
+        workoutSessionId: createdWorkoutSessionId,
+        logDate,
+        source: 'ai_daily_workout',
+        aiQuota: buildAiQuotaSnapshot(nextAccessState, 'planGenerations'),
+      },
+    });
+  } catch (error: any) {
+    if (createdWorkoutSessionId) {
+      await supabase.from('daily_workout_session_exercises').delete().eq('session_id', createdWorkoutSessionId);
+    }
+    if (createdDailyExerciseIds.length > 0) {
+      await supabase.from('daily_exercise_sessions').delete().in('id', createdDailyExerciseIds);
+    }
+    if (createdWorkoutSessionId) {
+      await supabase.from('daily_workout_sessions').delete().eq('id', createdWorkoutSessionId);
+    }
+    console.error('[ai-coach-generate-daily-workout] failed:', error?.message || 'unknown_error');
+    if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
+    if (isDatabaseMigrationRequiredError(error)) return res.status(503).json(databaseMigrationRequiredResponse);
+    return res.status(500).json({ code: 'AI_GENERATION_FAILED', error: 'Khong the tao lich tap hom nay. Vui long thu lai sau.' });
+  }
+});
+
 app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
