@@ -7,7 +7,7 @@ import {
   Flame,
   Plus,
   Search,
-  Shuffle,
+  RefreshCw,
   Trash2,
   Utensils,
   X
@@ -1380,7 +1380,7 @@ export default function DietPlan() {
                               aria-label={`Đổi ${item.name} bằng AI`}
                               title="Đổi món bằng AI"
                             >
-                              <Shuffle />
+                              <RefreshCw />
                             </button>
                             <button
                               type="button"
