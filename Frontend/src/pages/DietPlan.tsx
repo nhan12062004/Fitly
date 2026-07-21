@@ -18,6 +18,7 @@ import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/Page
 import { useToast } from '../components/ToastProvider';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../lib/Api';
+import { RecipeDetailModal } from '../components/RecipeDetailModal';
 
 interface Food {
   id: string;
@@ -35,7 +36,8 @@ interface Food {
 interface PlanFood {
   tempId: string;
   weekly_food_item_id?: string | null;
-  food_id: string;
+  food_id: string | null;
+  recipe_id?: string | null;
   name: string;
   image_url: string;
   category: string;
@@ -470,6 +472,7 @@ export default function DietPlan() {
   const dayTabContainerRef = useRef<HTMLDivElement | null>(null);
   const dayTabRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const [foods, setFoods] = useState<Food[]>(() => initialDietCache?.foods || dietPlanFoodCache || []);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(() => initialDietCache?.selectedDayId ?? getTodayDayIndex());
   const [weeklyPlan, setWeeklyPlan] = useState<Record<number, PlanFood[]>>(() => initialDietCache?.weeklyPlan || {});
   const [restDays, setRestDays] = useState<Record<number, boolean>>(() => initialDietCache?.restDays || {});
@@ -772,7 +775,7 @@ export default function DietPlan() {
 
             const { data: items, error: itemsError } = await supabase
               .from('weekly_food_items')
-              .select('*, foods:food_id (name, image_url, category, calories, protein, carbs, fat, serving_unit)')
+              .select('*, foods:food_id (name, image_url, category, calories, protein, carbs, fat, serving_unit), recipes:recipe_id (name, image_url, calories, protein, carbs, fat, serving_unit)')
               .eq('food_plan_id', plan.id)
               .order('order_index');
 
@@ -785,12 +788,13 @@ export default function DietPlan() {
                 return;
               }
 
-              const joinedFood = item.foods || {};
+              const joinedFood = item.recipe_id ? (item.recipes || {}) : (item.foods || {});
               if (!nextWeek[day]) nextWeek[day] = [];
               nextWeek[day].push({
                 tempId: item.id || crypto.randomUUID(),
                 weekly_food_item_id: item.id || null,
                 food_id: item.food_id,
+                recipe_id: item.recipe_id || null,
                 name: joinedFood.name || 'Món ăn',
                 image_url: joinedFood.image_url || '',
                 category: joinedFood.category || '',
@@ -900,7 +904,8 @@ export default function DietPlan() {
         .map((item: any) => ({
           tempId: crypto.randomUUID(),
           weekly_food_item_id: null,
-          food_id: String(item.food_id || ''),
+          food_id: item.recipe_id ? null : (String(item.food_id || '') || null),
+          recipe_id: String(item.recipe_id || '') || null,
           name: String(item.name || 'Món ăn AI chọn'),
           image_url: String(item.image_url || ''),
           category: String(item.category || ''),
@@ -960,11 +965,12 @@ export default function DietPlan() {
 
     setIsSaving(true);
     try {
-      const foodIds = Object.values(planToSave).flatMap((items) => items.map((item) => item.food_id));
+      const foodIds = Object.values(planToSave).flatMap((items) => items.map((item) => item.food_id).filter((id): id is string => Boolean(id)));
+      const recipeIds = Object.values(planToSave).flatMap((items) => items.map((item) => item.recipe_id).filter((id): id is string => Boolean(id)));
       const validationResponse = await fetchWithAuth('/api/meal-plans/validate-foods', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ food_ids: foodIds }),
+        body: JSON.stringify({ food_ids: foodIds, recipe_ids: recipeIds }),
       });
       if (!validationResponse.ok) {
         const payload = await validationResponse.json().catch(() => ({}));
@@ -1020,6 +1026,7 @@ export default function DietPlan() {
             day_of_week: dayIndex,
             meal_type: item.meal_type,
             food_id: item.food_id,
+            recipe_id: item.recipe_id || null,
             quantity: item.quantity,
             calories: item.calories,
             protein: item.protein,
@@ -1358,7 +1365,7 @@ export default function DietPlan() {
                             <FoodImage src={resolveFoodImage(item, itemIndex + meal.mealIndex)} alt={item.name} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <h4 className="truncate text-[15px] font-black text-text-primary">{item.name}</h4>
+                            {item.recipe_id ? <button type="button" onClick={() => setSelectedRecipeId(item.recipe_id || null)} className="block max-w-full truncate text-left text-[15px] font-black text-text-primary underline-offset-2 hover:text-accent hover:underline" aria-label={`Xem chi tiết ${item.name}`}>{item.name}</button> : <h4 className="truncate text-[15px] font-black text-text-primary">{item.name}</h4>}
                             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-text-tertiary">
                               <span className="inline-flex items-center gap-1 font-black text-[var(--meal-accent)]"><Flame className="h-3.5 w-3.5" />{Math.round(item.calories * item.quantity)} kcal</span>
                               <span>{roundMacro(item.protein * item.quantity)}g đạm</span>
@@ -1428,6 +1435,7 @@ export default function DietPlan() {
         onFilterCat={setFilterCat}
         onSelect={(food) => addFoodToPlan(food)}
       />
+      <RecipeDetailModal recipeId={selectedRecipeId} onClose={() => setSelectedRecipeId(null)} />
     </div>
   );
 }

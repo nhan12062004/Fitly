@@ -61,6 +61,7 @@ import {
   type TrainingLocation,
 } from '../lib/exerciseCatalog';
 import {
+  ALLERGENS,
   normalizeAllergies,
   normalizeBudgetLevel,
   normalizeDietaryRestrictions,
@@ -203,6 +204,7 @@ const DIET_STYLE_OPTIONS = ['clean', 'high_protein', 'low_carb', 'balanced'];
 const DIETARY_RESTRICTION_LABELS: Record<string, string> = { vegetarian: 'Ăn chay', vegan: 'Thuần chay' };
 const DIET_STYLE_LABELS: Record<string, string> = { clean: 'Eat clean', high_protein: 'Giàu protein', low_carb: 'Low carb', balanced: 'Cân bằng' };
 const GENDER_OPTIONS = ['Nam', 'Nữ'];
+const ALLERGEN_LABELS: Record<string, string> = { peanut: 'Đậu phộng', tree_nuts: 'Hạt cây', milk: 'Sữa', egg: 'Trứng', soy: 'Đậu nành', wheat: 'Lúa mì', fish: 'Cá', shellfish: 'Giáp xác', sesame: 'Mè' };
 const GENDER_ICONS: Record<string, ReactNode> = {
   Nam: <Mars className="h-6 w-6" strokeWidth={2.4} />,
   Nữ: <Venus className="h-6 w-6" strokeWidth={2.4} />,
@@ -320,6 +322,7 @@ export default function Profile() {
   const { user, profile, membershipTier, isAdmin, openPremiumModal, refreshProfile, signOut } = useAuth();
   const toast = useToast();
   const [formData, setFormData] = useState(emptyForm);
+  const selectedAllergies = normalizeAllergies(formData.allergies).filter((value) => ALLERGENS.includes(value as typeof ALLERGENS[number]));
   const [latestBodyCreatedAt, setLatestBodyCreatedAt] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -900,6 +903,18 @@ export default function Profile() {
                   columns="sm:grid-cols-3"
                   optionLabels={MEAL_BUDGET_LABELS}
                   descriptions={MEAL_BUDGET_DESCRIPTIONS}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <MultiOptionButtonGroup
+                  label="Dị ứng (canonical)"
+                  values={selectedAllergies}
+                  options={[...ALLERGENS]}
+                  optionLabels={ALLERGEN_LABELS}
+                  onChange={(next) => setFormData((prev) => ({
+                    ...prev,
+                    allergies: [...normalizeAllergies(prev.allergies).filter((value) => !ALLERGENS.includes(value as typeof ALLERGENS[number])), ...next].join(', '),
+                  }))}
                 />
               </div>
               <div className="md:col-span-2">

@@ -43,6 +43,13 @@ import {
   resolveMealsPerDay as resolveMealPlanningMealsPerDay,
 } from './services/mealPlanningService';
 import {
+  buildCompactRecipeCatalog,
+  buildRecipeEligibilityContext,
+  filterEligibleRecipes,
+  validateRecipeMealProposal,
+  type RecipeCandidate,
+} from './services/recipeEligibilityService';
+import {
   type ExerciseInstructions,
   isExerciseId,
   normalizeBodyPart,
@@ -54,6 +61,12 @@ import {
   normalizeTrainingLocation,
 } from '../../shared/exerciseCatalog';
 import { normalizeAllergies } from '../../shared/dietaryPreferences';
+import {
+  normalizeRecipe,
+  normalizeRecipeIngredient,
+  validateRecipe,
+  type RecipeIngredientWithFood,
+} from '../../shared/recipeCatalog';
 import {
   buildCoachDataContext,
   buildTodayStatus,
@@ -594,6 +607,9 @@ type NormalizedAiPlan = {
         meal_type: string;
         food_ids: string[];
         quantities?: number[];
+        recipe_id?: string;
+        servings?: number;
+        notes?: string;
         total_calories: number;
       }>;
     }>;
@@ -653,7 +669,10 @@ const normalizeAiPlanPayload = (raw: any, options: { requireMealPlan?: boolean }
           quantities: Array.isArray(item.quantities)
             ? ids.map((_: string, index: number) => Math.max(0.25, Math.min(6, Number(item.quantities[index]) || 0)))
             : [],
-          total_calories: Math.max(0, Number(item.total_calories) || 0)
+          total_calories: Math.max(0, Number(item.total_calories) || 0),
+          recipe_id: String(item.recipe_id || '').trim() || undefined,
+          servings: item.recipe_id ? Math.max(0.25, Math.min(6, Number(item.servings) || 1)) : undefined,
+          notes: String(item.notes || '').trim().slice(0, 300) || undefined,
         };
       })
     };
@@ -1307,6 +1326,7 @@ async function generateWeeklyCoachPlanForUser(params: {
     healthRes,
     exerciseCatalogRes,
     foodCatalogRes,
+    recipeCatalogRes,
     recentSessionsRes,
     recentMealsRes,
     recentMealLogsRes
@@ -1325,6 +1345,11 @@ async function generateWeeklyCoachPlanForUser(params: {
       .order('created_at', { ascending: false })
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
     supabase
+      .from('recipes')
+      .select('id, name, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, calories, protein, carbs, fat, serving_unit, cooking_time_minutes, cooking_difficulty, allergens, instructions, image_url, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source, calories, protein, carbs, fat, serving_unit))')
+      .eq('is_active', true)
+      .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
+    supabase
       .from('daily_exercise_sessions')
       .select('log_date, exercise_id, sets, reps, weight_kg, rest_seconds, is_completed, exercises:exercise_id(name, body_part, target_muscle)')
       .eq('user_id', userId)
@@ -1332,7 +1357,7 @@ async function generateWeeklyCoachPlanForUser(params: {
       .limit(20),
     supabase
       .from('weekly_food_items')
-      .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
+      .select('day_of_week, meal_type, food_id, recipe_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level), recipes:recipe_id(name, meal_type, price_level)')
       .eq('weekly_food_plans.user_id', userId)
       .eq('weekly_food_plans.plan_status', 'active')
       .order('created_at', { ascending: false })
@@ -1352,6 +1377,7 @@ async function generateWeeklyCoachPlanForUser(params: {
     healthRes.error,
     exerciseCatalogRes.error,
     foodCatalogRes.error,
+    recipeCatalogRes.error,
     recentSessionsRes.error,
     recentMealsRes.error,
     recentMealLogsRes.error
@@ -1385,6 +1411,20 @@ async function generateWeeklyCoachPlanForUser(params: {
   const weeklyWorkoutDays = trainingPrescription.weeklyWorkouts;
   const mealsPerDay = resolveMealPlanningMealsPerDay(lifestyle.meals_per_day);
   const mealSlots = getMealPlanningSlots(mealsPerDay);
+  const recipeRows = (recipeCatalogRes.data || []) as RecipeCandidate[];
+  const recipeEligibilityContext = buildRecipeEligibilityContext(safetyContext, {
+    recentRecipeIds: new Set((recentMealsRes.data || []).map((item: any) => String(item.recipe_id || '')).filter(Boolean)),
+  });
+  const eligibleRecipes = filterEligibleRecipes(recipeRows, recipeEligibilityContext);
+  if (recipeRows.length > 0 && eligibleRecipes.length === 0) {
+    throw new ApiRequestError(422, {
+      code: 'INSUFFICIENT_ELIGIBLE_RECIPE_CATALOG',
+      error: 'Khong co cong thuc an toan va phu hop voi ho so hien tai.',
+    });
+  }
+  const recipeMode = recipeRows.length > 0;
+  const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
+  const compactRecipes = buildCompactRecipeCatalog(eligibleRecipes, AI_FOOD_CATALOG_LIMIT);
   const foods = buildMealPlanningCatalog(foodCatalogRes.data as any[], {
     profile,
     lifestyle,
@@ -1422,6 +1462,14 @@ async function generateWeeklyCoachPlanForUser(params: {
   const foodCatalog = foods
     .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyMealFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
     .join('\n');
+  const recipeCatalog = compactRecipes
+    .map((item) => `${item.id}|${truncateText(item.name, 30)}|meal=${item.meal_type.join(',')}|diet=${item.dietary_restrictions.join(',')}|style=${item.diet_styles.join(',')}|k=${item.calories}|p=${item.protein}|c=${item.carbs}|f=${item.fat}|price=${item.price_level}|time=${item.cooking_time_minutes}`)
+    .join('\n');
+  const mealCatalogLabel = recipeMode ? 'RECIPE_CATALOG' : 'FOOD_CATALOG';
+  const mealCatalog = recipeMode ? recipeCatalog : foodCatalog;
+  const recipeModeRules = recipeMode
+    ? `RECIPE_MODE (highest priority): use only recipe_id from RECIPE_CATALOG. A recipe is a complete dish. Every meal object must be {meal_type, recipe_id, servings, notes?}; never emit food_ids or quantities and never add carb/protein/vegetable components.`
+    : '';
 
   const recentTraining = clampList(recentSessionsRes.data as any[], 6)
     .map((item: any) => `${item.log_date}|${truncateText(item.exercises?.name || item.exercise_id, 32)}|${item.sets}x${item.reps}|${item.weight_kg || 0}kg|done=${!!item.is_completed}`)
@@ -1476,8 +1524,10 @@ ${buildSafetyPromptAddendum(safetyContext)}
 EXERCISE_CATALOG:
 ${exerciseCatalog || 'No safe exercise ids available after hard safety filtering. Use rest/recovery days only.'}
 
-FOOD_CATALOG:
-${foodCatalog}
+${mealCatalogLabel}:
+${mealCatalog}
+
+${recipeModeRules}
 
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
@@ -1613,8 +1663,21 @@ JSON schema (fixed):
   if (Number(lifestyle.target_calories || 0) > 0) {
     normalizedPlan.mealPlan = { ...normalizedPlan.mealPlan, target_calories: Math.round(Number(lifestyle.target_calories)) };
   }
-  normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
-  normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
+  if (recipeMode) {
+    const dayByIndex = new Map(normalizedPlan.mealPlan.days.map((day) => [Number(day.day_of_week), day]));
+    if (dayByIndex.size !== 7 || Array.from({ length: 7 }, (_, index) => !dayByIndex.has(index)).some(Boolean)) {
+      throw new ApiRequestError(422, { error: 'AI recipe proposal must contain exactly one valid entry for every day.' });
+    }
+    for (const day of dayByIndex.values()) {
+      const proposal = validateRecipeMealProposal(day.meals, compactRecipes.map((item) => recipeById.get(item.id)!).filter(Boolean), recipeEligibilityContext, mealSlots as any, normalizedPlan.mealPlan.target_calories);
+      if (!proposal.valid) throw new ApiRequestError(422, { error: 'AI recipe proposal contains an ineligible or invalid recipe.', details: proposal.errors });
+      day.meals = proposal.meals.map((item) => ({ ...item, food_ids: [], quantities: [], total_calories: 0 }));
+      day.is_rest_day = false;
+    }
+  } else {
+    normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
+    normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
+  }
 
   const existingWorkoutPlans = await supabase
     .from('weekly_plans')
@@ -1743,6 +1806,21 @@ JSON schema (fixed):
       continue;
     }
 
+    if (recipeMode) {
+      (day.meals || []).forEach((item, index) => {
+        const recipeId = String(item.recipe_id || '');
+        const recipe = recipeById.get(recipeId);
+        if (!recipe) throw new ApiRequestError(422, { error: `AI selected an invalid recipe id: ${recipeId}` });
+        const servings = Math.max(0.25, Math.min(6, Number(item.servings) || 1));
+        mealRows.push({
+          food_plan_id: foodPlanId, day_of_week: dayIndex, meal_type: item.meal_type,
+          food_id: null, recipe_id: recipeId, quantity: servings,
+          calories: Number(recipe.calories || 0), protein: Number(recipe.protein || 0),
+          carbs: Number(recipe.carbs || 0), fat: Number(recipe.fat || 0), order_index: index, is_rest_day: false,
+        });
+      });
+      continue;
+    }
     const nutritionTargets = calculateNutritionMacroTargets({
       targetCalories: normalizedPlan.mealPlan.target_calories || lifestyle.target_calories,
       fitnessGoal: lifestyle.fitness_goal,
@@ -2714,15 +2792,21 @@ app.post('/api/meal-plans/validate-foods', async (req, res) => {
         .map((value: unknown) => String(value || '').trim())
         .filter(Boolean),
     ));
-    if (foodIds.length === 0) return res.json({ success: true });
+    const recipeIds: string[] = Array.from(new Set<string>(
+      (Array.isArray(req.body?.recipe_ids) ? req.body.recipe_ids : [])
+        .map((value: unknown) => String(value || '').trim())
+        .filter(Boolean),
+    ));
+    if (foodIds.length === 0 && recipeIds.length === 0) return res.json({ success: true });
 
-    const [profileRes, lifestyleRes, healthRes, foodsRes] = await Promise.all([
+    const [profileRes, lifestyleRes, healthRes, foodsRes, recipesRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('foods').select('id, name, category, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, goal_type').in('id', foodIds),
+      supabase.from('recipes').select('id, name, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, calories, protein, carbs, fat, cooking_time_minutes, cooking_difficulty, allergens, instructions, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source))').in('id', recipeIds),
     ]);
-    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodsRes.error].find(Boolean);
+    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodsRes.error, recipesRes.error].find(Boolean);
     if (firstError) throw firstError;
     const context = { profile: profileRes.data || {}, lifestyle: lifestyleRes.data || {}, health: healthRes.data || {} };
     const byId = new Map((foodsRes.data || []).map((food: any) => [String(food.id), food]));
@@ -2730,12 +2814,118 @@ app.post('/api/meal-plans/validate-foods', async (req, res) => {
       const decision = getFoodSafetyDecision(byId.get(foodId), context);
       return decision.allowed ? [] : [{ food_id: foodId, reasons: decision.reasons }];
     });
+    const recipeContext = buildRecipeEligibilityContext(context);
+    const recipeById = new Map((recipesRes.data || []).map((recipe: any) => [String(recipe.id), recipe]));
+    recipeIds.forEach((recipeId) => {
+      const decision = filterEligibleRecipes([recipeById.get(recipeId)].filter(Boolean), recipeContext);
+      if (decision.length !== 1) rejected.push({ food_id: recipeId, reasons: ['ineligible_recipe'] });
+    });
     if (rejected.length > 0) {
       return res.status(422).json({ error: 'One or more foods violate hard dietary or safety constraints.', rejected });
     }
     return res.json({ success: true });
   } catch (error: any) {
     return res.status(400).json({ error: error?.message || 'Failed to validate meal foods' });
+  }
+});
+
+const RECIPE_WITH_INGREDIENTS_SELECT = '*, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, name, category, allergens, dietary_tags, ingredient_metadata, animal_source))';
+
+const sanitizeRecipeAdminPayload = (source: unknown) => {
+  const raw = source && typeof source === 'object' ? source as Record<string, unknown> : {};
+  const normalized = normalizeRecipe(raw);
+  const ingredients = (Array.isArray(raw.ingredients) ? raw.ingredients : [])
+    .map((ingredient, order_index) => ({ ...normalizeRecipeIngredient(ingredient), recipe_id: normalized.id, order_index }));
+  return { recipe: normalized, ingredients };
+};
+
+const withRecipeIngredientMetadata = async (ingredients: Array<Record<string, unknown>>) => {
+  const ids = Array.from(new Set(ingredients.map((item) => String(item.food_id || '')).filter(Boolean)));
+  if (!ids.length) return ingredients as RecipeIngredientWithFood[];
+  const foods = await supabase.from('foods').select('id, category, allergens, dietary_tags, ingredient_metadata, animal_source').in('id', ids);
+  if (foods.error) throw foods.error;
+  const byId = new Map((foods.data || []).map((food: any) => [String(food.id), food]));
+  return ingredients.map((ingredient) => ({ ...ingredient, food: byId.get(String(ingredient.food_id || '')) || null })) as RecipeIngredientWithFood[];
+};
+
+const recipeValidationResponse = (source: unknown, ingredients: RecipeIngredientWithFood[]) => {
+  const validation = validateRecipe(source, ingredients);
+  return validation.valid ? null : { error: 'Recipe validation failed', fields: { recipe: validation.errors }, warnings: validation.warnings };
+};
+
+app.get('/api/recipes/:id', async (req, res) => {
+  try {
+    const userId = await getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const id = String(req.params.id || '').trim();
+    const { data, error } = await supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Recipe not found' });
+    return res.json({ success: true, data });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message || 'Failed to load recipe' });
+  }
+});
+
+app.get('/api/admin/recipes', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+    const query = String(req.query.q || '').trim();
+    const limit = Math.max(1, Math.min(300, Number(req.query.limit) || 120));
+    let request = supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).order('updated_at', { ascending: false }).limit(limit);
+    if (query) request = request.or(`id.ilike.%${query}%,name.ilike.%${query}%,name_en.ilike.%${query}%,region.ilike.%${query}%`);
+    const { data, error } = await request;
+    if (error) throw error;
+    return res.json({ success: true, data: data || [] });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Failed to load recipes' });
+  }
+});
+
+app.post('/api/admin/recipes', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+    const { recipe, ingredients } = sanitizeRecipeAdminPayload(req.body);
+    const validationError = recipeValidationResponse(recipe, await withRecipeIngredientMetadata(ingredients));
+    if (validationError) return res.status(422).json(validationError);
+    const { data, error } = await supabase.from('recipes').insert(recipe).select('*').single();
+    if (error) throw error;
+    if (ingredients.length) {
+      const inserted = await supabase.from('recipe_ingredients').insert(ingredients);
+      if (inserted.error) throw inserted.error;
+    }
+    const result = await supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).eq('id', data.id).single();
+    if (result.error) throw result.error;
+    return res.status(201).json({ success: true, data: result.data });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message || 'Failed to create recipe' });
+  }
+});
+
+app.put('/api/admin/recipes/:id', async (req, res) => {
+  try {
+    const adminUserId = await requireAdminUserId(req, res);
+    if (!adminUserId) return;
+    const id = String(req.params.id || '').trim();
+    const { recipe, ingredients } = sanitizeRecipeAdminPayload({ ...(req.body || {}), id });
+    const validationError = recipeValidationResponse(recipe, await withRecipeIngredientMetadata(ingredients));
+    if (validationError) return res.status(422).json(validationError);
+    const updated = await supabase.from('recipes').update({ ...recipe, updated_at: new Date().toISOString() }).eq('id', id).select('id').maybeSingle();
+    if (updated.error) throw updated.error;
+    if (!updated.data) return res.status(404).json({ error: 'Recipe not found' });
+    const removed = await supabase.from('recipe_ingredients').delete().eq('recipe_id', id);
+    if (removed.error) throw removed.error;
+    if (ingredients.length) {
+      const inserted = await supabase.from('recipe_ingredients').insert(ingredients);
+      if (inserted.error) throw inserted.error;
+    }
+    const result = await supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).eq('id', id).single();
+    if (result.error) throw result.error;
+    return res.json({ success: true, data: result.data });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message || 'Failed to update recipe' });
   }
 });
 
@@ -5171,7 +5361,18 @@ ${jsonSchemaPrompt}
     }
     normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
     normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
+    let recipeDraft: any = null;
     if (!workoutOnly) {
+      // Keep this endpoint recipe-first as well. The joint legacy prompt remains
+      // for workout compatibility, but its food output is discarded whenever an
+      // active recipe catalog exists; generateAiMealDraft redoes meal selection
+      // with the compact eligible recipe contract and strict post-validation.
+      const activeRecipeRes = await supabase.from('recipes').select('id').eq('is_active', true).limit(1);
+      if (activeRecipeRes.error) throw activeRecipeRes.error;
+      if ((activeRecipeRes.data || []).length > 0) {
+        recipeDraft = await generateAiMealDraft({ userId, weekStartKey, scope: 'week' });
+        normalizedPlan.mealPlan = recipeDraft.mealPlan;
+      }
       if (Number(lifestyle.target_calories || 0) > 0) {
         normalizedPlan.mealPlan = { ...normalizedPlan.mealPlan, target_calories: Math.round(Number(lifestyle.target_calories)) };
       }
@@ -5316,7 +5517,22 @@ ${jsonSchemaPrompt}
       foodPlanId = createdFoodPlan.data.id;
 
       const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
-      for (const day of normalizedPlan.mealPlan.days || []) {
+      if (recipeDraft?.mode === 'recipe') {
+        mealRows.push(...recipeDraft.rows.map((row: any) => ({
+          food_plan_id: foodPlanId,
+          day_of_week: row.day_of_week,
+          meal_type: row.meal_type,
+          food_id: null,
+          recipe_id: row.recipe_id,
+          quantity: row.quantity,
+          calories: row.calories,
+          protein: row.protein,
+          carbs: row.carbs,
+          fat: row.fat,
+          order_index: row.order_index,
+          is_rest_day: false,
+        })));
+      } else for (const day of normalizedPlan.mealPlan.days || []) {
         const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
         if (day.is_rest_day && (!Array.isArray(day.meals) || day.meals.length === 0)) {
           mealRows.push({
@@ -5488,7 +5704,7 @@ const generateAiMealDraft = async (params: {
     throw new ApiRequestError(500, { error: 'Missing GROQ_API_KEY in server config' });
   }
 
-  const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, foodRes] = await Promise.all([
+  const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, foodRes, recipeRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('body_metrics').select('weight').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
@@ -5497,8 +5713,13 @@ const generateAiMealDraft = async (params: {
       .from('foods')
       .select('id, name, category, calories, protein, carbs, fat, serving_unit, image_url, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
+    supabase
+      .from('recipes')
+      .select('id, name, name_en, description, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, estimated_cost_min_vnd, estimated_cost_max_vnd, calories, protein, carbs, fat, serving_size, serving_unit, cooking_time_minutes, cooking_difficulty, allergens, instructions, image_url, region, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source, calories, protein, carbs, fat, serving_unit))')
+      .eq('is_active', true)
+      .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
   ]);
-  const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodRes.error].find(Boolean);
+  const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodRes.error, recipeRes.error].find(Boolean);
   if (firstError) throw firstError;
   if (!profileRes.data?.id) {
     throw new ApiRequestError(403, { code: 'PROFILE_REQUIRED', error: 'Vui lòng hoàn thành hồ sơ trước.' });
@@ -5509,6 +5730,88 @@ const generateAiMealDraft = async (params: {
   const safetyContext = { profile: profileRes.data || {}, lifestyle, health };
   const mealsPerDay = resolveMealPlanningMealsPerDay(lifestyle.meals_per_day);
   const mealSlots = getMealPlanningSlots(mealsPerDay);
+  // Recipe mode is selected only when the database has an active recipe catalog.
+  // Once selected, an empty hard-filtered pool is an explicit error; it must not
+  // fall through to the full foods catalog and undo an allergy/restriction gate.
+  const recipeRows = (recipeRes.data || []) as RecipeCandidate[];
+  if (recipeRows.length > 0) {
+    const recipeContext = buildRecipeEligibilityContext(safetyContext);
+    const eligibleRecipes = filterEligibleRecipes(recipeRows, recipeContext);
+    if (!eligibleRecipes.length) {
+      throw new ApiRequestError(422, {
+        code: 'INSUFFICIENT_ELIGIBLE_RECIPE_CATALOG',
+        error: 'Khong co cong thuc nao an toan va phu hop voi ho so hien tai.',
+      });
+    }
+    const compactRecipes = buildCompactRecipeCatalog(eligibleRecipes, AI_FOOD_CATALOG_LIMIT);
+    const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
+    const dayRule = scope === 'week'
+      ? 'exactly 7 days indexed 0..6, each day exactly once'
+      : `exactly one day with day_of_week=${targetDayIndex}`;
+    const requestLabel = scope === 'week' ? 'a 7-day recipe meal plan' : `the recipe meal plan for day index ${targetDayIndex}`;
+    const recipeCatalog = compactRecipes.map((recipe) => (
+      `${recipe.id}|${truncateText(recipe.name, 36)}|meal=${recipe.meal_type.join(',')}|diet=${recipe.dietary_restrictions.join(',')}|style=${recipe.diet_styles.join(',')}|k=${recipe.calories}|p=${recipe.protein}|c=${recipe.carbs}|f=${recipe.fat}|price=${recipe.price_level}|time=${recipe.cooking_time_minutes}`
+    )).join('\n');
+    const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; use only RECIPE_CATALOG recipe_id values; a recipe is already a complete dish, so never return food_ids or add carb/protein/vegetable components; do not invent IDs.\nRECIPE_CATALOG:\n${recipeCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","recipe_id":"exact id from catalog","servings":1,"notes":"optional"}]}]}}`;
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+        messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }],
+        temperature: 0.25,
+        max_tokens: scope === 'week' ? 1600 : 700,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    const result: any = await response.json();
+    if (!response.ok || result.error) throw toAiProviderRequestError(result?.error?.message || 'Groq AI request failed');
+    const mealPlan = parseJsonFromAiText(result.choices?.[0]?.message?.content || '')?.meal_plan || {};
+    const days = Array.isArray(mealPlan.days) ? mealPlan.days : [];
+    const expectedDays = scope === 'week' ? [0, 1, 2, 3, 4, 5, 6] : [targetDayIndex];
+    const usedDays = new Set<number>();
+    const rows: any[] = [];
+    const normalizedDays: any[] = [];
+    for (const rawDay of days) {
+      const dayIndex = toDayOfWeekIndex((rawDay as any)?.day_of_week ?? (rawDay as any)?.day);
+      if (!expectedDays.includes(dayIndex) || usedDays.has(dayIndex)) {
+        throw new ApiRequestError(422, { error: 'AI recipe proposal has invalid or duplicate days.' });
+      }
+      usedDays.add(dayIndex);
+      const proposal = validateRecipeMealProposal(
+        (rawDay as any)?.meals,
+        compactRecipes.map((item) => recipeById.get(item.id)!).filter(Boolean),
+        recipeContext,
+        mealSlots as any,
+        Number(lifestyle.target_calories || mealPlan.target_calories || 0),
+      );
+      if (!proposal.valid) {
+        throw new ApiRequestError(422, { error: 'AI recipe proposal contains an ineligible or invalid recipe.', details: proposal.errors });
+      }
+      normalizedDays.push({ day_of_week: dayIndex, is_rest_day: false, meals: proposal.meals });
+      proposal.meals.forEach((item, index) => {
+        const recipe = recipeById.get(item.recipe_id)!;
+        rows.push({
+          day_of_week: dayIndex, meal_type: item.meal_type, recipe_id: item.recipe_id, food_id: null,
+          name: String(recipe.name || ''), image_url: String(recipe.image_url || ''), category: 'recipe',
+          serving_unit: String(recipe.serving_unit || 'serving'), quantity: item.servings,
+          servings: item.servings, notes: item.notes || '', calories: Number(recipe.calories || 0),
+          protein: Number(recipe.protein || 0), carbs: Number(recipe.carbs || 0), fat: Number(recipe.fat || 0),
+          order_index: index, is_rest_day: false,
+        });
+      });
+    }
+    if (usedDays.size !== expectedDays.length || expectedDays.some((day) => !usedDays.has(day)) || !rows.length) {
+      throw new ApiRequestError(422, { error: 'AI recipe proposal must provide every requested day with valid meals.' });
+    }
+    const targetCalories = Number(lifestyle.target_calories || mealPlan.target_calories || 0);
+    return {
+      mealPlan: { target_calories: targetCalories, explanation: String(mealPlan.explanation || '').slice(0, 1500), days: normalizedDays },
+      rows,
+      nutritionTargets: calculateNutritionMacroTargets({ targetCalories, fitnessGoal: lifestyle.fitness_goal, dietPreference: lifestyle.diet_preference, weightKg: bodyMetricsRes.data?.weight }),
+      mode: 'recipe' as const,
+    };
+  }
   const foods = buildMealPlanningCatalog(foodRes.data as any[], {
     profile: profileRes.data || {},
     lifestyle,
