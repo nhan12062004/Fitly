@@ -4775,6 +4775,27 @@ svg {
   max-width: none;
 }
 
+.diet-schedule-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+}
+
+.diet-schedule-heading svg {
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-tertiary);
+}
+
+.diet-schedule-heading h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .diet-meal-group + .diet-meal-group {
   padding-top: 0.15rem;
 }
@@ -4900,6 +4921,69 @@ svg {
   font-weight: 650;
 }
 
+.diet-recipe-ingredients {
+  position: relative;
+  display: grid;
+  gap: 0;
+  margin: 0 0.7rem 0.7rem;
+  overflow: hidden;
+  border: 1px solid var(--border-primary);
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--bg-tertiary) 58%, transparent);
+}
+
+.diet-recipe-ingredient-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 1.6rem;
+  padding: 0.13rem 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-primary) 78%, transparent);
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+  font-weight: 650;
+}
+
+.diet-recipe-ingredient-row:last-of-type {
+  border-bottom: 0;
+}
+
+.diet-recipe-ingredient-row > span:nth-child(2) {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.diet-recipe-ingredient-row > span:nth-child(3) {
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.diet-recipe-ingredient-row strong {
+  color: var(--meal-accent, var(--accent-primary));
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.diet-recipe-ingredient-row > span:last-child {
+  min-width: 3.6rem;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.diet-recipe-remove {
+  position: absolute;
+  right: 0.35rem;
+  top: 0.15rem;
+  opacity: 0;
+}
+
+.diet-recipe-ingredients:hover .diet-recipe-remove,
+.diet-recipe-ingredients:focus-within .diet-recipe-remove {
+  opacity: 1;
+}
+
 .diet-food-detail-row strong {
   color: var(--meal-accent, var(--accent-primary));
   font-weight: 800;
@@ -4968,6 +5052,20 @@ svg {
     grid-template-columns: minmax(0, 1fr) auto auto 1.65rem;
     gap: 0.45rem;
     padding-inline: 0.65rem;
+  }
+
+  .diet-recipe-ingredients {
+    margin: 0 0.65rem 0.65rem;
+  }
+
+  .diet-recipe-ingredient-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.42rem;
+    padding-inline: 0.55rem;
+  }
+
+  .diet-recipe-ingredient-row > span:last-child {
+    display: none;
   }
 
   .diet-food-detail-row > span:nth-of-type(3) {
