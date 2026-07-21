@@ -13,6 +13,7 @@ import {
 } from '../lib/DailyStreak';
 import { supabase } from '../lib/Supabase';
 import { useNavigate } from 'react-router-dom';
+import { estimateWorkoutDurationMinutes } from '../lib/workoutDuration';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
@@ -81,8 +82,6 @@ const initialDailyNutrition = {
   carbs: 0,
   fat: 0
 };
-
-const ESTIMATED_MINUTES_PER_EXERCISE = 8;
 
 type TodayIconTone = 'score' | 'workout' | 'nutrition' | 'water' | 'weight' | 'coach';
 
@@ -228,6 +227,7 @@ type OverviewExercise = {
   reps: string;
   weight_kg: number;
   rest_seconds: number;
+  estimated_duration_seconds: number | null;
   is_completed: boolean;
   kcal: number;
 };
@@ -410,7 +410,7 @@ export default function Overview() {
         ] = await Promise.all([
           supabase.from('lifestyle_settings').select('workout_duration, daily_water_goal, target_calories, meals_per_day').eq('user_id', user.id).maybeSingle(),
           supabase.from('daily_progress_logs').select('water_intake_ml, sleep_hours').eq('user_id', user.id).eq('log_date', todayStr).maybeSingle(),
-          supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, video_url, instructions, target_muscle, body_part, difficulty)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
+          supabase.from('daily_exercise_sessions').select('id, exercise_id, order_index, sets, reps, weight_kg, rest_seconds, is_completed, estimated_kcal, actual_kcal_estimated, completed_sets, exercises:exercise_id(name, video_url, instructions, target_muscle, body_part, difficulty, estimated_duration_seconds)').eq('user_id', user.id).eq('log_date', todayStr).order('order_index', { ascending: true }),
           supabase.from('daily_meal_logs').select('calories, protein, carbs, fat, quantity, is_completed').eq('user_id', user.id).eq('log_date', todayStr).eq('is_completed', true),
           supabase.from('health_conditions').select('sleep_hours').eq('user_id', user.id).maybeSingle(),
           supabase.from('weekly_food_plans').select('id, week_start_date').eq('user_id', user.id).gte('week_start_date', addDaysToDateKey(todayStr, -6)).lte('week_start_date', todayStr).eq('plan_status', 'active').order('week_start_date', { ascending: false }).limit(1),
@@ -467,7 +467,7 @@ export default function Overview() {
         const remainingWorkoutCount = Math.max(0, todaySessions.length - completedSessions.length);
 
         const nextStats = {
-          workout_duration: Math.round(completedSessions.length * ESTIMATED_MINUTES_PER_EXERCISE),
+          workout_duration: 0,
           calories_burned: estimatedCaloriesFromSessions,
           remaining_workouts: remainingWorkoutCount,
           streak_days: nextDailyStreak.count
@@ -488,6 +488,7 @@ export default function Overview() {
           reps: session.reps || '-',
           weight_kg: session.weight_kg || 0,
           rest_seconds: session.rest_seconds || 0,
+          estimated_duration_seconds: Number((session.exercises as any)?.estimated_duration_seconds) || null,
           is_completed: !!session.is_completed,
           kcal: (() => {
             const actualKcal = Number(session.actual_kcal_estimated);
@@ -511,7 +512,7 @@ export default function Overview() {
         const nextDailyProgress = {
           caloriesConsumed: 0,
           calorieTarget: Number(lifestyleRes.data?.target_calories || 0),
-          workoutMinutes: Math.round(completedSessions.length * ESTIMATED_MINUTES_PER_EXERCISE),
+          workoutMinutes: 0,
           workoutTarget: Number(lifestyleRes.data?.workout_duration || 20),
           waterIntake: progressLogRes.data?.water_intake_ml ? progressLogRes.data.water_intake_ml / 1000 : 0,
           waterGoal: Number(lifestyleRes.data?.daily_water_goal || 2.5),
@@ -692,9 +693,7 @@ export default function Overview() {
       ? 'Chào buổi chiều'
       : 'Chào buổi tối';
 
-  const plannedWorkoutMinutes = todayExercises.length > 0
-    ? todayExercises.length * ESTIMATED_MINUTES_PER_EXERCISE
-    : (dailyProgress.workoutTarget || 20);
+  const plannedWorkoutMinutes = estimateWorkoutDurationMinutes(todayExercises);
 
   const featuredExercise = todayExercises[0];
   const hasWorkoutPlan = todayExercises.length > 0;

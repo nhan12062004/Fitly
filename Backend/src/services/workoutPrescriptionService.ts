@@ -125,7 +125,16 @@ const inferGoal = (lifestyle: any, exercise?: any, source?: PrescriptionSource):
   return 'general';
 };
 
-const inferReps = (goal: ReturnType<typeof inferGoal>, exercise?: any, suggestedReps?: unknown): string => {
+const inferReps = (
+  goal: ReturnType<typeof inferGoal>,
+  exercise?: any,
+  suggestedReps?: unknown,
+  source?: PrescriptionSource,
+): string => {
+  // AI-created plans use one clear, consistent default volume. Manual edits
+  // and recovery adjustments keep their existing adaptive behaviour.
+  if (source === 'ai_plan') return '12-13';
+
   const descriptor = getExerciseDescriptor(exercise);
   const suggested = String(suggestedReps || '').trim().slice(0, 20);
   const avgSuggested = suggested ? parseAverageRepsForPrescription(suggested) : 0;
@@ -149,17 +158,30 @@ const inferSets = ({
   goal,
   lifestyle,
   suggestedSets,
-  recentCompletionRate
+  recentCompletionRate,
+  source,
 }: {
   goal: ReturnType<typeof inferGoal>;
   lifestyle: any;
   suggestedSets?: unknown;
   recentCompletionRate: number | null;
+  source?: PrescriptionSource;
 }): number => {
   const experience = normalizeText(lifestyle?.experience_level);
   const duration = Number(lifestyle?.workout_duration) || 30;
   const weeklyWorkouts = Number(lifestyle?.weekly_workouts) || 3;
   const suggested = readNumber(suggestedSets);
+
+  // AI plans stay within the requested 3-4 set range, but the choice is
+  // personal: newer users, high-frequency schedules and users who recently
+  // struggled to finish workouts start at 3; experienced users with adequate
+  // recovery receive 4. Session duration is not used as a hard switch.
+  if (source === 'ai_plan') {
+    const isBeginner = includesAny(experience, ['beginner', 'moi', 'de', 'duoi 6 thang']);
+    const trainsFrequently = weeklyWorkouts >= 5;
+    const needsLowerVolume = recentCompletionRate !== null && recentCompletionRate < 0.85;
+    return isBeginner || trainsFrequently || needsLowerVolume ? 3 : 4;
+  }
 
   let base = goal === 'strength' ? 4 : goal === 'hypertrophy' ? 3 : goal === 'recovery' ? 2 : 3;
   if (includesAny(experience, ['advanced', 'nang cao'])) base += 1;
@@ -330,7 +352,7 @@ export const prescribeWorkoutExercise = async ({
   const bodyWeightKg = Math.max(40, Number(bodyMetricsRes.data?.weight) || 70);
   const lifestyle = lifestyleRes.data || {};
   const goal = inferGoal(lifestyle, exercise, source);
-  const reps = inferReps(goal, exercise, suggestedReps);
+  const reps = inferReps(goal, exercise, suggestedReps, source);
   const { weightKg, recentCompletionRate } = await inferWeightKg({
     userId,
     exerciseId,
@@ -341,7 +363,7 @@ export const prescribeWorkoutExercise = async ({
     forceManualWeight,
     recentHistory
   });
-  const sets = inferSets({ goal, lifestyle, suggestedSets, recentCompletionRate });
+  const sets = inferSets({ goal, lifestyle, suggestedSets, recentCompletionRate, source });
   const restSeconds = inferRestSeconds(goal, suggestedRestSeconds);
   const targetRpe = Math.round(clamp(readNumber(suggestedTargetRpe) ?? (goal === 'recovery' ? 6 : 7), 5, 10) * 10) / 10;
   const estimatedKcal = estimateWorkoutKcal({

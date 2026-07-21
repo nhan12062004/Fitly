@@ -943,7 +943,7 @@ const buildWorkoutSessionExerciseRow = ({
 
 const DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT = `
   *,
-  exercises:exercise_id (name, video_url, target_muscle, body_part, instructions)
+  exercises:exercise_id (name, video_url, target_muscle, body_part, instructions, estimated_duration_seconds)
 `;
 
 const getLatestBodyWeightKg = async (userId: string): Promise<number> => {
@@ -4436,6 +4436,7 @@ Rules:
 - Select 4 to 6 eligible exercises, suitable for the goal, equipment and safety constraints.
 - duration_minutes must be exactly ${durationMinutes}.
 - Every exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction and order_index.
+- Use 3 or 4 sets and exactly "12-13" reps for every exercise. Distribute the exercises, rest and transitions so the complete session fits the target duration.
 - Use conservative weight_kg; use 0 for bodyweight exercises.
 
 JSON schema:
@@ -4448,8 +4449,8 @@ JSON schema:
       "type": "workout",
       "duration_minutes": ${durationMinutes},
       "exercises": [{
-        "exercise_id": "EX01", "sets": 3, "reps": "10-12", "weight_kg": 0,
-        "rest_seconds": 60, "target_rpe": 7, "load_instruction": "short cue", "order_index": 0
+        "exercise_id": "EX01", "sets": 4, "reps": "12-13", "weight_kg": 0,
+        "rest_seconds": 90, "target_rpe": 7, "load_instruction": "short cue", "order_index": 0
       }]
     }]
   }

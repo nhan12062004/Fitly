@@ -18,6 +18,7 @@ import {
   formatMovementPatternLabel,
   formatTargetMuscleLabel,
 } from '../lib/exerciseCatalog';
+import { estimateWorkoutDurationMinutes } from '../lib/workoutDuration';
 
 interface SessionExercise {
   id: string;
@@ -82,6 +83,32 @@ type MonthlyPlanSummary = {
 type WorkoutPlanQuota = {
   used: number;
   limit: number;
+};
+
+type CachedWorkoutPlanQuota = WorkoutPlanQuota & {
+  userId: string;
+};
+
+const getWorkoutPlanQuotaCacheKey = (userId: string) => `fitly:workout-plan-quota:${userId}`;
+
+const readCachedWorkoutPlanQuota = (userId?: string): WorkoutPlanQuota | null => {
+  if (!userId || typeof window === 'undefined') return null;
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(getWorkoutPlanQuotaCacheKey(userId)) || 'null') as CachedWorkoutPlanQuota | null;
+    if (!cached || cached.userId !== userId) return null;
+    const used = Number(cached.used);
+    const limit = Number(cached.limit);
+    return Number.isFinite(used) && Number.isFinite(limit)
+      ? { used: Math.max(0, used), limit: Math.max(0, limit) }
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const cacheWorkoutPlanQuota = (userId: string | undefined, quota: WorkoutPlanQuota) => {
+  if (!userId || typeof window === 'undefined') return;
+  window.localStorage.setItem(getWorkoutPlanQuotaCacheKey(userId), JSON.stringify({ userId, ...quota }));
 };
 
 const EMPTY_DAY_STATS: CalendarDayStats = {
@@ -370,9 +397,8 @@ export default function Exercises() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [calendarStatsByDate, setCalendarStatsByDate] = useState<Record<string, CalendarDayStats>>({});
   const [isWorkoutSurveyOpen, setIsWorkoutSurveyOpen] = useState(false);
-  // Render the free-plan default immediately; the quota API then replaces it
-  // with the user's real usage without a late "—" state in the header.
-  const [workoutPlanQuota, setWorkoutPlanQuota] = useState<WorkoutPlanQuota>({ used: 0, limit: 5 });
+  // Use the last server-confirmed quota while the fresh quota is loading.
+  const [workoutPlanQuota, setWorkoutPlanQuota] = useState<WorkoutPlanQuota | null>(() => readCachedWorkoutPlanQuota(user?.id));
   const hasLoadedSessionRef = useRef(Boolean(cacheForToday));
 
   const selectedDate = useMemo(() => getDateFromKey(selectedDateKey), [selectedDateKey]);
@@ -443,9 +469,11 @@ export default function Exercises() {
     let isCancelled = false;
 
     if (!user?.id) {
-      setWorkoutPlanQuota({ used: 0, limit: 5 });
+      setWorkoutPlanQuota(null);
       return undefined;
     }
+
+    setWorkoutPlanQuota(readCachedWorkoutPlanQuota(user.id));
 
     const loadWorkoutPlanQuota = async () => {
       try {
@@ -456,11 +484,11 @@ export default function Exercises() {
         const limit = Number(payload?.aiQuota?.limits?.planGenerations);
         const used = Number(payload?.aiQuota?.usage?.planGenerations);
         if (Number.isFinite(limit) && Number.isFinite(used)) {
-          setWorkoutPlanQuota({ used: Math.max(0, used), limit: Math.max(0, limit) });
+          const quota = { used: Math.max(0, used), limit: Math.max(0, limit) };
+          cacheWorkoutPlanQuota(user.id, quota);
+          setWorkoutPlanQuota(quota);
         }
-      } catch {
-        if (!isCancelled) setWorkoutPlanQuota({ used: 0, limit: 5 });
-      }
+      } catch {}
     };
 
     void loadWorkoutPlanQuota();
@@ -590,15 +618,16 @@ export default function Exercises() {
     }
     try {
       // 1. Check if session already exists for the selected day
-      const { data: existingSession } = await supabase
+      const { data: existingSession, error: existingSessionError } = await supabase
         .from('daily_exercise_sessions')
         .select(`
           *,
-          exercises:exercise_id (name, video_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions)
+          exercises:exercise_id (name, video_url, target_muscle, body_part, equipment, difficulty, movement_pattern, instructions, estimated_duration_seconds)
         `)
         .eq('user_id', user?.id)
         .eq('log_date', selectedDateKey)
         .order('order_index');
+      if (existingSessionError) throw existingSessionError;
 
       if (existingSession && existingSession.length > 0) {
         setSession(existingSession.map(s => ({
@@ -720,7 +749,9 @@ export default function Exercises() {
     const nextLimit = Number(payload?.aiQuota?.limits?.planGenerations);
     const nextUsed = Number(payload?.aiQuota?.usage?.planGenerations);
     if (Number.isFinite(nextLimit) && Number.isFinite(nextUsed)) {
-      setWorkoutPlanQuota({ used: Math.max(0, nextUsed), limit: Math.max(0, nextLimit) });
+      const quota = { used: Math.max(0, nextUsed), limit: Math.max(0, nextLimit) };
+      cacheWorkoutPlanQuota(user?.id, quota);
+      setWorkoutPlanQuota(quota);
     }
 
     await refreshProfile();
@@ -862,11 +893,7 @@ export default function Exercises() {
 
   const workoutOrderSummary = useMemo(() => {
     const completed = session.filter((item) => item.is_completed).length;
-    const totalSets = session.reduce((sum, item) => sum + Math.max(1, Number(item.actual_sets ?? item.sets) || 1), 0);
-    const totalRestSeconds = session.reduce((sum, item) => sum + Math.max(0, Number(item.actual_rest_seconds ?? item.rest_seconds) || 0), 0);
-    const estimatedMinutes = session.length > 0
-      ? Math.max(1, Math.round((totalSets * 50 + totalRestSeconds) / 60))
-      : 0;
+    const estimatedMinutes = estimateWorkoutDurationMinutes(session);
     const focusItems = Array.from(new Set(
       session
         .flatMap((item) => [
@@ -992,7 +1019,9 @@ export default function Exercises() {
             <h2 className="today-workout-title">{selectedDayTitle}</h2>
           </div>
           <span className="today-workout-status-pill today-workout-status-active">
-            Lượt sử dụng: {workoutPlanQuota.used}/{workoutPlanQuota.limit}
+            {workoutPlanQuota
+              ? `Lượt sử dụng: ${workoutPlanQuota.used}/${workoutPlanQuota.limit}`
+              : 'Đang tải lượt sử dụng…'}
           </span>
         </div>
 
@@ -1086,7 +1115,7 @@ export default function Exercises() {
                   <button
                     type="button"
                     onClick={() => setIsWorkoutSurveyOpen(true)}
-                    disabled={Boolean(workoutPlanQuota && workoutPlanQuota.used >= workoutPlanQuota.limit)}
+                    disabled={!workoutPlanQuota || workoutPlanQuota.used >= workoutPlanQuota.limit}
                     className="today-workout-empty-action"
                   >
                     <Plus className="h-4 w-4" />

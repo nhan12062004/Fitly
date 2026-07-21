@@ -830,7 +830,10 @@ export default function DietPlan() {
   }, [user, selectedWeekKey, cacheKey]);
 
   useEffect(() => {
-    if (!cacheKey) return;
+    // Do not cache the initial empty state while Supabase is still loading.
+    // Otherwise a subsequent visit treats that placeholder as real data and
+    // briefly renders every nutrition total as zero.
+    if (!cacheKey || isLoading) return;
     dietPlanPageCache.set(cacheKey, {
       foods,
       selectedDayId,
@@ -844,7 +847,7 @@ export default function DietPlan() {
       waterGoal,
       waterLogDate: getVietnamDateKey()
     });
-  }, [cacheKey, foods, selectedDayId, weeklyPlan, restDays, planId, planName, mealsPerDay, targetCalories, waterIntake, waterGoal]);
+  }, [cacheKey, isLoading, foods, selectedDayId, weeklyPlan, restDays, planId, planName, mealsPerDay, targetCalories, waterIntake, waterGoal]);
 
   const addFoodToPlan = useCallback((food: Food, mealType: MealTypeId = activeMealType) => {
     const nextWeeklyPlan = {
