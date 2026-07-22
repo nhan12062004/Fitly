@@ -4867,6 +4867,15 @@ svg {
   background: color-mix(in srgb, var(--bg-tertiary) 72%, var(--bg-secondary));
 }
 
+.diet-food-card-clickable {
+  cursor: pointer;
+}
+
+.diet-food-card-clickable:focus-visible {
+  outline: 2px solid var(--meal-accent, var(--accent-primary));
+  outline-offset: 2px;
+}
+
 .diet-food-thumb {
   display: block;
   border: 1px solid color-mix(in srgb, var(--border-primary) 72%, transparent);
@@ -4894,6 +4903,11 @@ svg {
 .diet-food-swap:hover {
   background: var(--meal-accent-soft, rgb(var(--accent-rgb) / 0.1));
   color: var(--meal-accent, var(--accent-primary));
+}
+
+.diet-food-delete:hover:not(:disabled) {
+  background: rgb(var(--danger-rgb) / 0.12);
+  color: var(--danger-primary);
 }
 
 .diet-food-complete {

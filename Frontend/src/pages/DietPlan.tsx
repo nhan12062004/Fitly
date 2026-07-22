@@ -16,7 +16,6 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
-import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../lib/Api';
 import { RecipeDetailModal } from '../components/RecipeDetailModal';
 
@@ -479,7 +478,6 @@ export function DietPlanSkeleton() {
 
 export default function DietPlan() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const toast = useToast();
   const alert = (message: unknown) => {
     const text = String(message || '');
@@ -506,6 +504,7 @@ export default function DietPlan() {
   const [isLoading, setIsLoading] = useState(() => !initialDietCache);
   const [, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null);
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(initialWeekStart);
   const [mealsPerDay, setMealsPerDay] = useState(() => initialDietCache?.mealsPerDay || 3);
   const [targetCalories, setTargetCalories] = useState(() => initialDietCache?.targetCalories || DEFAULT_CALORIE_TARGET);
@@ -628,20 +627,6 @@ export default function DietPlan() {
   );
   const visibleMealSummaries = useMemo(() => mealSummaries.filter((meal) => meal.hasItems), [mealSummaries]);
   const hasMenuForSelectedDay = visibleMealSummaries.length > 0;
-
-  const openAiMealSwap = (meal?: { label: string; names: string; id: MealTypeId }) => {
-    const params = new URLSearchParams();
-    const mealText = meal
-      ? `bữa ${meal.label.toLowerCase()} đang có ${meal.names}`
-      : 'thực đơn trong ngày';
-    params.set(
-      'prompt',
-      `Đổi ${mealText} cho ${selectedDayDateLabel}. Hãy đề xuất món dễ theo hơn nhưng vẫn giữ mục tiêu calories và protein của tôi.`
-    );
-    params.set('day', String(selectedDayId));
-    params.set('auto', '1');
-    navigate(`/smart-planner?${params.toString()}`);
-  };
 
   useEffect(() => {
     if (isCurrentWeek) setSelectedDayId(getTodayDayIndex());
@@ -1011,7 +996,7 @@ export default function DietPlan() {
   const savePlan = async (options: SavePlanOptions = {}) => {
     if (!user) {
       alert('Vui lòng đăng nhập để lưu thực đơn.');
-      return;
+      return false;
     }
 
     const planToSave = options.weeklyPlanOverride || weeklyPlan;
@@ -1119,8 +1104,10 @@ export default function DietPlan() {
       setRestDays(restDaysToSave);
 
       if (showSuccess) alert(options.successMessage || 'Đã lưu thực đơn.');
+      return true;
     } catch (error: any) {
       alert(`Không thể lưu thực đơn: ${error.message}`);
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -1145,7 +1132,11 @@ export default function DietPlan() {
 
   const suggestAlternativeFood = (item: PlanFood): Food | null => {
     if (!foods.length) return null;
-    const candidates = foods.filter((food) => food.id !== item.food_id);
+    const currentCatalogId = item.recipe_id || item.food_id;
+    const candidates = foods.filter((food) => {
+      const supportsMeal = !food.meal_type?.length || food.meal_type.includes(item.meal_type);
+      return food.id !== currentCatalogId && supportsMeal;
+    });
     if (!candidates.length) return null;
 
     const score = (food: Food) => {
@@ -1156,6 +1147,41 @@ export default function DietPlan() {
     };
 
     return [...candidates].sort((a, b) => score(a) - score(b))[0] || null;
+  };
+
+  const replaceFoodInPlan = async (item: PlanFood) => {
+    if (isSaving || replacingFoodId) return;
+
+    const replacement = suggestAlternativeFood(item);
+    if (!replacement) {
+      toast.error('Chưa tìm được món thay thế phù hợp cho bữa này.');
+      return;
+    }
+
+    const nextDayItems = (weeklyPlan[selectedDayId] || []).map((entry) =>
+      entry.tempId === item.tempId
+        ? {
+            ...createPlanFood(replacement, item.meal_type as MealTypeId, item.quantity),
+            tempId: entry.tempId,
+            weekly_food_item_id: null
+          }
+        : entry
+    );
+    const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextDayItems };
+
+    setReplacingFoodId(item.tempId);
+    setWeeklyPlan(nextWeeklyPlan);
+    const saved = await savePlan({
+      weeklyPlanOverride: nextWeeklyPlan,
+      restDaysOverride: restDays,
+      showSuccess: false
+    });
+    if (saved) {
+      toast.success(`Đã đổi ${item.name} sang ${replacement.name}.`);
+    } else {
+      setWeeklyPlan(weeklyPlan);
+    }
+    setReplacingFoodId(null);
   };
 
   const submitMealFeedback = async (
@@ -1415,13 +1441,26 @@ export default function DietPlan() {
 
                   <div className="mt-2.5 space-y-2.5">
                     {meal.items.map((item, itemIndex) => (
-                      <article key={item.tempId} className="diet-food-card">
+                      <article
+                        key={item.tempId}
+                        className={`diet-food-card ${item.recipe_id ? 'diet-food-card-clickable' : ''}`}
+                        tabIndex={item.recipe_id ? 0 : undefined}
+                        onClick={(event) => {
+                          if (!item.recipe_id || (event.target as HTMLElement).closest('button')) return;
+                          setSelectedRecipeId(item.recipe_id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (!item.recipe_id || event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+                          event.preventDefault();
+                          setSelectedRecipeId(item.recipe_id);
+                        }}
+                      >
                         <div className="flex items-center gap-3 p-3">
                           <span className="diet-food-thumb h-14 w-14 shrink-0 overflow-hidden rounded-xl">
                             <FoodImage src={resolveFoodImage(item, itemIndex + meal.mealIndex)} alt={item.name} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            {item.recipe_id ? <button type="button" onClick={() => setSelectedRecipeId(item.recipe_id || null)} className="block max-w-full truncate text-left text-[15px] font-black text-text-primary underline-offset-2 hover:text-accent hover:underline" aria-label={`Xem chi tiết ${item.name}`}>{item.name}</button> : <h4 className="truncate text-[15px] font-black text-text-primary">{item.name}</h4>}
+                            <h4 className="truncate text-[15px] font-black text-text-primary">{item.name}</h4>
                             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-text-tertiary">
                               <span className="inline-flex items-center gap-1 font-black text-[var(--meal-accent)]"><Flame className="h-3.5 w-3.5" />{Math.round(item.calories * item.quantity)} kcal</span>
                               <span>{roundMacro(item.protein * item.quantity)}g đạm</span>
@@ -1431,12 +1470,23 @@ export default function DietPlan() {
                           <div className="flex shrink-0 items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => openAiMealSwap({ ...meal, names: item.name })}
+                              onClick={() => void replaceFoodInPlan(item)}
+                              disabled={isSaving || Boolean(replacingFoodId)}
                               className="diet-food-action diet-food-swap"
-                              aria-label={`Đổi ${item.name} bằng AI`}
-                              title="Đổi món bằng AI"
+                              aria-label={`Đổi món ${item.name}`}
+                              title="Đổi sang món tương đương"
                             >
-                              <RefreshCw />
+                              <RefreshCw className={replacingFoodId === item.tempId ? 'animate-spin' : ''} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void removeFoodFromPlan(item)}
+                              disabled={isSaving || Boolean(replacingFoodId)}
+                              className="diet-food-action diet-food-delete"
+                              aria-label={`Xóa ${item.name}`}
+                              title="Xóa món"
+                            >
+                              <Trash2 />
                             </button>
                             <button
                               type="button"
@@ -1466,16 +1516,6 @@ export default function DietPlan() {
                                 </div>
                               );
                             })}
-                            <button
-                              type="button"
-                              onClick={() => void removeFoodFromPlan(item)}
-                              disabled={isSaving}
-                              className="diet-food-remove diet-recipe-remove"
-                              aria-label={`Xóa ${item.name}`}
-                              title="Xóa món"
-                            >
-                              <Trash2 />
-                            </button>
                           </div>
                         ) : (
                           <div className="diet-food-detail-row">
@@ -1483,16 +1523,6 @@ export default function DietPlan() {
                             <span>{formatFoodQuantity(item)}</span>
                             <strong>{Math.round(item.calories * item.quantity)} kcal</strong>
                             <span>{roundMacro(item.protein * item.quantity)}g đạm</span>
-                            <button
-                              type="button"
-                              onClick={() => void removeFoodFromPlan(item)}
-                              disabled={isSaving}
-                              className="diet-food-remove"
-                              aria-label={`Xóa ${item.name}`}
-                              title="Xóa món"
-                            >
-                              <Trash2 />
-                            </button>
                           </div>
                         )}
                       </article>
