@@ -169,7 +169,40 @@ const MEAL_TYPE_THEME: Record<MealTypeId, {
   }
 };
 
-const FOOD_CATEGORIES = ['Món ăn', 'Chất đạm', 'Carbs', 'Rau củ', 'Trái cây', 'Sữa', 'Bữa phụ'];
+const FOOD_CATEGORIES = [
+  'Bữa sáng',
+  'Bữa trưa',
+  'Bữa tối',
+  'Bữa phụ',
+  'Phở & Bún',
+  'Cơm & Nui',
+  'Bánh mì',
+  'Cháo & Súp'
+];
+
+const getRecipeCategory = (name: string, mealType: string[]): string => {
+  const nameLower = name.toLowerCase();
+  if (nameLower.includes('cơm') || nameLower.includes('nui') || nameLower.includes('xôi')) {
+    return 'Cơm & Nui';
+  }
+  if (nameLower.includes('phở') || nameLower.includes('bún') || nameLower.includes('miến') || nameLower.includes('bánh đa')) {
+    return 'Phở & Bún';
+  }
+  if (nameLower.includes('bánh mì')) {
+    return 'Bánh mì';
+  }
+  if (nameLower.includes('cháo') || nameLower.includes('súp')) {
+    return 'Cháo & Súp';
+  }
+  if (
+    nameLower.includes('sữa chua') || nameLower.includes('yến mạch') || nameLower.includes('chuối') ||
+    nameLower.includes('táo') || nameLower.includes('phô mai') || nameLower.includes('khoai') ||
+    nameLower.includes('ngô') || nameLower.includes('trứng luộc') || mealType.includes('snack')
+  ) {
+    return 'Bữa phụ';
+  }
+  return 'Món chính';
+};
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DEFAULT_CALORIE_TARGET = 2400;
 const DEFAULT_WATER_TARGET = 2.5;
@@ -560,8 +593,44 @@ export default function DietPlan() {
     const needle = search.trim().toLowerCase();
     return foods.filter((food) => {
       const matchesSearch = !needle || food.name.toLowerCase().includes(needle);
-      const matchesCategory = filterCat === 'all' || food.category.toLowerCase() === filterCat.toLowerCase();
-      return matchesSearch && matchesCategory;
+      if (!matchesSearch) return false;
+      if (filterCat === 'all') return true;
+
+      const catLower = filterCat.toLowerCase();
+      const foodCatLower = (food.category || '').toLowerCase();
+      const foodNameLower = (food.name || '').toLowerCase();
+      const foodMealTypes = food.meal_type || [];
+
+      if (catLower === 'bữa sáng') return foodMealTypes.includes('breakfast') || foodCatLower === 'bữa sáng';
+      if (catLower === 'bữa trưa') return foodMealTypes.includes('lunch') || foodCatLower === 'bữa trưa';
+      if (catLower === 'bữa tối') return foodMealTypes.includes('dinner') || foodCatLower === 'bữa tối';
+      if (catLower === 'bữa phụ') {
+        return foodMealTypes.includes('snack') || foodMealTypes.includes('pre_workout') || foodMealTypes.includes('post_workout') || foodCatLower === 'bữa phụ';
+      }
+
+      if (catLower.includes('phở') || catLower.includes('bún')) {
+        return (
+          foodCatLower.includes('phở') || foodCatLower.includes('bún') ||
+          foodNameLower.includes('phở') || foodNameLower.includes('bún') || foodNameLower.includes('miến') || foodNameLower.includes('bánh đa')
+        );
+      }
+
+      if (catLower.includes('cơm') || catLower.includes('nui')) {
+        return (
+          foodCatLower.includes('cơm') || foodCatLower.includes('nui') ||
+          foodNameLower.includes('cơm') || foodNameLower.includes('nui') || foodNameLower.includes('xôi')
+        );
+      }
+
+      if (catLower.includes('bánh mì')) {
+        return foodCatLower.includes('bánh mì') || foodNameLower.includes('bánh mì');
+      }
+
+      if (catLower.includes('cháo') || catLower.includes('súp')) {
+        return foodCatLower.includes('cháo') || foodCatLower.includes('súp') || foodNameLower.includes('cháo') || foodNameLower.includes('súp');
+      }
+
+      return foodCatLower === catLower || foodCatLower.includes(catLower);
     });
   }, [foods, search, filterCat]);
 
@@ -694,7 +763,7 @@ export default function DietPlan() {
     let cancelled = false;
 
     async function fetchFoods() {
-      if (dietPlanFoodCache?.some((item) => item.catalog_type === 'recipe')) {
+      if (dietPlanFoodCache?.some((item) => item.catalog_type === 'recipe' && item.category !== 'Món ăn')) {
         setFoods(dietPlanFoodCache);
         return;
       }
@@ -724,21 +793,24 @@ export default function DietPlan() {
             ? food.meal_type.map((item: unknown) => String(item || '').toLowerCase()).filter(Boolean)
             : []
         }));
-        const normalizedRecipes = (recipesResult.data || []).map((recipe: any) => ({
-          id: recipe.id,
-          catalog_type: 'recipe' as const,
-          name: recipe.name || '',
-          category: 'Món ăn',
-          calories: Number(recipe.calories || 0),
-          protein: Number(recipe.protein || 0),
-          carbs: Number(recipe.carbs || 0),
-          fat: Number(recipe.fat || 0),
-          serving_unit: recipe.serving_unit || 'phần',
-          image_url: recipe.image_url || '',
-          meal_type: Array.isArray(recipe.meal_type)
+        const normalizedRecipes = (recipesResult.data || []).map((recipe: any) => {
+          const mealType = Array.isArray(recipe.meal_type)
             ? recipe.meal_type.map((item: unknown) => String(item || '').toLowerCase()).filter(Boolean)
-            : []
-        }));
+            : [];
+          return {
+            id: recipe.id,
+            catalog_type: 'recipe' as const,
+            name: recipe.name || '',
+            category: getRecipeCategory(recipe.name || '', mealType),
+            calories: Number(recipe.calories || 0),
+            protein: Number(recipe.protein || 0),
+            carbs: Number(recipe.carbs || 0),
+            fat: Number(recipe.fat || 0),
+            serving_unit: recipe.serving_unit || 'phần',
+            image_url: recipe.image_url || '',
+            meal_type: mealType
+          };
+        });
         const catalog = [...normalizedRecipes, ...normalizedFoods];
         dietPlanFoodCache = catalog;
         setFoods(catalog);
