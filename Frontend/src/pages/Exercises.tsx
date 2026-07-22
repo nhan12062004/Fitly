@@ -782,6 +782,8 @@ export default function Exercises() {
     }
   };
 
+
+
   const toggleComplete = async (id: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
     setSession(prev => prev.map(s => s.id === id ? { ...s, is_completed: newStatus } : s));
@@ -1149,9 +1151,21 @@ export default function Exercises() {
               <h2>{`Ngày ${selectedDayId + 1} · ${selectedDayDateLabel}${session.length === 0 ? ' · Nghỉ' : ''}`}</h2>
             </div>
             {session.length > 0 ? (
-              <div className="workout-order-progress">
-                <strong>{workoutOrderSummary.progress}%</strong>
-                <span>hoàn thành</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="workout-order-progress">
+                  <strong>{workoutOrderSummary.progress}%</strong>
+                  <span>hoàn thành</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsWorkoutSurveyOpen(true)}
+                  disabled={workoutPlanQuota !== null && workoutPlanQuota.used >= workoutPlanQuota.limit}
+                  title="Tạo lại lịch tập ngày hôm nay"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-border-primary bg-bg-secondary px-3 py-1.5 text-xs font-bold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:opacity-50"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Tạo lại lịch tập
+                </button>
               </div>
             ) : null}
           </div>
@@ -1238,16 +1252,6 @@ export default function Exercises() {
                       </button>
 
                       <div className="workout-order-actions">
-                        <button
-                          type="button"
-                          className="workout-order-action workout-order-action-swap"
-                          onClick={() => void replaceExercise(exercise)}
-                          disabled={Boolean(replacingSessionId)}
-                          aria-label={`Đổi bài ${exercise.name}`}
-                          title="Đổi sang bài cùng nhóm cơ"
-                        >
-                          <RefreshCw className={`h-4 w-4 ${replacingSessionId === exercise.id ? 'animate-spin' : ''}`} />
-                        </button>
                         <button
                           type="button"
                           className={`workout-order-action ${isActive ? 'workout-order-action-play' : ''}`}
