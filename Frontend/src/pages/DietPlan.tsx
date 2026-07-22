@@ -1289,6 +1289,33 @@ export default function DietPlan() {
     toast.success(`Đã ghi nhận ${item.name}.`);
   };
 
+  const toggleMealItemCompletion = async (item: PlanFood) => {
+    if (!item.weekly_food_item_id || !completedWeeklyItemIds.has(item.weekly_food_item_id)) {
+      await completeMealItem(item);
+      return;
+    }
+
+    const logsToRemove = completedMealLogs.filter((log) => log.weekly_food_item_id === item.weekly_food_item_id);
+    if (logsToRemove.length === 0) return;
+
+    setCompletingFoodId(item.tempId);
+    const { error } = await supabase
+      .from('daily_meal_logs')
+      .delete()
+      .in('id', logsToRemove.map((log) => log.id));
+
+    if (error) {
+      toast.error(`Không thể hoàn tác bữa ăn: ${error.message}`);
+      setCompletingFoodId(null);
+      return;
+    }
+
+    const logIdsToRemove = new Set(logsToRemove.map((log) => log.id));
+    setCompletedMealLogs((previous) => previous.filter((log) => !logIdsToRemove.has(log.id)));
+    setCompletingFoodId(null);
+    toast.success(`Đã hoàn tác ghi nhận ${item.name}.`);
+  };
+
   const submitMealFeedback = async (
     item: PlanFood,
     feedbackType: 'liked' | 'disliked' | 'too_much' | 'not_enough' | 'hard_to_cook' | 'too_expensive'
@@ -1586,11 +1613,11 @@ export default function DietPlan() {
                             )}
                             <button
                               type="button"
-                              onClick={() => void completeMealItem(item)}
-                              disabled={isCompleted || completingFoodId === item.tempId}
+                              onClick={() => void toggleMealItemCompletion(item)}
+                              disabled={completingFoodId === item.tempId}
                               className={`diet-food-action diet-food-complete ${isCompleted ? 'diet-food-complete-done' : ''}`}
                               aria-label={`Đánh dấu đã ăn ${item.name}`}
-                              title="Đã ăn"
+                              title={isCompleted ? 'Hoàn tác đã ăn' : 'Đã ăn'}
                             >
                               <Check />
                             </button>
