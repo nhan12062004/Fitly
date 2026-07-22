@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Pause, Play, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, CheckCircle2, ChevronRight, Maximize2, Pause, Play, SlidersHorizontal, Timer, Trash2, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import { syncChallengeCheckin } from '../lib/Challenges';
+import { formatTargetMuscleLabel } from '../lib/exerciseCatalog';
 
 interface SessionExercise {
   id: string;
@@ -65,8 +66,20 @@ const normalizeVideoUrl = (value: unknown): string => {
   return url;
 };
 
+const formatSessionElapsed = (totalSeconds: number): string => {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+  return hours > 0
+    ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
 const ExercisePreview = ({ src, alt }: { src?: string; alt: string }) => {
   const [failed, setFailed] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const normalized = normalizeVideoUrl(src);
 
   if (!normalized || failed) {
@@ -76,20 +89,39 @@ const ExercisePreview = ({ src, alt }: { src?: string; alt: string }) => {
   }
 
   return (
-    <video
-      src={normalized}
-      aria-label={alt}
-      className="h-full w-full object-contain"
-      onError={() => setFailed(true)} autoPlay muted loop playsInline preload="metadata"
-    />
+    <div className="relative h-full w-full">
+      <video
+        ref={videoRef}
+        src={normalized}
+        aria-label={alt}
+        className="h-full w-full object-contain"
+        onError={() => setFailed(true)}
+        autoPlay
+        muted={isMuted}
+        loop
+        playsInline
+        preload="metadata"
+      />
+      <div className="absolute right-3 bottom-3 flex items-center gap-2">
+        <button
+          type="button"
+          aria-label={isMuted ? 'Bật âm thanh video' : 'Tắt âm thanh video'}
+          onClick={() => setIsMuted((previous) => !previous)}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+        >
+          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          aria-label="Phóng to video"
+          onClick={() => void videoRef.current?.requestFullscreen?.()}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-black/60 text-white backdrop-blur-sm transition-colors hover:bg-black/80"
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
   );
-};
-
-const formatClock = (totalSeconds: number) => {
-  const safe = Math.max(0, totalSeconds);
-  const minutes = Math.floor(safe / 60);
-  const seconds = safe % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
 const parseRepAverage = (value: string): number => {
@@ -184,68 +216,13 @@ const getDayOfWeekIndex = (baseDate: Date): number => {
   return day === 0 ? 6 : day - 1;
 };
 
-const toTextList = (value: unknown): string[] => {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item || '').trim()).filter(Boolean);
-  }
-
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    for (const key of ['steps', 'instructions', 'instruction', 'technique_notes']) {
-      const nested = toTextList(record[key]);
-      if (nested.length > 0) return nested;
-    }
-    return [];
-  }
-
-  const raw = String(value || '').trim();
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.map((item) => String(item || '').trim()).filter(Boolean);
-    }
-    if (parsed && typeof parsed === 'object') {
-      return toTextList(parsed);
-    }
-  } catch {
-    // ignore
-  }
-
-  return raw
-    .split(/\r?\n|(?:\d+\.\s*)|[;•]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-};
-
-const getExerciseSteps = (exercise: SessionExercise): string[] => {
-  const steps = toTextList(exercise.instructions || exercise.exercises?.instructions);
-  if (steps.length > 0) return steps.slice(0, 3);
-
-  return [
-    'Giữ lưng trung tính và siết core suốt bài.',
-    'Thực hiện chậm, kiểm soát cả chiều lên và xuống.',
-    'Thở ra khi dùng lực, hít vào khi trở về.',
-    'Dừng lại nếu mất form hoặc thấy đau nhói.'
-  ].slice(0, 3);
-};
-
 function WorkoutSessionSkeleton() {
   return (
     <div className="dashboard-page-shell workout-session-page flex flex-col animate-pulse text-sm pb-4 md:pb-6 lg:pb-7" aria-hidden="true">
-      <div className="-mt-1 mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="inline-flex min-w-0 items-center gap-1.5">
-          <div className="h-4 w-4 rounded-full bg-bg-tertiary/70" />
-          {SkeletonBlock('h-4 w-40 rounded-lg')}
-        </div>
-        <div className="h-11 w-32 rounded-full bg-bg-tertiary/70" />
-      </div>
-
-      <div className="workout-session-layout grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
-        <aside className="order-3 border-t border-border-primary bg-bg-secondary px-4 pb-5 pt-4 lg:col-span-2 xl:order-1 xl:col-span-1 xl:border-r xl:border-t-0">
+      <div className="workout-session-layout flex min-h-0 flex-col overflow-visible rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)]">
+        <aside className="order-2 border-t border-border-primary bg-bg-secondary px-4 pb-5 pt-4">
           {SkeletonBlock('h-4 w-32')}
-          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex items-start gap-3 rounded-2xl border border-border-primary bg-bg-secondary px-3 py-3">
                 <div className="mt-0.5 h-6 w-6 shrink-0 rounded-full bg-bg-tertiary/70" />
@@ -258,59 +235,41 @@ function WorkoutSessionSkeleton() {
           </div>
         </aside>
 
-        <section className="order-1 relative min-h-0 overflow-y-auto bg-transparent px-4 py-5 md:px-6 lg:px-8 xl:order-2">
-          <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-            {SkeletonBlock('h-4 w-24 rounded-lg')}
-            {SkeletonBlock('mt-2 h-10 w-[68%] rounded-xl')}
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="h-4 w-20 rounded-lg bg-bg-tertiary/70" />
-              ))}
+        <section className="order-1 relative bg-transparent px-4 py-5 md:px-6 lg:px-8">
+          <div className="mx-auto mb-5 grid w-full max-w-5xl grid-cols-2 items-center gap-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,2fr)_minmax(0,1fr)]">
+            <div className="order-2 inline-flex min-w-0 items-center gap-1.5 px-1 py-2 md:order-1">
+              <div className="h-4 w-4 rounded-full bg-bg-tertiary/70" />
+              {SkeletonBlock('h-4 w-40 rounded-lg')}
             </div>
-            <div className="mt-4 h-10 w-36 rounded-xl border border-border-primary bg-bg-secondary/70" />
-
-            <div className="mt-6 inline-flex w-full flex-col items-center gap-4 overflow-hidden rounded-[24px] border border-border-primary bg-bg-secondary/40 p-4 md:gap-6 md:p-6 lg:flex-row">
-              <div className="flex w-full max-w-[220px] shrink-0 justify-center md:max-w-[240px]">
-                <div className="aspect-square w-full rounded-xl bg-bg-tertiary/35" />
-              </div>
-              <div className="w-full max-w-xl">
-                <div className="space-y-4 text-left">
-                  {Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className="flex items-start gap-3">
-                      <div className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-bg-tertiary/70" />
-                      <div className="min-w-0 flex-1">
-                        {SkeletonBlock('h-4 w-full rounded-lg')}
-                        {index % 2 === 0 ? SkeletonBlock('mt-2 h-4 w-[88%] rounded-lg') : null}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <div className="order-1 col-span-2 flex flex-col items-center text-center md:order-2 md:col-span-1">
+              {SkeletonBlock('h-3 w-20 rounded-lg')}
+              {SkeletonBlock('mt-1 h-8 w-[72%] rounded-xl')}
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} className="h-3 w-16 rounded-lg bg-bg-tertiary/70" />
+                ))}
               </div>
             </div>
-
-            <div className="mt-8 grid w-full max-w-xl grid-cols-1 justify-items-center gap-3 lg:max-w-4xl lg:grid-cols-[1fr_auto_1fr] lg:items-center">
-              <div className="flex w-full justify-center lg:justify-end">
-                <div className="h-11 w-full rounded-xl border border-border-primary bg-bg-secondary/70" />
-              </div>
-              <div className="order-first flex h-[168px] w-[168px] items-center justify-center rounded-full bg-bg-tertiary/45 lg:order-none">
-                <div className="h-[152px] w-[152px] rounded-full bg-bg-secondary" />
-              </div>
-              <div className="flex w-full justify-center lg:justify-start">
-                <div className="h-11 w-full rounded-xl bg-bg-tertiary/75" />
-              </div>
+            <div className="order-3 flex items-center justify-self-end gap-2">
+              <div className="h-5 w-5 rounded-md bg-bg-tertiary/70" />
+              {SkeletonBlock('h-4 w-12 rounded-lg')}
             </div>
+          </div>
 
-            <div className="mt-10 w-full">
-              <div className="mb-2 flex items-center justify-between">
-                {SkeletonBlock('h-4 w-24 rounded-lg')}
-                {SkeletonBlock('h-4 w-10 rounded-lg')}
-              </div>
-              <div className="h-2 rounded-full bg-bg-tertiary/60" />
+          <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
+            <div className="aspect-video w-full overflow-hidden bg-bg-tertiary/35" />
+
+            {SkeletonBlock('mt-7 h-11 w-36 rounded-xl')}
+
+            <div className="mt-8 grid w-full max-w-5xl grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1.5fr]">
+              <div className="h-14 rounded-2xl border border-border-primary bg-bg-secondary/70" />
+              <div className="h-14 rounded-2xl border border-border-primary bg-bg-secondary/70" />
+              <div className="h-14 rounded-2xl bg-bg-tertiary/75" />
             </div>
           </div>
         </section>
 
-        <aside className="order-2 border-t border-border-primary bg-bg-secondary px-4 pb-5 pt-4 lg:border-l lg:border-t-0 xl:order-3">
+        <aside className="workout-session-side-panel order-2 border-t border-border-primary bg-bg-secondary px-4 pb-5 pt-4 lg:border-l lg:border-t-0 xl:order-3">
           <div className="grid min-h-full gap-5 sm:grid-cols-2 lg:grid-cols-1">
             <section className="space-y-3 px-3">
               {SkeletonBlock('h-4 w-20 rounded-lg')}
@@ -381,6 +340,8 @@ export default function WorkoutSession() {
   const initialExercise = orderedSession[initialExerciseIndex] || orderedSession[0] || null;
   const [activeIndex, setActiveIndex] = useState(initialExerciseIndex);
   const [isRunning, setIsRunning] = useState(false);
+  const [isResting, setIsResting] = useState(false);
+  const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
@@ -414,9 +375,14 @@ export default function WorkoutSession() {
   const [secondsLeft, setSecondsLeft] = useState(startingSeconds);
   const restOptions = [30, 45, 60, 90, 120];
   const completedSetCount = activeExercise ? Math.min(activeExerciseSets, completedSetsByExercise[activeExercise.id] || 0) : 0;
-  const currentSetNumber = activeExercise ? Math.min(activeExerciseSets, completedSetCount + 1) : 1;
-  const timerProgress = startingSeconds > 0 ? secondsLeft / startingSeconds : 0;
-  const timerAngle = Math.max(0, Math.min(360, timerProgress * 360));
+
+  useEffect(() => {
+    const pageOpenedAt = Date.now();
+    const timer = window.setInterval(() => {
+      setSessionElapsedSeconds(Math.floor((Date.now() - pageOpenedAt) / 1000));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     setCompletedSetsByExercise(
@@ -445,13 +411,22 @@ export default function WorkoutSession() {
     setSecondsLeft(Math.max(30, nextRestSeconds || 30));
     setSelectedRestSeconds(nextRestSeconds || 45);
     setIsRunning(false);
+    setIsResting(false);
   }, [activeExercise?.id, activeExercise?.actual_rest_seconds, activeExercise?.rest_seconds]);
 
   useEffect(() => {
-    if (!isRunning || secondsLeft <= 0) return;
-    const timer = window.setTimeout(() => setSecondsLeft((prev) => prev - 1), 1000);
+    if (!isResting || secondsLeft <= 0) return;
+    const timer = window.setTimeout(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setIsResting(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
     return () => window.clearTimeout(timer);
-  }, [isRunning, secondsLeft]);
+  }, [isResting, secondsLeft]);
 
   useEffect(() => {
     const loadExistingWorkoutSession = async () => {
@@ -510,14 +485,12 @@ export default function WorkoutSession() {
     return sum + (completedSetsByExercise[item.id] || 0);
   }, 0);
 
-  const progressPercent = totalSetsInSession > 0 ? (completedSetsInSession / totalSetsInSession) * 100 : 0;
   const isSessionExerciseDone = (item: SessionExercise): boolean => {
     if (completedIds.includes(item.id)) return true;
     return (completedSetsByExercise[item.id] || getExerciseCompletedSets(item)) >= getExerciseSets(item);
   };
   const allExercisesCompleted = orderedSession.length > 0 && orderedSession.every(isSessionExerciseDone);
   const nextExercise = orderedSession.find((item, index) => index > activeIndex && !isSessionExerciseDone(item)) || null;
-  const activeExerciseSteps = activeExercise ? getExerciseSteps(activeExercise) : [];
   const totalActualKcal = orderedSession.reduce((sum, item) => sum + getExerciseKcal(item), 0);
   const totalPlannedKcal = orderedSession.reduce((sum, item) => sum + getExercisePlannedKcal(item), 0);
 
@@ -1012,41 +985,13 @@ export default function WorkoutSession() {
 
   return (
     <div className="dashboard-page-shell workout-session-page flex flex-col text-sm pb-4 md:pb-6 lg:pb-7">
-      <div className="-mt-1 mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <button
-          type="button"
-          onClick={() => navigate('/exercises')}
-          className="inline-flex min-w-0 items-center gap-1.5 text-left text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary"
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0" />
-          Buổi tập: {activeExercise.name}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setFeedbackCompletedAll(completedIds.length >= orderedSession.length && orderedSession.length > 0);
-            setIsFeedbackModalOpen(true);
-          }}
-          className="inline-flex h-11 items-center justify-center self-start rounded-full border border-border-secondary bg-bg-tertiary px-4 text-xs font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent sm:self-auto"
-        >
-          Kết thúc buổi tập
-        </button>
-      </div>
-
-      <div className="workout-session-layout grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[260px_minmax(0,1fr)_300px]">
-        <aside className="order-3 border-t border-border-primary bg-bg-secondary px-4 pt-4 pb-5 lg:col-span-2 xl:order-1 xl:col-span-1 xl:border-t-0 xl:border-r">
+      <div className="workout-session-layout flex min-h-0 flex-col overflow-visible rounded-[28px] border border-border-primary bg-bg-secondary shadow-[0_28px_80px_rgba(0,0,0,0.45)]">
+        <aside className="order-2 border-t border-border-primary bg-bg-secondary px-4 pt-4 pb-5">
           <p className="text-sm font-black tracking-[0.08em] text-text-tertiary">Danh sách bài tập</p>
-          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1">
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {orderedSession.map((item, index) => {
               const isActive = index === activeIndex;
               const isDone = completedIds.includes(item.id);
-              const itemSets = getExerciseSets(item);
-              const itemCompletedSets = Math.min(itemSets, completedSetsByExercise[item.id] || getExerciseCompletedSets(item));
-              const statusText = isDone
-                ? 'Đã xong'
-                : itemCompletedSets > 0
-                  ? `Đang dở ${itemCompletedSets}/${itemSets} hiệp`
-                  : 'Chưa tập';
               return (
                 <button
                   key={item.id}
@@ -1068,9 +1013,6 @@ export default function WorkoutSession() {
                   <div className="min-w-0 flex-1">
                     <p className={`truncate text-sm font-bold ${isActive ? 'text-text-primary' : 'text-text-secondary'}`}>{item.name}</p>
                     <p className="mt-1 text-xs text-text-tertiary">{getExerciseReps(item)} rep • {getExerciseSets(item)} hiệp</p>
-                    <p className={`mt-1 text-[11px] font-bold ${isDone ? 'text-accent' : itemCompletedSets > 0 ? 'text-text-primary' : 'text-text-tertiary'}`}>
-                      {statusText}
-                    </p>
                   </div>
                   <span className="flex shrink-0 items-start">
                     <span
@@ -1100,79 +1042,96 @@ export default function WorkoutSession() {
           </div>
         </aside>
 
-        <section className="order-1 relative min-h-0 overflow-y-auto bg-transparent px-4 py-5 md:px-6 lg:px-8 xl:order-2">
-          <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
-            <p className="text-xs font-black tracking-[0.08em] text-text-tertiary">
-              Bài {Math.min(activeIndex + 1, orderedSession.length)} / {orderedSession.length}
-            </p>
-            <h1 className="mt-2 text-3xl font-black leading-tight text-text-primary md:text-4xl">{activeExercise.name}</h1>
-            <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold text-text-secondary">
-              <span>{activeExercise.exercises?.target_muscle || 'Cardio'}</span>
-              <span>{activeExerciseReps} nhịp mỗi hiệp</span>
-              <span>{activeExerciseSets} hiệp</span>
-              <span>{formatWeightKg(getExerciseWeightKg(activeExercise))}</span>
-              <span>Nghỉ {activeExerciseRestSeconds}s</span>
+        <section className="order-1 relative bg-transparent px-4 py-5 md:px-6 lg:px-8">
+          <div className="mx-auto mb-5 grid w-full max-w-5xl grid-cols-2 items-start gap-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,2fr)_minmax(0,1fr)]">
+            <button
+              type="button"
+              onClick={() => navigate('/exercises')}
+              className="order-2 inline-flex min-w-0 items-center gap-1.5 rounded-xl px-1 py-2 text-left text-sm font-semibold text-text-secondary transition-colors hover:text-text-primary md:order-1 md:py-0"
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" />
+              Buổi tập: {activeExercise.name}
+            </button>
+            <div className="order-1 col-span-2 flex flex-col items-center text-center md:order-2 md:col-span-1">
+              <p className="text-xs font-black tracking-[0.08em] text-text-tertiary">
+                Bài {Math.min(activeIndex + 1, orderedSession.length)} / {orderedSession.length}
+              </p>
+              <h1 className="mt-1 text-2xl font-black leading-tight text-text-primary md:text-3xl">{activeExercise.name}</h1>
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs font-semibold text-text-secondary">
+                <span>{formatTargetMuscleLabel(activeExercise.exercises?.target_muscle) || 'Cardio'}</span>
+                <span>{activeExerciseReps} nhịp mỗi hiệp</span>
+                <span>{activeExerciseSets} hiệp</span>
+                <span>{formatWeightKg(getExerciseWeightKg(activeExercise))}</span>
+                <span>Nghỉ {activeExerciseRestSeconds}s</span>
+              </div>
             </div>
+            <div className="order-3 inline-flex items-center justify-self-end gap-2 text-text-secondary">
+              <Timer className="h-5 w-5 text-accent" aria-hidden="true" />
+              <span className="font-mono text-base font-black tabular-nums text-text-primary">
+                {formatSessionElapsed(sessionElapsedSeconds)}
+              </span>
+            </div>
+          </div>
+
+          <div className="mx-auto flex max-w-5xl flex-col items-center text-center">
             <button
               type="button"
               onClick={openEditModal}
-              className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border-secondary bg-bg-secondary px-4 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent"
+              className="hidden h-10 items-center justify-center gap-2 rounded-xl border border-border-secondary bg-bg-secondary px-4 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent"
             >
               <SlidersHorizontal className="h-4 w-4" />
               Chỉnh thông số
             </button>
 
-            <div className="mt-6 inline-flex w-full flex-col items-center gap-4 overflow-hidden rounded-[24px] border border-border-primary bg-bg-secondary/40 p-4 md:gap-6 md:p-6 lg:flex-row">
-              <div className="flex w-full max-w-[220px] shrink-0 justify-center md:max-w-[240px]">
-                <div className="aspect-square w-full overflow-hidden rounded-xl bg-transparent">
-                  <ExercisePreview src={activeExercise.video_url} alt={activeExercise.name} />
-                </div>
-              </div>
-              <div className="w-full max-w-xl flex flex-col justify-center text-left">
-                <ol className="space-y-4 text-sm text-text-secondary leading-relaxed">
-                  {activeExerciseSteps.map((step, index) => (
-                    <li key={`${step}-${index}`} className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-black text-text-inverse">
-                        {index + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
+            <div className="mt-5 aspect-video w-full overflow-hidden">
+              <ExercisePreview src={activeExercise.video_url} alt={activeExercise.name} />
             </div>
 
-            <div className="mt-8 grid w-full max-w-xl grid-cols-1 justify-items-center gap-3 lg:max-w-4xl lg:grid-cols-[1fr_auto_1fr] lg:items-center">
-              <div className="flex w-full justify-center lg:justify-end">
+            <p className="mt-7 w-full font-mono text-4xl font-black tracking-[0.08em] tabular-nums text-text-primary md:text-5xl">
+              {formatSessionElapsed(secondsLeft)}
+            </p>
+
+            <div className="mt-8 grid w-full max-w-5xl grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1.5fr]">
+              <div className="flex w-full">
                 <button
                   type="button"
-                  onClick={() => setIsRunning((prev) => !prev)}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border-secondary bg-bg-secondary px-5 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent"
+                  onClick={() => {
+                    setIsRunning(false);
+                    setIsResting(false);
+                    setFeedbackCompletedAll(completedIds.length >= orderedSession.length && orderedSession.length > 0);
+                    setIsFeedbackModalOpen(true);
+                  }}
+                  className="inline-flex h-14 w-full flex-col items-center justify-center gap-0.5 rounded-2xl border border-border-secondary bg-bg-secondary px-5 text-sm font-bold text-text-primary transition-colors hover:border-accent/30"
                 >
-                  {isRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                  {isRunning ? 'Tạm dừng' : 'Bắt đầu'}
+                  <Pause className="h-4 w-4" />
+                  Dừng & lưu
                 </button>
               </div>
 
-              <div
-                className="order-first relative flex h-[168px] w-[168px] items-center justify-center rounded-full transition-all duration-700 lg:order-none"
-                style={{
-                  background: `conic-gradient(var(--accent-primary) 0deg ${timerAngle}deg, var(--accent-deep) ${timerAngle}deg 360deg)`
-                }}
-              >
-                <div className="absolute inset-[8px] rounded-full bg-bg-secondary" />
-                <div className="relative mt-1">
-                  <p className="text-4xl font-black leading-none text-text-primary">{formatClock(secondsLeft)}</p>
-                  <p className="mt-1.5 text-xs font-bold tracking-[0.08em] text-text-tertiary">
-                    Hiệp {currentSetNumber} / {activeExerciseSets}
-                  </p>
-                </div>
+              <div className="flex w-full">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRunning(false);
+                    setIsResting(false);
+                    setSecondsLeft(0);
+                  }}
+                  className="inline-flex h-14 w-full flex-col items-center justify-center gap-0.5 rounded-2xl border border-border-secondary bg-bg-secondary px-5 text-sm font-bold text-text-primary transition-colors hover:border-accent/30"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                  {isRunning ? 'Bỏ qua hiệp' : 'Bỏ qua nghỉ'}
+                </button>
               </div>
 
-              <div className="flex w-full justify-center lg:justify-start">
+              <div className="flex w-full">
                 <button
                   type="button"
                   onClick={async () => {
+                    if (!isRunning) {
+                      setIsResting(false);
+                      setIsRunning(true);
+                      return;
+                    }
                     let nextCompletedSets = Math.min(activeExerciseSets, completedSetCount + 1);
                     let nextActualKcal = Math.max(0, Number(activeExercise.actual_kcal_estimated) || 0);
                     setCompletedSetsByExercise((prev) => ({
@@ -1258,32 +1217,27 @@ export default function WorkoutSession() {
                         setActiveIndex(nextPendingIndex);
                       }
                     }
-                    setSecondsLeft(startingSeconds);
+                    const shouldStartRest = nextCompletedSets < activeExerciseSets;
+                    setSecondsLeft(shouldStartRest ? selectedRestSeconds : startingSeconds);
                     setIsRunning(false);
+                    setIsResting(shouldStartRest);
                   }}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse hover:bg-accent-hover"
+                  className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
                 >
-                  Hoàn thành hiệp
+                  {isRunning ? (
+                    <Check className="h-5 w-5 stroke-[3] text-[#05070a]" />
+                  ) : (
+                    <Play className="h-5 w-5 fill-current text-[#05070a]" />
+                  )}
+                  {isRunning ? 'Hoàn thành hiệp' : 'Bắt đầu hiệp'}
                 </button>
               </div>
             </div>
 
-            <div className="mt-10 w-full">
-              <div className="mb-2 flex items-center justify-between text-xs font-bold text-text-secondary">
-                <span>Tiến độ bài tập</span>
-                <span>{Math.round(progressPercent)}%</span>
-              </div>
-              <div className="h-2 rounded-full bg-bg-tertiary">
-                <div
-                  className="h-2 rounded-full bg-accent transition-all"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
           </div>
         </section>
 
-        <aside className="order-2 border-t border-border-primary bg-bg-secondary px-4 pt-4 pb-5 lg:border-t-0 lg:border-l xl:order-3">
+        <aside className="workout-session-side-panel order-2 border-t border-border-primary bg-bg-secondary px-4 pt-4 pb-5 lg:border-t-0 lg:border-l xl:order-3">
           <div className="grid min-h-full gap-5 sm:grid-cols-2 lg:grid-cols-1">
             <section className="space-y-3 px-3">
               <p className="text-sm font-black tracking-[0.08em] text-text-tertiary">Tiếp theo</p>

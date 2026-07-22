@@ -12,6 +12,7 @@ import {
   normalizeTrainingLocation,
   parseAvailableEquipment,
   experienceLevelToMonths,
+  formatExperienceRequirement,
   validateExerciseCatalog,
 } from '../../../shared/exerciseCatalog';
 import {
@@ -110,6 +111,12 @@ test('normalizes malformed legacy arrays and missing catalog metadata safely', (
   assert.deepEqual(normalized.training_locations, ['home', 'gym']);
   assert.equal(normalized.min_experience_months, 12);
   assert.deepEqual(normalized.instructions.steps, []);
+});
+
+test('preserves and formats zero-month experience requirements', () => {
+  const normalized = normalizeExercise(baseExercise({ min_experience_months: 0 }));
+  assert.equal(normalized.min_experience_months, 0);
+  assert.equal(formatExperienceRequirement(normalized.min_experience_months), 'Người mới');
 });
 
 test('eligibility enforces home/bodyweight/zero-month requirements', () => {

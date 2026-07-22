@@ -185,13 +185,17 @@ export default function ExerciseDetailOverlay({
   const videoSrc = normalizeMediaUrl(normalizedExercise.video_url);
   const locations = formatTrainingLocations(normalizedExercise.training_locations);
   const contraindications = normalizedExercise.contraindications;
+  // Keep this as the detail item's raw nullable value. Re-normalizing a missing
+  // value would infer a legacy requirement (12 months), while 0 is a valid
+  // catalog value and must remain "Người mới".
+  const minimumExperience = formatExperienceRequirement(activeExercise.min_experience_months);
   const variationIds = [instructions.easier_variation_id, instructions.harder_variation_id]
     .filter((id): id is string => Boolean(id));
 
   const metadataItems = [
     { key: 'body-part', label: 'Nhóm cơ', value: bodyPartLabel(normalizedExercise.body_part) || 'Chưa cập nhật' },
     { key: 'locations', label: 'Nơi tập phù hợp', value: locations || 'Chưa cập nhật' },
-    { key: 'experience', label: 'Kinh nghiệm tối thiểu', value: formatExperienceRequirement(normalizedExercise.min_experience_months) || 'Chưa cập nhật' },
+    { key: 'experience', label: 'Kinh nghiệm tối thiểu', value: minimumExperience ?? 'Chưa cập nhật' },
     { key: 'progression', label: 'Cấp độ tiến triển', value: `Cấp ${normalizedExercise.progression_level || 1}/5` },
   ];
 

@@ -1415,7 +1415,6 @@ export default function DietPlan() {
                       {isTodayLabel ? <span className="diet-week-today-label">NAY</span> : null}
                       <span className="text-[11px] leading-none sm:text-xs">{compactWeekdayLabel}</span>
                       <span className="text-base leading-none sm:text-lg">{dayDate.getDate()}</span>
-                      <span className="diet-week-day-dot" aria-hidden="true" />
                     </button>
                   );
                 })}

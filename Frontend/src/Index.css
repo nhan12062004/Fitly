@@ -4435,6 +4435,10 @@ svg {
   color: #f8fafc;
 }
 
+.workout-session-side-panel {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .diet-week-calendar {
     padding: 0.45rem !important;
