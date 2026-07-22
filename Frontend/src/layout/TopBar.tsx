@@ -9,6 +9,7 @@ import {
   Flame,
   Home,
   Loader2,
+  LogOut,
   Moon,
   Shield,
   Sparkles,
@@ -94,6 +95,7 @@ export default function TopBar() {
     membershipTier,
     profile,
     refreshTick,
+    signOut,
   } = useAuth();
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const navigate = useNavigate();
@@ -446,6 +448,19 @@ export default function TopBar() {
               userInitial
             )}
           </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={async () => {
+            await signOut();
+            navigate('/login');
+          }}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-danger/10 hover:text-danger"
+          aria-label="Đăng xuất"
+          title="Đăng xuất"
+        >
+          <LogOut className="h-4.5 w-4.5 transition-colors" />
         </button>
       </div>
     </header>
