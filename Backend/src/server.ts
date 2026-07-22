@@ -5977,7 +5977,7 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     if (generatedPlan.error) throw generatedPlan.error;
     const foodPlanId = generatedPlan.data.id;
     const insertedItems = await supabase.from('weekly_food_items').insert(
-      draft.rows.map(({ name, image_url, category, serving_unit, ...row }) => ({ ...row, food_plan_id: foodPlanId }))
+      draft.rows.map(({ name, image_url, category, serving_unit, servings, notes, ...row }) => ({ ...row, food_plan_id: foodPlanId }))
     );
     if (insertedItems.error) throw insertedItems.error;
     const activatedPlan = await supabase
