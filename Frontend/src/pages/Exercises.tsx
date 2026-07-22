@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Plus, AlertCircle, Calendar, ImageOff,
-  Play, Eye, Moon, ChevronRight, Shield, RefreshCw
+  Play, Eye, Moon, ChevronRight, Shield, RefreshCw, Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../lib/Api';
@@ -1059,13 +1059,6 @@ export default function Exercises() {
                 </div>
                 <div className="today-workout-feature flex flex-col justify-center gap-3.5 min-w-0 max-w-[580px]">
                   <div className="min-w-0">
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      {selectedSessionExercise.is_completed ? (
-                        <span className="rounded-full border border-border-primary bg-bg-tertiary/55 px-3 py-1 text-xs font-black text-text-secondary">
-                          Đã hoàn thành
-                        </span>
-                      ) : null}
-                    </div>
                     <h2 className="text-2xl font-black text-text-primary leading-tight md:text-[1.75rem] md:leading-[1.08] line-clamp-2">{selectedSessionExercise.name}</h2>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {selectedTargetMuscleLabel ? (
@@ -1217,7 +1210,9 @@ export default function Exercises() {
                             className="h-full w-full object-cover"
                           />
                         </div>
-                        <span className="workout-order-index">{index + 1}</span>
+                        <span className={`workout-order-index${exercise.is_completed ? ' workout-order-index--done' : ''}`}>
+                          {exercise.is_completed ? <Check style={{ width: '0.85rem', height: '0.85rem', strokeWidth: 3 }} /> : index + 1}
+                        </span>
                       </div>
 
                       <div className="workout-order-item-body">

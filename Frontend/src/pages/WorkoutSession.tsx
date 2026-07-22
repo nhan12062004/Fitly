@@ -339,7 +339,7 @@ export default function WorkoutSession() {
   const initialExerciseIndex = getResumeExerciseIndex(orderedSession, state.selectedSessionId);
   const initialExercise = orderedSession[initialExerciseIndex] || orderedSession[0] || null;
   const [activeIndex, setActiveIndex] = useState(initialExerciseIndex);
-  const [isRunning, setIsRunning] = useState(false);
+
   const [isResting, setIsResting] = useState(false);
   const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -410,7 +410,6 @@ export default function WorkoutSession() {
     const nextRestSeconds = getExerciseRestSeconds(activeExercise);
     setSecondsLeft(Math.max(30, nextRestSeconds || 30));
     setSelectedRestSeconds(nextRestSeconds || 45);
-    setIsRunning(false);
     setIsResting(false);
   }, [activeExercise?.id, activeExercise?.actual_rest_seconds, activeExercise?.rest_seconds]);
 
@@ -643,7 +642,6 @@ export default function WorkoutSession() {
     });
     setSelectedRestSeconds(nextRestSeconds);
     setSecondsLeft(Math.max(30, nextRestSeconds || 30));
-    setIsRunning(false);
 
     try {
       const response = await fetchWithAuth(`/api/workout/daily-exercises/${previousExercise.id}/config`, {
@@ -717,7 +715,6 @@ export default function WorkoutSession() {
       delete next[exerciseId];
       return next;
     });
-    setIsRunning(false);
 
     if (orderedSession.length > 1) {
       setActiveIndex(nextActiveIndex);
@@ -998,20 +995,26 @@ export default function WorkoutSession() {
                   type="button"
                   onClick={() => setActiveIndex(index)}
                   className={`flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition-all ${
-                    isActive
+                    isDone
+                      ? 'border border-green-500/40 bg-green-500/10'
+                      : isActive
                       ? 'border border-accent/50 bg-accent/10'
                       : 'border border-border-primary bg-bg-secondary'
                   }`}
                 >
                   <span
                     className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${
-                      isActive ? 'bg-accent text-text-inverse' : 'bg-bg-tertiary text-text-tertiary'
+                      isDone
+                        ? 'bg-green-500 text-white'
+                        : isActive
+                        ? 'bg-accent text-text-inverse'
+                        : 'bg-bg-tertiary text-text-tertiary'
                     }`}
                   >
-                    {index + 1}
+                    {isDone ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : index + 1}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className={`truncate text-sm font-bold ${isActive ? 'text-text-primary' : 'text-text-secondary'}`}>{item.name}</p>
+                    <p className={`truncate text-sm font-bold ${isDone ? 'text-green-400' : isActive ? 'text-text-primary' : 'text-text-secondary'}`}>{item.name}</p>
                     <p className="mt-1 text-xs text-text-tertiary">{getExerciseReps(item)} rep • {getExerciseSets(item)} hiệp</p>
                   </div>
                   <span className="flex shrink-0 items-start">
@@ -1090,13 +1093,30 @@ export default function WorkoutSession() {
             <p className="mt-7 w-full font-mono text-4xl font-black tracking-[0.08em] tabular-nums text-text-primary md:text-5xl">
               {formatSessionElapsed(secondsLeft)}
             </p>
-
+            {isResting ? (
+              <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                <span>⏸ Thời gian nghỉ giữa hiệp</span>
+                <span className="text-text-tertiary">·</span>
+                <button
+                  type="button"
+                  onClick={() => { setIsResting(false); setSecondsLeft(0); }}
+                  className="text-accent hover:underline"
+                >
+                  Bỏ qua ›
+                </button>
+              </p>
+            ) : (
+              <p className="mt-2 text-sm font-semibold text-text-secondary">
+                {completedSetCount > 0
+                  ? `Đã hoàn thành ${completedSetCount}/${activeExerciseSets} hiệp`
+                  : 'Bấm "Hoàn thành hiệp" khi xong'}
+              </p>
+            )}
             <div className="mt-8 grid w-full max-w-5xl grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1.5fr]">
               <div className="flex w-full">
                 <button
                   type="button"
                   onClick={() => {
-                    setIsRunning(false);
                     setIsResting(false);
                     setFeedbackCompletedAll(completedIds.length >= orderedSession.length && orderedSession.length > 0);
                     setIsFeedbackModalOpen(true);
@@ -1112,14 +1132,13 @@ export default function WorkoutSession() {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsRunning(false);
                     setIsResting(false);
                     setSecondsLeft(0);
                   }}
                   className="inline-flex h-14 w-full flex-col items-center justify-center gap-0.5 rounded-2xl border border-border-secondary bg-bg-secondary px-5 text-sm font-bold text-text-primary transition-colors hover:border-accent/30"
                 >
                   <ChevronRight className="h-5 w-5" />
-                  {isRunning ? 'Bỏ qua hiệp' : 'Bỏ qua nghỉ'}
+                  Bỏ qua nghỉ
                 </button>
               </div>
 
@@ -1127,11 +1146,6 @@ export default function WorkoutSession() {
                 <button
                   type="button"
                   onClick={async () => {
-                    if (!isRunning) {
-                      setIsResting(false);
-                      setIsRunning(true);
-                      return;
-                    }
                     let nextCompletedSets = Math.min(activeExerciseSets, completedSetCount + 1);
                     let nextActualKcal = Math.max(0, Number(activeExercise.actual_kcal_estimated) || 0);
                     setCompletedSetsByExercise((prev) => ({
@@ -1145,6 +1159,10 @@ export default function WorkoutSession() {
                           : item
                       )
                     );
+                    // Bắt đầu đếm ngược nghỉ ngay lập tức (nếu chưa hoàn thành tất cả hiệp)
+                    const shouldStartRest = nextCompletedSets < activeExerciseSets;
+                    setSecondsLeft(shouldStartRest ? selectedRestSeconds : startingSeconds);
+                    setIsResting(shouldStartRest);
                     try {
                       const response = await fetchWithAuth(`/api/workout/daily-exercises/${activeExercise.id}/complete-set`, {
                         method: 'POST',
@@ -1217,19 +1235,11 @@ export default function WorkoutSession() {
                         setActiveIndex(nextPendingIndex);
                       }
                     }
-                    const shouldStartRest = nextCompletedSets < activeExerciseSets;
-                    setSecondsLeft(shouldStartRest ? selectedRestSeconds : startingSeconds);
-                    setIsRunning(false);
-                    setIsResting(shouldStartRest);
                   }}
                   className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-accent px-5 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover"
                 >
-                  {isRunning ? (
-                    <Check className="h-5 w-5 stroke-[3] text-[#05070a]" />
-                  ) : (
-                    <Play className="h-5 w-5 fill-current text-[#05070a]" />
-                  )}
-                  {isRunning ? 'Hoàn thành hiệp' : 'Bắt đầu hiệp'}
+                  <Check className="h-5 w-5 stroke-[3] text-[#05070a]" />
+                  Hoàn thành hiệp
                 </button>
               </div>
             </div>
@@ -1288,7 +1298,6 @@ export default function WorkoutSession() {
                   const next = Number(e.target.value) || 45;
                   setSelectedRestSeconds(next);
                   setSecondsLeft(next);
-                  setIsRunning(false);
                 }}
                 className="h-11 w-full rounded-xl border border-border-primary bg-bg-secondary px-3 text-sm font-bold text-text-primary outline-none transition-colors hover:border-border-secondary focus:border-accent"
               >
@@ -1304,7 +1313,6 @@ export default function WorkoutSession() {
               <button
                 type="button"
                 onClick={() => {
-                  setIsRunning(false);
                   setSecondsLeft(0);
                 }}
                 className="inline-flex h-11 w-full items-center justify-center rounded-xl border border-border-primary bg-bg-secondary px-4 text-sm font-bold text-text-primary transition-colors hover:border-accent/30 hover:text-accent"

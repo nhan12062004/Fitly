@@ -31,6 +31,11 @@ function ScrollToTop() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    // Also reset the dashboard scroll container (overflow-y-auto div)
+    const scrollRegion = document.querySelector('.app-scroll-region');
+    if (scrollRegion) {
+      scrollRegion.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
   }, [pathname]);
 
   return null;

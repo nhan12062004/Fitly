@@ -3500,6 +3500,11 @@ body.landing-scrollbar-visible::-webkit-scrollbar-thumb:hover {
   background: #0f766e;
 }
 
+.workout-order-index--done {
+  background: #16a34a;
+  border-color: #ffffff;
+}
+
 .workout-order-item-body {
   min-width: 0;
 }

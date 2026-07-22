@@ -519,7 +519,6 @@ export default function Overview() {
           sleepActual: progressLogRes.data?.sleep_hours || 0,
           sleepTarget
         };
-        setDailyProgress(nextDailyProgress);
 
         let mealsList = createDefaultMeals(resolvedMealsPerDay);
         let mealItemsList: OverviewMealItem[] = [];
