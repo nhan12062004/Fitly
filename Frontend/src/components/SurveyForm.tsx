@@ -1196,7 +1196,6 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       goNext();
       return;
     }
-
     setIsSubmitted(true);
     const invalidStep = getFirstInvalidStep();
     if (invalidStep !== null) {
@@ -1207,13 +1206,14 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
     setLoading(true);
 
     try {
+      const { data: authUserData } = await supabase.auth.getUser();
+      const targetUserId = authUserData.user?.id || user.id;
+
       const resolvedBirthday = formData.birthday || ageToBirthday(formData.age);
       const resolvedFullName = formData.full_name.trim() || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Thành viên';
       const resolvedTargetWeight = parseFloat(formData.target_weight) || parseFloat(formData.weight) || 0;
       const resolvedEquipment = formData.workout_location === 'Phòng Gym' ? 'Đầy đủ tạ & máy móc' : 'Không dụng cụ';
       const normalizedActivityLevel = normalizeActivityLevel(formData.activity_level);
-      // This is a temporary persistence value only. The backend prescription
-      // rule overwrites it before any AI plan is generated.
       const weeklyWorkouts = 3;
       const ageYears = Number(formData.age) || 28;
       const heightCm = Number(formData.height) || 170;
@@ -1239,7 +1239,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       const profilePromise = supabase
         .from('profiles')
         .upsert({
-          id: user.id,
+          id: targetUserId,
           full_name: resolvedFullName,
           email: formData.email,
           gender: formData.gender,
@@ -1251,23 +1251,23 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       const bodyMetricsPromise = supabase
         .from('body_metrics')
         .insert({
-          user_id: user.id,
+          user_id: targetUserId,
           height: parseFloat(formData.height) || 0,
           weight: parseFloat(formData.weight) || 0,
           target_weight: resolvedTargetWeight,
-          // Ưu tiên số đo khách đã nhập; nếu chưa có, tự ước tính từ dữ liệu khảo sát.
           body_fat: formData.body_fat ? parseFloat(formData.body_fat) : estimatedBodyFat,
           neck: formData.neck ? parseFloat(formData.neck) : null,
-          chest: formData.chest ? parseFloat(formData.chest) : null,
           waist: formData.waist ? parseFloat(formData.waist) : null,
-          hips: formData.hips ? parseFloat(formData.hips) : null
+          hip: formData.hips ? parseFloat(formData.hips) : null,
+          activity_level: normalizedActivityLevel,
+          workout_frequency: weeklyWorkouts
         });
 
       // 3. Cập nhật Lối sống & Thói quen toàn diện
       const lifestylePromise = supabase
         .from('lifestyle_settings')
         .upsert({
-          user_id: user.id,
+          user_id: targetUserId,
           activity_level: normalizedActivityLevel,
           weekly_workouts: weeklyWorkouts,
           fitness_goal: formData.fitness_goal,
@@ -1300,7 +1300,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       const healthPromise = supabase
         .from('health_conditions')
         .upsert({
-          user_id: user.id,
+          user_id: targetUserId,
           health_condition: formData.health_condition,
           medical_history: formData.allergies,
           allergies: normalizeAllergies(formData.allergies),
@@ -1370,11 +1370,13 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       await onComplete(summary);
     } catch (err: any) {
       console.error('Error saving multi-table profile:', err);
-      const message = err?.message || err?.details || 'Thông tin không hợp lệ';
+      let message = err?.message || err?.details || 'Thông tin không hợp lệ';
+      if (message.includes('profiles_id_fkey') || message.includes('foreign key constraint')) {
+        message = 'Tài khoản của bạn không tìm thấy trong hệ thống Auth (Supabase). Vui lòng đăng xuất và đăng nhập lại.';
+      }
       setSubmitError(`Lỗi hệ thống: ${message}. Vui lòng thử lại hoặc mở Console (F12) để xem chi tiết.`);
     } finally {
       setLoading(false);
-    }
   };
 
 
@@ -2031,3 +2033,6 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
     </div>
   );
 }
+}
+
+
