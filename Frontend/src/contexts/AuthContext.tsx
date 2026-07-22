@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       // 2. Kiểm tra xem đã hoàn thành survey chưa (lifestyle_settings tồn tại)
       const { data: lifestyleData } = await supabase

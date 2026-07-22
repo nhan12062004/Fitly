@@ -932,7 +932,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       setIsPreloading(true);
       try {
         const [p, b, l, h] = await Promise.all([
-          supabase.from('profiles').select('*').eq('id', user.id).single(),
+          supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
           supabase.from('body_metrics').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
           supabase.from('lifestyle_settings').select('*').eq('user_id', user.id).maybeSingle(),
           supabase.from('health_conditions').select('*').eq('user_id', user.id).maybeSingle()
