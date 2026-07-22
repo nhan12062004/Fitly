@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Plus, AlertCircle, Calendar, ImageOff,
-  Play, Eye, Moon, ChevronRight, Shield, RefreshCw, Check
+  Play, Eye, Moon, ChevronRight, Shield, RefreshCw, Check, RotateCcw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../lib/Api';
@@ -1043,8 +1043,8 @@ export default function Exercises() {
           </div>
           <span className="today-workout-status-pill today-workout-status-active">
             {workoutPlanQuota
-              ? `Lượt sử dụng: ${workoutPlanQuota.used}/${workoutPlanQuota.limit}`
-              : 'Đang tải lượt sử dụng…'}
+              ? `Lượt còn lại: ${Math.max(0, workoutPlanQuota.limit - workoutPlanQuota.used)}/${workoutPlanQuota.limit}`
+              : 'Đang tải lượt còn lại…'}
           </span>
         </div>
 
@@ -1256,9 +1256,15 @@ export default function Exercises() {
                           type="button"
                           className={`workout-order-action ${isActive ? 'workout-order-action-play' : ''}`}
                           onClick={openExercise}
-                          aria-label={isActive ? `Bắt đầu từ bài ${exercise.name}` : `Chọn bài ${exercise.name}`}
+                          aria-label={exercise.is_completed ? `Tập lại bài ${exercise.name}` : isActive ? `Bắt đầu từ bài ${exercise.name}` : `Chọn bài ${exercise.name}`}
                         >
-                          {isActive ? <Play className="h-4 w-4 fill-current" /> : <ChevronRight className="h-4 w-4" />}
+                          {exercise.is_completed ? (
+                            <RotateCcw className="h-4 w-4" />
+                          ) : isActive ? (
+                            <Play className="h-4 w-4 fill-current" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
                         </button>
                       </div>
                     </div>

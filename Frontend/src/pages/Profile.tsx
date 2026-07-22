@@ -1329,7 +1329,7 @@ export default function Profile() {
           {aiLimit !== Infinity && (
             <div className="mt-3">
               <div className="flex justify-between mb-1.5">
-                <p className="text-xs font-semibold text-text-secondary">Tin nhắn AI Coach đã dùng</p>
+                <p className="text-xs font-semibold text-text-secondary">Lượt AI đã dùng</p>
                 <p className="text-xs font-black text-text-primary">{aiUsed} / {aiLimit}</p>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
@@ -1348,11 +1348,16 @@ export default function Profile() {
                 <Activity className="h-3.5 w-3.5 text-accent" />
                 <p className="text-xs font-semibold text-text-secondary">Đổi bài tập</p>
               </div>
-              <p className="text-lg font-black text-text-primary">{aiSwapWorkout}</p>
+              <p className="text-lg font-black text-text-primary">
+                {aiSwapLimit === Infinity ? '∞' : Math.max(0, aiSwapLimit - aiSwapWorkout)}
+              </p>
               <p className="text-[10px] text-text-tertiary font-semibold">/ {aiSwapLimit === Infinity ? '∞' : aiSwapLimit} lượt</p>
               {aiSwapLimit !== Infinity && (
                 <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-bg-secondary">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, (aiSwapWorkout / aiSwapLimit) * 100)}%` }} />
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width] duration-300"
+                    style={{ width: `${Math.max(0, Math.min(100, ((aiSwapLimit - aiSwapWorkout) / aiSwapLimit) * 100))}%` }}
+                  />
                 </div>
               )}
             </div>
@@ -1361,11 +1366,16 @@ export default function Profile() {
                 <Apple className="h-3.5 w-3.5 text-emerald-400" />
                 <p className="text-xs font-semibold text-text-secondary">Đổi món ăn</p>
               </div>
-              <p className="text-lg font-black text-text-primary">{aiSwapMeal}</p>
+              <p className="text-lg font-black text-text-primary">
+                {aiSwapLimit === Infinity ? '∞' : Math.max(0, aiSwapLimit - aiSwapMeal)}
+              </p>
               <p className="text-[10px] text-text-tertiary font-semibold">/ {aiSwapLimit === Infinity ? '∞' : aiSwapLimit} lượt</p>
               {aiSwapLimit !== Infinity && (
                 <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-bg-secondary">
-                  <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, (aiSwapMeal / aiSwapLimit) * 100)}%` }} />
+                  <div
+                    className="h-full rounded-full bg-emerald-400 transition-[width] duration-300"
+                    style={{ width: `${Math.max(0, Math.min(100, ((aiSwapLimit - aiSwapMeal) / aiSwapLimit) * 100))}%` }}
+                  />
                 </div>
               )}
             </div>

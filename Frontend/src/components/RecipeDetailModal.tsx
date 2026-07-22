@@ -50,7 +50,7 @@ export function RecipeDetailModal({ recipeId, onClose }: { recipeId: string | nu
     <div className="fixed inset-0 z-[80] flex items-end bg-black/55 p-0 backdrop-blur-sm sm:items-center sm:justify-center sm:p-5" role="dialog" aria-modal="true" aria-label="Chi tiết món ăn">
       <section className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-border-primary bg-bg-secondary shadow-2xl sm:rounded-2xl">
         <header className="flex items-start justify-between gap-4 border-b border-border-primary p-4 md:p-5">
-          <div className="min-w-0"><p className="text-xs font-black uppercase tracking-[.12em] text-accent">Recipe</p><h2 className="mt-1 text-xl font-black text-text-primary">{recipe?.name || 'Chi tiết món ăn'}</h2></div>
+          <div className="min-w-0"><p className="text-xs font-black uppercase tracking-[.12em] text-accent">Công thức</p><h2 className="mt-1 text-xl font-black text-text-primary">{recipe?.name || 'Chi tiết món ăn'}</h2></div>
           <button type="button" onClick={onClose} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border-primary text-text-secondary hover:text-text-primary" aria-label="Đóng chi tiết món"><X className="h-5 w-5" /></button>
         </header>
         {loading ? <div className="flex min-h-60 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-accent" /></div> : null}
