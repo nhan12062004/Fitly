@@ -2055,12 +2055,12 @@ function schedulePremiumMondayAutoPlanner() {
   console.log(`[premium-auto-planner] Scheduled with cron "${PREMIUM_AUTO_PLAN_CRON}" (${VIETNAM_TIMEZONE})`);
 }
 
-// Telegram bot khởi tạo khi ở môi trường Production (Render) hoặc khi có TELEGRAM_BOT_TOKEN và polling không bị tắt bằng TELEGRAM_ENABLE_POLLING=false.
+// Telegram bot khởi tạo tự động trên Production (Render).
+// Ở môi trường local dev, bot chỉ bật khi có TELEGRAM_FORCE_ENABLE=true hoặc TELEGRAM_ENABLE_POLLING=true để tránh lỗi Telegram 409 Conflict với Render server.
 const shouldInitBot = process.env.TELEGRAM_BOT_ENABLED !== 'false' && (
   IS_PRODUCTION ||
   process.env.TELEGRAM_FORCE_ENABLE === 'true' ||
-  process.env.TELEGRAM_ENABLE_POLLING === 'true' ||
-  (Boolean(process.env.TELEGRAM_BOT_TOKEN) && process.env.TELEGRAM_ENABLE_POLLING !== 'false')
+  process.env.TELEGRAM_ENABLE_POLLING === 'true'
 );
 const telegramBot = shouldInitBot ? initTelegramBot() : null;
 
