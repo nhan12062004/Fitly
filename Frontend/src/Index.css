@@ -4356,6 +4356,93 @@ svg {
   }
 }
 
+/* Compact weekly calendar for the diet plan. */
+.diet-week-calendar {
+  border-color: color-mix(in srgb, var(--border-primary) 75%, transparent) !important;
+  background: #151b25 !important;
+  box-shadow: none !important;
+}
+
+.diet-week-day {
+  border-color: #262e39;
+  background: #0d121a;
+  color: #aeb8c7;
+}
+
+.diet-week-day:hover {
+  border-color: #435064;
+  background: #151d29;
+  color: #edf3fb;
+}
+
+.diet-week-day-today {
+  border-color: rgba(249, 115, 22, 0.42);
+  background: rgba(120, 53, 15, 0.28);
+  color: #ffb56b;
+}
+
+.diet-week-day-selected {
+  border-color: #caff32;
+  background: #caff32;
+  box-shadow: 0 10px 24px rgba(202, 255, 50, 0.20);
+  color: #10200b;
+}
+
+.diet-week-day-dot {
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.diet-week-today-label {
+  position: absolute;
+  top: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 1px solid rgba(45, 212, 191, 0.42);
+  border-radius: 999px;
+  background: #122d32;
+  padding: 0.08rem 0.32rem;
+  color: #5eead4;
+  font-size: 0.5rem;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+.light .diet-week-calendar {
+  background: #edf2f7 !important;
+}
+
+.light .diet-week-day {
+  border-color: #d7dee8;
+  background: #ffffff;
+  color: #64748b;
+}
+
+.light .diet-week-day-today {
+  border-color: rgba(234, 88, 12, 0.45);
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.light .diet-week-day-selected {
+  border-color: #9cd91a;
+  background: #caff32;
+  color: #10200b;
+}
+
+@media (max-width: 640px) {
+  .diet-week-calendar {
+    padding: 0.45rem !important;
+  }
+
+  .diet-week-calendar .diet-week-day {
+    min-height: 60px !important;
+    border-radius: 14px !important;
+  }
+}
+
 /*
  * Three fluid viewport ranges
  * Mobile:  <= 640px

@@ -633,11 +633,15 @@ export default function DietPlan() {
         const carbs = roundMacro(items.reduce((sum, item) => sum + item.carbs * item.quantity, 0));
         const fat = roundMacro(items.reduce((sum, item) => sum + item.fat * item.quantity, 0));
         const categories = Array.from(new Set(items.map((item) => item.category).filter(Boolean)));
+        const completedItemCount = items.filter(
+          (item) => Boolean(item.weekly_food_item_id && completedWeeklyItemIds.has(item.weekly_food_item_id))
+        ).length;
 
         return {
           ...meal,
           mealIndex,
           items,
+          completedItemCount,
           mealCalories,
           firstItem,
           feedbackTarget: firstItem || null,
@@ -652,7 +656,7 @@ export default function DietPlan() {
           isHighlighted: highlightedMealId === meal.id
         };
       }),
-    [activeMealTypes, scopedDayItems, highlightedMealId]
+    [activeMealTypes, scopedDayItems, highlightedMealId, completedWeeklyItemIds]
   );
   const visibleMealSummaries = useMemo(() => mealSummaries.filter((meal) => meal.hasItems), [mealSummaries]);
   const hasMenuForSelectedDay = visibleMealSummaries.length > 0;
@@ -1386,23 +1390,15 @@ export default function DietPlan() {
       <div className="w-full space-y-4 overflow-hidden">
         <section className="diet-card diet-today-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
           <div className="flex flex-col gap-4">
-            <div className="diet-day-tabs overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary/40 p-1">
-              <div ref={dayTabContainerRef} className="relative grid min-w-0 grid-cols-7 gap-0.5 sm:gap-1">
-                <span
-                  className={`diet-tab-indicator pointer-events-none absolute rounded-lg transition-[transform,width,height,opacity] duration-300 ease-out ${dayIndicatorStyle.visible ? 'opacity-100' : 'opacity-0'}`}
-                  style={{
-                    width: `${dayIndicatorStyle.width}px`,
-                    height: `${dayIndicatorStyle.height}px`,
-                    transform: `translate(${dayIndicatorStyle.x}px, ${dayIndicatorStyle.y}px)`
-                  }}
-                />
+            <div className="diet-day-tabs diet-week-calendar overflow-hidden rounded-[22px] border border-border-primary p-2">
+              <div ref={dayTabContainerRef} className="grid min-w-0 grid-cols-7 gap-1.5 sm:gap-2">
                 {DAYS.map((day) => {
                   const dayDate = addDays(selectedWeekStart, day.id);
                   const isToday = toDateKey(dayDate) === todayKey;
                   const isSelected = selectedDayId === day.id;
                   const isTodayLabel = isCurrentWeek && isToday;
                   const weekdayLabel = dayDate.toLocaleDateString('vi-VN', { weekday: 'short' }).replace('.', '');
-                  const label = isTodayLabel ? 'Hôm nay' : weekdayLabel;
+                  const compactWeekdayLabel = weekdayLabel.replace(/^Th\s*/i, 'T').toUpperCase();
 
                   return (
                     <button
@@ -1412,13 +1408,15 @@ export default function DietPlan() {
                       }}
                       type="button"
                       onClick={() => setSelectedDayId(day.id)}
-                      className={`inline-flex min-h-[40px] min-w-0 items-center justify-center whitespace-nowrap rounded-lg px-1 text-[10px] font-black uppercase transition sm:px-2 sm:text-[11px] sm:tracking-[0.08em] ${
-                        isSelected ? 'diet-tab-selected relative z-10' : 'diet-tab'
+                      className={`diet-week-day relative inline-flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 font-black transition sm:min-h-[68px] ${
+                        isSelected ? 'diet-week-day-selected' : isTodayLabel ? 'diet-week-day-today' : 'diet-week-day-default'
                       }`}
                       title={dayDate.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })}
                     >
-                      <span className="sm:hidden">{isTodayLabel ? 'Nay' : weekdayLabel.replace(' ', '')}</span>
-                      <span className="hidden sm:inline">{label}</span>
+                      {isTodayLabel ? <span className="diet-week-today-label">NAY</span> : null}
+                      <span className="text-[11px] leading-none sm:text-xs">{compactWeekdayLabel}</span>
+                      <span className="text-base leading-none sm:text-lg">{dayDate.getDate()}</span>
+                      <span className="diet-week-day-dot" aria-hidden="true" />
                     </button>
                   );
                 })}
@@ -1554,7 +1552,7 @@ export default function DietPlan() {
                       <h3>{{ breakfast: 'Bữa sáng', lunch: 'Bữa trưa', dinner: 'Bữa tối', snack: 'Bữa phụ' }[meal.id]}</h3>
                       <span className="diet-meal-time">{meal.time}</span>
                     </div>
-                    <p className="diet-meal-total">{meal.mealCalories} kcal · {progress}% · {meal.items.length}/3</p>
+                    <p className="diet-meal-total">{meal.mealCalories} kcal · {progress}% · {meal.completedItemCount}/{meal.items.length}</p>
                   </header>
 
                   <div className="mt-2.5 space-y-2.5">

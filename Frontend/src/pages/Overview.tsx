@@ -233,7 +233,7 @@ type OverviewExercise = {
 };
 
 type OverviewMealItem = {
-  food_id: string;
+  recipe_id: string;
   meal_type: MealType;
   quantity: number;
   // weekly_food_items metrics are stored per serving/unit; totals must multiply by quantity.
@@ -241,7 +241,7 @@ type OverviewMealItem = {
   protein: number;
   carbs: number;
   fat: number;
-  foods: Record<string, any>;
+  recipe: Record<string, any>;
 };
 
 type DailyMealLogRow = {
@@ -530,21 +530,11 @@ export default function Overview() {
           const todayDayOfWeek = Math.max(0, Math.min(6, Math.round((Date.parse(`${todayStr}T00:00:00Z`) - Date.parse(`${plans[0].week_start_date}T00:00:00Z`)) / (24 * 60 * 60 * 1000))));
           const { data: foodItems } = await supabase
             .from('weekly_food_items')
-            .select('food_id, calories, protein, carbs, fat, quantity, meal_type, foods:food_id(name, calories, protein, carbs, fat, image_url)')
+            .select('recipe_id, calories, protein, carbs, fat, quantity, meal_type, is_rest_day, recipes:recipe_id(name, calories, protein, carbs, fat, image_url)')
             .eq('food_plan_id', plans[0].id)
             .eq('day_of_week', todayDayOfWeek);
 
           if (foodItems && foodItems.length > 0) {
-            const foodIds = [...new Set(foodItems.map((item: any) => item.food_id).filter(Boolean))];
-            let foodLookup: Record<string, any> = {};
-            if (foodIds.length > 0) {
-              const { data: foodsBase } = await supabase
-                .from('foods')
-                .select('id, name, calories, protein, carbs, fat')
-                .in('id', foodIds);
-              foodLookup = Object.fromEntries((foodsBase || []).map((food: any) => [String(food.id), food]));
-            }
-
             const mealTypes: MealType[] = getMealTypesForCount(resolvedMealsPerDay);
             const mealMap: Record<MealType, MealBucket> = {
               breakfast: { label: MEAL_SLOT_META.breakfast.label, foods: [], kcal: 0, protein: 0, carbs: 0, fat: 0 },
@@ -558,30 +548,27 @@ export default function Overview() {
             const visibleMealTypes = new Set(getMealTypesForCount(resolvedMealsPerDay));
 
             (foodItems as any[]).forEach((item: any) => {
+              if (item.is_rest_day || !item.recipe_id) return;
               const type = toMealType(item.meal_type);
               if (!visibleMealTypes.has(type)) return;
               const qty = Number(item.quantity || 1);
-              const foodBase = foodLookup[String(item.food_id)] || {};
-              // weekly_food_items macros are stored per unit/serving; totals must apply quantity.
-              const kcal = resolveMealMetric(item.calories, (item.foods as any)?.calories ?? foodBase.calories) * qty;
-              const protein = resolveMealMetric(item.protein, (item.foods as any)?.protein ?? foodBase.protein) * qty;
-              const carbs = resolveMealMetric(item.carbs, (item.foods as any)?.carbs ?? foodBase.carbs) * qty;
-              const fat = resolveMealMetric(item.fat, (item.foods as any)?.fat ?? foodBase.fat) * qty;
-              const name = (item.foods as any)?.name || foodBase.name || 'Món ăn';
+              const recipe = (item.recipes as any) || {};
+              // weekly_food_items macros are stored per serving; totals must apply quantity.
+              const kcal = resolveMealMetric(item.calories, recipe.calories) * qty;
+              const protein = resolveMealMetric(item.protein, recipe.protein) * qty;
+              const carbs = resolveMealMetric(item.carbs, recipe.carbs) * qty;
+              const fat = resolveMealMetric(item.fat, recipe.fat) * qty;
+              const name = recipe.name || 'Món ăn';
 
               mealItemsList.push({
-                food_id: String(item.food_id),
+                recipe_id: String(item.recipe_id),
                 meal_type: type,
                 quantity: qty,
                 calories: kcal,
                 protein,
                 carbs,
                 fat,
-                foods: {
-                  ...(item.foods as any),
-                  ...foodBase,
-                  name
-                }
+                recipe: { ...recipe, name }
               });
               mealMap[type].foods.push(name);
               mealMap[type].kcal += kcal;
