@@ -219,7 +219,7 @@ const LOCATION_OPTIONS: ChoiceOption[] = [
 const DIET_OPTIONS: ChoiceOption[] = [
   { value: 'Bình thường', label: 'Bình thường' },
   { value: 'Ăn chay', label: 'Ăn chay' },
-  { value: 'Ăn nhiều đạm (High Protein)', label: 'Nhiều đạm' },
+  { value: 'Ăn nhiều đạm (High Protein)', label: 'Nhiều Protein' },
   { value: 'Keto / Low Carb', label: 'Low Carb' },
   { value: 'Eat Clean', label: 'Eat Clean' }
 ];
@@ -758,7 +758,7 @@ const mealTemplatesByDiet = {
     { dish: 'Sữa chua đậu nành + hạt chia', detail: 'Bữa phụ nhẹ' },
     { dish: 'Cơm gạo lứt + đậu phụ sốt nấm', detail: 'Protein thực vật' },
     { dish: 'Sinh tố bơ đậu phộng', detail: 'Bổ sung năng lượng' },
-    { dish: 'Salad quinoa + trứng/đậu gà', detail: 'No lâu, cân bằng đạm' }
+    { dish: 'Salad quinoa + trứng/đậu gà', detail: 'No lâu, cân bằng protein' }
   ],
   keto: [
     { dish: 'Trứng ốp la + bơ + rau xanh', detail: 'Ít carb, giàu chất béo tốt' },
@@ -768,11 +768,11 @@ const mealTemplatesByDiet = {
     { dish: 'Cá hồi + bông cải xanh', detail: 'Omega-3 và rau xanh' }
   ],
   highProtein: [
-    { dish: 'Trứng cuộn + bánh mì đen', detail: 'Đạm cao cho buổi sáng' },
+    { dish: 'Trứng cuộn + bánh mì đen', detail: 'Protein cao cho buổi sáng' },
     { dish: 'Sữa chua Hy Lạp + whey/chuối', detail: 'Bữa phụ phục hồi' },
     { dish: 'Cơm gạo lứt + ức gà + rau luộc', detail: 'Bữa chính giàu protein' },
-    { dish: 'Phô mai tươi + hạnh nhân', detail: 'Đạm chậm, no lâu' },
-    { dish: 'Cá ngừ/cá hồi + khoai lang + salad', detail: 'Cân bằng đạm và carb' }
+    { dish: 'Phô mai tươi + hạnh nhân', detail: 'Protein chậm, no lâu' },
+    { dish: 'Cá ngừ/cá hồi + khoai lang + salad', detail: 'Cân bằng protein và carb' }
   ],
   clean: [
     { dish: 'Yến mạch qua đêm + trái cây', detail: 'Nguyên liệu sạch, ít chế biến' },
@@ -786,7 +786,7 @@ const mealTemplatesByDiet = {
     { dish: 'Sữa chua Hy Lạp + hạnh nhân', detail: 'Bữa phụ no lâu' },
     { dish: 'Cơm gạo lứt + ức gà + rau xanh', detail: 'Bữa chính cân bằng' },
     { dish: 'Chuối + sữa ít đường', detail: 'Nạp nhẹ trước/sau tập' },
-    { dish: 'Cá hồi/cá trắng + khoai lang + salad', detail: 'Tối nhẹ, đủ đạm' }
+    { dish: 'Cá hồi/cá trắng + khoai lang + salad', detail: 'Tối nhẹ, đủ protein' }
   ]
 };
 

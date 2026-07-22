@@ -1652,7 +1652,7 @@ export default function DietPlan() {
                             <h4 className={`truncate text-[15px] font-black text-text-primary ${isCompleted ? 'diet-food-name-completed' : ''}`}>{item.name}</h4>
                             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-text-tertiary">
                               <span className="inline-flex items-center gap-1 font-black text-[var(--meal-accent)]"><Flame className="h-3.5 w-3.5" />{Math.round(item.calories * item.quantity)} kcal</span>
-                              <span>{roundMacro(item.protein * item.quantity)}g đạm</span>
+                              <span>{roundMacro(item.protein * item.quantity)}g protein</span>
                               <span>{roundMacro(item.carbs * item.quantity)}g carb</span>
                             </p>
                           </div>
@@ -1714,7 +1714,7 @@ export default function DietPlan() {
                             <span className="truncate">{item.category || 'Khẩu phần'}</span>
                             <span>{formatFoodQuantity(item)}</span>
                             <strong>{Math.round(item.calories * item.quantity)} kcal</strong>
-                            <span>{roundMacro(item.protein * item.quantity)}g đạm</span>
+                            <span>{roundMacro(item.protein * item.quantity)}g protein</span>
                           </div>
                         )}
                       </article>

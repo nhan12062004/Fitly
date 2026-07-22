@@ -19,8 +19,8 @@ export type MealSurveySelection = {
 const DIET_OPTIONS: Choice[] = [
   { value: 'Bình thường', label: 'Ăn cân bằng', description: 'Đa dạng món ăn, dễ áp dụng hằng ngày.' },
   { value: 'Ăn chay', label: 'Ăn chay', description: 'Ưu tiên nguồn đạm và thực phẩm từ thực vật.' },
-  { value: 'Ăn nhiều đạm (High Protein)', label: 'Nhiều đạm', description: 'Hỗ trợ tăng cơ và phục hồi sau tập.' },
-  { value: 'Keto / Low Carb', label: 'Low Carb', description: 'Giảm tinh bột, ưu tiên đạm và chất béo tốt.' },
+  { value: 'Ăn nhiều đạm (High Protein)', label: 'Nhiều Protein', description: 'Hỗ trợ tăng cơ và phục hồi sau tập.' },
+  { value: 'Keto / Low Carb', label: 'Low Carb', description: 'Giảm tinh bột, ưu tiên protein và chất béo tốt.' },
   { value: 'Eat Clean', label: 'Eat Clean', description: 'Món ăn đơn giản, ít chế biến.' },
 ];
 
