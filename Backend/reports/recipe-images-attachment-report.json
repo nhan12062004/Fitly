@@ -1,0 +1,1206 @@
+{
+  "total": 200,
+  "successCount": 200,
+  "results": [
+    {
+      "id": "pho-bo-tai",
+      "name": "Phở bò tái",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/pho-bo-tai.jpg"
+    },
+    {
+      "id": "pho-ga",
+      "name": "Phở gà",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/pho-ga.jpg"
+    },
+    {
+      "id": "bun-moc",
+      "name": "Bún mọc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-moc.webp"
+    },
+    {
+      "id": "bun-rieu-cua",
+      "name": "Bún riêu cua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-rieu-cua.jpg"
+    },
+    {
+      "id": "bun-thang",
+      "name": "Bún thang",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-thang.jpg"
+    },
+    {
+      "id": "mien-ga",
+      "name": "Miến gà",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-ga.jpg"
+    },
+    {
+      "id": "mien-ngan",
+      "name": "Miến ngan",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-ngan.jpg"
+    },
+    {
+      "id": "chao-thit-bam",
+      "name": "Cháo thịt băm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-thit-bam.webp"
+    },
+    {
+      "id": "chao-ga-nam",
+      "name": "Cháo gà nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-ga-nam.jpg"
+    },
+    {
+      "id": "chao-suon",
+      "name": "Cháo sườn",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-suon.jpg"
+    },
+    {
+      "id": "chao-ca",
+      "name": "Cháo cá",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-ca.jpg"
+    },
+    {
+      "id": "banh-da-cua",
+      "name": "Bánh đa cua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-da-cua.jpg"
+    },
+    {
+      "id": "banh-da-ga",
+      "name": "Bánh đa gà",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-da-ga.jpg"
+    },
+    {
+      "id": "mi-trung-thit-bam-rau-cai",
+      "name": "Mì trứng thịt băm rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mi-trung-thit-bam-rau-cai.jpg"
+    },
+    {
+      "id": "nui-ga-rau-cu",
+      "name": "Nui gà rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/nui-ga-rau-cu.jpg"
+    },
+    {
+      "id": "com-rang-trung-thit-bam",
+      "name": "Cơm rang trứng thịt băm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-rang-trung-thit-bam.webp"
+    },
+    {
+      "id": "com-rang-dua-bo",
+      "name": "Cơm rang dưa bò",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-rang-dua-bo.jpg"
+    },
+    {
+      "id": "banh-mi-trung-thit-bam",
+      "name": "Bánh mì trứng thịt băm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-trung-thit-bam.jpg"
+    },
+    {
+      "id": "banh-mi-pate-trung",
+      "name": "Bánh mì pate trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-pate-trung.webp"
+    },
+    {
+      "id": "banh-mi-uc-ga-xe",
+      "name": "Bánh mì ức gà xé",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-uc-ga-xe.jpg"
+    },
+    {
+      "id": "khoai-lang-luoc-trung",
+      "name": "Khoai lang luộc trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/khoai-lang-luoc-trung.jpg"
+    },
+    {
+      "id": "ngo-luoc-trung",
+      "name": "Ngô luộc trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/ngo-luoc-trung.webp"
+    },
+    {
+      "id": "xoi-xeo-trung",
+      "name": "Xôi xéo trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/xoi-xeo-trung.jpg"
+    },
+    {
+      "id": "banh-cuon-trung-nam",
+      "name": "Bánh cuốn trứng nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-cuon-trung-nam.jpg"
+    },
+    {
+      "id": "chao-trung-rau-cu",
+      "name": "Cháo trứng rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-trung-rau-cu.jpg"
+    },
+    {
+      "id": "mi-trung-nam-rau-cai",
+      "name": "Mì trứng nấm rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mi-trung-nam-rau-cai.jpg"
+    },
+    {
+      "id": "nui-sot-ca-chua-trung",
+      "name": "Nui sốt cà chua trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/nui-sot-ca-chua-trung.jpg"
+    },
+    {
+      "id": "banh-mi-trung-pho-mai",
+      "name": "Bánh mì trứng phô mai",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-trung-pho-mai.jpg"
+    },
+    {
+      "id": "yen-mach-sua-chua-chuoi",
+      "name": "Yến mạch sữa chua chuối",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/yen-mach-sua-chua-chuoi.jpg"
+    },
+    {
+      "id": "yen-mach-trung-rau-cu",
+      "name": "Yến mạch trứng rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/yen-mach-trung-rau-cu.png"
+    },
+    {
+      "id": "sua-chua-yen-mach-tao",
+      "name": "Sữa chua yến mạch táo",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sua-chua-yen-mach-tao.jpg"
+    },
+    {
+      "id": "chao-yen-mach-trung-nam",
+      "name": "Cháo yến mạch trứng nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-yen-mach-trung-nam.jpg"
+    },
+    {
+      "id": "xoi-dau-xanh",
+      "name": "Xôi đậu xanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/xoi-dau-xanh.jpg"
+    },
+    {
+      "id": "xoi-lac",
+      "name": "Xôi lạc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/xoi-lac.jpg"
+    },
+    {
+      "id": "chao-yen-mach-nam-dau-phu",
+      "name": "Cháo yến mạch nấm đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-yen-mach-nam-dau-phu.jpg"
+    },
+    {
+      "id": "bun-nam-dau-phu-chay",
+      "name": "Bún nấm đậu phụ chay",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-nam-dau-phu-chay.jpg"
+    },
+    {
+      "id": "mien-xao-rau-cu-dau-phu",
+      "name": "Miến xào rau củ đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-xao-rau-cu-dau-phu.jpg"
+    },
+    {
+      "id": "banh-mi-dau-phu-sot-ca-chua",
+      "name": "Bánh mì đậu phụ sốt cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-dau-phu-sot-ca-chua.jpg"
+    },
+    {
+      "id": "khoai-lang-dau-phu-ap-chao",
+      "name": "Khoai lang đậu phụ áp chảo",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/khoai-lang-dau-phu-ap-chao.jpg"
+    },
+    {
+      "id": "com-nam-muoi-vung-dau-phu",
+      "name": "Cơm nắm muối vừng đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-nam-muoi-vung-dau-phu.jpg"
+    },
+    {
+      "id": "com-thit-rang-chay-canh-rau-luoc",
+      "name": "Cơm thịt rang cháy cạnh rau luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-rang-chay-canh-rau-luoc.jpg"
+    },
+    {
+      "id": "com-thit-nac-rim-gung-cai-luoc",
+      "name": "Cơm thịt nạc rim gừng cải luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-nac-rim-gung-cai-luoc.jpg"
+    },
+    {
+      "id": "com-thit-bam-sot-ca-chua-rau-cai",
+      "name": "Cơm thịt băm sốt cà chua rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-bam-sot-ca-chua-rau-cai.webp"
+    },
+    {
+      "id": "com-thit-vien-sot-ca-chua-bap-cai",
+      "name": "Cơm thịt viên sốt cà chua bắp cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-vien-sot-ca-chua-bap-cai.jpg"
+    },
+    {
+      "id": "com-suon-rim-man-ngot-rau-luoc",
+      "name": "Cơm sườn rim mặn ngọt rau luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-suon-rim-man-ngot-rau-luoc.jpg"
+    },
+    {
+      "id": "com-ga-rang-gung-cai-thia",
+      "name": "Cơm gà rang gừng cải thìa",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ga-rang-gung-cai-thia.jpg"
+    },
+    {
+      "id": "com-ga-ap-chao-rau-cu",
+      "name": "Cơm gà áp chảo rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ga-ap-chao-rau-cu.jpg"
+    },
+    {
+      "id": "com-ga-luoc-rau-cai",
+      "name": "Cơm gà luộc rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ga-luoc-rau-cai.jpg"
+    },
+    {
+      "id": "com-uc-ga-sot-nam",
+      "name": "Cơm ức gà sốt nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-uc-ga-sot-nam.jpg"
+    },
+    {
+      "id": "com-bo-xao-can-toi",
+      "name": "Cơm bò xào cần tỏi",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bo-xao-can-toi.jpg"
+    },
+    {
+      "id": "com-bo-xao-cai-xanh",
+      "name": "Cơm bò xào cải xanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bo-xao-cai-xanh.webp"
+    },
+    {
+      "id": "com-ca-ro-phi-kho-gung",
+      "name": "Cơm cá rô phi kho gừng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-ro-phi-kho-gung.jpg"
+    },
+    {
+      "id": "com-ca-ro-phi-sot-ca-chua",
+      "name": "Cơm cá rô phi sốt cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-ro-phi-sot-ca-chua.webp"
+    },
+    {
+      "id": "com-ca-basa-kho-tieu",
+      "name": "Cơm cá basa kho tiêu",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-basa-kho-tieu.jpg"
+    },
+    {
+      "id": "com-ca-thu-sot-ca-chua",
+      "name": "Cơm cá thu sốt cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-thu-sot-ca-chua.jpg"
+    },
+    {
+      "id": "com-ca-tram-kho-rieng",
+      "name": "Cơm cá trắm kho riềng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-tram-kho-rieng.png"
+    },
+    {
+      "id": "com-tom-rim-man-ngot",
+      "name": "Cơm tôm rim mặn ngọt",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-tom-rim-man-ngot.png"
+    },
+    {
+      "id": "com-tom-xao-rau-cu",
+      "name": "Cơm tôm xào rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-tom-xao-rau-cu.jpg"
+    },
+    {
+      "id": "bun-cha-ha-noi",
+      "name": "Bún chả Hà Nội",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-cha-ha-noi.jpg"
+    },
+    {
+      "id": "bun-bo-xao-rau",
+      "name": "Bún bò xào rau",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-bo-xao-rau.jpg"
+    },
+    {
+      "id": "bun-ca-ro",
+      "name": "Bún cá rô",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-ca-ro.jpg"
+    },
+    {
+      "id": "mien-ga-nam",
+      "name": "Miến gà nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-ga-nam.jpg"
+    },
+    {
+      "id": "pho-bo-xao-rau-cai",
+      "name": "Phở bò xào rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/pho-bo-xao-rau-cai.jpg"
+    },
+    {
+      "id": "com-trung-duc-thit-rau-luoc",
+      "name": "Cơm trứng đúc thịt rau luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-trung-duc-thit-rau-luoc.webp"
+    },
+    {
+      "id": "com-trung-hap-thit-bam",
+      "name": "Cơm trứng hấp thịt băm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-trung-hap-thit-bam.jpg"
+    },
+    {
+      "id": "com-thit-luoc-ca-phao-canh-rau",
+      "name": "Cơm thịt luộc cà pháo canh rau",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-luoc-ca-phao-canh-rau.jpg"
+    },
+    {
+      "id": "com-ga-kho-gung-bi-xanh",
+      "name": "Cơm gà kho gừng bí xanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ga-kho-gung-bi-xanh.jpg"
+    },
+    {
+      "id": "com-thit-kho-trung-rau-cai",
+      "name": "Cơm thịt kho trứng rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-kho-trung-rau-cai.png"
+    },
+    {
+      "id": "com-ca-nuc-kho-ca-chua",
+      "name": "Cơm cá nục kho cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-nuc-kho-ca-chua.jpg"
+    },
+    {
+      "id": "com-muc-xao-can-toi",
+      "name": "Cơm mực xào cần tỏi",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-muc-xao-can-toi.jpg"
+    },
+    {
+      "id": "com-dau-phu-sot-ca-chua-rau-luoc",
+      "name": "Cơm đậu phụ sốt cà chua rau luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-sot-ca-chua-rau-luoc.jpg"
+    },
+    {
+      "id": "com-dau-phu-kho-nam",
+      "name": "Cơm đậu phụ kho nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-kho-nam.webp"
+    },
+    {
+      "id": "com-dau-phu-xao-gia-he",
+      "name": "Cơm đậu phụ xào giá hẹ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-xao-gia-he.jpg"
+    },
+    {
+      "id": "com-trung-sot-ca-chua-rau-cai",
+      "name": "Cơm trứng sốt cà chua rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-trung-sot-ca-chua-rau-cai.jpg"
+    },
+    {
+      "id": "com-trung-chien-nam-bap-cai",
+      "name": "Cơm trứng chiên nấm bắp cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-trung-chien-nam-bap-cai.jpg"
+    },
+    {
+      "id": "com-nam-xao-rau-cu-trung",
+      "name": "Cơm nấm xào rau củ trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-nam-xao-rau-cu-trung.jpg"
+    },
+    {
+      "id": "com-ca-tim-om-dau-phu",
+      "name": "Cơm cà tím om đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-tim-om-dau-phu.jpg"
+    },
+    {
+      "id": "com-rau-cu-xao-trung",
+      "name": "Cơm rau củ xào trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-rau-cu-xao-trung.jpg"
+    },
+    {
+      "id": "mien-xao-trung-rau-cu",
+      "name": "Miến xào trứng rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-xao-trung-rau-cu.jpg"
+    },
+    {
+      "id": "bun-dau-chay-trung-luoc",
+      "name": "Bún đậu chay trứng luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-dau-chay-trung-luoc.jpg"
+    },
+    {
+      "id": "bun-nam-trung",
+      "name": "Bún nấm trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-nam-trung.png"
+    },
+    {
+      "id": "com-dau-phu-trung-sot-ca-chua",
+      "name": "Cơm đậu phụ trứng sốt cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-trung-sot-ca-chua.jpg"
+    },
+    {
+      "id": "com-canh-trung-ca-chua-dau-phu",
+      "name": "Cơm canh trứng cà chua đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-trung-ca-chua-dau-phu.jpg"
+    },
+    {
+      "id": "com-bi-do-xao-trung-dau-phu",
+      "name": "Cơm bí đỏ xào trứng đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bi-do-xao-trung-dau-phu.png"
+    },
+    {
+      "id": "com-su-su-xao-trung-dau-phu",
+      "name": "Cơm su su xào trứng đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-su-su-xao-trung-dau-phu.jpg"
+    },
+    {
+      "id": "com-cai-thia-xao-nam-trung",
+      "name": "Cơm cải thìa xào nấm trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-cai-thia-xao-nam-trung.jpg"
+    },
+    {
+      "id": "com-dau-co-ve-xao-trung",
+      "name": "Cơm đậu cô ve xào trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-co-ve-xao-trung.jpg"
+    },
+    {
+      "id": "com-dau-phu-kho-nam-rau-cai",
+      "name": "Cơm đậu phụ kho nấm rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-kho-nam-rau-cai.jpg"
+    },
+    {
+      "id": "com-dau-phu-sot-ca-chua-canh-bi",
+      "name": "Cơm đậu phụ sốt cà chua canh bí",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-sot-ca-chua-canh-bi.jpg"
+    },
+    {
+      "id": "com-nam-kho-tieu-rau-luoc",
+      "name": "Cơm nấm kho tiêu rau luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-nam-kho-tieu-rau-luoc.jpg"
+    },
+    {
+      "id": "com-ca-tim-om-dau-phu-chay",
+      "name": "Cơm cà tím om đậu phụ chay",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-tim-om-dau-phu-chay.jpg"
+    },
+    {
+      "id": "mien-xao-nam-rau-cu-chay",
+      "name": "Miến xào nấm rau củ chay",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-xao-nam-rau-cu-chay.jpg"
+    },
+    {
+      "id": "bun-dau-phu-nam-chay",
+      "name": "Bún đậu phụ nấm chay",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-dau-phu-nam-chay.jpg"
+    },
+    {
+      "id": "com-dau-do-rau-cu",
+      "name": "Cơm đậu đỏ rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-do-rau-cu.png"
+    },
+    {
+      "id": "com-dau-xanh-nam-rau-cai",
+      "name": "Cơm đậu xanh nấm rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-xanh-nam-rau-cai.jpg"
+    },
+    {
+      "id": "com-canh-rau-ngot-thit-bam",
+      "name": "Cơm canh rau ngót thịt băm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-rau-ngot-thit-bam.webp"
+    },
+    {
+      "id": "com-canh-cai-thit-bam",
+      "name": "Cơm canh cải thịt băm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-cai-thit-bam.jpg"
+    },
+    {
+      "id": "com-canh-bi-xanh-suon",
+      "name": "Cơm canh bí xanh sườn",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-bi-xanh-suon.jpg"
+    },
+    {
+      "id": "com-canh-khoai-tay-ca-rot-xuong",
+      "name": "Cơm canh khoai tây cà rốt xương",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-khoai-tay-ca-rot-xuong.webp"
+    },
+    {
+      "id": "com-thit-kho-tau-rau-luoc",
+      "name": "Cơm thịt kho tàu rau luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-kho-tau-rau-luoc.jpg"
+    },
+    {
+      "id": "com-thit-dong-dua-cai",
+      "name": "Cơm thịt đông dưa cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-dong-dua-cai.jpg"
+    },
+    {
+      "id": "com-thit-vien-nam-sot",
+      "name": "Cơm thịt viên nấm sốt",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-thit-vien-nam-sot.png"
+    },
+    {
+      "id": "com-cha-la-lot-rau-luoc",
+      "name": "Cơm chả lá lốt rau luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-cha-la-lot-rau-luoc.webp"
+    },
+    {
+      "id": "com-ga-kho-nam",
+      "name": "Cơm gà kho nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ga-kho-nam.jpg"
+    },
+    {
+      "id": "com-ga-rang-sa",
+      "name": "Cơm gà rang sả",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ga-rang-sa.jpg"
+    },
+    {
+      "id": "com-ga-sot-gung-hanh",
+      "name": "Cơm gà sốt gừng hành",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ga-sot-gung-hanh.jpg"
+    },
+    {
+      "id": "com-uc-ga-ap-chao-sot-tieu",
+      "name": "Cơm ức gà áp chảo sốt tiêu",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-uc-ga-ap-chao-sot-tieu.jpg"
+    },
+    {
+      "id": "com-bo-ham-khoai-tay",
+      "name": "Cơm bò hầm khoai tây",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bo-ham-khoai-tay.png"
+    },
+    {
+      "id": "com-bo-sot-ca-chua",
+      "name": "Cơm bò sốt cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bo-sot-ca-chua.jpg"
+    },
+    {
+      "id": "com-bo-xao-hanh-tay",
+      "name": "Cơm bò xào hành tây",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bo-xao-hanh-tay.jpg"
+    },
+    {
+      "id": "com-ca-kho-to-kieu-bac",
+      "name": "Cơm cá kho tộ kiểu Bắc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-kho-to-kieu-bac.jpg"
+    },
+    {
+      "id": "com-ca-qua-kho-nghe",
+      "name": "Cơm cá quả kho nghệ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-qua-kho-nghe.jpg"
+    },
+    {
+      "id": "com-ca-chep-om-dua",
+      "name": "Cơm cá chép om dưa",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-chep-om-dua.jpg"
+    },
+    {
+      "id": "com-ca-hap-gung-hanh",
+      "name": "Cơm cá hấp gừng hành",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-hap-gung-hanh.jpg"
+    },
+    {
+      "id": "com-ca-hoi-ap-chao-rau-cu",
+      "name": "Cơm cá hồi áp chảo rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-hoi-ap-chao-rau-cu.jpg"
+    },
+    {
+      "id": "com-tom-hap-rau-cu",
+      "name": "Cơm tôm hấp rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-tom-hap-rau-cu.jpg"
+    },
+    {
+      "id": "com-tom-sot-ca-chua",
+      "name": "Cơm tôm sốt cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-tom-sot-ca-chua.png"
+    },
+    {
+      "id": "com-muc-xao-dua-can-toi",
+      "name": "Cơm mực xào dứa cần tỏi",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-muc-xao-dua-can-toi.jpg"
+    },
+    {
+      "id": "com-trung-cuon-thit-rau-cu",
+      "name": "Cơm trứng cuộn thịt rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-trung-cuon-thit-rau-cu.jpg"
+    },
+    {
+      "id": "com-cha-trung-hap",
+      "name": "Cơm chả trứng hấp",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-cha-trung-hap.jpg"
+    },
+    {
+      "id": "bun-suon-chua",
+      "name": "Bún sườn chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-suon-chua.webp"
+    },
+    {
+      "id": "bun-oc",
+      "name": "Bún ốc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-oc.jpg"
+    },
+    {
+      "id": "mien-luon-nuoc",
+      "name": "Miến lươn nước",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-luon-nuoc.jpg"
+    },
+    {
+      "id": "chao-ga-hat-sen",
+      "name": "Cháo gà hạt sen",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-ga-hat-sen.jpg"
+    },
+    {
+      "id": "chao-ca-rau-thi-la",
+      "name": "Cháo cá rau thì là",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-ca-rau-thi-la.jpg"
+    },
+    {
+      "id": "pho-cuon-bo-xao",
+      "name": "Phở cuốn bò xào",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/pho-cuon-bo-xao.jpg"
+    },
+    {
+      "id": "banh-da-ca",
+      "name": "Bánh đa cá",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-da-ca.webp"
+    },
+    {
+      "id": "com-canh-rau-ngot-trung",
+      "name": "Cơm canh rau ngót trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-rau-ngot-trung.webp"
+    },
+    {
+      "id": "com-canh-ca-chua-trung-dau-phu",
+      "name": "Cơm canh cà chua trứng đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-ca-chua-trung-dau-phu.jpg"
+    },
+    {
+      "id": "com-dau-phu-kho-tuong",
+      "name": "Cơm đậu phụ kho tương",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-kho-tuong.jpg"
+    },
+    {
+      "id": "com-dau-phu-hap-nam",
+      "name": "Cơm đậu phụ hấp nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-hap-nam.jpg"
+    },
+    {
+      "id": "com-nam-dui-ga-xao-rau-cai",
+      "name": "Cơm nấm đùi gà xào rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-nam-dui-ga-xao-rau-cai.jpg"
+    },
+    {
+      "id": "com-nam-rom-sot-tieu-trung",
+      "name": "Cơm nấm rơm sốt tiêu trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-nam-rom-sot-tieu-trung.jpg"
+    },
+    {
+      "id": "com-bi-xanh-xao-trung-dau-phu",
+      "name": "Cơm bí xanh xào trứng đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bi-xanh-xao-trung-dau-phu.jpg"
+    },
+    {
+      "id": "com-bap-cai-xao-trung",
+      "name": "Cơm bắp cải xào trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bap-cai-xao-trung.jpg"
+    },
+    {
+      "id": "com-su-su-xao-nam-trung",
+      "name": "Cơm su su xào nấm trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-su-su-xao-nam-trung.jpg"
+    },
+    {
+      "id": "com-khoai-tay-xao-trung",
+      "name": "Cơm khoai tây xào trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-khoai-tay-xao-trung.jpg"
+    },
+    {
+      "id": "mien-nam-trung-rau-cai",
+      "name": "Miến nấm trứng rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-nam-trung-rau-cai.jpg"
+    },
+    {
+      "id": "bun-rieu-dau-phu-trung-chay",
+      "name": "Bún riêu đậu phụ trứng chay",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-rieu-dau-phu-trung-chay.webp"
+    },
+    {
+      "id": "bun-moc-chay-nam-trung",
+      "name": "Bún mọc chay nấm trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-moc-chay-nam-trung.webp"
+    },
+    {
+      "id": "chao-nam-trung",
+      "name": "Cháo nấm trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-nam-trung.jpg"
+    },
+    {
+      "id": "com-dau-phu-sot-nam-trung-hap",
+      "name": "Cơm đậu phụ sốt nấm trứng hấp",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-sot-nam-trung-hap.webp"
+    },
+    {
+      "id": "com-rau-cu-om-nam-trung",
+      "name": "Cơm rau củ om nấm trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-rau-cu-om-nam-trung.jpg"
+    },
+    {
+      "id": "com-dau-phu-kho-tuong-nam",
+      "name": "Cơm đậu phụ kho tương nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-kho-tuong-nam.jpg"
+    },
+    {
+      "id": "com-canh-rau-ngot-nam-dau-phu",
+      "name": "Cơm canh rau ngót nấm đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-rau-ngot-nam-dau-phu.jpg"
+    },
+    {
+      "id": "com-canh-bi-do-dau-xanh",
+      "name": "Cơm canh bí đỏ đậu xanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-canh-bi-do-dau-xanh.webp"
+    },
+    {
+      "id": "com-nam-xao-cai-thia-dau-phu",
+      "name": "Cơm nấm xào cải thìa đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-nam-xao-cai-thia-dau-phu.jpg"
+    },
+    {
+      "id": "com-su-su-xao-nam-dau-phu",
+      "name": "Cơm su su xào nấm đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-su-su-xao-nam-dau-phu.jpg"
+    },
+    {
+      "id": "bun-rieu-chay-dau-phu",
+      "name": "Bún riêu chay đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-rieu-chay-dau-phu.webp"
+    },
+    {
+      "id": "chao-nam-dau-xanh",
+      "name": "Cháo nấm đậu xanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-nam-dau-xanh.jpg"
+    },
+    {
+      "id": "banh-mi-ga-xe-mini",
+      "name": "Bánh mì gà xé mini",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-ga-xe-mini.png"
+    },
+    {
+      "id": "banh-mi-pate-thit-mini",
+      "name": "Bánh mì pate thịt mini",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-pate-thit-mini.png"
+    },
+    {
+      "id": "chao-thit-bam-phan-nho",
+      "name": "Cháo thịt băm phần nhỏ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-thit-bam-phan-nho.webp"
+    },
+    {
+      "id": "chao-ga-phan-nho",
+      "name": "Cháo gà phần nhỏ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-ga-phan-nho.jpg"
+    },
+    {
+      "id": "nem-cuon-tom-rau",
+      "name": "Nem cuốn tôm rau",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/nem-cuon-tom-rau.jpg"
+    },
+    {
+      "id": "trung-cuon-thit-bam-mini",
+      "name": "Trứng cuộn thịt băm mini",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/trung-cuon-thit-bam-mini.jpg"
+    },
+    {
+      "id": "ga-xe-dua-chuot",
+      "name": "Gà xé dưa chuột",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/ga-xe-dua-chuot.jpg"
+    },
+    {
+      "id": "ca-ngu-tron-ngo",
+      "name": "Cá ngừ trộn ngô",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/ca-ngu-tron-ngo.webp"
+    },
+    {
+      "id": "ruoc-thit-com-nam-mini",
+      "name": "Ruốc thịt cơm nắm mini",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/ruoc-thit-com-nam-mini.jpg"
+    },
+    {
+      "id": "banh-da-tron-ga-phan-nho",
+      "name": "Bánh đa trộn gà phần nhỏ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-da-tron-ga-phan-nho.jpg"
+    },
+    {
+      "id": "mien-ga-phan-nho",
+      "name": "Miến gà phần nhỏ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-ga-phan-nho.jpg"
+    },
+    {
+      "id": "sup-ga-ngo-nam",
+      "name": "Súp gà ngô nấm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sup-ga-ngo-nam.jpg"
+    },
+    {
+      "id": "tom-hap-rau-cu-phan-nho",
+      "name": "Tôm hấp rau củ phần nhỏ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/tom-hap-rau-cu-phan-nho.jpg"
+    },
+    {
+      "id": "thit-bo-cuon-xa-lach",
+      "name": "Thịt bò cuốn xà lách",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/thit-bo-cuon-xa-lach.webp"
+    },
+    {
+      "id": "sua-chua-chuoi",
+      "name": "Sữa chua chuối",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sua-chua-chuoi.jpg"
+    },
+    {
+      "id": "sua-chua-tao-que",
+      "name": "Sữa chua táo quế",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sua-chua-tao-que.jpg"
+    },
+    {
+      "id": "sua-chua-thanh-long",
+      "name": "Sữa chua thanh long",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sua-chua-thanh-long.jpg"
+    },
+    {
+      "id": "sua-chua-xoai",
+      "name": "Sữa chua xoài",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sua-chua-xoai.jpg"
+    },
+    {
+      "id": "trung-luoc-khoai-lang",
+      "name": "Trứng luộc khoai lang",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/trung-luoc-khoai-lang.jpg"
+    },
+    {
+      "id": "trung-luoc-ngo",
+      "name": "Trứng luộc ngô",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/trung-luoc-ngo.png"
+    },
+    {
+      "id": "banh-mi-trung-mini",
+      "name": "Bánh mì trứng mini",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-trung-mini.jpg"
+    },
+    {
+      "id": "sua-chua-yen-mach-hat",
+      "name": "Sữa chua yến mạch hạt",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sua-chua-yen-mach-hat.jpg"
+    },
+    {
+      "id": "pho-mai-tao",
+      "name": "Phô mai táo",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/pho-mai-tao.jpg"
+    },
+    {
+      "id": "trung-hap-nam-coc-nho",
+      "name": "Trứng hấp nấm cốc nhỏ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/trung-hap-nam-coc-nho.jpg"
+    },
+    {
+      "id": "chuoi-lac-rang",
+      "name": "Chuối lạc rang",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chuoi-lac-rang.jpg"
+    },
+    {
+      "id": "khoai-lang-luoc-lac",
+      "name": "Khoai lang luộc lạc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/khoai-lang-luoc-lac.jpg"
+    },
+    {
+      "id": "ngo-luoc-dau-phong",
+      "name": "Ngô luộc đậu phộng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/ngo-luoc-dau-phong.jpg"
+    },
+    {
+      "id": "tao-bo-lac",
+      "name": "Táo bơ lạc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/tao-bo-lac.jpg"
+    },
+    {
+      "id": "sua-dau-nanh-yen-mach",
+      "name": "Sữa đậu nành yến mạch",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sua-dau-nanh-yen-mach.jpg"
+    },
+    {
+      "id": "dau-do-ninh-nhat",
+      "name": "Đậu đỏ ninh nhạt",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/dau-do-ninh-nhat.png"
+    },
+    {
+      "id": "com-uc-ga-rau-cu-hop-nhanh",
+      "name": "Cơm ức gà rau củ hộp nhanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-uc-ga-rau-cu-hop-nhanh.webp"
+    },
+    {
+      "id": "com-bo-xao-rau-hop-nhanh",
+      "name": "Cơm bò xào rau hộp nhanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-bo-xao-rau-hop-nhanh.jpg"
+    },
+    {
+      "id": "bun-ga-xe-rau",
+      "name": "Bún gà xé rau",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/bun-ga-xe-rau.jpg"
+    },
+    {
+      "id": "mien-ga-rau-cai",
+      "name": "Miến gà rau cải",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/mien-ga-rau-cai.jpg"
+    },
+    {
+      "id": "banh-mi-uc-ga-trung",
+      "name": "Bánh mì ức gà trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-uc-ga-trung.jpg"
+    },
+    {
+      "id": "khoai-lang-uc-ga",
+      "name": "Khoai lang ức gà",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/khoai-lang-uc-ga.jpg"
+    },
+    {
+      "id": "com-ca-basa-rau-luoc",
+      "name": "Cơm cá basa rau luộc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-ca-basa-rau-luoc.jpg"
+    },
+    {
+      "id": "nui-bo-sot-ca-chua",
+      "name": "Nui bò sốt cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/nui-bo-sot-ca-chua.png"
+    },
+    {
+      "id": "chao-ga-yen-mach",
+      "name": "Cháo gà yến mạch",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/chao-ga-yen-mach.jpg"
+    },
+    {
+      "id": "com-trung-thit-bam-nhanh",
+      "name": "Cơm trứng thịt băm nhanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-trung-thit-bam-nhanh.jpg"
+    },
+    {
+      "id": "banh-mi-ca-ngu-trung",
+      "name": "Bánh mì cá ngừ trứng",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-ca-ngu-trung.jpg"
+    },
+    {
+      "id": "sup-ga-khoai-tay",
+      "name": "Súp gà khoai tây",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sup-ga-khoai-tay.jpg"
+    },
+    {
+      "id": "yen-mach-sua-chua-chuoi-giau-dam",
+      "name": "Yến mạch sữa chua chuối giàu đạm",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/yen-mach-sua-chua-chuoi-giau-dam.jpg"
+    },
+    {
+      "id": "khoai-lang-trung-sua-chua",
+      "name": "Khoai lang trứng sữa chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/khoai-lang-trung-sua-chua.jpg"
+    },
+    {
+      "id": "banh-mi-trung-pho-mai-rau",
+      "name": "Bánh mì trứng phô mai rau",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/banh-mi-trung-pho-mai-rau.jpg"
+    },
+    {
+      "id": "com-dau-phu-trung-rau-cu",
+      "name": "Cơm đậu phụ trứng rau củ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-trung-rau-cu.jpg"
+    },
+    {
+      "id": "nui-trung-sot-ca-chua",
+      "name": "Nui trứng sốt cà chua",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/nui-trung-sot-ca-chua.jpg"
+    },
+    {
+      "id": "sua-chua-yen-mach-lac",
+      "name": "Sữa chua yến mạch lạc",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/sua-chua-yen-mach-lac.jpg"
+    },
+    {
+      "id": "com-rang-trung-dau-phu",
+      "name": "Cơm rang trứng đậu phụ",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-rang-trung-dau-phu.png"
+    },
+    {
+      "id": "com-dau-phu-rau-cu-hop-nhanh",
+      "name": "Cơm đậu phụ rau củ hộp nhanh",
+      "success": true,
+      "imageUrl": "https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/recipes/com-dau-phu-rau-cu-hop-nhanh.jpg"
+    }
+  ]
+}
