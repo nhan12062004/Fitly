@@ -1,13 +1,14 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
-  Calendar,
   Check,
   Coffee,
   Flame,
+  Moon,
   Plus,
   Search,
   RefreshCw,
+  Sun,
   Trash2,
   Utensils,
   X
@@ -66,6 +67,16 @@ interface PlanFood {
   estimated_cost_min_vnd?: number | null;
   ingredients?: RecipeIngredient[];
   is_rest_day: boolean;
+}
+
+interface CompletedMealLog {
+  id: string;
+  weekly_food_item_id: string | null;
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  quantity: number | null;
 }
 
 type MealTypeId = 'breakfast' | 'lunch' | 'snack' | 'dinner';
@@ -133,16 +144,16 @@ const MEAL_TYPE_THEME: Record<MealTypeId, {
   border: string;
 }> = {
   breakfast: {
-    accent: '#f59e0b',
-    accentSoft: 'rgba(245,158,11,0.12)',
-    accentStrong: 'rgba(245,158,11,0.24)',
-    border: 'rgba(245,158,11,0.20)'
+    accent: '#38bdf8',
+    accentSoft: 'rgba(56,189,248,0.12)',
+    accentStrong: 'rgba(56,189,248,0.24)',
+    border: 'rgba(56,189,248,0.20)'
   },
   lunch: {
-    accent: '#22c55e',
-    accentSoft: 'rgba(34,197,94,0.12)',
-    accentStrong: 'rgba(34,197,94,0.24)',
-    border: 'rgba(34,197,94,0.20)'
+    accent: '#38bdf8',
+    accentSoft: 'rgba(56,189,248,0.12)',
+    accentStrong: 'rgba(56,189,248,0.24)',
+    border: 'rgba(56,189,248,0.20)'
   },
   dinner: {
     accent: '#38bdf8',
@@ -505,6 +516,8 @@ export default function DietPlan() {
   const [, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null);
+  const [completingFoodId, setCompletingFoodId] = useState<string | null>(null);
+  const [completedMealLogs, setCompletedMealLogs] = useState<CompletedMealLog[]>([]);
   const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(initialWeekStart);
   const [mealsPerDay, setMealsPerDay] = useState(() => initialDietCache?.mealsPerDay || 3);
   const [targetCalories, setTargetCalories] = useState(() => initialDietCache?.targetCalories || DEFAULT_CALORIE_TARGET);
@@ -524,6 +537,8 @@ export default function DietPlan() {
 
   const selectedWeekKey = useMemo(() => toDateKey(selectedWeekStart), [selectedWeekStart]);
   const todayKey = useMemo(() => getVietnamDateKey(), [selectedWeekKey]);
+  const selectedDayDate = useMemo(() => addDays(selectedWeekStart, selectedDayId), [selectedDayId, selectedWeekStart]);
+  const selectedDayKey = useMemo(() => toDateKey(selectedDayDate), [selectedDayDate]);
   const cacheKey = user?.id ? `${user.id}:${selectedWeekKey}` : null;
   const isCurrentWeek = selectedWeekKey === toDateKey(getWeekStart(getVietnamTodayDate()));
 
@@ -569,27 +584,41 @@ export default function DietPlan() {
     };
   }, [scopedDayItems]);
 
-  const macroTargets = useMemo(() => ({
-    protein: Math.round(targetCalories * 0.3 / 4),
-    carbs: Math.round(targetCalories * 0.4 / 4),
-    fat: Math.round(targetCalories * 0.3 / 9)
-  }), [targetCalories]);
+  const completedNutrition = useMemo(() => {
+    const totals = completedMealLogs.reduce(
+      (sum, log) => {
+        const quantity = Math.max(0, Number(log.quantity || 1));
+        sum.calories += Number(log.calories || 0) * quantity;
+        sum.protein += Number(log.protein || 0) * quantity;
+        sum.carbs += Number(log.carbs || 0) * quantity;
+        sum.fat += Number(log.fat || 0) * quantity;
+        return sum;
+      },
+      { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    );
 
-  const calorieProgress = Math.min(100, Math.round((dayNutrition.calories / Math.max(1, targetCalories)) * 100));
-  const remainingCalories = Math.max(0, targetCalories - dayNutrition.calories);
-  const remainingProtein = Math.max(0, macroTargets.protein - dayNutrition.protein);
-  const remainingCarbs = Math.max(0, macroTargets.carbs - dayNutrition.carbs);
-  const remainingFat = Math.max(0, macroTargets.fat - dayNutrition.fat);
-  const selectedDayDate = useMemo(() => addDays(selectedWeekStart, selectedDayId), [selectedDayId, selectedWeekStart]);
-  const selectedDayDateLabel = useMemo(
-    () =>
-      selectedDayDate.toLocaleDateString('vi-VN', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long'
-      }),
-    [selectedDayDate]
+    return {
+      calories: Math.round(totals.calories),
+      protein: roundMacro(totals.protein),
+      carbs: roundMacro(totals.carbs),
+      fat: roundMacro(totals.fat)
+    };
+  }, [completedMealLogs]);
+
+  const completedWeeklyItemIds = useMemo(
+    () => new Set(completedMealLogs.map((log) => log.weekly_food_item_id).filter((id): id is string => Boolean(id))),
+    [completedMealLogs]
   );
+  const getProgress = (completed: number, planned: number) =>
+    Math.min(100, Math.round((completed / Math.max(1, planned)) * 100));
+  const calorieProgress = getProgress(completedNutrition.calories, dayNutrition.calories);
+  const proteinProgress = getProgress(completedNutrition.protein, dayNutrition.protein);
+  const carbProgress = getProgress(completedNutrition.carbs, dayNutrition.carbs);
+  const fatProgress = getProgress(completedNutrition.fat, dayNutrition.fat);
+  const remainingCalories = Math.max(0, dayNutrition.calories - completedNutrition.calories);
+  const remainingProtein = Math.max(0, dayNutrition.protein - completedNutrition.protein);
+  const remainingCarbs = Math.max(0, dayNutrition.carbs - completedNutrition.carbs);
+  const remainingFat = Math.max(0, dayNutrition.fat - completedNutrition.fat);
   const isTodaySelected = toDateKey(selectedDayDate) === todayKey;
   const currentMealType = getCurrentMealType();
   const highlightedMealId = isTodaySelected && activeMealTypeIds.has(currentMealType) ? currentMealType : null;
@@ -741,6 +770,36 @@ export default function DietPlan() {
 
     fetchTargets();
   }, [user]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCompletedMeals() {
+      if (!user) {
+        setCompletedMealLogs([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('daily_meal_logs')
+        .select('id, weekly_food_item_id, calories, protein, carbs, fat, quantity')
+        .eq('user_id', user.id)
+        .eq('log_date', selectedDayKey)
+        .eq('is_completed', true);
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      if (!cancelled) setCompletedMealLogs((data || []) as CompletedMealLog[]);
+    }
+
+    void fetchCompletedMeals();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDayKey, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1184,6 +1243,52 @@ export default function DietPlan() {
     setReplacingFoodId(null);
   };
 
+  const completeMealItem = async (item: PlanFood) => {
+    if (!user) {
+      toast.error('Vui lòng đăng nhập để ghi nhận bữa ăn.');
+      return;
+    }
+
+    if (!item.weekly_food_item_id) {
+      toast.error('Bạn cần lưu thực đơn trước khi ghi nhận bữa ăn.');
+      return;
+    }
+
+    if (completedWeeklyItemIds.has(item.weekly_food_item_id)) return;
+
+    setCompletingFoodId(item.tempId);
+    const payload = {
+      user_id: user.id,
+      weekly_food_item_id: item.weekly_food_item_id,
+      food_id: item.food_id,
+      log_date: selectedDayKey,
+      meal_type: item.meal_type,
+      quantity: item.quantity,
+      calories: item.calories,
+      protein: item.protein,
+      carbs: item.carbs,
+      fat: item.fat,
+      is_completed: true,
+      eaten_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('daily_meal_logs')
+      .insert(payload)
+      .select('id, weekly_food_item_id, calories, protein, carbs, fat, quantity')
+      .single();
+
+    if (error) {
+      toast.error(`Không thể ghi nhận bữa ăn: ${error.message}`);
+      setCompletingFoodId(null);
+      return;
+    }
+
+    setCompletedMealLogs((previous) => [...previous, data as CompletedMealLog]);
+    setCompletingFoodId(null);
+    toast.success(`Đã ghi nhận ${item.name}.`);
+  };
+
   const submitMealFeedback = async (
     item: PlanFood,
     feedbackType: 'liked' | 'disliked' | 'too_much' | 'not_enough' | 'hard_to_cook' | 'too_expensive'
@@ -1254,19 +1359,6 @@ export default function DietPlan() {
       <div className="w-full space-y-4 overflow-hidden">
         <section className="diet-card diet-today-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="flex min-w-0 flex-wrap items-center gap-3">
-                <h1 className="text-xl font-black text-text-primary md:text-2xl">
-                  {isTodaySelected ? 'Thực đơn hôm nay' : `Thực đơn ${selectedDayDate.toLocaleDateString('vi-VN', { weekday: 'long' }).toLowerCase()}`}
-                </h1>
-                <div className="flex items-center gap-1.5 text-xs text-text-tertiary md:text-sm">
-                  <Calendar className="h-3.5 w-3.5 shrink-0 md:h-4 md:w-4" />
-                  <p>{selectedDayDateLabel}</p>
-                </div>
-              </div>
-
-            </div>
-
             <div className="diet-day-tabs overflow-hidden rounded-xl border border-border-primary bg-bg-tertiary/40 p-1">
               <div ref={dayTabContainerRef} className="relative grid min-w-0 grid-cols-7 gap-0.5 sm:gap-1">
                 <span
@@ -1313,7 +1405,7 @@ export default function DietPlan() {
                   <span className="diet-macro-card-label text-xs font-black">{calorieProgress}%</span>
                 </div>
                 <p className="mt-2 text-base font-black text-text-primary md:text-lg">
-                  {dayNutrition.calories.toLocaleString()} / {targetCalories.toLocaleString()}
+                  {completedNutrition.calories.toLocaleString()} / {dayNutrition.calories.toLocaleString()}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Còn {remainingCalories.toLocaleString()} kcal</p>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
@@ -1322,26 +1414,26 @@ export default function DietPlan() {
               </div>
               <div className="diet-today-protein diet-macro-card rounded-xl border px-3 py-2.5 md:px-4 md:py-3">
                 <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Protein</p>
-                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(dayNutrition.protein)} / {macroTargets.protein}g</p>
+                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(completedNutrition.protein)} / {Math.round(dayNutrition.protein)}g</p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingProtein)}g</p>
                 <div className="mt-3 flex gap-1">
                   {Array.from({ length: 4 }).map((_, index) => (
                     <span
                       key={index}
-                      className={`h-1.5 flex-1 rounded-full ${index < Math.ceil((dayNutrition.protein / Math.max(1, macroTargets.protein)) * 4) ? 'diet-macro-card-fill' : 'bg-bg-tertiary'}`}
+                      className={`h-1.5 flex-1 rounded-full ${index < Math.ceil((proteinProgress / 100) * 4) ? 'diet-macro-card-fill' : 'bg-bg-tertiary'}`}
                     />
                   ))}
                 </div>
               </div>
               <div className="diet-today-fat diet-macro-card rounded-xl border px-3 py-2.5 md:px-4 md:py-3">
                 <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Fat</p>
-                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(dayNutrition.fat)} / {macroTargets.fat}g</p>
+                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(completedNutrition.fat)} / {Math.round(dayNutrition.fat)}g</p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingFat)}g</p>
                 <div className="mt-3 flex gap-1">
                   {Array.from({ length: 4 }).map((_, index) => (
                     <span
                       key={index}
-                      className={`h-1.5 flex-1 rounded-full ${index < Math.ceil((dayNutrition.fat / Math.max(1, macroTargets.fat)) * 4) ? 'diet-macro-card-fill' : 'bg-bg-tertiary'}`}
+                      className={`h-1.5 flex-1 rounded-full ${index < Math.ceil((fatProgress / 100) * 4) ? 'diet-macro-card-fill' : 'bg-bg-tertiary'}`}
                     />
                   ))}
                 </div>
@@ -1349,13 +1441,12 @@ export default function DietPlan() {
               <div className="diet-today-carbs diet-macro-card rounded-xl border px-3 py-2.5 md:px-4 md:py-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Bữa</p>
-                  <span className="diet-macro-card-label text-xs font-black">{Math.min(100, Math.round((dayNutrition.carbs / Math.max(1, macroTargets.carbs)) * 100))}%</span>
+                  <span className="diet-macro-card-label text-xs font-black">{carbProgress}%</span>
                 </div>
-                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(dayNutrition.carbs)} / {macroTargets.carbs}g</p>
+                <p className="mt-2 text-base font-black text-text-primary md:text-lg">{Math.round(completedNutrition.carbs)} / {Math.round(dayNutrition.carbs)}g</p>
                 <p className="mt-1 text-xs font-semibold text-text-tertiary">Thiếu {Math.round(remainingCarbs)}g</p>
-                <p className="mt-1 text-xs font-semibold text-text-tertiary">Đã có món</p>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
-                  <div className="diet-macro-card-fill h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.round((dayNutrition.carbs / Math.max(1, macroTargets.carbs)) * 100))}%` }} />
+                  <div className="diet-macro-card-fill h-full rounded-full transition-all" style={{ width: `${carbProgress}%` }} />
                 </div>
               </div>
             </div>
@@ -1418,7 +1509,7 @@ export default function DietPlan() {
 
             {visibleMealSummaries.map((meal) => {
               const progress = Math.min(100, Math.round((meal.mealCalories / Math.max(1, targetCalories)) * 100));
-              const MealIcon = meal.id === 'breakfast' ? Coffee : meal.id === 'lunch' ? Flame : Utensils;
+              const MealIcon = meal.id === 'breakfast' ? Coffee : meal.id === 'lunch' ? Sun : meal.id === 'dinner' ? Moon : Utensils;
 
               return (
                 <section
@@ -1440,10 +1531,13 @@ export default function DietPlan() {
                   </header>
 
                   <div className="mt-2.5 space-y-2.5">
-                    {meal.items.map((item, itemIndex) => (
+                    {meal.items.map((item, itemIndex) => {
+                      const isCompleted = Boolean(item.weekly_food_item_id && completedWeeklyItemIds.has(item.weekly_food_item_id));
+
+                      return (
                       <article
                         key={item.tempId}
-                        className={`diet-food-card ${item.recipe_id ? 'diet-food-card-clickable' : ''}`}
+                        className={`diet-food-card ${isCompleted ? 'diet-food-card-completed' : ''} ${item.recipe_id ? 'diet-food-card-clickable' : ''}`}
                         tabIndex={item.recipe_id ? 0 : undefined}
                         onClick={(event) => {
                           if (!item.recipe_id || (event.target as HTMLElement).closest('button')) return;
@@ -1460,7 +1554,7 @@ export default function DietPlan() {
                             <FoodImage src={resolveFoodImage(item, itemIndex + meal.mealIndex)} alt={item.name} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <h4 className="truncate text-[15px] font-black text-text-primary">{item.name}</h4>
+                            <h4 className={`truncate text-[15px] font-black text-text-primary ${isCompleted ? 'diet-food-name-completed' : ''}`}>{item.name}</h4>
                             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-semibold text-text-tertiary">
                               <span className="inline-flex items-center gap-1 font-black text-[var(--meal-accent)]"><Flame className="h-3.5 w-3.5" />{Math.round(item.calories * item.quantity)} kcal</span>
                               <span>{roundMacro(item.protein * item.quantity)}g đạm</span>
@@ -1478,20 +1572,23 @@ export default function DietPlan() {
                             >
                               <RefreshCw className={replacingFoodId === item.tempId ? 'animate-spin' : ''} />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => void removeFoodFromPlan(item)}
+                            {!isCompleted && (
+                              <button
+                                type="button"
+                                onClick={() => void removeFoodFromPlan(item)}
                               disabled={isSaving || Boolean(replacingFoodId)}
                               className="diet-food-action diet-food-delete"
                               aria-label={`Xóa ${item.name}`}
                               title="Xóa món"
                             >
-                              <Trash2 />
-                            </button>
+                                <Trash2 />
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => void submitMealFeedback(item, 'liked')}
-                              className="diet-food-action diet-food-complete"
+                              onClick={() => void completeMealItem(item)}
+                              disabled={isCompleted || completingFoodId === item.tempId}
+                              className={`diet-food-action diet-food-complete ${isCompleted ? 'diet-food-complete-done' : ''}`}
                               aria-label={`Đánh dấu đã ăn ${item.name}`}
                               title="Đã ăn"
                             >
@@ -1526,7 +1623,8 @@ export default function DietPlan() {
                           </div>
                         )}
                       </article>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   <button type="button" onClick={() => openFoodPicker(meal.id)} className="diet-add-food">

@@ -4867,6 +4867,18 @@ svg {
   background: color-mix(in srgb, var(--bg-tertiary) 72%, var(--bg-secondary));
 }
 
+.diet-food-card-completed,
+.diet-food-card-completed:hover {
+  border-color: var(--meal-border, var(--accent-primary));
+  background: var(--meal-accent-soft, rgb(var(--accent-rgb) / 0.12));
+}
+
+.diet-food-name-completed {
+  color: var(--text-tertiary) !important;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
 .diet-food-card-clickable {
   cursor: pointer;
 }
@@ -4919,6 +4931,15 @@ svg {
   border-color: var(--meal-border, rgb(var(--accent-rgb) / 0.3));
   background: var(--meal-accent-soft, rgb(var(--accent-rgb) / 0.1));
   color: var(--meal-accent, var(--accent-primary));
+}
+
+.diet-food-complete-done,
+.diet-food-complete-done:disabled {
+  border-color: #d9ff3d;
+  background: #d9ff3d;
+  color: #11210f;
+  cursor: default;
+  opacity: 1;
 }
 
 .diet-food-detail-row {
