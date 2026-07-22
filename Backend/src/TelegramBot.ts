@@ -1969,69 +1969,83 @@ export const initTelegramBot = () => {
     );
   });
 
-  // Xử lý lệnh /start kèm theo token liên kết (Deep Linking)
-  bot.onText(/\/start (.+)/, async (msg, match) => {
+  // Xử lý lệnh /start (kèm hoặc không kèm token liên kết, hỗ trợ suffix @botusername và khoảng trắng)
+  bot.onText(/\/start(?:@\w+)?(?:\s+(.+))?$/i, async (msg, match) => {
     const chatId = msg.chat.id;
-    const linkToken = match ? match[1] : null;
+    const rawParam = match ? match[1]?.trim() : null;
 
-    if (!linkToken) {
-      return bot.sendMessage(chatId, 'Chào mừng bạn đến với Fitly! Vui lòng sử dụng nút "Kết nối Telegram" trên website để liên kết tài khoản nhé.');
-    }
+    // Nếu có tham số và tham số đó không phải là username (@...)
+    if (rawParam && !rawParam.startsWith('@')) {
+      try {
+        const verifiedToken = verifyTelegramLinkToken(rawParam);
+        if (!verifiedToken?.userId) {
+          await bot.sendMessage(chatId, '❌ Link liên kết không hợp lệ hoặc đã hết hạn. Vui lòng quay lại ứng dụng Fitly và nhấn "Kết nối Telegram Bot" để lấy link mới.');
+          return;
+        }
+        const userId = verifiedToken.userId;
 
-    try {
-      const verifiedToken = verifyTelegramLinkToken(linkToken);
-      if (!verifiedToken?.userId) {
-        return bot.sendMessage(chatId, '❌ Link liên kết không hợp lệ hoặc đã hết hạn. Vui lòng quay lại Fitly và tạo liên kết mới.');
-      }
-      const userId = verifiedToken.userId;
+        const { error: unlinkDuplicateChatError } = await supabase
+          .from('profiles')
+          .update({ telegram_chat_id: null })
+          .eq('telegram_chat_id', chatId.toString())
+          .neq('id', userId);
 
-      const { error: unlinkDuplicateChatError } = await supabase
-        .from('profiles')
-        .update({ telegram_chat_id: null })
-        .eq('telegram_chat_id', chatId.toString())
-        .neq('id', userId);
+        if (unlinkDuplicateChatError) throw unlinkDuplicateChatError;
 
-      if (unlinkDuplicateChatError) throw unlinkDuplicateChatError;
+        // Kiểm tra trước: có user này trong DB không
+        const { data: existingProfile, error: checkError } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .eq('id', userId)
+          .maybeSingle();
 
-      // Kiểm tra trước: có user này trong DB không
-      const { data: existingProfile, error: checkError } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .eq('id', userId)
-        .maybeSingle();
+        if (checkError) throw checkError;
 
-      if (checkError) throw checkError;
+        if (!existingProfile) {
+          await bot.sendMessage(chatId, '❌ Không tìm thấy tài khoản trong hệ thống.\n\nVui lòng:\n1. Đảm bảo bạn đã tạo hồ sơ trên website\n2. Đăng nhập và vào Cài đặt\n3. Nhấn lại nút "Kết nối Telegram Bot"');
+          return;
+        }
 
-      if (!existingProfile) {
-        bot.sendMessage(chatId, '❌ Không tìm thấy tài khoản trong hệ thống.\n\nVui lòng:\n1. Đảm bảo bạn đã tạo hồ sơ trên website\n2. Đăng nhập và vào Cài đặt\n3. Nhấn lại nút "Kết nối Telegram Bot"');
+        // Cập nhật telegram_chat_id
+        const { data: updatedData, error } = await supabase
+          .from('profiles')
+          .update({ telegram_chat_id: chatId.toString() })
+          .eq('id', userId)
+          .select();
+
+        if (error) throw error;
+
+        if (!updatedData || updatedData.length === 0) {
+          throw new Error('Không thể cập nhật database (0 dòng bị ảnh hưởng). Lỗi này thường do backend thiếu SUPABASE_SERVICE_ROLE_KEY nên RLS trên Supabase từ chối quyền ghi.');
+        }
+
+        await bot.sendMessage(chatId, `🎉 Chúc mừng ${existingProfile.full_name || 'bạn'}!\n\nTài khoản Fitly của bạn đã được liên kết thành công.\n\nTừ giờ, tôi sẽ gửi báo cáo tập luyện và lời nhắc AI trực tiếp tại đây cho bạn. 💪`);
+        await sendMainMenu(bot, chatId, existingProfile);
+        return;
+      } catch (err: any) {
+        console.error('❌ Lỗi liên kết Telegram /start:', err.message);
+        await bot.sendMessage(chatId, `❌ Lỗi xảy ra: ${err.message}\n\nVui lòng thử lại hoặc liên hệ hỗ trợ.`);
         return;
       }
-
-      // Cập nhật telegram_chat_id
-      const { data: updatedData, error } = await supabase
-        .from('profiles')
-        .update({ telegram_chat_id: chatId.toString() })
-        .eq('id', userId)
-        .select();
-
-      if (error) throw error;
-
-      if (!updatedData || updatedData.length === 0) {
-        throw new Error('Không thể cập nhật database (0 dòng bị ảnh hưởng). Lỗi này thường do backend thiếu SUPABASE_SERVICE_ROLE_KEY nên RLS (Row Level Security) trên Supabase từ chối quyền ghi của tài khoản anonymous.');
-      }
-
-      await bot.sendMessage(chatId, `🎉 Chúc mừng ${existingProfile.full_name}!\n\nTài khoản Fitly của bạn đã được liên kết thành công.\n\nTừ giờ, tôi sẽ gửi báo cáo tập luyện và lời nhắc AI trực tiếp tại đây cho bạn. 💪`);
-      await sendMainMenu(bot, chatId, existingProfile);
-    } catch (err: any) {
-      bot.sendMessage(chatId, `❌ Lỗi xảy ra: ${err.message}\n\nVui lòng thử lại hoặc liên hệ hỗ trợ.`);
     }
-  });
 
-  // Xử lý lệnh /start không có tham số
-  bot.onText(/\/start$/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, 'Chào mừng bạn đến với Fitly AI Coach.\n\nĐể cá nhân hóa và ghi dữ liệu tự động, hãy nhấn nút "Kết nối Telegram Bot" trong ứng dụng Fitly.');
-    sendMainMenu(bot, chatId).catch((err: any) => console.error('❌ Lỗi gửi menu /start:', err.message));
+    // Trường hợp /start thông thường (không có token)
+    try {
+      const profile = await getLinkedProfileByChatId(chatId).catch(() => null);
+      if (profile) {
+        await bot.sendMessage(chatId, `🎉 Chào mừng ${profile.full_name || 'bạn'} quay lại với Fitly AI Coach! 💪`);
+      } else {
+        await bot.sendMessage(
+          chatId,
+          '🚀 Chào mừng bạn đến với Fitly AI Coach!\nTôi là trợ lý sức khỏe cá nhân của bạn, giúp theo dõi giấc ngủ, nước uống, dinh dưỡng và tập luyện.\n\nĐể cá nhân hóa và ghi dữ liệu tự động, hãy nhấn nút "Kết nối Telegram Bot" trong phần Cài đặt của ứng dụng Fitly nhé!'
+        );
+      }
+      await sendMainMenu(bot, chatId, profile);
+    } catch (err: any) {
+      console.error('❌ Lỗi gửi menu /start:', err.message);
+      await bot.sendMessage(chatId, 'Chào mừng bạn đến với Fitly AI Coach!\nVui lòng chọn một chức năng dưới đây:').catch(() => {});
+      await sendMainMenu(bot, chatId).catch(() => {});
+    }
   });
 
   // Lệnh /clear - Xóa lịch sử cuộc trò chuyện

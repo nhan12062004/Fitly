@@ -2055,9 +2055,14 @@ function schedulePremiumMondayAutoPlanner() {
   console.log(`[premium-auto-planner] Scheduled with cron "${PREMIUM_AUTO_PLAN_CRON}" (${VIETNAM_TIMEZONE})`);
 }
 
-// Telegram polling và reminder cron chỉ chạy trên môi trường deploy (Render).
-// Backend local không khởi tạo Telegram runtime.
-const telegramBot = IS_PRODUCTION ? initTelegramBot() : null;
+// Telegram bot khởi tạo khi ở môi trường Production (Render) hoặc khi có TELEGRAM_BOT_TOKEN và polling không bị tắt bằng TELEGRAM_ENABLE_POLLING=false.
+const shouldInitBot = process.env.TELEGRAM_BOT_ENABLED !== 'false' && (
+  IS_PRODUCTION ||
+  process.env.TELEGRAM_FORCE_ENABLE === 'true' ||
+  process.env.TELEGRAM_ENABLE_POLLING === 'true' ||
+  (Boolean(process.env.TELEGRAM_BOT_TOKEN) && process.env.TELEGRAM_ENABLE_POLLING !== 'false')
+);
+const telegramBot = shouldInitBot ? initTelegramBot() : null;
 
 const defaultAllowedOrigins = [
   'https://trend-fit.vercel.app'
