@@ -4358,8 +4358,8 @@ svg {
 
 /* Compact weekly calendar for the diet plan. */
 .diet-week-calendar {
-  border-color: color-mix(in srgb, var(--border-primary) 75%, transparent) !important;
-  background: #151b25 !important;
+  border-color: transparent !important;
+  background: transparent !important;
   box-shadow: none !important;
 }
 
@@ -4369,23 +4369,23 @@ svg {
   color: #aeb8c7;
 }
 
-.diet-week-day:hover {
-  border-color: #435064;
-  background: #151d29;
-  color: #edf3fb;
+.diet-week-day-default:hover {
+  border-color: rgb(var(--accent-rgb) / 0.42);
+  background: rgb(var(--accent-rgb) / 0.08);
+  color: var(--accent-muted);
 }
 
 .diet-week-day-today {
-  border-color: rgba(249, 115, 22, 0.42);
-  background: rgba(120, 53, 15, 0.28);
-  color: #ffb56b;
+  border-color: rgb(var(--accent-rgb) / 0.48);
+  background: rgb(var(--accent-rgb) / 0.14);
+  color: var(--accent-primary);
 }
 
 .diet-week-day-selected {
-  border-color: #caff32;
-  background: #caff32;
-  box-shadow: 0 10px 24px rgba(202, 255, 50, 0.20);
-  color: #10200b;
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  box-shadow: none;
+  color: #f8fafc;
 }
 
 .diet-week-day-dot {
@@ -4397,21 +4397,24 @@ svg {
 
 .diet-week-today-label {
   position: absolute;
-  top: -0.5rem;
+  z-index: 2;
+  top: -0.6rem;
   left: 50%;
   transform: translateX(-50%);
-  border: 1px solid rgba(45, 212, 191, 0.42);
+  border: 1px solid var(--accent-primary);
   border-radius: 999px;
-  background: #122d32;
-  padding: 0.08rem 0.32rem;
-  color: #5eead4;
-  font-size: 0.5rem;
+  background: var(--accent-primary);
+  padding: 0.11rem 0.38rem;
+  color: #f8fafc;
+  font-size: 0.56rem;
   line-height: 1;
-  letter-spacing: 0.04em;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  box-shadow: 0 3px 8px rgb(var(--shadow-rgb) / 0.28);
 }
 
 .light .diet-week-calendar {
-  background: #edf2f7 !important;
+  background: transparent !important;
 }
 
 .light .diet-week-day {
@@ -4421,15 +4424,15 @@ svg {
 }
 
 .light .diet-week-day-today {
-  border-color: rgba(234, 88, 12, 0.45);
-  background: #fff7ed;
-  color: #c2410c;
+  border-color: rgb(var(--accent-rgb) / 0.46);
+  background: rgb(var(--accent-rgb) / 0.10);
+  color: var(--accent-strong);
 }
 
 .light .diet-week-day-selected {
-  border-color: #9cd91a;
-  background: #caff32;
-  color: #10200b;
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  color: #f8fafc;
 }
 
 @media (max-width: 640px) {

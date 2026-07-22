@@ -1390,15 +1390,14 @@ export default function DietPlan() {
       <div className="w-full space-y-4 overflow-hidden">
         <section className="diet-card diet-today-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
           <div className="flex flex-col gap-4">
-            <div className="diet-day-tabs diet-week-calendar overflow-hidden rounded-[22px] border border-border-primary p-2">
+            <div className="diet-day-tabs diet-week-calendar overflow-visible px-1 py-2">
               <div ref={dayTabContainerRef} className="grid min-w-0 grid-cols-7 gap-1.5 sm:gap-2">
                 {DAYS.map((day) => {
                   const dayDate = addDays(selectedWeekStart, day.id);
                   const isToday = toDateKey(dayDate) === todayKey;
                   const isSelected = selectedDayId === day.id;
                   const isTodayLabel = isCurrentWeek && isToday;
-                  const weekdayLabel = dayDate.toLocaleDateString('vi-VN', { weekday: 'short' }).replace('.', '');
-                  const compactWeekdayLabel = weekdayLabel.replace(/^Th\s*/i, 'T').toUpperCase();
+                  const compactWeekdayLabel = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][day.id];
 
                   return (
                     <button
