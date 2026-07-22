@@ -799,7 +799,7 @@ export default function Profile() {
           </div>
         </div>
 
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="grid items-start gap-5 lg:grid-cols-2">
           <section id="thong-tin-ca-nhan" className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
             <SectionTitle icon={<User className="h-4 w-4" />} title="Thông tin cá nhân" helper="Thông tin nhận diện cơ bản của bạn." />
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -818,83 +818,45 @@ export default function Profile() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<Trophy className="h-4 w-4" />} title="Mục tiêu chính" helper="Chọn một mục tiêu để Fitly cá nhân hóa bài tập, dinh dưỡng và nhịp phục hồi." />
-            <div className="mt-5">
-              <OptionButtonGroup
-                label="Mục tiêu"
-                value={formData.fitness_goal}
-                options={FITNESS_GOAL_OPTIONS}
-                onChange={(value) => setFormData((prev) => ({ ...prev, fitness_goal: value }))}
-                columns="sm:grid-cols-2 xl:grid-cols-3"
-                icons={FITNESS_GOAL_ICONS}
-                descriptions={FITNESS_GOAL_DESCRIPTIONS}
-              />
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<Dumbbell className="h-4 w-4" />} title="Tùy chọn tập luyện" helper="Fitly dùng các thông tin này để chỉ đề xuất bài tập phù hợp với nơi tập, dụng cụ và kinh nghiệm của bạn." />
-            <div className="mt-5 space-y-5">
-              <OptionButtonGroup
-                label="Nơi tập"
-                value={formData.workout_location}
-                options={[...TRAINING_LOCATIONS]}
-                onChange={(value) => setFormData((prev) => ({ ...prev, workout_location: value }))}
-                columns="sm:grid-cols-2"
-                optionLabels={TRAINING_LOCATION_LABELS}
-                descriptions={TRAINING_LOCATION_DESCRIPTIONS}
-              />
-              <EquipmentPreferenceGroup
-                value={formData.equipment_available}
-                onChange={(equipment) => {
-                  setFormData((prev) => {
-                    const selected = parseAvailableEquipment(prev.equipment_available);
-                    if (equipment === 'none') {
-                      return { ...prev, equipment_available: 'none' };
-                    }
-
-                    selected.delete('none');
-                    if (selected.has(equipment)) selected.delete(equipment);
-                    else selected.add(equipment);
-
-                    return {
-                      ...prev,
-                      equipment_available: serializeAvailableEquipment(selected),
-                    };
-                  });
-                }}
-              />
-              <OptionButtonGroup
-                label="Kinh nghiệm tập luyện"
-                value={formData.experience_level}
-                options={EXPERIENCE_LEVEL_OPTIONS.map((option) => option.value)}
-                onChange={(value) => setFormData((prev) => ({ ...prev, experience_level: value }))}
-                columns="sm:grid-cols-2 xl:grid-cols-3"
-                optionLabels={EXPERIENCE_LEVEL_LABELS}
-                descriptions={EXPERIENCE_LEVEL_DESCRIPTIONS}
-              />
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<Apple className="h-4 w-4" />} title="Thực đơn & ngân sách" helper="Các lựa chọn chính để Fitly gợi ý bữa ăn phù hợp hơn." />
+          <section id="chi-so-co-the" className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+            <SectionTitle icon={<Ruler className="h-4 w-4" />} title="Chỉ số cơ thể" helper="Mỗi lần lưu sẽ tạo một mốc mới để theo dõi tiến độ." />
             <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <MultiOptionButtonGroup
-                label="Hạn chế ăn uống"
-                values={formData.dietary_restrictions}
-                options={DIETARY_RESTRICTION_OPTIONS}
-                optionLabels={DIETARY_RESTRICTION_LABELS}
-                onChange={(values) => setFormData((prev) => ({ ...prev, dietary_restrictions: values }))}
-              />
-              <MultiOptionButtonGroup
-                label="Phong cách ăn"
-                values={formData.diet_styles}
-                options={DIET_STYLE_OPTIONS}
-                optionLabels={DIET_STYLE_LABELS}
-                onChange={(values) => setFormData((prev) => ({ ...prev, diet_styles: values }))}
-              />
-              <div className="md:col-span-2">
+              <ProfileField label="Chiều cao" name="height" value={formData.height} onChange={handleChange} editing type="number" suffix="cm" viewValue={formatMetric(formData.height, 'cm')} icon={<Ruler className="h-4 w-4" />} />
+              <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
+              <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
+              <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
+            </div>
+          </section>
+        </div>
+
+        <div className="grid items-start gap-5 lg:grid-cols-2">
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+              <SectionTitle icon={<Trophy className="h-4 w-4" />} title="Mục tiêu chính" helper="Chọn một mục tiêu để Fitly cá nhân hóa bài tập, dinh dưỡng và nhịp phục hồi." />
+              <div className="mt-5">
+                <OptionButtonGroup
+                  label="Mục tiêu"
+                  value={formData.fitness_goal}
+                  options={FITNESS_GOAL_OPTIONS}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, fitness_goal: value }))}
+                  columns="sm:grid-cols-2 xl:grid-cols-3"
+                  icons={FITNESS_GOAL_ICONS}
+                  descriptions={FITNESS_GOAL_DESCRIPTIONS}
+                />
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+              <SectionTitle icon={<Apple className="h-4 w-4" />} title="Thực đơn & ngân sách" helper="Các lựa chọn chính để Fitly gợi ý bữa ăn phù hợp hơn." />
+              <div className="mt-5 space-y-5">
+                <OptionButtonGroup
+                  label="Phong cách ăn"
+                  value={formData.diet_preference}
+                  options={DIET_PREFERENCE_OPTIONS}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, diet_preference: value }))}
+                  columns="sm:grid-cols-2 xl:grid-cols-3"
+                  descriptions={DIET_PREFERENCE_DESCRIPTIONS}
+                />
                 <OptionButtonGroup
                   label="Ngân sách bữa ăn"
                   value={formData.budget_level}
@@ -905,43 +867,54 @@ export default function Profile() {
                   descriptions={MEAL_BUDGET_DESCRIPTIONS}
                 />
               </div>
-              <div className="md:col-span-2">
-                <MultiOptionButtonGroup
-                  label="Dị ứng (canonical)"
-                  values={selectedAllergies}
-                  options={[...ALLERGENS]}
-                  optionLabels={ALLERGEN_LABELS}
-                  onChange={(next) => setFormData((prev) => ({
-                    ...prev,
-                    allergies: [...normalizeAllergies(prev.allergies).filter((value) => !ALLERGENS.includes(value as typeof ALLERGENS[number])), ...next].join(', '),
-                  }))}
+            </section>
+          </div>
+
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
+              <SectionTitle icon={<Dumbbell className="h-4 w-4" />} title="Tùy chọn tập luyện" helper="Fitly dùng các thông tin này để chỉ đề xuất bài tập phù hợp với nơi tập, dụng cụ và kinh nghiệm của bạn." />
+              <div className="mt-5 space-y-5">
+                <OptionButtonGroup
+                  label="Nơi tập"
+                  value={formData.workout_location}
+                  options={[...TRAINING_LOCATIONS]}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, workout_location: value }))}
+                  columns="sm:grid-cols-2"
+                  optionLabels={TRAINING_LOCATION_LABELS}
+                  descriptions={TRAINING_LOCATION_DESCRIPTIONS}
+                />
+                <EquipmentPreferenceGroup
+                  value={formData.equipment_available}
+                  onChange={(equipment) => {
+                    setFormData((prev) => {
+                      const selected = parseAvailableEquipment(prev.equipment_available);
+                      if (equipment === 'none') {
+                        return { ...prev, equipment_available: 'none' };
+                      }
+
+                      selected.delete('none');
+                      if (selected.has(equipment)) selected.delete(equipment);
+                      else selected.add(equipment);
+
+                      return {
+                        ...prev,
+                        equipment_available: serializeAvailableEquipment(selected),
+                      };
+                    });
+                  }}
+                />
+                <OptionButtonGroup
+                  label="Kinh nghiệm tập luyện"
+                  value={formData.experience_level}
+                  options={EXPERIENCE_LEVEL_OPTIONS.map((option) => option.value)}
+                  onChange={(value) => setFormData((prev) => ({ ...prev, experience_level: value }))}
+                  columns="sm:grid-cols-2 xl:grid-cols-3"
+                  optionLabels={EXPERIENCE_LEVEL_LABELS}
+                  descriptions={EXPERIENCE_LEVEL_DESCRIPTIONS}
                 />
               </div>
-              <div className="md:col-span-2">
-                <ProfileTextArea label="Dị ứng / thực phẩm cần tránh" name="allergies" value={formData.allergies} onChange={handleChange} editing icon={<AlertCircle className="h-4 w-4" />} />
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <div className="grid items-start gap-5 lg:grid-cols-2">
-          <section id="chi-so-co-the" className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<Ruler className="h-4 w-4" />} title="Chỉ số cơ thể" helper="Mỗi lần lưu sẽ tạo một mốc mới để theo dõi tiến độ." />
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <ProfileField label="Chiều cao" name="height" value={formData.height} onChange={handleChange} editing type="number" suffix="cm" viewValue={formatMetric(formData.height, 'cm')} icon={<Ruler className="h-4 w-4" />} />
-              <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
-              <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
-              <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
-            </div>
-          </section>
-
-          <section id="suc-khoe" className="rounded-2xl border border-border-primary bg-bg-secondary p-5 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-6">
-            <SectionTitle icon={<HeartPulse className="h-4 w-4" />} title="Sức khỏe cơ bản" helper="Chỉ giữ các lưu ý ảnh hưởng trực tiếp tới độ an toàn khi tập." />
-            <div className="mt-5 grid gap-4">
-              <ProfileTextArea label="Bệnh nền / lưu ý sức khỏe" name="health_condition" value={formData.health_condition} onChange={handleChange} editing icon={<HeartPulse className="h-4 w-4" />} />
-              <ProfileTextArea label="Chấn thương" name="injuries" value={formData.injuries} onChange={handleChange} editing icon={<Activity className="h-4 w-4" />} />
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
 
         <div className="flex gap-3">
