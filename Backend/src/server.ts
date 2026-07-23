@@ -2660,7 +2660,7 @@ app.get('/api/admin/overview', async (req, res) => {
       loadAdminCount('new users', supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo)),
       loadAdminCount('telegram linked users', supabase.from('profiles').select('id', { count: 'exact', head: true }).not('telegram_chat_id', 'is', null)),
       loadAdminCount('exercises', supabase.from('exercises').select('id', { count: 'exact', head: true })),
-      loadAdminCount('foods', supabase.from('foods').select('id', { count: 'exact', head: true })),
+      loadAdminCount('recipes', supabase.from('recipes').select('id', { count: 'exact', head: true })),
       loadAdminCount('ai proposed adjustments', supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'proposed')),
       loadAdminCount('ai applied adjustments', supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'applied')),
       loadAdminCount('ai rejected adjustments', supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'rejected')),
@@ -2875,12 +2875,7 @@ const sanitizeRecipeAdminPayload = (source: unknown) => {
 };
 
 const withRecipeIngredientMetadata = async (ingredients: Array<Record<string, unknown>>) => {
-  const ids = Array.from(new Set(ingredients.map((item) => String(item.food_id || '')).filter(Boolean)));
-  if (!ids.length) return ingredients as RecipeIngredientWithFood[];
-  const foods = await supabase.from('foods').select('id, category, allergens, dietary_tags, ingredient_metadata, animal_source').in('id', ids);
-  if (foods.error) throw foods.error;
-  const byId = new Map((foods.data || []).map((food: any) => [String(food.id), food]));
-  return ingredients.map((ingredient) => ({ ...ingredient, food: byId.get(String(ingredient.food_id || '')) || null })) as RecipeIngredientWithFood[];
+  return ingredients as RecipeIngredientWithFood[];
 };
 
 const recipeValidationResponse = (source: unknown, ingredients: RecipeIngredientWithFood[]) => {
@@ -2980,13 +2975,13 @@ app.get('/api/admin/foods', async (req, res) => {
     const query = String(req.query.q || '').trim();
     const limit = Math.max(1, Math.min(300, Number(req.query.limit) || 120));
     let request = supabase
-      .from('foods')
-      .select('*')
-      .order('created_at', { ascending: false })
+      .from('recipes')
+      .select('id, name, meal_type, calories, protein, carbs, fat, serving_unit, is_active')
+      .order('updated_at', { ascending: false })
       .limit(limit);
 
     if (query) {
-      request = request.or(`name.ilike.%${query}%,category.ilike.%${query}%,region.ilike.%${query}%`);
+      request = request.or(`name.ilike.%${query}%`);
     }
 
     const { data, error } = await request;
@@ -2998,63 +2993,15 @@ app.get('/api/admin/foods', async (req, res) => {
 });
 
 app.post('/api/admin/foods', async (req, res) => {
-  try {
-    const adminUserId = await requireAdminUserId(req, res);
-    if (!adminUserId) return;
-
-    const payload = sanitizeFoodPayload(req.body);
-    const { data, error } = await supabase.from('foods').insert(payload).select('*').single();
-    if (error) throw error;
-    res.status(201).json({ success: true, data });
-  } catch (error: any) {
-    res.status(400).json({ error: error?.message || 'Failed to create food' });
-  }
+  return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
 });
 
 app.put('/api/admin/foods/:id', async (req, res) => {
-  try {
-    const adminUserId = await requireAdminUserId(req, res);
-    if (!adminUserId) return;
-
-    const foodId = String(req.params.id || '').trim();
-    const payload = sanitizeFoodPayload(req.body);
-    const { data, error } = await supabase
-      .from('foods')
-      .update(payload)
-      .eq('id', foodId)
-      .select('*')
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'Food not found' });
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(400).json({ error: error?.message || 'Failed to update food' });
-  }
+  return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
 });
 
 app.delete('/api/admin/foods/:id', async (req, res) => {
-  try {
-    const adminUserId = await requireAdminUserId(req, res);
-    if (!adminUserId) return;
-
-    const foodId = String(req.params.id || '').trim();
-    const [weeklyUsage, dailyUsage] = await Promise.all([
-      countCatalogUsage('weekly_food_items', 'food_id', foodId),
-      countCatalogUsage('daily_meal_logs', 'food_id', foodId)
-    ]);
-    if (weeklyUsage + dailyUsage > 0) {
-      return res.status(409).json({
-        error: 'Food is used in meal plans or logs and cannot be deleted safely.',
-        usage: { weeklyUsage, dailyUsage }
-      });
-    }
-
-    const { error } = await supabase.from('foods').delete().eq('id', foodId);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(400).json({ error: error?.message || 'Failed to delete food' });
-  }
+  return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
 });
 
 app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
@@ -4100,8 +4047,8 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       const currentMeal = targetMealRows[0] || null;
       const mealType = String(currentMeal?.meal_type || 'dinner');
       const candidateFoodsRes = await supabase
-        .from('foods')
-        .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
+        .from('recipes')
+        .select('id, name, meal_type, calories, protein, carbs, fat, serving_unit, is_active, price_level, cooking_time_minutes, region')
         .contains('meal_type', [mealType])
         .order('created_at', { ascending: false })
         .limit(300);
@@ -4624,8 +4571,8 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       }
 
       const foodRes = await supabase
-        .from('foods')
-        .select('id, name, category, calories, protein, carbs, fat, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, goal_type')
+        .from('recipes')
+        .select('id, name, meal_type, calories, protein, carbs, fat, allergens, dietary_restrictions, diet_styles, is_active, price_level, goal_type')
         .eq('id', newFoodId)
         .maybeSingle();
       if (foodRes.error) throw foodRes.error;
