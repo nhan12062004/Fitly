@@ -317,9 +317,17 @@ const getAiQuotaUsageCount = async (
   if (quotaKey === 'planGenerations') {
     query = query.eq('source_type', 'ai_coach_generate');
   } else if (quotaKey === 'workoutAdjustments') {
-    query = query.eq('plan_type', 'workout');
+    query = query
+      .eq('plan_type', 'workout')
+      .not('source_type', 'eq', 'ai_coach_generate')
+      .not('source_type', 'eq', 'premium_auto_generate')
+      .not('source_type', 'eq', 'onboarding_meal_generate');
   } else if (quotaKey === 'mealAdjustments') {
-    query = query.eq('plan_type', 'meal');
+    query = query
+      .eq('plan_type', 'meal')
+      .not('source_type', 'eq', 'ai_coach_generate')
+      .not('source_type', 'eq', 'premium_auto_generate')
+      .not('source_type', 'eq', 'onboarding_meal_generate');
   }
 
   const usageRes = await applyQuotaWindow(query, startsAt, endsAt);
@@ -3337,6 +3345,7 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, a
       applied_at: new Date().toISOString(),
     });
     if (auditRes.error) throw auditRes.error;
+    void recordAiQuotaUsage(authUserId, 'workoutAdjustments').catch(() => null);
 
     return res.json({
       success: true,
