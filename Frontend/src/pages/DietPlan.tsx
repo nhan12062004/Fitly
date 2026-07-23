@@ -32,6 +32,8 @@ interface Food {
   serving_unit: string;
   image_url: string;
   meal_type?: string[];
+  estimated_cost_min_vnd?: number | null;
+  ingredients?: RecipeIngredient[];
 }
 
 interface RecipeIngredient {
@@ -326,6 +328,8 @@ const createPlanFood = (food: Food, mealType: MealTypeId, quantity = 1): PlanFoo
   protein: food.protein,
   carbs: food.carbs,
   fat: food.fat,
+  estimated_cost_min_vnd: food.estimated_cost_min_vnd ?? null,
+  ingredients: Array.isArray(food.ingredients) ? food.ingredients : [],
   is_rest_day: false
 });
 
@@ -770,7 +774,11 @@ export default function DietPlan() {
 
       const [foodsResult, recipesResult] = await Promise.all([
         supabase.from('foods').select('*').order('name'),
-        supabase.from('recipes').select('id, name, image_url, calories, protein, carbs, fat, serving_unit, meal_type').eq('is_active', true).order('name')
+        supabase
+          .from('recipes')
+          .select('id, name, image_url, calories, protein, carbs, fat, serving_unit, meal_type, estimated_cost_min_vnd, recipe_ingredients(ingredient_name, amount, unit, preparation_note, foods:food_id(calories, protein, carbs, fat, serving_unit))')
+          .eq('is_active', true)
+          .order('name')
       ]);
       if (foodsResult.error || recipesResult.error) {
         console.error(foodsResult.error || recipesResult.error);
@@ -808,7 +816,17 @@ export default function DietPlan() {
             fat: Number(recipe.fat || 0),
             serving_unit: recipe.serving_unit || 'phần',
             image_url: recipe.image_url || '',
-            meal_type: mealType
+            meal_type: mealType,
+            estimated_cost_min_vnd: recipe.estimated_cost_min_vnd === null || recipe.estimated_cost_min_vnd === undefined ? null : Number(recipe.estimated_cost_min_vnd),
+            ingredients: Array.isArray(recipe.recipe_ingredients)
+              ? recipe.recipe_ingredients.map((ing: any) => ({
+                  ingredient_name: String(ing.ingredient_name || 'Nguyên liệu'),
+                  amount: ing.amount === null || ing.amount === undefined ? null : Number(ing.amount),
+                  unit: ing.unit || null,
+                  preparation_note: ing.preparation_note || null,
+                  food: ing.foods || null
+                }))
+              : []
           };
         });
         const catalog = [...normalizedRecipes, ...normalizedFoods];
