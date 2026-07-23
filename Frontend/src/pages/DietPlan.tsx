@@ -772,35 +772,17 @@ export default function DietPlan() {
         return;
       }
 
-      const [foodsResult, recipesResult] = await Promise.all([
-        supabase.from('foods').select('*').order('name'),
-        supabase
-          .from('recipes')
-          .select('id, name, image_url, calories, protein, carbs, fat, serving_unit, meal_type, estimated_cost_min_vnd, recipe_ingredients(ingredient_name, amount, unit, preparation_note)')
-          .eq('is_active', true)
-          .order('name')
-      ]);
-      if (foodsResult.error || recipesResult.error) {
-        console.error(foodsResult.error || recipesResult.error);
+      const recipesResult = await supabase
+        .from('recipes')
+        .select('id, name, image_url, calories, protein, carbs, fat, serving_unit, meal_type, estimated_cost_min_vnd, recipe_ingredients(ingredient_name, amount, unit, preparation_note)')
+        .eq('is_active', true)
+        .order('name');
+      if (recipesResult.error) {
+        console.error(recipesResult.error);
         return;
       }
 
       if (!cancelled) {
-        const normalizedFoods = (foodsResult.data || []).map((food: any) => ({
-          id: food.id,
-          catalog_type: 'food' as const,
-          name: food.name || '',
-          category: food.category || '',
-          calories: Number(food.calories || 0),
-          protein: Number(food.protein || 0),
-          carbs: Number(food.carbs || 0),
-          fat: Number(food.fat || 0),
-          serving_unit: food.serving_unit || '100g',
-          image_url: food.image_url || '',
-          meal_type: Array.isArray(food.meal_type)
-            ? food.meal_type.map((item: unknown) => String(item || '').toLowerCase()).filter(Boolean)
-            : []
-        }));
         const normalizedRecipes = (recipesResult.data || []).map((recipe: any) => {
           const mealType = Array.isArray(recipe.meal_type)
             ? recipe.meal_type.map((item: unknown) => String(item || '').toLowerCase()).filter(Boolean)
@@ -824,14 +806,13 @@ export default function DietPlan() {
                   amount: ing.amount === null || ing.amount === undefined ? null : Number(ing.amount),
                   unit: ing.unit || null,
                   preparation_note: ing.preparation_note || null,
-                  food: ing.foods || null
+                  food: null
                 }))
               : []
           };
         });
-        const catalog = [...normalizedRecipes, ...normalizedFoods];
-        dietPlanFoodCache = catalog;
-        setFoods(catalog);
+        dietPlanFoodCache = normalizedRecipes;
+        setFoods(normalizedRecipes);
       }
     }
 

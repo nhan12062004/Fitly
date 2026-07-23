@@ -2893,9 +2893,17 @@ app.get('/api/recipes/:id', async (req, res) => {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const id = String(req.params.id || '').trim();
-    const { data, error } = await supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).eq('id', id).maybeSingle();
+    let { data, error } = await supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).eq('id', id).maybeSingle();
+    if (!data && id.includes('-')) {
+      const namePattern = id.replace(/-/g, ' ');
+      const nameRes = await supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).ilike('name', `%${namePattern}%`).limit(1).maybeSingle();
+      if (nameRes.data) {
+        data = nameRes.data;
+        error = null;
+      }
+    }
     if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'Recipe not found' });
+    if (!data) return res.status(404).json({ error: 'Không tìm thấy chi tiết món ăn.' });
     return res.json({ success: true, data });
   } catch (error: any) {
     return res.status(400).json({ error: error?.message || 'Failed to load recipe' });
