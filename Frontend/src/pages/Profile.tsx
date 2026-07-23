@@ -361,7 +361,7 @@ export default function Profile() {
       setLoading(true);
       setError('');
       try {
-        const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, aiQuotaPayload] = await Promise.all([
+        const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, aiQuotaPayload, allChallenges] = await Promise.all([
           supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
           supabase
             .from('body_metrics')
@@ -374,24 +374,21 @@ export default function Profile() {
           supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
           supabase
             .from('daily_progress_logs')
-            .select('log_date', { count: 'exact', head: false })
-            .eq('user_id', userId),
+            .select('log_date')
+            .eq('user_id', userId)
+            .order('log_date', { ascending: false })
+            .limit(90),
           fetchWithAuth('/api/ai/quota')
             .then(async (response) => response.ok ? response.json() : null)
             .catch(() => null),
+          getUserChallenges(userId).catch(() => []),
         ]);
 
-        // Load challenges đã hoàn thành riêng — bỏ qua nếu lỗi
-        try {
-          const allChallenges = await getUserChallenges(userId);
-          const done = allChallenges
-            .filter((c) => c.status === 'completed')
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .slice(0, 4);
-          if (!cancelled) setCompletedChallenges(done);
-        } catch {
-          // bỏ qua nếu chưa có dữ liệu challenge
-        }
+        const done = (allChallenges || [])
+          .filter((c) => c.status === 'completed')
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 4);
+        if (!cancelled) setCompletedChallenges(done);
 
         const firstError = [profileRes.error, bodyRes.error, healthRes.error].find(Boolean);
         if (firstError) throw firstError;
