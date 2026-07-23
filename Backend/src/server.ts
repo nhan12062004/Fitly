@@ -732,6 +732,48 @@ const enforceTrainingPrescription = (
   };
 };
 
+const OPTIMAL_DAY_DISTRIBUTIONS: Record<number, number[]> = {
+  1: [0],                  // Mon
+  2: [1, 4],               // Tue, Fri
+  3: [0, 2, 4],            // Mon, Wed, Fri (Work - Rest - Work - Rest - Work - Rest - Rest)
+  4: [0, 1, 3, 4],         // Mon, Tue, Thu, Fri (Work - Work - Rest - Work - Work - Rest - Rest)
+  5: [0, 1, 2, 4, 5],      // Mon, Tue, Wed, Fri, Sat (Work 3 - Rest 1 - Work 2 - Rest 1)
+  6: [0, 1, 2, 3, 4, 5],   // Mon..Sat, Sun rest
+  7: [0, 1, 2, 3, 4, 5, 6],
+};
+
+const balanceWorkoutDays = (workoutPlan: NormalizedAiPlan['workoutPlan'], weeklyWorkouts: number) => {
+  const activeDays = workoutPlan.days.filter((d) => !d.is_rest_day && d.exercises.length > 0);
+  if (activeDays.length !== weeklyWorkouts) return workoutPlan;
+
+  const targetSlots = OPTIMAL_DAY_DISTRIBUTIONS[weeklyWorkouts] || Array.from({ length: weeklyWorkouts }, (_, i) => i);
+  const targetSlotSet = new Set(targetSlots);
+
+  let activeIdx = 0;
+  const newDays = Array.from({ length: 7 }, (_, dayIndex) => {
+    if (targetSlotSet.has(dayIndex) && activeIdx < activeDays.length) {
+      const sourceDay = activeDays[activeIdx++];
+      return {
+        ...sourceDay,
+        day_of_week: dayIndex,
+        is_rest_day: false,
+      };
+    }
+    return {
+      day_of_week: dayIndex,
+      is_rest_day: true,
+      duration_minutes: 0,
+      exercises: [],
+      note: 'Recovery Day',
+    };
+  });
+
+  return {
+    ...workoutPlan,
+    days: newDays,
+  };
+};
+
 // Weekly plans are stored Monday–Sunday so they can be materialized into
 // calendar dates consistently. When a user creates a plan mid-week, rotate
 // the AI's sequence so its first workout lands on today rather than leaving
@@ -5254,6 +5296,7 @@ ${jsonSchemaPrompt}
       });
     }
     normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
+    normalizedPlan.workoutPlan = balanceWorkoutDays(normalizedPlan.workoutPlan, trainingPrescription.weeklyWorkouts);
     normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
 
     const existingWorkoutPlans = await supabase
