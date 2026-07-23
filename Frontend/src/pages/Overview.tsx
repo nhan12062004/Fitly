@@ -964,36 +964,64 @@ export default function Overview() {
           </div>
 
           {hasMealPlan ? (
-            <div className="flex flex-1 flex-col gap-2">
-              {todayMeals.slice(0, 4).map((meal, index) => (
-                <div key={`${meal.type}-${index}`} className="flex items-center gap-3 rounded-xl border border-border-primary/80 bg-bg-tertiary/35 px-3 py-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-secondary text-xs font-black text-text-tertiary">
-                    {index + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-black text-text-primary">{meal.foods}</p>
-                    <p className="mt-0.5 text-xs font-semibold text-text-tertiary">{meal.label}</p>
+            <div className="flex flex-1 flex-col gap-2.5">
+              {todayMeals.filter((meal) => {
+                const items = todayMealItems.filter((item) => item.meal_type === meal.type);
+                return items.length > 0;
+              }).map((meal) => {
+                const items = todayMealItems.filter((item) => item.meal_type === meal.type);
+                return (
+                  <div key={meal.type} className="rounded-xl border border-border-primary/80 bg-bg-tertiary/30 overflow-hidden">
+                    {/* Meal slot header */}
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border-primary/50 bg-bg-tertiary/40">
+                      <p className="text-[11px] font-black uppercase tracking-[0.12em] text-info">{meal.label}</p>
+                      <span className="text-[11px] font-black text-text-tertiary">{formatWholeNumber(meal.kcal)} kcal</span>
+                    </div>
+                    {/* Food items */}
+                    <div className="divide-y divide-border-primary/30">
+                      {items.map((item, idx) => {
+                        const imageUrl = String(item.recipe?.image_url || '').trim();
+                        const name = item.recipe?.name || 'Món ăn';
+                        const kcal = Math.round(item.calories);
+                        return (
+                          <div key={`${item.recipe_id}-${idx}`} className="flex items-center gap-2.5 px-3 py-2">
+                            {/* Thumbnail */}
+                            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-bg-secondary">
+                              {imageUrl ? (
+                                <img
+                                  src={imageUrl}
+                                  alt={name}
+                                  className="h-full w-full object-cover"
+                                  loading="lazy"
+                                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center text-lg">🍽️</span>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-black text-text-primary">{name}</p>
+                              {item.quantity > 1 && (
+                                <p className="text-[11px] font-semibold text-text-tertiary">×{item.quantity}</p>
+                              )}
+                            </div>
+                            <span className="shrink-0 text-[11px] font-black text-text-secondary">{kcal} kcal</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <span className="shrink-0 rounded-full bg-bg-secondary px-2.5 py-1 text-[11px] font-black text-text-secondary">
-                    {formatWholeNumber(meal.kcal)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="flex flex-1 flex-col gap-2">
-              {todayMeals.map((meal, index) => (
+              {todayMeals.map((meal) => (
                 <div key={meal.type} className="flex items-center gap-3 rounded-xl border border-border-primary/80 bg-bg-tertiary/20 px-3 py-2.5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-secondary/60 text-xs font-black text-text-tertiary">
-                    {index + 1}
-                  </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-black text-text-primary">Chưa lập thực đơn</p>
-                    <p className="mt-0.5 text-xs font-semibold text-text-tertiary">{meal.label}</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.12em] text-text-tertiary">{meal.label}</p>
+                    <p className="mt-0.5 text-sm font-semibold text-text-secondary">Chưa lập thực đơn</p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-bg-secondary/60 px-2.5 py-1 text-[11px] font-black text-text-secondary">
-                    0
-                  </span>
                 </div>
               ))}
             </div>
