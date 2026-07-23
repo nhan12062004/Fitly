@@ -4995,8 +4995,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     if (!authUserId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const { weekStartDate, planScope } = req.body || {};
-    const workoutOnly = ['workout', 'workout_only'].includes(String(planScope || '').toLowerCase());
+    const { weekStartDate } = req.body || {};
     const userId = authUserId;
     if (!process.env.GROQ_API_KEY) {
       return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
@@ -5010,43 +5009,22 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       lifestyleRes,
       healthRes,
       exerciseCatalogRes,
-      foodCatalogRes,
       recentSessionsRes,
-      recentMealsRes,
-      recentMealLogsRes
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('body_metrics').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
-    supabase
-      .from('exercises')
-      .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
-      .limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
       supabase
-        .from('foods')
-        .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
-        .order('created_at', { ascending: false })
-        .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
+        .from('exercises')
+        .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
+        .limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
       supabase
         .from('daily_exercise_sessions')
         .select('log_date, exercise_id, sets, reps, weight_kg, rest_seconds, is_completed, exercises:exercise_id(name, body_part, target_muscle)')
         .eq('user_id', userId)
         .order('log_date', { ascending: false })
         .limit(20),
-      supabase
-        .from('weekly_food_items')
-        .select('day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
-        .eq('weekly_food_plans.user_id', userId)
-        .eq('weekly_food_plans.plan_status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('daily_meal_logs')
-        .select('log_date, meal_type, food_id, quantity, calories, protein, carbs, fat, custom_food_name, foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
-        .eq('user_id', userId)
-        .order('log_date', { ascending: false })
-        .limit(40)
     ]);
 
     const firstError = [
@@ -5055,10 +5033,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       lifestyleRes.error,
       healthRes.error,
       exerciseCatalogRes.error,
-      foodCatalogRes.error,
       recentSessionsRes.error,
-      recentMealsRes.error,
-      recentMealLogsRes.error
     ].find(Boolean);
     if (firstError) throw firstError;
 
@@ -5082,24 +5057,10 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     )
       .slice(0, AI_EXERCISE_CATALOG_LIMIT)
       .map(({ exercise }) => exercise);
-    const recentMealHistory = [
-      ...((recentMealLogsRes.data || []) as any[]),
-      ...((recentMealsRes.data || []) as any[])
-    ];
+
     const weeklyWorkoutDays = trainingPrescription.weeklyWorkouts;
-    const mealsPerDay = resolveMealPlanningMealsPerDay(lifestyle.meals_per_day);
-    const mealSlots = getMealPlanningSlots(mealsPerDay);
-    const foods = buildMealPlanningCatalog(foodCatalogRes.data as any[], {
-      profile,
-      lifestyle,
-      health,
-      mealsPerDay,
-      targetCalories: Number(lifestyle.target_calories || 0),
-      recentMealFoodIds: recentMealHistory.map((item: any) => String(item.food_id || '')).filter(Boolean),
-    }, AI_FOOD_CATALOG_LIMIT);
     const exerciseIds = new Set(exercises.map((item: any) => String(item.id)));
     const exerciseById = new Map(exercises.map((item: any) => [String(item.id), item]));
-    const foodById = new Map(foods.map((item: any) => [String(item.id), item]));
     const accessState = await getAiCoachAccessState(profile, userId);
 
     if (!profileRes.data?.id) {
@@ -5115,29 +5076,12 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
 
     const { text: exerciseCatalog, referenceIds: exerciseReferenceIds } = buildAiExerciseCatalog(exercises);
 
-    const foodCatalog = foods
-      .map((item: any) => `${item.id}|${truncateText(item.name, 30)}|g=${classifyMealFoodComponent(item)}|k=${item.calories || 0}|p=${item.protein || 0}|c=${item.carbs || 0}|f=${item.fat || 0}|u=${truncateText(item.serving_unit || '100g', 10)}|meal=${truncateText((item.meal_type || []).join(','), 22)}|all=${truncateText((item.allergens || []).join(','), 24)}`)
-      .join('\n');
-
     const recentTraining = clampList(recentSessionsRes.data as any[], 6)
       .map((item: any) => `${item.log_date}|${truncateText(item.exercises?.name || item.exercise_id, 32)}|${item.sets}x${item.reps}|${item.weight_kg || 0}kg|done=${!!item.is_completed}`)
       .join('\n') || 'No recent training history.';
 
-    const recentEating = clampList(recentMealHistory, 6)
-      .map((item: any) => `d=${item.day_of_week || item.log_date || ''}|${item.meal_type}|${truncateText(item.foods?.name || item.custom_food_name || item.food_id, 28)}|qty=${item.quantity}`)
-      .join('\n') || 'No recent meal plan history.';
-
-    const promptHeader = workoutOnly
-      ? 'Generate one personalized 7-day workout plan only.\nUse only EX## references from EXERCISE_CATALOG. Return valid JSON only.'
-      : 'Generate one personalized 7-day workout plan and 7-day meal plan.\nUse only EX## references from EXERCISE_CATALOG and food ids from FOOD_CATALOG. Return valid JSON only.';
-    const foodPromptSection = workoutOnly ? '' : `
-RECENT_MEAL_PLAN:
-${recentEating}
-
-FOOD_CATALOG:
-${foodCatalog}
-`;
-    const rulesPrompt = workoutOnly ? `
+    const promptHeader = 'Generate one personalized 7-day workout plan only.\nUse only EX## references from EXERCISE_CATALOG. Return valid JSON only.';
+    const rulesPrompt = `
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
 - Exactly 7 days, day_of_week 0..6 where 0 is the plan start date.
@@ -5149,38 +5093,9 @@ Rules:
 - Every training day must have duration_minutes exactly ${trainingPrescription.durationMinutes}; rest days must have duration_minutes=0.
 - Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
 - weight_kg should be conservative. Use 0 for bodyweight.
-- Do not include meal_plan. The app will handle meals in the next onboarding step.
-` : `
-Rules:
-- Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
-- Exactly 7 days, day_of_week 0..6 where 0 is the plan start date.
-- Never create new exercises or foods. Use the EX## reference code from EXERCISE_CATALOG for every exercise_id, and a food_id from FOOD_CATALOG.
-- Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
-- Avoid exercises whose contraindications conflict with injuries or health conditions.
-- Prefer foods whose meal_type, goal_type, allergens, price_level, cooking_time_minutes and region match the user profile.
-- Avoid foods whose allergens conflict with allergies_or_medical_history.
-- FOOD_CATALOG is already ranked by meal slot, diet preference, budget and eating-history trends; earlier rows are better matches.
-- Breakfast must use foods that support breakfast; lunch and dinner must use foods that support lunch/dinner; snack must use snack/breakfast-friendly foods.
-- Use recent meal history to infer the user's preferred categories, protein/carb/vegetable balance, diet style and budget tendency.
-- Repeating a liked food is allowed, but do not over-repeat the same exact food or same limited family more than 2-3 times in a week.
-- Create exactly ${weeklyWorkoutDays} training days. All other days must be rest days with is_rest_day=true and no exercises.
-- Every day must include an exercises array. For every rest day, return "exercises": [].
-- Every training day must have duration_minutes exactly ${trainingPrescription.durationMinutes}; rest days must have duration_minutes=0.
-- Each exercise needs exercise_id, sets, reps, weight_kg, rest_seconds, target_rpe, load_instruction, order_index.
-- weight_kg should be conservative. Use 0 for bodyweight.
-- Avoid exercises that conflict with injuries, health conditions, location, or equipment.
-- Each day must include exactly ${mealsPerDay} meals.
-- Allowed meal slots for each day: ${mealSlots.join(', ')}.
-- Do not add extra meals beyond those slots.
-- Do not put more than one food whose name starts with "Banh"/"Bánh" in the same day. Use varied staples, protein and real vegetables instead.
-- A meal object is one complete eating occasion, not one single food.
-- Lunch and dinner must have at least 3 food_ids: 1 group=carb/starch, 1 group=protein, and 1 group=vegetable. Example: rice + chicken/fish/tofu + vegetables.
-- Breakfast should have at least 2 food_ids when possible: carb + protein/dairy.
-- Snack can have 1-2 food_ids.
-- Use reasonable quantity multipliers in "quantities". If serving_unit is 100g, vegetables should usually be 2-3 (200-300g), protein 1.2-2 (120-200g), carb 1-2 servings.
-- The length of quantities must match food_ids. Do not make lunch or dinner with only one food_id.
+- Do not include meal_plan. The app handles meals in a dedicated step.
 `;
-    const jsonSchemaPrompt = workoutOnly ? `
+    const jsonSchemaPrompt = `
 JSON schema (fixed):
 {
   "workout_plan": {
@@ -5202,51 +5117,6 @@ JSON schema (fixed):
              "load_instruction": "chon muc ta con du 2 reps",
              "note": "short coaching note"
            }
-        ]
-      }
-    ],
-    "explanation": "short explanation in Vietnamese"
-  }
-}
-` : `
-JSON schema (fixed):
-{
-  "workout_plan": {
-    "plan_name": "Beginner Fat Loss - Week 1",
-    "goal": "fat_loss",
-    "days": [
-      {
-        "day": "Monday",
-        "type": "workout",
-        "duration_minutes": 25,
-        "exercises": [
-           {
-             "exercise_id": "EX01",
-             "sets": 3,
-             "reps": 12,
-             "weight_kg": 12.5,
-             "rest_seconds": 60,
-             "target_rpe": 7,
-             "load_instruction": "chon muc ta con du 2 reps",
-             "note": "short coaching note"
-           }
-        ]
-      }
-    ],
-    "explanation": "short explanation in Vietnamese"
-  },
-  "meal_plan": {
-    "target_calories": 1800,
-    "days": [
-      {
-        "day": "Monday",
-        "meals": [
-          {
-            "meal_type": "breakfast",
-            "food_ids": ["exact id from catalog"],
-            "quantities": [1],
-            "total_calories": 420
-          }
         ]
       }
     ],
@@ -5273,25 +5143,15 @@ weekly_workouts=${weeklyWorkoutDays}
 workout_duration_minutes=${lifestyle.workout_duration || ''}
 workout_location=${truncateText(lifestyle.workout_location, 24)}
 equipment_available=${truncateText(lifestyle.equipment_available, 60)}
-diet_preference=${truncateText(lifestyle.diet_preference, 24)}
-current_diet=${truncateText(lifestyle.current_diet, 24)}
-cooking_ability=${truncateText(lifestyle.cooking_ability, 16)}
-budget_level=${truncateText(lifestyle.budget_level, 16)}
-meals_per_day=${mealsPerDay}
-target_calories=${lifestyle.target_calories || ''}
-water_goal_liters=${lifestyle.daily_water_goal || ''}
 health_condition=${truncateText(health.health_condition, 80)}
 injuries=${truncateText(health.injuries, 80)}
 medications=${truncateText(health.medications, 60)}
 sleep_hours=${health.sleep_hours || ''}
 sleep_quality=${truncateText(health.sleep_quality, 20)}
 stress_level=${truncateText(health.stress_level, 20)}
-allergies_or_medical_history=${truncateText(health.medical_history || health.allergies, 120)}
 
 RECENT_TRAINING:
 ${recentTraining}
-
-${foodPromptSection}
 
 ${buildSafetyPromptAddendum(safetyContext)}
 
@@ -5318,7 +5178,7 @@ ${jsonSchemaPrompt}
           { role: 'user', content: prompt }
         ],
         temperature: 0.35,
-        max_tokens: 2800,
+        max_tokens: 1800,
         response_format: { type: 'json_object' }
       })
     });
@@ -5344,7 +5204,7 @@ ${jsonSchemaPrompt}
         details: proposalValidation.errors,
       });
     }
-    const normalizedPlan = normalizeAiPlanPayload(parsed, { requireMealPlan: !workoutOnly });
+    const normalizedPlan = normalizeAiPlanPayload(parsed, { requireMealPlan: false });
     const guardedWorkout = sanitizeWorkoutPlanForUser(
       normalizedPlan.workoutPlan,
       safetyContext,
@@ -5358,24 +5218,6 @@ ${jsonSchemaPrompt}
     }
     normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
     normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
-    let recipeDraft: any = null;
-    if (!workoutOnly) {
-      // Keep this endpoint recipe-first as well. The joint legacy prompt remains
-      // for workout compatibility, but its food output is discarded whenever an
-      // active recipe catalog exists; generateAiMealDraft redoes meal selection
-      // with the compact eligible recipe contract and strict post-validation.
-      const activeRecipeRes = await supabase.from('recipes').select('id').eq('is_active', true).limit(1);
-      if (activeRecipeRes.error) throw activeRecipeRes.error;
-      if ((activeRecipeRes.data || []).length > 0) {
-        recipeDraft = await generateAiMealDraft({ userId, weekStartKey, scope: 'week' });
-        normalizedPlan.mealPlan = recipeDraft.mealPlan;
-      }
-      if (Number(lifestyle.target_calories || 0) > 0) {
-        normalizedPlan.mealPlan = { ...normalizedPlan.mealPlan, target_calories: Math.round(Number(lifestyle.target_calories)) };
-      }
-      normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
-      normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
-    }
 
     const existingWorkoutPlans = await supabase
       .from('weekly_plans')
@@ -5388,8 +5230,6 @@ ${jsonSchemaPrompt}
 
     const previousWorkoutPlanId = pickLatestByUpdatedAt(existingWorkoutPlans.data as any[])?.id || null;
     const replacementStartedAt = new Date().toISOString();
-    // The database permits only one plan per user/week, regardless of its
-    // status. Archive the current plan before inserting its replacement.
     if (previousWorkoutPlanId) {
       const archiveWorkoutPlan = await supabase
         .from('weekly_plans')
@@ -5475,109 +5315,6 @@ ${jsonSchemaPrompt}
       if (insertedWorkout.error) throw insertedWorkout.error;
     }
 
-    let previousFoodPlanId: string | null = null;
-    let foodPlanId: string | null = null;
-    const mealRows: any[] = [];
-
-    if (!workoutOnly) {
-      const existingFoodPlans = await supabase
-        .from('weekly_food_plans')
-        .select('id, created_at, updated_at')
-        .eq('user_id', userId)
-        .eq('week_start_date', weekStartKey)
-        .eq('plan_status', 'active')
-        .limit(20);
-      if (existingFoodPlans.error) throw existingFoodPlans.error;
-
-      previousFoodPlanId = pickLatestByUpdatedAt(existingFoodPlans.data as any[])?.id || null;
-      if (previousFoodPlanId) {
-        const archiveFoodPlan = await supabase
-          .from('weekly_food_plans')
-          .update({ plan_status: 'adjusted', updated_at: replacementStartedAt })
-          .eq('id', previousFoodPlanId)
-          .eq('plan_status', 'active');
-        if (archiveFoodPlan.error) throw archiveFoodPlan.error;
-      }
-      const createdFoodPlan = await supabase
-        .from('weekly_food_plans')
-        .insert({
-          user_id: userId,
-          name: 'AI Coach Meal Plan',
-          week_start_date: weekStartKey,
-          plan_status: 'draft',
-          generated_by: 'ai',
-          ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500)
-        })
-        .select('id')
-        .single();
-      if (createdFoodPlan.error) throw createdFoodPlan.error;
-      foodPlanId = createdFoodPlan.data.id;
-
-      const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
-      if (recipeDraft?.mode === 'recipe') {
-        mealRows.push(...recipeDraft.rows.map((row: any) => ({
-          food_plan_id: foodPlanId,
-          day_of_week: row.day_of_week,
-          meal_type: row.meal_type,
-          food_id: null,
-          recipe_id: row.recipe_id,
-          quantity: row.quantity,
-          calories: row.calories,
-          protein: row.protein,
-          carbs: row.carbs,
-          fat: row.fat,
-          order_index: row.order_index,
-          is_rest_day: false,
-        })));
-      } else for (const day of normalizedPlan.mealPlan.days || []) {
-        const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
-        if (day.is_rest_day && (!Array.isArray(day.meals) || day.meals.length === 0)) {
-          mealRows.push({
-            food_plan_id: foodPlanId,
-            day_of_week: dayIndex,
-            meal_type: 'breakfast',
-            is_rest_day: true,
-            order_index: 0
-          });
-          continue;
-        }
-
-        const nutritionTargets = calculateNutritionMacroTargets({
-          targetCalories: normalizedPlan.mealPlan.target_calories || lifestyle.target_calories,
-          fitnessGoal: lifestyle.fitness_goal,
-          dietPreference: lifestyle.diet_preference,
-          weightKg: bodyMetrics.weight,
-        });
-        const completedMeals = completeAiMealDay(day.meals || [], foods, mealsPerDay);
-        optimizeMealPlanQuantities(completedMeals, foods, nutritionTargets, mealsPerDay).forEach((item, index) => {
-          const foodId = String(item.food_id || '');
-          const food = foodById.get(foodId);
-          if (!food) return;
-          const quantity = Math.max(0.25, Math.min(6, Number(item.quantity) || 1));
-          const mealType = allowedMealTypes.has(String(item.meal_type)) ? String(item.meal_type) : 'lunch';
-          mealRows.push({
-            food_plan_id: foodPlanId,
-            day_of_week: dayIndex,
-            meal_type: mealType,
-            food_id: foodId,
-            quantity,
-            calories: Number(food.calories || 0),
-            protein: Number(food.protein || 0),
-            carbs: Number(food.carbs || 0),
-            fat: Number(food.fat || 0),
-            order_index: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : index,
-            is_rest_day: false
-          });
-        });
-      }
-      if (mealRows.length > 0) {
-        const insertedMeals = await supabase.from('weekly_food_items').insert(mealRows);
-        if (insertedMeals.error) throw insertedMeals.error;
-      }
-    }
-
-    // Plans stay drafts while child rows are being assembled. This prevents a
-    // failed insert from replacing the user's working active plan.
     const activatedAt = new Date().toISOString();
     const activateWorkoutPlan = await supabase
       .from('weekly_plans')
@@ -5585,15 +5322,6 @@ ${jsonSchemaPrompt}
       .eq('id', weeklyPlanId)
       .eq('plan_status', 'draft');
     if (activateWorkoutPlan.error) throw activateWorkoutPlan.error;
-
-    if (foodPlanId) {
-      const activateFoodPlan = await supabase
-        .from('weekly_food_plans')
-        .update({ plan_status: 'active', updated_at: activatedAt })
-        .eq('id', foodPlanId)
-        .eq('plan_status', 'draft');
-      if (activateFoodPlan.error) throw activateFoodPlan.error;
-    }
 
     if (previousWorkoutPlanId) {
       const markOldWorkoutPlan = await supabase
@@ -5603,69 +5331,41 @@ ${jsonSchemaPrompt}
         .eq('plan_status', 'active');
       if (markOldWorkoutPlan.error) throw markOldWorkoutPlan.error;
     }
-    if (previousFoodPlanId && foodPlanId) {
-      const markOldFoodPlan = await supabase
-        .from('weekly_food_plans')
-        .update({ plan_status: 'adjusted', updated_at: activatedAt })
-        .eq('id', previousFoodPlanId)
-        .eq('plan_status', 'active');
-      if (markOldFoodPlan.error) throw markOldFoodPlan.error;
-    }
 
     const recommendation = await supabase.from('ai_recommendations').insert({
       user_id: userId,
-      plan_type: workoutOnly ? 'weekly_workout_plan' : 'weekly_coach_plan',
-      recommendation_content: workoutOnly ? { workout_plan: normalizedPlan.workoutPlan } : normalizedPlan,
+      plan_type: 'weekly_workout_plan',
+      recommendation_content: { workout_plan: normalizedPlan.workoutPlan },
       status: 'active'
     });
     if (recommendation.error) console.warn('Failed to store ai_recommendations:', recommendation.error.message);
 
-    const planType = previousWorkoutPlanId && previousFoodPlanId ? 'both'
-      : previousWorkoutPlanId ? 'workout'
-        : previousFoodPlanId ? 'meal'
-          : workoutOnly ? 'workout' : 'both';
     const adjustment = await supabase.from('ai_plan_adjustments').insert({
       user_id: userId,
-      plan_type: planType,
+      plan_type: 'workout',
       source_type: 'ai_coach_generate',
-      old_plan_id: previousWorkoutPlanId || previousFoodPlanId,
+      old_plan_id: previousWorkoutPlanId,
       new_plan_id: weeklyPlanId,
-      old_data: {
-        workout_plan_id: previousWorkoutPlanId,
-        food_plan_id: previousFoodPlanId
-      },
-      new_data: {
-        workout_plan_id: weeklyPlanId,
-        food_plan_id: foodPlanId,
-        workout_plan_name: normalizedPlan.workoutPlan.plan_name,
-        target_calories: workoutOnly ? null : normalizedPlan.mealPlan.target_calories
-      },
-      reason: truncateText(
-        normalizedPlan.workoutPlan.explanation || (workoutOnly ? 'AI regenerated workout plan.' : normalizedPlan.mealPlan.explanation) || 'AI regenerated plan.',
-        300
-      ),
+      old_data: { workout_plan_id: previousWorkoutPlanId },
+      new_data: { workout_plan_id: weeklyPlanId, workout_plan_name: normalizedPlan.workoutPlan.plan_name },
+      reason: truncateText(normalizedPlan.workoutPlan.explanation || 'AI regenerated workout plan.', 300),
       created_by: 'ai',
       status: 'applied',
       applied_at: new Date().toISOString()
     });
-    if (adjustment.error) {
-      console.warn('Failed to store ai_plan_adjustments:', adjustment.error.message);
-    }
+    if (adjustment.error) console.warn('Failed to store ai_plan_adjustments:', adjustment.error.message);
 
     return res.json({
       success: true,
       data: {
         weeklyPlanId,
-        foodPlanId,
         workoutItems: workoutRows.length,
-        mealItems: mealRows.length,
         weekStartDate: weekStartKey,
         trainingPrescription,
         membershipTier: accessState.membershipTier,
         aiQuota: buildAiQuotaSnapshot(accessState, 'planGenerations'),
         ai_json: {
-          workout_plan: normalizedPlan.workoutPlan,
-          meal_plan: workoutOnly ? null : normalizedPlan.mealPlan
+          workout_plan: normalizedPlan.workoutPlan
         }
       }
     });
@@ -5902,7 +5602,7 @@ const generateAiMealDraft = async (params: {
       rows.push({
         day_of_week: dayIndex,
         meal_type: item.meal_type,
-        food_id: item.food_id,
+        recipe_id: String(item.food_id),
         name: food.name || '',
         image_url: food.image_url || '',
         category: food.category || '',
