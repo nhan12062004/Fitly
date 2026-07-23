@@ -1258,9 +1258,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           body_fat: formData.body_fat ? parseFloat(formData.body_fat) : estimatedBodyFat,
           neck: formData.neck ? parseFloat(formData.neck) : null,
           waist: formData.waist ? parseFloat(formData.waist) : null,
-          hip: formData.hips ? parseFloat(formData.hips) : null,
-          activity_level: normalizedActivityLevel,
-          workout_frequency: weeklyWorkouts
+          hips: formData.hips ? parseFloat(formData.hips) : null,
         });
 
       // 3. Cập nhật Lối sống & Thói quen toàn diện
@@ -1377,6 +1375,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       setSubmitError(`Lỗi hệ thống: ${message}. Vui lòng thử lại hoặc mở Console (F12) để xem chi tiết.`);
     } finally {
       setLoading(false);
+    }
   };
 
 
@@ -2033,6 +2032,3 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
     </div>
   );
 }
-}
-
-

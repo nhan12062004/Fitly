@@ -234,8 +234,21 @@ export default function Dashboard() {
     setIsProfileSupplementOpen(true);
   };
 
-  // 1. Loading state - Chỉ hiện LoadingScreen toàn màn hình nếu đây là lần đầu kiểm tra và chưa có profile
-  // Nếu đã có profile (đang refresh) hoặc đã hiện SurveyForm thì giữ nguyên UI để tránh flickering
+  // Ưu tiên 1: Nếu đang ở trang survey → xử lý riêng, không bị loading state phía dưới block
+  if (location.pathname === '/assessment/survey') {
+    // Chưa biết trạng thái đăng nhập (auth đang resolve)
+    if (isCheckingProfile && !isLoggedIn) {
+      return <LoadingScreen fullScreen />;
+    }
+    // Chưa đăng nhập hẳn: redirect về trang chủ
+    if (!isLoggedIn) {
+      return <Navigate to="/" replace />;
+    }
+    // Đã đăng nhập: hiện survey
+    return <SurveyForm onComplete={handleSurveyComplete} />;
+  }
+
+  // Ưu tiên 2: Loading state - chỉ hiện khi chưa có profile VÀ chưa ở trang survey
   if (isCheckingProfile && !hasProfile && !hasShownSurvey) {
     return <LoadingScreen fullScreen />;
   }
@@ -246,10 +259,6 @@ export default function Dashboard() {
 
   if (isLoggedIn && isGeneratingNutritionPlan && location.pathname !== '/nutrition-assessment') {
     return <LoadingScreen fullScreen />;
-  }
-
-  if (isLoggedIn && location.pathname === '/assessment/survey') {
-    return <SurveyForm onComplete={handleSurveyComplete} />;
   }
 
   if (isLoggedIn && surveyPlanSummary && (location.pathname === '/assessment' || location.pathname === '/assessment/meals')) {
