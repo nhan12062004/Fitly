@@ -316,9 +316,9 @@ const getAiQuotaUsageCount = async (
   if (quotaKey === 'planGenerations') {
     query = query.eq('source_type', 'ai_coach_generate');
   } else if (quotaKey === 'workoutAdjustments') {
-    query = query.eq('source_type', 'chat').eq('plan_type', 'workout');
+    query = query.eq('plan_type', 'workout');
   } else if (quotaKey === 'mealAdjustments') {
-    query = query.eq('source_type', 'chat').eq('plan_type', 'meal');
+    query = query.eq('plan_type', 'meal');
   }
 
   const usageRes = await applyQuotaWindow(query, startsAt, endsAt);
@@ -5928,10 +5928,33 @@ app.post('/api/ai-coach/generate-meal-plan', aiLimiter, async (req, res) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const profileRes = await supabase.from('profiles').select('id, membership_tier').eq('id', userId).maybeSingle();
+    const accessState = await getAiCoachAccessState(profileRes.data || {}, userId);
+    if (!accessState.canUseMealAdjustment) {
+      return res.status(403).json(buildAiQuotaLimitError(accessState, 'mealAdjustments'));
+    }
+
     const scope: AiMealGenerationScope = String(req.body?.scope || '').toLowerCase() === 'week' ? 'week' : 'day';
     const weekStartKey = req.body?.weekStartDate || getVietnamDateKey();
     const targetDayIndex = Math.max(0, Math.min(6, Number(req.body?.dayIndex) || 0));
     const draft = await generateAiMealDraft({ userId, weekStartKey, scope, targetDayIndex });
+
+    await supabase.from('ai_plan_adjustments').insert({
+      user_id: userId,
+      plan_type: 'meal',
+      source_type: 'ai_meal_generate',
+      old_plan_id: null,
+      new_plan_id: null,
+      old_data: {},
+      new_data: { day_index: targetDayIndex, scope },
+      reason: 'Tạo thực đơn AI cho ngày',
+      created_by: 'user',
+      status: 'applied',
+      applied_at: new Date().toISOString()
+    });
+    void recordAiQuotaUsage(userId, 'mealAdjustments').catch(() => null);
+
     return res.json({
       success: true,
       data: {
@@ -5947,6 +5970,40 @@ app.post('/api/ai-coach/generate-meal-plan', aiLimiter, async (req, res) => {
     console.error('[ai-coach-generate-meal] failed:', error?.message || 'unknown_error');
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI lúc này.' });
+  }
+});
+
+app.post('/api/ai-coach/record-meal-swap', async (req, res) => {
+  try {
+    const userId = await getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const profileRes = await supabase.from('profiles').select('id, membership_tier').eq('id', userId).maybeSingle();
+    const accessState = await getAiCoachAccessState(profileRes.data || {}, userId);
+    if (!accessState.canUseMealAdjustment) {
+      return res.status(403).json(buildAiQuotaLimitError(accessState, 'mealAdjustments'));
+    }
+
+    const { oldFoodName, newFoodName } = req.body || {};
+    await supabase.from('ai_plan_adjustments').insert({
+      user_id: userId,
+      plan_type: 'meal',
+      source_type: 'single_meal_swap',
+      old_plan_id: null,
+      new_plan_id: null,
+      old_data: { old_food_name: String(oldFoodName || '') },
+      new_data: { new_food_name: String(newFoodName || '') },
+      reason: `Đổi món ${oldFoodName || ''} sang ${newFoodName || ''}`,
+      created_by: 'user',
+      status: 'applied',
+      applied_at: new Date().toISOString()
+    });
+    void recordAiQuotaUsage(userId, 'mealAdjustments').catch(() => null);
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
+    return res.status(500).json({ error: 'Không thể ghi nhận lượt đổi món.' });
   }
 });
 

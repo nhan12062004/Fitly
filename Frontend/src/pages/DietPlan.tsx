@@ -1321,30 +1321,45 @@ export default function DietPlan() {
       return;
     }
 
-    const nextDayItems = (weeklyPlan[selectedDayId] || []).map((entry) =>
-      entry.tempId === item.tempId
-        ? {
-            ...createPlanFood(replacement, item.meal_type as MealTypeId, item.quantity),
-            tempId: entry.tempId,
-            weekly_food_item_id: null
-          }
-        : entry
-    );
-    const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextDayItems };
-
     setReplacingFoodId(item.tempId);
-    setWeeklyPlan(nextWeeklyPlan);
-    const saved = await savePlan({
-      weeklyPlanOverride: nextWeeklyPlan,
-      restDaysOverride: restDays,
-      showSuccess: false
-    });
-    if (saved) {
-      toast.success(`Đã đổi ${item.name} sang ${replacement.name}.`);
-    } else {
-      setWeeklyPlan(weeklyPlan);
+    try {
+      const response = await fetchWithAuth('/api/ai-coach/record-meal-swap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldFoodName: item.name, newFoodName: replacement.name }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Bạn đã dùng hết lượt đổi thực đơn trong gói hiện tại.');
+      }
+
+      const nextDayItems = (weeklyPlan[selectedDayId] || []).map((entry) =>
+        entry.tempId === item.tempId
+          ? {
+              ...createPlanFood(replacement, item.meal_type as MealTypeId, item.quantity),
+              tempId: entry.tempId,
+              weekly_food_item_id: null
+            }
+          : entry
+      );
+      const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextDayItems };
+
+      setWeeklyPlan(nextWeeklyPlan);
+      const saved = await savePlan({
+        weeklyPlanOverride: nextWeeklyPlan,
+        restDaysOverride: restDays,
+        showSuccess: false
+      });
+      if (saved) {
+        toast.success(`Đã đổi ${item.name} sang ${replacement.name}.`);
+      } else {
+        setWeeklyPlan(weeklyPlan);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Không thể đổi món.');
+    } finally {
+      setReplacingFoodId(null);
     }
-    setReplacingFoodId(null);
   };
 
   const completeMealItem = async (item: PlanFood) => {
