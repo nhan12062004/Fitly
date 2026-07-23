@@ -308,13 +308,13 @@ async function acquireReminderDispatchLock(reminderType: 'water' | 'sleep', slot
   throw error;
 }
 
-async function updateDailyProgress(userId: string, updates: Record<string, number | string>) {
-  const today = getVietnamDateKey();
+async function updateDailyProgress(userId: string, updates: Record<string, number | string>, targetDate = getVietnamDateKey()) {
+  const logDate = targetDate || getVietnamDateKey();
   const { data: existingLog, error: existingLogError } = await supabase
     .from('daily_progress_logs')
     .select('id')
     .eq('user_id', userId)
-    .eq('log_date', today)
+    .eq('log_date', logDate)
     .limit(1)
     .maybeSingle();
 
@@ -329,38 +329,38 @@ async function updateDailyProgress(userId: string, updates: Record<string, numbe
       .from('daily_progress_logs')
       .insert({
         user_id: userId,
-        log_date: today,
+        log_date: logDate,
         ...updates,
       });
 
   if (saveResult.error) throw saveResult.error;
 }
 
-async function addWaterIntake(userId: string, amountMl: number) {
-  const today = getVietnamDateKey();
+async function addWaterIntake(userId: string, amountMl: number, targetDate = getVietnamDateKey()) {
+  const logDate = targetDate || getVietnamDateKey();
   const { data: existingLog, error: existingLogError } = await supabase
     .from('daily_progress_logs')
     .select('id, water_intake_ml')
     .eq('user_id', userId)
-    .eq('log_date', today)
+    .eq('log_date', logDate)
     .limit(1)
     .maybeSingle();
 
   if (existingLogError) throw existingLogError;
 
   const nextWaterIntakeMl = (existingLog?.water_intake_ml || 0) + amountMl;
-  await updateDailyProgress(userId, { water_intake_ml: nextWaterIntakeMl });
+  await updateDailyProgress(userId, { water_intake_ml: nextWaterIntakeMl }, logDate);
   return nextWaterIntakeMl;
 }
 
-async function getHydrationSnapshot(userId: string) {
-  const today = getVietnamDateKey();
+async function getHydrationSnapshot(userId: string, targetDate = getVietnamDateKey()) {
+  const logDate = targetDate || getVietnamDateKey();
   const [logRes, lifestyleRes] = await Promise.all([
     supabase
       .from('daily_progress_logs')
       .select('water_intake_ml')
       .eq('user_id', userId)
-      .eq('log_date', today)
+      .eq('log_date', logDate)
       .maybeSingle(),
     supabase
       .from('lifestyle_settings')
@@ -372,18 +372,18 @@ async function getHydrationSnapshot(userId: string) {
   const currentMl = logRes.data?.water_intake_ml || 0;
   const goalMl = Math.round((lifestyleRes.data?.daily_water_goal || 2) * 1000);
   const percent = Math.min(100, Math.round((currentMl / Math.max(goalMl, 1)) * 100));
-  return { today, currentMl, goalMl, percent };
+  return { today: logDate, currentMl, goalMl, percent };
 }
 
-async function getSleepSnapshot(userId: string) {
-  const today = getVietnamDateKey();
-  const yesterday = addDaysToDateKey(today, -1);
+async function getSleepSnapshot(userId: string, targetDate = getVietnamDateKey()) {
+  const logDate = targetDate || getVietnamDateKey();
+  const yesterday = addDaysToDateKey(logDate, -1);
   const [todayLogRes, yesterdayLogRes, healthRes] = await Promise.all([
     supabase
       .from('daily_progress_logs')
       .select('sleep_hours')
       .eq('user_id', userId)
-      .eq('log_date', today)
+      .eq('log_date', logDate)
       .maybeSingle(),
     supabase
       .from('daily_progress_logs')
@@ -399,7 +399,7 @@ async function getSleepSnapshot(userId: string) {
   ]);
 
   return {
-    today,
+    today: logDate,
     yesterday,
     todaySleepHours: todayLogRes.data?.sleep_hours || 0,
     yesterdaySleepHours: yesterdayLogRes.data?.sleep_hours || 0,
@@ -1889,22 +1889,30 @@ const setupCallbackHandlers = (bot: TelegramBot) => {
         const userProfile = await requireLinkedProfile(bot, chatId, query.id);
         if (!userProfile) return;
 
-        const nextWaterIntakeMl = await addWaterIntake(userProfile.id, amountMl);
-        const snapshot = await getHydrationSnapshot(userProfile.id);
+        // Tính ngày mà thông báo/tin nhắn này được gửi đi (tránh việc click lại tin nhắn hôm qua bị lưu nhầm vào hôm nay)
+        const messageTimeMs = query.message?.date ? query.message.date * 1000 : Date.now();
+        const targetDateKey = getVietnamDateKey(new Date(messageTimeMs));
+        const todayDateKey = getVietnamDateKey();
+        const isPastDate = targetDateKey !== todayDateKey;
+
+        const nextWaterIntakeMl = await addWaterIntake(userProfile.id, amountMl, targetDateKey);
+        const snapshot = await getHydrationSnapshot(userProfile.id, targetDateKey);
+        const dateLabel = isPastDate ? `ngày ${targetDateKey}` : 'hôm nay';
+
         await bot.answerCallbackQuery(query.id, {
-          text: `Đã ghi nhận +${amountMl}ml. Hôm nay: ${nextWaterIntakeMl}/${snapshot.goalMl}ml.`
+          text: `Đã ghi nhận +${amountMl}ml (${dateLabel}). Tổng: ${nextWaterIntakeMl}/${snapshot.goalMl}ml.`
         });
 
         if (query.message?.message_id) {
           const remainingMl = Math.max(0, snapshot.goalMl - nextWaterIntakeMl);
           await bot.editMessageText([
-            '✅ Đã ghi nhận nước uống',
+            `✅ Đã ghi nhận nước uống (${dateLabel})`,
             '',
-            `+${amountMl}ml vừa được lưu vào Fitly.`,
-            `Tổng hôm nay: ${nextWaterIntakeMl}/${snapshot.goalMl}ml (${snapshot.percent}%).`,
+            `+${amountMl}ml vừa được lưu vào Fitly (${dateLabel}).`,
+            `Tổng ${dateLabel}: ${nextWaterIntakeMl}/${snapshot.goalMl}ml (${snapshot.percent}%).`,
             remainingMl > 0
               ? `Còn khoảng ${remainingMl}ml để đạt mục tiêu.`
-              : 'Bạn đã đạt mục tiêu nước hôm nay.',
+              : `Đã đạt mục tiêu nước ${dateLabel}.`,
           ].join('\n'), {
             chat_id: chatId,
             message_id: query.message.message_id,
@@ -1932,18 +1940,24 @@ const setupCallbackHandlers = (bot: TelegramBot) => {
           return;
         }
 
-        await updateDailyProgress(userProfile.id, { sleep_hours: hours });
+        const messageTimeMs = query.message?.date ? query.message.date * 1000 : Date.now();
+        const targetDateKey = getVietnamDateKey(new Date(messageTimeMs));
+        const todayDateKey = getVietnamDateKey();
+        const isPastDate = targetDateKey !== todayDateKey;
+        const dateLabel = isPastDate ? `ngày ${targetDateKey}` : 'hôm nay';
+
+        await updateDailyProgress(userProfile.id, { sleep_hours: hours }, targetDateKey);
         const sleepNote = hours < 6
-          ? 'Thời lượng hơi thấp. Hôm nay nên ưu tiên phục hồi, tập nhẹ hơn nếu thấy mệt.'
+          ? 'Thời lượng hơi thấp. Nên ưu tiên phục hồi, tập nhẹ hơn nếu thấy mệt.'
           : hours <= 9
             ? 'Đây là mức ngủ tốt cho phục hồi và hiệu suất tập luyện.'
             : 'Ngủ nhiều hơn thường lệ. Nếu vẫn mệt, hãy theo dõi thêm chất lượng ngủ.';
 
-        await bot.answerCallbackQuery(query.id, { text: `Đã ghi nhận ${hours}h ngủ! 🎉` });
+        await bot.answerCallbackQuery(query.id, { text: `Đã ghi nhận ${hours}h ngủ (${dateLabel})! 🎉` });
         await bot.editMessageText([
-          '✅ Đã ghi nhận giấc ngủ',
+          `✅ Đã ghi nhận giấc ngủ (${dateLabel})`,
           '',
-          `Thời lượng: ${hours}h`,
+          `Thời lượng: ${hours}h (${dateLabel})`,
           sleepNote,
           '',
           'Dữ liệu đã được cập nhật vào Fitly.',
