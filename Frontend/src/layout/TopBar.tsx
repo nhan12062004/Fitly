@@ -391,7 +391,7 @@ export default function TopBar() {
         <button
           type="button"
           onClick={() => setIsLightMode(!isLightMode)}
-          className="topbar-action topbar-action-icon-only flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-accent"
           aria-label={isLightMode ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng'}
           title={isLightMode ? 'Giao diện tối' : 'Giao diện sáng'}
         >
@@ -402,7 +402,7 @@ export default function TopBar() {
           <button
             type="button"
             onClick={toggleNotifications}
-            className={`topbar-action topbar-action-icon-only relative flex h-10 w-10 items-center justify-center rounded-full border border-border-primary bg-bg-secondary text-text-secondary transition-colors hover:[&_svg]:text-accent ${isNotificationsOpen ? '[&_svg]:text-accent' : ''}`}
+            className={`relative flex h-10 w-10 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-accent ${isNotificationsOpen ? 'text-accent' : ''}`}
             aria-label={`Thông báo${unreadCount > 0 ? `, ${unreadCount} chưa đọc` : ''}`}
             aria-expanded={isNotificationsOpen}
             title="Thông báo"
@@ -456,7 +456,7 @@ export default function TopBar() {
             await signOut();
             navigate('/login');
           }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-danger/10 hover:text-danger"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors hover:text-danger"
           aria-label="Đăng xuất"
           title="Đăng xuất"
         >
