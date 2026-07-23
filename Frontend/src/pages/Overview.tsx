@@ -137,6 +137,7 @@ const getFocusLabel = (value: string) => {
   if (key.includes('leg') || key.includes('quad') || key.includes('hamstring') || key.includes('calf') || key.includes('chan')) return 'Chân';
   if (key.includes('glute') || key.includes('mong')) return 'Mông';
   if (key.includes('core') || key.includes('abs') || key.includes('bung')) return 'Core';
+  if (key.includes('full_body') || key.includes('fullbody') || key.includes('toan than') || key.includes('full body') || key.includes('toan_than')) return 'Toàn thân';
   return value.trim();
 };
 
@@ -145,6 +146,7 @@ const getWorkoutSplitLabel = (focusLabels: string[]) => {
   if (focusLabels.some((label) => label === 'Lưng' || label === 'Tay trước')) return 'Pull';
   if (focusLabels.some((label) => label === 'Chân' || label === 'Mông')) return 'Leg';
   if (focusLabels.some((label) => label === 'Core')) return 'Core';
+  if (focusLabels.some((label) => label === 'Toàn thân')) return 'Full Body';
   return 'Bài tập';
 };
 
@@ -837,10 +839,25 @@ export default function Overview() {
                 <ol className="mt-3 space-y-2">
                   {todayExercises.slice(0, 4).map((exercise, index) => (
                     <li key={`${exercise.name}-${index}`} className="group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-bg-secondary/70">
-                      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
-                        exercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-bg-secondary text-text-tertiary'
+                      <span className={`relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black ${
+                        exercise.is_completed ? 'ring-2 ring-accent' : ''
                       }`}>
-                        {index + 1}
+                        {exercise.video_url ? (
+                          <video
+                            src={exercise.video_url}
+                            className="h-full w-full object-cover"
+                            muted
+                            playsInline
+                            preload="metadata"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ${
+                            exercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-bg-secondary text-text-tertiary'
+                          }`}>
+                            {index + 1}
+                          </span>
+                        )}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-black text-text-primary">{exercise.name}</p>
