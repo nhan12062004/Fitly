@@ -776,7 +776,7 @@ export default function DietPlan() {
         supabase.from('foods').select('*').order('name'),
         supabase
           .from('recipes')
-          .select('id, name, image_url, calories, protein, carbs, fat, serving_unit, meal_type, estimated_cost_min_vnd, recipe_ingredients(ingredient_name, amount, unit, preparation_note, foods:food_id(calories, protein, carbs, fat, serving_unit))')
+          .select('id, name, image_url, calories, protein, carbs, fat, serving_unit, meal_type, estimated_cost_min_vnd, recipe_ingredients(ingredient_name, amount, unit, preparation_note)')
           .eq('is_active', true)
           .order('name')
       ]);
@@ -958,7 +958,7 @@ export default function DietPlan() {
 
             const { data: items, error: itemsError } = await supabase
               .from('weekly_food_items')
-              .select('*, foods:food_id (name, image_url, category, calories, protein, carbs, fat, serving_unit), recipes:recipe_id (name, image_url, calories, protein, carbs, fat, estimated_cost_min_vnd, serving_unit, recipe_ingredients(ingredient_name, amount, unit, preparation_note, foods:food_id(calories, protein, carbs, fat, serving_unit)))')
+              .select('*, recipes:recipe_id (name, image_url, calories, protein, carbs, fat, estimated_cost_min_vnd, serving_unit, recipe_ingredients(ingredient_name, amount, unit, preparation_note))')
               .eq('food_plan_id', plan.id)
               .order('order_index');
 

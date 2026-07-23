@@ -1257,7 +1257,7 @@ export default function AICoach() {
         } else {
           const foodPlanItems = await supabase
             .from('weekly_food_items')
-            .select('*, foods:food_id (name, category, serving_unit)')
+            .select('*, recipes:recipe_id (name, meal_type, serving_unit)')
             .eq('food_plan_id', latestFoodPlan.id)
             .order('day_of_week', { ascending: true })
             .order('order_index', { ascending: true });

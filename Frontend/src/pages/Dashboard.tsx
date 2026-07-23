@@ -203,7 +203,7 @@ export default function Dashboard() {
       if (!foodPlanId) throw new Error('AI chưa trả về thực đơn 7 ngày.');
       const { data: foodRows, error } = await supabase
         .from('weekly_food_items')
-        .select('day_of_week, meal_type, quantity, order_index, name, food_id, recipe_id, foods:food_id(name), recipes:recipe_id(name)')
+        .select('day_of_week, meal_type, quantity, order_index, recipe_id, recipes:recipe_id(name)')
         .eq('food_plan_id', foodPlanId)
         .eq('is_rest_day', false)
         .order('day_of_week', { ascending: true })
@@ -217,7 +217,7 @@ export default function Dashboard() {
         if (day < 0 || day > 6) return;
         grouped[day].meals.push({
           mealType: String(row.meal_type || ''),
-          name: row.name || row.recipes?.name || row.foods?.name || 'Món ăn AI chọn',
+          name: row.recipes?.name || 'Món ăn AI chọn',
           quantity: Number(row.quantity || 1),
         });
       });
