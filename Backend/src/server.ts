@@ -5435,7 +5435,7 @@ const generateAiMealDraft = async (params: {
     try {
       // Shuffle eligible recipes slightly to give varied recommendations when clicking generate multiple times
       const shuffledEligibleRecipes = [...eligibleRecipes].sort(() => Math.random() - 0.5);
-      const compactRecipes = buildCompactRecipeCatalog(shuffledEligibleRecipes, AI_FOOD_CATALOG_LIMIT);
+      const compactRecipes = buildCompactRecipeCatalog(shuffledEligibleRecipes, 32);
       const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
       const dayRule = scope === 'week'
         ? 'exactly 7 days indexed 0..6, each day exactly once'
@@ -5452,7 +5452,7 @@ const generateAiMealDraft = async (params: {
           model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
           messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }],
           temperature: 0.65,
-          max_tokens: scope === 'week' ? 1600 : 700,
+          max_tokens: scope === 'week' ? 2400 : 800,
           response_format: { type: 'json_object' },
         }),
       });
