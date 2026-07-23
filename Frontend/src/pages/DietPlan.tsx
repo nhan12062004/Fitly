@@ -2,6 +2,8 @@ import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState }
 import {
   Bot,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Coffee,
   Flame,
   Moon,
@@ -926,8 +928,8 @@ export default function DietPlan() {
           if (plan) {
             const planStartKey = String(plan.week_start_date || '');
             if (planStartKey && planStartKey !== selectedWeekKey) {
-              const planStartDate = new Date(`${planStartKey}T00:00:00`);
-              const todayOffset = Math.max(0, Math.min(6, Math.round((getVietnamTodayDate().getTime() - planStartDate.getTime()) / (24 * 60 * 60 * 1000))));
+              const planStartDate = getWeekStart(new Date(`${planStartKey}T00:00:00`));
+              const todayOffset = getTodayDayIndex();
               if (!cancelled) {
                 setSelectedWeekStart(planStartDate);
                 setSelectedDayId(todayOffset);
@@ -1487,6 +1489,43 @@ export default function DietPlan() {
         <section className="diet-card diet-today-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
           <div className="flex flex-col gap-4">
             <div className="diet-day-tabs diet-week-calendar overflow-visible px-1 py-2">
+              {/* Navigation chuyển tuần (tuần trước / tuần sau) */}
+              <div className="mb-3 flex items-center justify-between gap-2 border-b border-border-primary/40 pb-2.5">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWeekStart((prev) => addDays(prev, -7))}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition hover:border-accent hover:text-accent"
+                    title="Tuần trước"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="text-xs font-black text-text-primary sm:text-sm">
+                    Tuần {selectedWeekStart.getDate()}/{selectedWeekStart.getMonth() + 1} – {addDays(selectedWeekStart, 6).getDate()}/{addDays(selectedWeekStart, 6).getMonth() + 1}/{selectedWeekStart.getFullYear()}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWeekStart((prev) => addDays(prev, 7))}
+                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition hover:border-accent hover:text-accent"
+                    title="Tuần sau"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+                {!isCurrentWeek && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedWeekStart(getWeekStart(getVietnamTodayDate()));
+                      setSelectedDayId(getTodayDayIndex());
+                    }}
+                    className="rounded-xl border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-bold text-accent transition hover:bg-accent/20"
+                  >
+                    Về tuần này
+                  </button>
+                )}
+              </div>
+
               <div ref={dayTabContainerRef} className="grid min-w-0 grid-cols-7 gap-1.5 sm:gap-2">
                 {DAYS.map((day) => {
                   const dayDate = addDays(selectedWeekStart, day.id);

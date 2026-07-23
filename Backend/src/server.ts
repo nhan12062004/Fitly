@@ -5661,7 +5661,8 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     if (!process.env.GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
 
-    const weekStartKey = req.body?.weekStartDate || getVietnamDateKey();
+    const rawWeekStartKey = String(req.body?.weekStartDate || getVietnamDateKey()).trim();
+    const weekStartKey = getWeekStartKey(new Date(`${rawWeekStartKey}T00:00:00`));
     const [workoutPlanRes, foodPlanRes] = await Promise.all([
       supabase.from('weekly_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),
       supabase.from('weekly_food_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),

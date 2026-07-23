@@ -27,6 +27,13 @@ const getVietnamDateKey = (date = new Date()): string => {
   return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
+const getWeekStartKey = (baseDate: Date): string => {
+  const date = new Date(baseDate);
+  const day = date.getDay();
+  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
+  return getVietnamDateKey(date);
+};
+
 const formatNumber = (value: number) =>
   Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
 
@@ -77,7 +84,7 @@ export default function Dashboard() {
 
   const generateSevenDayWorkoutPreview = async (summary: SurveyPlanSummary) => {
     const todayKey = getVietnamDateKey();
-    const weekStartKey = todayKey;
+    const weekStartKey = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
     const todayDayIndex = 0;
 
     const response = await fetchWithAuth('/api/ai-coach/generate-weekly-plan', {
@@ -180,7 +187,7 @@ export default function Dashboard() {
 
     try {
       const todayKey = getVietnamDateKey();
-      const weekStartDate = todayKey;
+      const weekStartDate = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
       const response = await fetchWithAuth('/api/ai-coach/generate-onboarding-meal-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
