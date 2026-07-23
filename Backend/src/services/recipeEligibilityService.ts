@@ -252,3 +252,85 @@ export const validateRecipeMealProposal = (
   if (targetCalories && calories && (calories < targetCalories * 0.4 || calories > targetCalories * 1.7)) errors.push('daily_calorie_target_out_of_range');
   return { valid: errors.length === 0, errors: unique(errors), meals: normalized };
 };
+
+/**
+ * Auto-repairs and balances AI recipe proposal meals:
+ * - Replaces ineligible or hallucinated recipe_ids with valid eligible recipes from catalog.
+ * - Fills missing expected meal slots.
+ * - Auto-scales servings to meet target calories.
+ */
+export const sanitizeAndBalanceRecipeProposal = (
+  meals: unknown,
+  catalog: RecipeCandidate[],
+  context: RecipeEligibilityContext,
+  expectedMealTypes: MealType[],
+  targetCalories?: number,
+): RecipeMealProposal[] => {
+  const rows = Array.isArray(meals) ? meals : [];
+  const recipeById = new Map(catalog.map((recipe) => [String(recipe.id || ''), recipe]));
+  const eligibleCatalog = catalog.filter((r) => getRecipeEligibilityDecision(r, context).eligible);
+  const fallbackCatalog = eligibleCatalog.length > 0 ? eligibleCatalog : catalog;
+
+  const getFallbackRecipeForType = (mealType: MealType): RecipeCandidate => {
+    const matching = fallbackCatalog.filter((r) => {
+      const decision = getRecipeEligibilityDecision(r, context, mealType);
+      return decision.eligible;
+    });
+    if (matching.length > 0) {
+      return matching[Math.floor(Math.random() * matching.length)];
+    }
+    const typeMatching = catalog.filter((r) => Array.isArray(r.meal_type) && r.meal_type.includes(mealType));
+    if (typeMatching.length > 0) return typeMatching[0];
+    return catalog[0] || { id: 'fallback', name: 'Món ăn dinh dưỡng', calories: 400 };
+  };
+
+  const normalized = rows.map(normalizeRecipeMealProposal).filter((item): item is RecipeMealProposal => Boolean(item));
+  const repairedMeals: RecipeMealProposal[] = [];
+
+  for (const expectedType of expectedMealTypes) {
+    const existing = normalized.find((item) => item.meal_type === expectedType);
+    if (existing) {
+      const recipe = recipeById.get(existing.recipe_id);
+      const decision = recipe ? getRecipeEligibilityDecision(recipe, context, expectedType) : { eligible: false };
+      if (recipe && decision.eligible) {
+        repairedMeals.push(existing);
+      } else {
+        const replacement = getFallbackRecipeForType(expectedType);
+        repairedMeals.push({
+          recipe_id: String(replacement.id),
+          meal_type: expectedType,
+          servings: existing.servings || 1,
+          notes: existing.notes,
+        });
+      }
+    } else {
+      const replacement = getFallbackRecipeForType(expectedType);
+      repairedMeals.push({
+        recipe_id: String(replacement.id),
+        meal_type: expectedType,
+        servings: 1,
+      });
+    }
+  }
+
+  if (targetCalories && targetCalories > 0 && repairedMeals.length > 0) {
+    let currentTotalCalories = 0;
+    repairedMeals.forEach((item) => {
+      const recipe = recipeById.get(item.recipe_id) || fallbackCatalog.find((r) => String(r.id) === item.recipe_id);
+      currentTotalCalories += (numeric(recipe?.calories) || 400) * (item.servings || 1);
+    });
+
+    if (currentTotalCalories > 0) {
+      const scaleFactor = targetCalories / currentTotalCalories;
+      if (scaleFactor < 0.6 || scaleFactor > 1.5) {
+        repairedMeals.forEach((item) => {
+          const clampedScale = Math.max(0.5, Math.min(2.0, scaleFactor));
+          item.servings = Math.round((item.servings * clampedScale) * 100) / 100;
+        });
+      }
+    }
+  }
+
+  return repairedMeals;
+};
+
