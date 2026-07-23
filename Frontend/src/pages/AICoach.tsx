@@ -1071,6 +1071,7 @@ export default function AICoach() {
   const hasAutoScrolledChatRef = useRef(false);
   const shouldJumpToLatestRef = useRef(true);
   const handledLaunchPromptRef = useRef('');
+  const [chatReloadTick, setChatReloadTick] = useState(0);
 
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${todayDateKey}T00:00:00`)), [todayDateKey]);
@@ -1476,7 +1477,7 @@ export default function AICoach() {
     };
 
     void fetchChat();
-  }, [user?.id, reloadKey, cacheKey]);
+  }, [user?.id, chatReloadTick, cacheKey]);
 
   useLayoutEffect(() => {
     const textarea = chatInputRef.current;
@@ -1493,55 +1494,30 @@ export default function AICoach() {
     if (loading || !isLoggedIn) return;
 
     const container = chatScrollRef.current;
-    const content = chatContentRef.current;
     const bottom = chatBottomRef.current;
-    if (!container || !content || !bottom) return;
+    if (!container || !bottom) return;
 
     const shouldJumpToLatest = shouldJumpToLatestRef.current || !hasAutoScrolledChatRef.current;
     const behavior: ScrollBehavior = shouldJumpToLatest ? 'auto' : 'smooth';
-    let resizeObserver: ResizeObserver | null = null;
-    let resizeObserverStopId: number | null = null;
-    const frameIds: number[] = [];
-    const timeoutIds: number[] = [];
+
+    let frameId: number | null = null;
+    let backupId: number | null = null;
 
     const scrollToBottom = () => {
       container.scrollTop = container.scrollHeight;
-      bottom.scrollIntoView({
-        block: 'end',
-        behavior,
-      });
+      bottom.scrollIntoView({ block: 'end', behavior });
     };
 
-    const queueScroll = () => {
-      const frameId = window.requestAnimationFrame(scrollToBottom);
-      frameIds.push(frameId);
-    };
-
-    queueScroll();
-    timeoutIds.push(window.setTimeout(queueScroll, 0));
-    timeoutIds.push(window.setTimeout(queueScroll, 120));
-    timeoutIds.push(window.setTimeout(queueScroll, 320));
-
-    if (shouldJumpToLatest && typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        container.scrollTop = container.scrollHeight;
-      });
-      resizeObserver.observe(content);
-      resizeObserverStopId = window.setTimeout(() => {
-        resizeObserver?.disconnect();
-      }, 900);
-    }
+    frameId = window.requestAnimationFrame(scrollToBottom);
+    // Single short backup for cases where fonts/images shift layout slightly
+    backupId = window.setTimeout(scrollToBottom, 80);
 
     hasAutoScrolledChatRef.current = true;
     shouldJumpToLatestRef.current = false;
 
     return () => {
-      frameIds.forEach((frameId) => window.cancelAnimationFrame(frameId));
-      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
-      if (resizeObserverStopId !== null) {
-        window.clearTimeout(resizeObserverStopId);
-      }
-      resizeObserver?.disconnect();
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      if (backupId !== null) window.clearTimeout(backupId);
     };
   }, [chatMessages, selectedDay.dayIndex, loading, isLoggedIn, plan?.id]);
 
@@ -1597,6 +1573,7 @@ export default function AICoach() {
       );
       shouldJumpToLatestRef.current = true;
       setReloadKey((value) => value + 1);
+      setChatReloadTick((t) => t + 1);
     } catch {
       toast.error('Không thể cập nhật đề xuất lúc này. Vui lòng thử lại.');
     }
@@ -1762,7 +1739,6 @@ export default function AICoach() {
       } else {
         setChatMessages((current) => [...current, assistantMessage]);
       }
-      setReloadKey((value) => value + 1);
     } catch {
       const fallbackMessage: ChatMessage = {
         id: `assistant-command-${Date.now() + 1}`,
@@ -1883,7 +1859,6 @@ export default function AICoach() {
       };
       shouldJumpToLatestRef.current = true;
       setChatMessages((current) => [...current, assistantMessage]);
-      setReloadKey((value) => value + 1);
     } catch {
       const fallbackMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
