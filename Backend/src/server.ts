@@ -5657,8 +5657,16 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     ]);
     const firstError = [workoutPlanRes.error, foodPlanRes.error].find(Boolean);
     if (firstError) throw firstError;
-    if (foodPlanRes.data?.[0]?.id) {
-      return res.status(409).json({ error: 'Weekly meal plan already exists.' });
+    const existingFoodPlanId = foodPlanRes.data?.[0]?.id;
+    if (existingFoodPlanId) {
+      return res.json({
+        success: true,
+        data: {
+          weeklyPlanId: workoutPlanRes.data?.[0]?.id || null,
+          foodPlanId: existingFoodPlanId,
+          weekStartDate: weekStartKey,
+        },
+      });
     }
 
     const draft = await generateAiMealDraft({ userId, weekStartKey, scope: 'week' });
