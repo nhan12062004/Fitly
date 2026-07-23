@@ -696,7 +696,7 @@ export default function Overview() {
   )).slice(0, 3);
   const workoutSplitLabel = getWorkoutSplitLabel(workoutFocusLabels);
   const workoutHeadline = hasWorkoutPlan
-    ? `${workoutSplitLabel}${workoutFocusLabels.length > 0 ? ` - ${workoutFocusLabels.join(', ')}` : ''}`
+    ? (workoutFocusLabels.length > 0 ? workoutFocusLabels.join(', ') : workoutSplitLabel)
     : 'Bạn chưa có kế hoạch hôm nay';
   const workoutDifficultyLabel = getWorkoutDifficultyLabel(todayExercises.find((exercise) => exercise.difficulty)?.difficulty);
   const workoutMetaLine = hasWorkoutPlan
@@ -839,7 +839,7 @@ export default function Overview() {
                 <ol className="mt-3 space-y-2">
                   {todayExercises.slice(0, 4).map((exercise, index) => (
                     <li key={`${exercise.name}-${index}`} className="group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-bg-secondary/70">
-                      <span className={`relative flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black ${
+                      <span className={`relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg text-xs font-black ${
                         exercise.is_completed ? 'ring-2 ring-accent' : ''
                       }`}>
                         {exercise.video_url ? (
@@ -849,10 +849,11 @@ export default function Overview() {
                             muted
                             playsInline
                             preload="metadata"
+                            onLoadedMetadata={(e) => { e.currentTarget.currentTime = 0.1; }}
                             aria-hidden="true"
                           />
                         ) : (
-                          <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black ${
+                          <span className={`flex h-10 w-10 items-center justify-center rounded-lg text-xs font-black ${
                             exercise.is_completed ? 'bg-accent text-text-inverse' : 'bg-bg-secondary text-text-tertiary'
                           }`}>
                             {index + 1}
