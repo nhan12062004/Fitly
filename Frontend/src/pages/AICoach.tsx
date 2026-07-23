@@ -1072,6 +1072,7 @@ export default function AICoach() {
   const shouldJumpToLatestRef = useRef(true);
   const handledLaunchPromptRef = useRef('');
   const [chatReloadTick, setChatReloadTick] = useState(0);
+  const [scrollTick, setScrollTick] = useState(0);
 
   const todayDateKey = useMemo(() => getVietnamDateKey(), []);
   const weekStartKey = useMemo(() => getWeekStartKey(new Date(`${todayDateKey}T00:00:00`)), [todayDateKey]);
@@ -1474,6 +1475,7 @@ export default function AICoach() {
 
       setChatMessages((current) => mergeOptimisticChatMessages(serverMessages, current));
       setIsRefreshingChat(false);
+      setScrollTick((t) => t + 1);
     };
 
     void fetchChat();
@@ -1497,29 +1499,22 @@ export default function AICoach() {
     const bottom = chatBottomRef.current;
     if (!container || !bottom) return;
 
-    const shouldJumpToLatest = shouldJumpToLatestRef.current || !hasAutoScrolledChatRef.current;
-    const behavior: ScrollBehavior = shouldJumpToLatest ? 'auto' : 'smooth';
+    const behavior: ScrollBehavior = shouldJumpToLatestRef.current ? 'auto' : 'smooth';
+    shouldJumpToLatestRef.current = false;
+    hasAutoScrolledChatRef.current = true;
 
     let frameId: number | null = null;
-    let backupId: number | null = null;
-
     const scrollToBottom = () => {
       container.scrollTop = container.scrollHeight;
       bottom.scrollIntoView({ block: 'end', behavior });
     };
 
     frameId = window.requestAnimationFrame(scrollToBottom);
-    // Single short backup for cases where fonts/images shift layout slightly
-    backupId = window.setTimeout(scrollToBottom, 80);
-
-    hasAutoScrolledChatRef.current = true;
-    shouldJumpToLatestRef.current = false;
 
     return () => {
       if (frameId !== null) window.cancelAnimationFrame(frameId);
-      if (backupId !== null) window.clearTimeout(backupId);
     };
-  }, [chatMessages, selectedDay.dayIndex, loading, isLoggedIn, plan?.id]);
+  }, [scrollTick, loading, isLoggedIn]);
 
   useEffect(() => {
     chatMessagesRef.current = chatMessages;
@@ -1659,9 +1654,10 @@ export default function AICoach() {
       if (cacheKey) {
         aiCoachPageCache.delete(cacheKey);
       }
-      shouldJumpToLatestRef.current = true;
       hasAutoScrolledChatRef.current = false;
       setChatMessages([]);
+      shouldJumpToLatestRef.current = true;
+      setScrollTick((t) => t + 1);
       toast.success('Đã xoá cuộc hội thoại AI Coach.');
     } catch (err: any) {
       toast.error(err?.message || 'Không thể xoá cuộc hội thoại.');
@@ -1696,8 +1692,11 @@ export default function AICoach() {
     setChatInput('');
     setSelectedAttachment(null);
     setIsSendingChat(true);
-    shouldJumpToLatestRef.current = true;
-    setChatMessages((current) => [...current, userMessage]);
+    setChatMessages((current) => {
+      shouldJumpToLatestRef.current = true;
+      setScrollTick((t) => t + 1);
+      return [...current, userMessage];
+    });
 
     try {
       const sessionRes = await supabase.auth.getSession();
@@ -1733,11 +1732,18 @@ export default function AICoach() {
         optimistic: true,
       };
 
-      shouldJumpToLatestRef.current = true;
       if (payload.clearHistory) {
-        setChatMessages([assistantMessage]);
+        setChatMessages((_) => {
+          shouldJumpToLatestRef.current = true;
+          setScrollTick((t) => t + 1);
+          return [assistantMessage];
+        });
       } else {
-        setChatMessages((current) => [...current, assistantMessage]);
+        setChatMessages((current) => {
+          shouldJumpToLatestRef.current = true;
+          setScrollTick((t) => t + 1);
+          return [...current, assistantMessage];
+        });
       }
     } catch {
       const fallbackMessage: ChatMessage = {
@@ -1748,8 +1754,11 @@ export default function AICoach() {
         responseMode: 'coach_advice',
         optimistic: true,
       };
-      shouldJumpToLatestRef.current = true;
-      setChatMessages((current) => [...current, fallbackMessage]);
+      setChatMessages((current) => {
+        shouldJumpToLatestRef.current = true;
+        setScrollTick((t) => t + 1);
+        return [...current, fallbackMessage];
+      });
     } finally {
       setIsSendingChat(false);
     }
@@ -1803,8 +1812,11 @@ export default function AICoach() {
         content: item.content.slice(0, 1200),
       }));
 
-    shouldJumpToLatestRef.current = true;
-    setChatMessages((current) => [...current, userMessage]);
+    setChatMessages((current) => {
+      shouldJumpToLatestRef.current = true;
+      setScrollTick((t) => t + 1);
+      return [...current, userMessage];
+    });
 
     try {
       const sessionRes = await supabase.auth.getSession();
@@ -1857,8 +1869,11 @@ export default function AICoach() {
         actionStatus: 'idle',
         optimistic: true,
       };
-      shouldJumpToLatestRef.current = true;
-      setChatMessages((current) => [...current, assistantMessage]);
+      setChatMessages((current) => {
+        shouldJumpToLatestRef.current = true;
+        setScrollTick((t) => t + 1);
+        return [...current, assistantMessage];
+      });
     } catch {
       const fallbackMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
@@ -1868,8 +1883,11 @@ export default function AICoach() {
         responseMode: 'coach_advice',
         optimistic: true,
       };
-      shouldJumpToLatestRef.current = true;
-      setChatMessages((current) => [...current, fallbackMessage]);
+      setChatMessages((current) => {
+        shouldJumpToLatestRef.current = true;
+        setScrollTick((t) => t + 1);
+        return [...current, fallbackMessage];
+      });
     } finally {
       submitLockRef.current = false;
       setIsSendingChat(false);
