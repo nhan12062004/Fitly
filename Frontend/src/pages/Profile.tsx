@@ -755,6 +755,12 @@ export default function Profile() {
   const bmiLabel = bmi ? bmi.toFixed(1) : '--';
   const bmiStatus = getBmiStatus(bmi);
   const joinedLabel = profile?.created_at ? `Thành viên từ tháng ${formatJoinMonth(profile.created_at)}` : '';
+  const membershipExpiryLabel = profile?.membership_expires_at
+    ? (() => {
+        const d = new Date(String(profile.membership_expires_at));
+        return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      })()
+    : '';
   const goalLabel = fitnessGoal || 'Chưa đặt mục tiêu';
   const aiLimit = AI_LIMIT[membershipTier] ?? 25;
   const aiSwapLimit = AI_SWAP_LIMIT[membershipTier] ?? 5;
@@ -1289,11 +1295,18 @@ export default function Profile() {
             )}
           </div>
 
-          {/* Badge */}
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-tertiary px-3 py-1 text-xs font-black text-text-secondary">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            {membershipLabel.toUpperCase()}
-          </span>
+          {/* Badge & Expiry */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-tertiary px-3 py-1 text-xs font-black text-text-secondary">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              {membershipLabel.toUpperCase()}
+            </span>
+            {membershipTier !== 'free' && membershipExpiryLabel && (
+              <span className="text-xs font-semibold text-text-tertiary">
+                Hạn dùng đến: <span className="font-bold text-accent">{membershipExpiryLabel}</span>
+              </span>
+            )}
+          </div>
 
           {/* Total AI usage bar */}
           {aiLimit !== Infinity && (
@@ -1359,7 +1372,7 @@ export default function Profile() {
                 onClick={openPremiumModal}
                 className="inline-flex w-full h-10 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-black text-text-inverse transition-colors hover:bg-accent-hover"
               >
-                <Zap className="h-3.5 w-3.5" /> Mua gói PLUS / PRO
+                <Zap className="h-3.5 w-3.5" /> {membershipTier === 'plus' ? 'Mua gói PRO' : 'Mua gói PLUS / PRO'}
               </button>
             </div>
           )}
@@ -1413,50 +1426,66 @@ export default function Profile() {
             </div>
             <div className="rounded-xl border border-border-primary bg-bg-tertiary/50 p-3 text-center">
               <p className="text-2xl font-black text-text-primary">
-                {referralCount < 5 ? 5 - referralCount : referralCount < 20 ? 20 - referralCount : 0}
+                {membershipTier === 'pro'
+                  ? 0
+                  : membershipTier === 'plus'
+                  ? Math.max(0, 25 - referralCount)
+                  : referralCount < 5
+                  ? 5 - referralCount
+                  : Math.max(0, 25 - referralCount)}
               </p>
               <p className="mt-0.5 text-[11px] font-semibold text-text-secondary">
-                {referralCount < 5 ? 'Còn đến PLUS' : referralCount < 20 ? 'Còn đến PRO' : 'Đã đạt PRO 🎉'}
+                {membershipTier === 'pro'
+                  ? 'Đã đạt PRO 🎉'
+                  : membershipTier === 'plus'
+                  ? (referralCount < 25 ? 'Còn đến PRO' : 'Đã đạt PRO 🎉')
+                  : (referralCount < 5 ? 'Còn đến PLUS' : referralCount < 25 ? 'Còn đến PRO' : 'Đã đạt PRO 🎉')}
               </p>
             </div>
           </div>
 
-          {/* Progress PLUS */}
-          {membershipTier !== 'pro' && (
+          {/* Progress bars */}
+          {membershipTier === 'pro' ? (
+            <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-center">
+              <p className="text-xs font-black text-amber-400">🎉 Bạn đang ở gói PRO — gói cao nhất!</p>
+            </div>
+          ) : (
             <div className="mt-3 space-y-2.5">
-              <div>
-                <div className="flex justify-between mb-1">
-                  <span className="text-[11px] font-bold text-text-secondary">
-                    <span className="text-accent font-black">PLUS</span> — 200 credit/tháng
-                  </span>
-                  <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 5)}/5</span>
+              {membershipTier === 'free' && (
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-[11px] font-bold text-text-secondary">
+                      <span className="text-accent font-black">PLUS</span> — 200 credit/tháng
+                    </span>
+                    <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 5)}/5</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width] duration-500"
+                      style={{ width: `${Math.min(100, (referralCount / 5) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-[10px] font-semibold text-text-tertiary">
+                    Còn {Math.max(0, 5 - referralCount)} người nữa
+                  </p>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width] duration-500"
-                    style={{ width: `${Math.min(100, (referralCount / 5) * 100)}%` }}
-                  />
-                </div>
-                <p className="mt-1 text-[10px] font-semibold text-text-tertiary">
-                  Còn {Math.max(0, 5 - referralCount)} người nữa
-                </p>
-              </div>
+              )}
 
               <div>
                 <div className="flex justify-between mb-1">
                   <span className="text-[11px] font-bold text-text-secondary">
                     <span className="text-amber-400 font-black">PRO</span> — 800 credit/tháng
                   </span>
-                  <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 20)}/20</span>
+                  <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 25)}/25</span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-300 transition-[width] duration-500"
-                    style={{ width: `${Math.min(100, (referralCount / 20) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (referralCount / 25) * 100)}%` }}
                   />
                 </div>
                 <p className="mt-1 text-[10px] font-semibold text-text-tertiary">
-                  Còn {Math.max(0, 20 - referralCount)} người nữa
+                  Còn {Math.max(0, 25 - referralCount)} người nữa
                 </p>
               </div>
             </div>

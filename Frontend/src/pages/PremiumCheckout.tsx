@@ -155,17 +155,35 @@ export default function PremiumCheckout() {
             const isCurrent = plan.id === membershipTier;
             const isLowerTier = tierRank[plan.id] < tierRank[membershipTier];
             const isSuggested = (membershipTier === 'free' && isPlus) || (membershipTier === 'plus' && isPro);
-            const canRenew = isCurrent && !isFree;
             const canUpgrade = !isCurrent && !isLowerTier;
-            const canSubmit = canRenew || canUpgrade;
+            const canSubmit = canUpgrade;
             const isSubmitting = submittingPlanId === plan.id;
-            const ctaLabel = canRenew
-              ? 'Gia hạn 1 tháng'
-              : isCurrent
+            
+            const hasUsedPromo = isFree
+              ? false
+              : Boolean(
+                  profile?.has_purchased_plus ||
+                  profile?.has_purchased_pro ||
+                  membershipTier === 'plus' ||
+                  membershipTier === 'pro'
+                );
+
+            const displayPrice = isFree
+              ? '0'
+              : hasUsedPromo
+              ? (isPlus ? '79.000' : '149.000')
+              : plan.price;
+
+            const displayOldPrice = isFree || hasUsedPromo ? undefined : plan.oldPrice;
+            const displayPromo = isFree || hasUsedPromo ? undefined : plan.promo;
+            const displayPeriod = isFree ? 'VND / tháng' : hasUsedPromo ? 'VND / tháng' : plan.period;
+            const displayRenewText = isFree || hasUsedPromo ? undefined : plan.renewText;
+
+            const ctaLabel = isCurrent
               ? 'Gói hiện tại của bạn'
               : isLowerTier
-                ? 'Gói thấp hơn'
-                : `Nâng cấp lên ${plan.name}`;
+              ? 'Gói thấp hơn'
+              : `Nâng cấp lên ${plan.name}`;
             const badgeLabel = isCurrent ? 'Hiện tại' : isSuggested ? (isPlus ? 'Phổ biến' : 'Đề xuất') : null;
             const cardClass = [
               'premium-plan-card',
@@ -191,25 +209,25 @@ export default function PremiumCheckout() {
                 </div>
 
                 <div className={`premium-plan-price-block ${isFree ? 'premium-plan-price-free' : ''}`}>
-                  {plan.oldPrice ? (
+                  {displayOldPrice ? (
                     <div className="premium-plan-promo-row">
-                      <span className="premium-plan-old-price">đ{plan.oldPrice}</span>
+                      <span className="premium-plan-old-price">đ{displayOldPrice}</span>
                       <span className={`premium-plan-promo ${isPlus ? 'premium-plan-promo-plus' : 'premium-plan-promo-pro'}`}>
-                        {plan.promo}
+                        {displayPromo}
                       </span>
                     </div>
                   ) : null}
 
                   <div className="premium-plan-price-row">
                     <span className="premium-plan-currency">đ</span>
-                    <span className="premium-plan-price">{plan.price}</span>
+                    <span className="premium-plan-price">{displayPrice}</span>
                     <span className="premium-plan-period">
-                      {plan.period}
+                      {displayPeriod}
                     </span>
                   </div>
 
-                  {plan.renewText ? (
-                    <p className="premium-plan-renew">{plan.renewText}</p>
+                  {displayRenewText ? (
+                    <p className="premium-plan-renew">{displayRenewText}</p>
                   ) : null}
                 </div>
 

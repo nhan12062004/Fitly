@@ -2232,15 +2232,23 @@ app.post('/api/membership/renew', async (req, res) => {
     const baseDate = currentExpiresAt && currentExpiresAt > now ? currentExpiresAt : now;
     const nextExpiresAt = addMonthsToUtcDate(baseDate, 1).toISOString();
 
+    const updatePayload: Record<string, any> = {
+      membership_tier: requestedTier,
+      membership_expires_at: nextExpiresAt,
+      updated_at: now.toISOString(),
+    };
+    if (requestedTier === 'plus') {
+      updatePayload.has_purchased_plus = true;
+    } else if (requestedTier === 'pro') {
+      updatePayload.has_purchased_plus = true;
+      updatePayload.has_purchased_pro = true;
+    }
+
     const updateRes = await supabase
       .from('profiles')
-      .update({
-        membership_tier: requestedTier,
-        membership_expires_at: nextExpiresAt,
-        updated_at: now.toISOString()
-      })
+      .update(updatePayload)
       .eq('id', authUserId)
-      .select('id, membership_tier, membership_expires_at')
+      .select('id, membership_tier, membership_expires_at, has_purchased_plus, has_purchased_pro')
       .maybeSingle();
     if (updateRes.error) throw updateRes.error;
 
