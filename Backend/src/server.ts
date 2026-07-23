@@ -5659,12 +5659,26 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     if (firstError) throw firstError;
     const existingFoodPlanId = foodPlanRes.data?.[0]?.id;
     if (existingFoodPlanId) {
+      const [lifestyleRes, bodyMetricsRes] = await Promise.all([
+        supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
+        supabase.from('body_metrics').select('weight').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      const lifestyle = lifestyleRes.data || {};
+      const targetCalories = Number(lifestyle.target_calories || 1800);
+      const nutritionTargets = calculateNutritionMacroTargets({
+        targetCalories,
+        fitnessGoal: lifestyle.fitness_goal,
+        dietPreference: lifestyle.diet_preference,
+        weightKg: bodyMetricsRes.data?.weight,
+      });
       return res.json({
         success: true,
         data: {
           weeklyPlanId: workoutPlanRes.data?.[0]?.id || null,
           foodPlanId: existingFoodPlanId,
           weekStartDate: weekStartKey,
+          nutritionTargets,
+          ai_json: { meal_plan: { target_calories: targetCalories } },
         },
       });
     }

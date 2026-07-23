@@ -89,28 +89,35 @@ export default function NutritionResultScreen({
     ...mealTypeOrder.filter((mealType) => mealsByType[mealType]?.length),
     ...Object.keys(mealsByType).filter((mealType) => !mealTypeOrder.includes(mealType)),
   ].map((mealType) => ({ mealType, meals: mealsByType[mealType] }));
-  const macroTargets = result.macroTargets;
-  const displayedCalories = macroTargets?.calorieTarget || null;
+  const targetCalories = result.targetCalories || result.macroTargets?.calorieTarget || 1800;
+  const macroTargets = result.macroTargets || {
+    calorieTarget: targetCalories,
+    summary: 'Mục tiêu dinh dưỡng cân bằng',
+    protein: { grams: Math.round((targetCalories * 0.3) / 4), calories: Math.round(targetCalories * 0.3), percentage: 30 },
+    carbs: { grams: Math.round((targetCalories * 0.5) / 4), calories: Math.round(targetCalories * 0.5), percentage: 50 },
+    fat: { grams: Math.round((targetCalories * 0.2) / 9), calories: Math.round(targetCalories * 0.2), percentage: 20 },
+  };
+  const displayedCalories = macroTargets.calorieTarget;
   const macroDistribution = [
     {
       label: 'Protein',
       description: 'Xây cơ & phục hồi',
-      percentage: macroTargets?.protein.percentage || 0,
-      grams: macroTargets?.protein.grams || null,
+      percentage: macroTargets.protein.percentage,
+      grams: macroTargets.protein.grams,
       color: '#60a5fa',
     },
     {
       label: 'Carbs',
       description: 'Năng lượng tập',
-      percentage: macroTargets?.carbs.percentage || 0,
-      grams: macroTargets?.carbs.grams || null,
+      percentage: macroTargets.carbs.percentage,
+      grams: macroTargets.carbs.grams,
       color: '#a3e635',
     },
     {
       label: 'Chất béo',
       description: 'Hormone & vitamin',
-      percentage: macroTargets?.fat.percentage || 0,
-      grams: macroTargets?.fat.grams || null,
+      percentage: macroTargets.fat.percentage,
+      grams: macroTargets.fat.grams,
       color: '#fb923c',
     },
   ];
