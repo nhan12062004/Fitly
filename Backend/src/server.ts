@@ -4989,6 +4989,55 @@ JSON schema:
   }
 });
 
+const callGroqWithRetry = async (payload: {
+  messages: Array<{ role: string; content: string }>;
+  temperature?: number;
+  max_tokens?: number;
+}) => {
+  const primaryModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const candidateModels = [
+    primaryModel,
+    'llama-3.1-8b-instant',
+    'mixtral-8x7b-32768',
+  ];
+  const models = Array.from(new Set(candidateModels));
+
+  let lastErrorMsg = 'Groq AI request failed';
+  for (let attempt = 0; attempt < models.length; attempt++) {
+    const model = models[attempt];
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: payload.messages,
+          temperature: payload.temperature ?? 0.35,
+          max_tokens: payload.max_tokens ?? 1800,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      const result: any = await response.json();
+      if (response.ok && !result?.error) {
+        return result;
+      }
+      lastErrorMsg = result?.error?.message || `Groq model ${model} failed with HTTP ${response.status}`;
+      console.warn(`[GroqAPI] Attempt ${attempt + 1} (${model}) failed:`, lastErrorMsg);
+    } catch (err: any) {
+      lastErrorMsg = err?.message || `Groq model ${model} encountered network error`;
+      console.warn(`[GroqAPI] Attempt ${attempt + 1} (${model}) network error:`, lastErrorMsg);
+    }
+    if (attempt < models.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+  }
+  throw toAiProviderRequestError(lastErrorMsg);
+};
+
 app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
@@ -5162,33 +5211,17 @@ ${rulesPrompt}
 ${jsonSchemaPrompt}
 `;
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.'
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.35,
-        max_tokens: 1800,
-        response_format: { type: 'json_object' }
-      })
+    const groqResult = await callGroqWithRetry({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.'
+        },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.35,
+      max_tokens: 1800,
     });
-
-    const groqResult: any = await groqResponse.json();
-    if (!groqResponse.ok || groqResult.error) {
-      const groqMessage = groqResult?.error?.message || 'Groq AI request failed';
-      console.warn('[ai-coach-generate] Groq provider error:', groqMessage);
-      throw toAiProviderRequestError(groqMessage);
-    }
 
     const parsed = resolveAiExerciseReferences(
       parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || ''),
@@ -5445,19 +5478,14 @@ const generateAiMealDraft = async (params: {
         `${recipe.id}|${truncateText(recipe.name, 36)}|meal=${recipe.meal_type.join(',')}|diet=${recipe.dietary_restrictions.join(',')}|style=${recipe.diet_styles.join(',')}|k=${recipe.calories}|p=${recipe.protein}|c=${recipe.carbs}|f=${recipe.fat}|price=${recipe.price_level}|time=${recipe.cooking_time_minutes}`
       )).join('\n');
       const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; use only RECIPE_CATALOG recipe_id values; select varied and diverse recipes across days/meals; a recipe is already a complete dish, so never return food_ids or add carb/protein/vegetable components; do not invent IDs.\nRECIPE_CATALOG:\n${recipeCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","recipe_id":"exact id from catalog","servings":1,"notes":"optional"}]}]}}`;
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-          messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }],
-          temperature: 0.65,
-          max_tokens: scope === 'week' ? 1800 : 600,
-          response_format: { type: 'json_object' },
-        }),
+      const result = await callGroqWithRetry({
+        messages: [
+          { role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.65,
+        max_tokens: scope === 'week' ? 1800 : 600,
       });
-      const result: any = await response.json();
-      if (!response.ok || result.error) throw toAiProviderRequestError(result?.error?.message || 'Groq AI request failed');
       const mealPlan = parseJsonFromAiText(result.choices?.[0]?.message?.content || '')?.meal_plan || {};
       const rawDays = Array.isArray(mealPlan.days) ? mealPlan.days : [];
       const expectedDays = scope === 'week' ? [0, 1, 2, 3, 4, 5, 6] : [targetDayIndex];
