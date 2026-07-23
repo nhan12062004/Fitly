@@ -57,10 +57,11 @@ const normalizeVerifiedEmailRedirect = () => {
     window.location.search === '?verified=1' &&
     !window.location.hash
   ) {
-    return;
+    return false;
   }
 
-  window.history.replaceState(null, '', verifiedLoginPath);
+  window.location.replace(verifiedLoginPath);
+  return true;
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -121,10 +122,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return 'default';
       }
 
-      if (searchParams.get('verified') === '1' || authType === 'signup') {
-        normalizeVerifiedEmailRedirect();
+      const isEmailConfirmation =
+        searchParams.get('verified') === '1' ||
+        authType === 'signup' ||
+        authType === 'email_verification' ||
+        authType === 'email';
+
+      if (isEmailConfirmation) {
         await supabase.auth.signOut();
-        return 'signed-out';
+        const redirected = normalizeVerifiedEmailRedirect();
+        return redirected ? 'redirected' : 'signed-out';
       }
 
       return 'default';

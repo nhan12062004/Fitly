@@ -59,10 +59,10 @@ export default function App() {
                 <Route path="/signup" element={<AuthPage initialMode="signup" />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route element={<Dashboard />}>
-                  <Route path="assessment" element={<Navigate to="/overview" replace />} />
-                  <Route path="assessment/survey" element={<Navigate to="/overview" replace />} />
-                  <Route path="assessment/meals" element={<Navigate to="/overview" replace />} />
-                  <Route path="nutrition-assessment" element={<Navigate to="/overview" replace />} />
+                  <Route path="assessment" element={null} />
+                  <Route path="assessment/survey" element={null} />
+                  <Route path="assessment/meals" element={null} />
+                  <Route path="nutrition-assessment" element={null} />
                   <Route path="overview" element={<Overview />} />
                   <Route path="notifications" element={<Notifications />} />
                   <Route path="course/:id" element={<CourseDetails />} />
