@@ -1416,13 +1416,8 @@ async function generateWeeklyCoachPlanForUser(params: {
     recentRecipeIds: new Set((recentMealsRes.data || []).map((item: any) => String(item.recipe_id || '')).filter(Boolean)),
   });
   const eligibleRecipes = filterEligibleRecipes(recipeRows, recipeEligibilityContext);
-  if (recipeRows.length > 0 && eligibleRecipes.length === 0) {
-    throw new ApiRequestError(422, {
-      code: 'INSUFFICIENT_ELIGIBLE_RECIPE_CATALOG',
-      error: 'Khong co cong thuc an toan va phu hop voi ho so hien tai.',
-    });
-  }
-  const recipeMode = recipeRows.length > 0;
+  const recipeMode = recipeRows.length > 0 && eligibleRecipes.length > 0;
+
   const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
   const compactRecipes = buildCompactRecipeCatalog(eligibleRecipes, AI_FOOD_CATALOG_LIMIT);
   const foods = buildMealPlanningCatalog(foodCatalogRes.data as any[], {
@@ -5739,15 +5734,11 @@ const generateAiMealDraft = async (params: {
   // Once selected, an empty hard-filtered pool is an explicit error; it must not
   // fall through to the full foods catalog and undo an allergy/restriction gate.
   const recipeRows = (recipeRes.data || []) as RecipeCandidate[];
-  if (recipeRows.length > 0) {
-    const recipeContext = buildRecipeEligibilityContext(safetyContext);
-    const eligibleRecipes = filterEligibleRecipes(recipeRows, recipeContext);
-    if (!eligibleRecipes.length) {
-      throw new ApiRequestError(422, {
-        code: 'INSUFFICIENT_ELIGIBLE_RECIPE_CATALOG',
-        error: 'Khong co cong thuc nao an toan va phu hop voi ho so hien tai.',
-      });
-    }
+  const recipeContext = buildRecipeEligibilityContext(safetyContext);
+  const eligibleRecipes = recipeRows.length > 0 ? filterEligibleRecipes(recipeRows, recipeContext) : [];
+
+  if (recipeRows.length > 0 && eligibleRecipes.length > 0) {
+
     // Shuffle eligible recipes slightly to give varied recommendations when clicking generate multiple times
     const shuffledEligibleRecipes = [...eligibleRecipes].sort(() => Math.random() - 0.5);
     const compactRecipes = buildCompactRecipeCatalog(shuffledEligibleRecipes, AI_FOOD_CATALOG_LIMIT);
