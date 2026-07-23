@@ -90,9 +90,10 @@ function ChoiceGrid({
 interface MealSurveyFormProps {
   onComplete: (selection: MealSurveySelection) => void | Promise<void>;
   onBack: () => void;
+  isGenerating?: boolean;
 }
 
-export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormProps) {
+export default function MealSurveyForm({ onComplete, onBack, isGenerating = false }: MealSurveyFormProps) {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [dietPreference, setDietPreference] = useState('Bình thường');
@@ -101,6 +102,8 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
   const [budgetLevel, setBudgetLevel] = useState('Trung bình');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const isLoading = isSaving || isGenerating;
 
   const submit = async () => {
     if (!user?.id) {
@@ -184,7 +187,7 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
           <button
             type="button"
             onClick={step === 1 ? onBack : () => setStep((current) => current - 1)}
-            disabled={isSaving}
+            disabled={isLoading}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-border-primary px-7 text-sm font-black text-accent transition-colors hover:border-accent/45 hover:bg-bg-secondary disabled:opacity-60"
           >
             <ChevronLeft className="h-4 w-4" strokeWidth={3} />
@@ -203,12 +206,12 @@ export default function MealSurveyForm({ onComplete, onBack }: MealSurveyFormPro
             <button
               type="button"
               onClick={submit}
-              disabled={isSaving}
+              disabled={isLoading}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-accent px-7 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:opacity-60"
             >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {isSaving ? 'Đang tạo thực đơn...' : 'TẠO THỰC ĐƠN'}
-              {!isSaving ? <Zap className="h-4 w-4 text-text-inverse" strokeWidth={3} /> : null}
+              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isLoading ? 'Đang tạo thực đơn...' : 'TẠO THỰC ĐƠN'}
+              {!isLoading ? <Zap className="h-4 w-4 text-text-inverse" strokeWidth={3} /> : null}
             </button>
           )}
         </div>

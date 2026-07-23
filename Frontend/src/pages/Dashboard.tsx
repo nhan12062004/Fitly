@@ -266,13 +266,13 @@ export default function Dashboard() {
     return <LoadingScreen fullScreen />;
   }
 
-  if (isLoggedIn && isGeneratingNutritionPlan && location.pathname !== '/nutrition-assessment') {
+  if (isLoggedIn && isGeneratingNutritionPlan && location.pathname !== '/nutrition-assessment' && location.pathname !== '/assessment/meals') {
     return <LoadingScreen fullScreen />;
   }
 
   if (isLoggedIn && surveyPlanSummary && (location.pathname === '/assessment' || location.pathname === '/assessment/meals')) {
     if (location.pathname === '/assessment/meals') {
-      return <MealSurveyForm onComplete={completeMealSurvey} onBack={() => navigate(-1)} />;
+      return <MealSurveyForm isGenerating={isGeneratingNutritionPlan} onComplete={completeMealSurvey} onBack={() => navigate(-1)} />;
     }
 
     return (
