@@ -816,9 +816,9 @@ async function buildCoachDataContext(userId: string) {
     weeklyMeals
       .filter((item) => item.day_of_week === todayDayIndex && !item.is_rest_day)
       .map((item) => {
-        const food = item.foods as any;
+        const recipe = (item.recipes || item.foods) as any;
         const qty = Number(item.quantity || 1);
-        return `${item.meal_type}: ${food?.name || 'Món ăn'} x${qty} (${Math.round(Number(item.calories || 0) * qty)}kcal, P${Math.round(Number(item.protein || 0) * qty)}g)`;
+        return `${item.meal_type}: ${recipe?.name || 'Món ăn'} x${qty} (${Math.round(Number(item.calories || 0) * qty)}kcal, P${Math.round(Number(item.protein || 0) * qty)}g)`;
       }),
     12
   );
@@ -826,8 +826,8 @@ async function buildCoachDataContext(userId: string) {
   const weekMealLines = compactLines(
     weeklyMeals.map((item) => {
       if (item.is_rest_day) return `day ${item.day_of_week}: nghỉ`;
-      const food = item.foods as any;
-      return `day ${item.day_of_week} ${item.meal_type}: ${food?.name || 'Món ăn'} x${item.quantity || 1}`;
+      const recipe = (item.recipes || item.foods) as any;
+      return `day ${item.day_of_week} ${item.meal_type}: ${recipe?.name || 'Món ăn'} x${item.quantity || 1}`;
     }),
     28
   );
@@ -1031,9 +1031,9 @@ async function buildMealReport(profile: LinkedProfile) {
   }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
 
   const mealLines = compactLines(items.map((item) => {
-    const food = item.foods as any;
+    const recipe = (item.recipes || item.foods) as any;
     const qty = Number(item.quantity || 1);
-    return `- ${item.meal_type}: ${food?.name || 'Món ăn'} x${qty} ${food?.serving_unit || ''} (${Math.round(Number(item.calories || 0) * qty)} kcal, P${Math.round(Number(item.protein || 0) * qty)}g)`;
+    return `- ${item.meal_type}: ${recipe?.name || 'Món ăn'} x${qty} ${recipe?.serving_unit || ''} (${Math.round(Number(item.calories || 0) * qty)} kcal, P${Math.round(Number(item.protein || 0) * qty)}g)`;
   }), 12);
 
   return [
@@ -2577,6 +2577,7 @@ ${actionLog ? `[HỆ THỐNG VỪA THỰC HIỆN]\n${actionLog}` : ''}
 ${coachDataContext}
 
 [QUY TAC SU DUNG DU LIEU]
+- Khi người dùng hỏi "mai", "ngày mai", "tomorrow", dùng ngày mai (${addDaysToDateKey(today, 1)}) và day_of_week index = ${(getVietnamDayIndex(today) + 1) % 7} trong lịch tuần để trả lời.
 - Khi người dùng hỏi "hôm qua", dùng ngày ${addDaysToDateKey(today, -1)} trong dữ liệu 3 ngày gần nhất.
 - Khi người dùng hỏi "hôm kia", "hôm trước đó" hoặc "ngày kia trước", dùng ngày ${addDaysToDateKey(today, -2)}.
 - Khi hỏi bài tập, ưu tiên daily_exercise_sessions nếu hỏi tiến độ đã tập; ưu tiên lịch tập tuần nếu hỏi hôm nay/tuần này nên tập gì.
