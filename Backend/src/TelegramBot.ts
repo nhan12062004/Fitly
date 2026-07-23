@@ -39,12 +39,18 @@ type LinkedProfile = {
   id: string;
   full_name?: string | null;
   gender?: string | null;
+  telegram_notify_water?: boolean;
+  telegram_notify_sleep?: boolean;
+  telegram_notify_workout?: boolean;
 };
 
 type LinkedTelegramUserRow = {
   id: string;
   full_name?: string | null;
   telegram_chat_id: string;
+  telegram_notify_water?: boolean;
+  telegram_notify_sleep?: boolean;
+  telegram_notify_workout?: boolean;
   updated_at?: string | null;
   created_at?: string | null;
 };
@@ -237,7 +243,7 @@ function compactLines(lines: string[], maxLines: number) {
 async function getLinkedTelegramUsers() {
   const { data: users, error } = await supabase
     .from('profiles')
-    .select('telegram_chat_id, full_name, id, updated_at, created_at')
+    .select('telegram_chat_id, full_name, id, telegram_notify_water, telegram_notify_sleep, telegram_notify_workout, updated_at, created_at')
     .not('telegram_chat_id', 'is', null)
     .order('updated_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false, nullsFirst: false });
@@ -265,7 +271,7 @@ async function getLinkedTelegramUsers() {
 async function getLinkedProfileByChatId(chatId: number): Promise<LinkedProfile | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, gender, updated_at, created_at')
+    .select('id, full_name, gender, telegram_notify_water, telegram_notify_sleep, telegram_notify_workout, updated_at, created_at')
     .eq('telegram_chat_id', chatId.toString())
     .order('updated_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false, nullsFirst: false })
@@ -509,6 +515,72 @@ function buildSleepReminderText(user: { full_name?: string | null }, snapshot: A
   ].join('\n');
 }
 
+function buildSettingsKeyboard(profile: LinkedProfile): TelegramBot.InlineKeyboardMarkup {
+  const waterActive = profile.telegram_notify_water !== false;
+  const sleepActive = profile.telegram_notify_sleep !== false;
+  const workoutActive = profile.telegram_notify_workout !== false;
+
+  return {
+    inline_keyboard: [
+      [
+        {
+          text: `💧 Nhắc uống nước: ${waterActive ? 'BẬT ✅' : 'TẮT ❌'}`,
+          callback_data: 'setting_toggle_water',
+        },
+      ],
+      [
+        {
+          text: `😴 Nhắc giấc ngủ: ${sleepActive ? 'BẬT ✅' : 'TẮT ❌'}`,
+          callback_data: 'setting_toggle_sleep',
+        },
+      ],
+      [
+        {
+          text: `🏋️ Nhắc bài tập: ${workoutActive ? 'BẬT ✅' : 'TẮT ❌'}`,
+          callback_data: 'setting_toggle_workout',
+        },
+      ],
+      [
+        {
+          text: '❌ Đóng cài đặt',
+          callback_data: 'setting_close',
+        },
+      ],
+    ],
+  };
+}
+
+function buildSettingsText(profile: LinkedProfile) {
+  const waterActive = profile.telegram_notify_water !== false;
+  const sleepActive = profile.telegram_notify_sleep !== false;
+  const workoutActive = profile.telegram_notify_workout !== false;
+
+  return [
+    '⚙️ CÀI ĐẶT THÔNG BÁO TELEGRAM',
+    `Chào ${profile.full_name || 'bạn'}, bạn có thể bật/tắt các loại thông báo tự động từ Fitly AI Coach:`,
+    '',
+    `• 💧 Nhắc uống nước: ${waterActive ? 'BẬT ✅' : 'TẮT ❌'}`,
+    `• 😴 Nhắc giấc ngủ: ${sleepActive ? 'BẬT ✅' : 'TẮT ❌'}`,
+    `• 🏋️ Nhắc bài tập: ${workoutActive ? 'BẬT ✅' : 'TẮT ❌'}`,
+    '',
+    'Chạm vào các nút bên dưới để bật hoặc tắt trực tiếp:',
+  ].join('\n');
+}
+
+async function sendSettingsMenu(bot: TelegramBot, chatId: number, existingProfile?: LinkedProfile | null) {
+  const profile = existingProfile ?? (await getLinkedProfileByChatId(chatId).catch(() => null));
+  if (!profile) {
+    await bot.sendMessage(
+      chatId,
+      '❌ Bạn chưa liên kết tài khoản Fitly.\nVui lòng vào ứng dụng Fitly và nhấn "Kết nối Telegram Bot" trước khi cài đặt thông báo.'
+    );
+    return;
+  }
+  await bot.sendMessage(chatId, buildSettingsText(profile), {
+    reply_markup: buildSettingsKeyboard(profile),
+  });
+}
+
 function buildMainMenuKeyboard(): TelegramBot.InlineKeyboardMarkup {
   return {
     inline_keyboard: [
@@ -526,6 +598,7 @@ function buildMainMenuKeyboard(): TelegramBot.InlineKeyboardMarkup {
       ],
       [
         { text: '❤️ Sức khỏe', callback_data: 'menu_health' },
+        { text: '⚙️ Cài đặt', callback_data: 'menu_settings' },
       ],
       [
         { text: 'ℹ️ Hướng dẫn', callback_data: 'menu_help' },
@@ -585,6 +658,7 @@ function buildHelpText(isLinked: boolean) {
     '',
     'Lệnh nhanh:',
     '/menu - mở bảng điều khiển',
+    '/setting - cài đặt bật/tắt thông báo',
     '/today - xem tiến độ hôm nay',
     '/water - ghi nhanh lượng nước',
     '/sleep - ghi nhanh giấc ngủ',
@@ -1530,10 +1604,14 @@ export async function sendWaterReminders(bot: TelegramBot, slotIndex = 0) {
   let failed = 0;
 
   for (const user of users) {
+    if (user.telegram_notify_water === false) {
+      continue; // Bỏ qua nếu người dùng đã tắt nhắc uống nước
+    }
     try {
+      const shouldIncludeWorkout = slotIndex === 0 && user.telegram_notify_workout !== false;
       const [snapshot, workoutLines] = await Promise.all([
         getHydrationSnapshot(user.id),
-        slotIndex === 0 ? getTodayWorkoutReminderSnapshot(user.id) : Promise.resolve([] as string[]),
+        shouldIncludeWorkout ? getTodayWorkoutReminderSnapshot(user.id) : Promise.resolve([] as string[]),
       ]);
       await bot.sendMessage(user.telegram_chat_id, buildHydrationReminderText(user, message, snapshot, workoutLines), {
         reply_markup: buildWaterKeyboard(),
@@ -1560,6 +1638,9 @@ export async function sendSleepReminders(bot: TelegramBot) {
   let failed = 0;
 
   for (const user of users) {
+    if (user.telegram_notify_sleep === false) {
+      continue; // Bỏ qua nếu người dùng đã tắt hỏi giấc ngủ
+    }
     try {
       const snapshot = await getSleepSnapshot(user.id);
       await bot.sendMessage(
@@ -1661,6 +1742,88 @@ const setupCallbackHandlers = (bot: TelegramBot) => {
       } catch (err: any) {
         console.error('❌ Lỗi menu help:', err.message);
         await bot.answerCallbackQuery(query.id, { text: 'Có lỗi khi mở hướng dẫn.' });
+      }
+      return;
+    }
+
+    if (data === 'menu_settings') {
+      try {
+        await bot.answerCallbackQuery(query.id);
+        await sendSettingsMenu(bot, chatId);
+      } catch (err: any) {
+        console.error('❌ Lỗi mở cài đặt:', err.message);
+        await bot.answerCallbackQuery(query.id, { text: 'Có lỗi khi mở cài đặt.' });
+      }
+      return;
+    }
+
+    if (data === 'setting_close') {
+      try {
+        await bot.answerCallbackQuery(query.id, { text: 'Đã đóng bảng cài đặt.' });
+        if (query.message?.message_id) {
+          await bot.deleteMessage(chatId, query.message.message_id).catch(async () => {
+            await bot.editMessageText('✅ Đã đóng bảng cài đặt thông báo.', {
+              chat_id: chatId,
+              message_id: query.message!.message_id,
+            });
+          });
+        }
+      } catch (err: any) {
+        console.error('❌ Lỗi đóng cài đặt:', err.message);
+      }
+      return;
+    }
+
+    if (data === 'setting_toggle_water' || data === 'setting_toggle_sleep' || data === 'setting_toggle_workout') {
+      try {
+        const profile = await getLinkedProfileByChatId(chatId);
+        if (!profile) {
+          await bot.answerCallbackQuery(query.id, { text: 'Chưa liên kết tài khoản Fitly.' });
+          return;
+        }
+
+        const fieldMap = {
+          setting_toggle_water: 'telegram_notify_water',
+          setting_toggle_sleep: 'telegram_notify_sleep',
+          setting_toggle_workout: 'telegram_notify_workout',
+        } as const;
+
+        const targetField = fieldMap[data as keyof typeof fieldMap];
+        const currentValue = profile[targetField] !== false;
+        const newValue = !currentValue;
+
+        const { error: updateErr } = await supabase
+          .from('profiles')
+          .update({ [targetField]: newValue, updated_at: new Date().toISOString() })
+          .eq('id', profile.id);
+
+        if (updateErr) throw updateErr;
+
+        const updatedProfile: LinkedProfile = {
+          ...profile,
+          [targetField]: newValue,
+        };
+
+        const labelMap = {
+          setting_toggle_water: 'Nhắc uống nước',
+          setting_toggle_sleep: 'Nhắc giấc ngủ',
+          setting_toggle_workout: 'Nhắc bài tập',
+        };
+
+        await bot.answerCallbackQuery(query.id, {
+          text: `Đã ${newValue ? 'bật ✅' : 'tắt ❌'} ${labelMap[data as keyof typeof labelMap]}!`,
+        });
+
+        if (query.message?.message_id) {
+          await bot.editMessageText(buildSettingsText(updatedProfile), {
+            chat_id: chatId,
+            message_id: query.message.message_id,
+            reply_markup: buildSettingsKeyboard(updatedProfile),
+          });
+        }
+      } catch (err: any) {
+        console.error('❌ Lỗi chuyển đổi cài đặt thông báo:', err.message);
+        await bot.answerCallbackQuery(query.id, { text: 'Có lỗi xảy ra khi lưu cài đặt.' });
       }
       return;
     }
@@ -1931,6 +2094,10 @@ export const initTelegramBot = () => {
     }
   });
 
+  bot.onText(/\/(setting|settings)/, async (msg) => {
+    await sendSettingsMenu(bot, msg.chat.id);
+  });
+
   bot.onText(/\/water/, async (msg) => {
     const profile = await getLinkedProfileByChatId(msg.chat.id).catch(() => null);
     if (profile) {
@@ -2020,6 +2187,7 @@ export const initTelegramBot = () => {
         }
 
         await bot.sendMessage(chatId, `🎉 Chúc mừng ${existingProfile.full_name || 'bạn'}!\n\nTài khoản Fitly của bạn đã được liên kết thành công.\n\nTừ giờ, tôi sẽ gửi báo cáo tập luyện và lời nhắc AI trực tiếp tại đây cho bạn. 💪`);
+        await sendSettingsMenu(bot, chatId, existingProfile);
         await sendMainMenu(bot, chatId, existingProfile);
         return;
       } catch (err: any) {
