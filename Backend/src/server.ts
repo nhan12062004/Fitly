@@ -5518,107 +5518,12 @@ const generateAiMealDraft = async (params: {
         mode: 'recipe' as const,
       };
     } catch (recipeError: any) {
-      console.warn('[generateAiMealDraft] Recipe mode failed, falling back to foods mode:', recipeError?.message || recipeError);
+      if (recipeError instanceof ApiRequestError) throw recipeError;
+      throw toAiProviderRequestError(recipeError?.message || 'Groq AI request failed');
     }
   }
 
-  const foods = buildMealPlanningCatalog([], {
-
-    profile: profileRes.data || {},
-    lifestyle,
-    health,
-    mealsPerDay,
-    targetCalories: Number(lifestyle.target_calories || 0),
-  }, AI_FOOD_CATALOG_LIMIT);
-  const foodById = new Map(foods.map((food: any) => [String(food.id), food]));
-  const foodCatalog = foods
-    .map((food: any) => `${food.id}|${truncateText(food.name, 30)}|g=${classifyMealFoodComponent(food)}|k=${food.calories || 0}|p=${food.protein || 0}|c=${food.carbs || 0}|f=${food.fat || 0}|meal=${(food.meal_type || []).join(',')}`)
-    .join('\n');
-  const dayRule = scope === 'week'
-    ? 'exactly 7 days indexed 0..6'
-    : `exactly one day with day_of_week=${targetDayIndex}`;
-  const requestLabel = scope === 'week' ? 'a 7-day meal plan' : `the meal plan for day index ${targetDayIndex}`;
-  const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: diet=${lifestyle.diet_preference || ''}; cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; only FOOD_CATALOG ids; lunch/dinner need carb+protein+vegetable; breakfast needs carb+protein; avoid allergens; do not repeat a food family excessively.\nFOOD_CATALOG:\n${foodCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","food_ids":["catalog id"],"quantities":[1]}]}]}}`;
-  
-  const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }],
-      temperature: 0.35,
-      max_tokens: scope === 'week' ? 1800 : 700,
-      response_format: { type: 'json_object' },
-    }),
-  });
-  const groqResult: any = await groqResponse.json();
-  if (!groqResponse.ok || groqResult.error) {
-    throw toAiProviderRequestError(groqResult?.error?.message || 'Groq AI request failed');
-  }
-
-  const parsed = parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || '');
-  const normalizedPlan = normalizeAiPlanPayload({
-    workout_plan: { days: [{ day_of_week: 0, is_rest_day: true, exercises: [] }] },
-    meal_plan: parsed?.meal_plan,
-  }, { requireMealPlan: true });
-
-
-  if (scope === 'week') {
-    normalizedPlan.mealPlan = startMealPlanOnCreationDay(ensureSevenDayMealPlan(normalizedPlan.mealPlan), weekStartKey);
-  } else {
-    const generatedDay = normalizedPlan.mealPlan.days.find((day) => day.meals.length > 0);
-    if (!generatedDay) {
-      throw new ApiRequestError(422, { error: 'AI meal proposal must contain meals for the selected day.' });
-    }
-    normalizedPlan.mealPlan = {
-      ...normalizedPlan.mealPlan,
-      days: [{ ...generatedDay, day_of_week: targetDayIndex, is_rest_day: false }],
-    };
-  }
-
-  // The user's prescribed calorie target is authoritative; the model may only
-  // choose foods and meal structure, never replace this personal target.
-  const prescribedCalories = Number(lifestyle.target_calories || 0);
-  if (prescribedCalories > 0) {
-    normalizedPlan.mealPlan = {
-      ...normalizedPlan.mealPlan,
-      target_calories: Math.round(prescribedCalories),
-    };
-  }
-
-  const nutritionTargets = calculateNutritionMacroTargets({
-    targetCalories: normalizedPlan.mealPlan.target_calories || lifestyle.target_calories,
-    fitnessGoal: lifestyle.fitness_goal,
-    dietPreference: lifestyle.diet_preference,
-    weightKg: bodyMetricsRes.data?.weight,
-  });
-  const rows: any[] = [];
-  for (const day of normalizedPlan.mealPlan.days) {
-    const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
-    const completedMeals = completeAiMealDay(day.meals || [], foods, mealsPerDay);
-    optimizeMealPlanQuantities(completedMeals, foods, nutritionTargets, mealsPerDay).forEach((item, index) => {
-      const food = foodById.get(String(item.food_id));
-      if (!food) return;
-      rows.push({
-        day_of_week: dayIndex,
-        meal_type: item.meal_type,
-        recipe_id: String(item.food_id),
-        name: food.name || '',
-        image_url: food.image_url || '',
-        category: food.category || '',
-        serving_unit: food.serving_unit || '100g',
-        quantity: Math.max(0.25, Math.min(6, Number(item.quantity) || 1)),
-        calories: Number(food.calories || 0),
-        protein: Number(food.protein || 0),
-        carbs: Number(food.carbs || 0),
-        fat: Number(food.fat || 0),
-        order_index: index,
-        is_rest_day: false,
-      });
-    });
-  }
-  if (!rows.length) throw new ApiRequestError(422, { error: 'AI meal proposal did not contain valid foods.' });
-  return { mealPlan: normalizedPlan.mealPlan, rows, nutritionTargets };
+  throw new ApiRequestError(500, { error: 'Không tìm thấy công thức ăn uống phù hợp trong danh mục.' });
 };
 
 app.post('/api/ai-coach/generate-meal-plan', aiLimiter, async (req, res) => {
