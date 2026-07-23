@@ -15,9 +15,31 @@ export const normalizeVietnameseText = (value: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
-export const extractDayIndexFromText = (message: string): number | null => {
+export const extractDayIndexFromText = (message: string, todayDayIndex?: number): number | null => {
   const normalized = normalizeVietnameseText(message);
   if (!normalized) return null;
+
+  // "mai" / "ngày mai" / "tomorrow" → tomorrow's day index
+  if (
+    typeof todayDayIndex === 'number' &&
+    (
+      /\bmai\b/.test(normalized) ||
+      normalized.includes('ngay mai') ||
+      normalized.includes('tomorrow')
+    ) &&
+    // Make sure the message isn't about something unrelated like "email"
+    !normalized.includes('email')
+  ) {
+    return (todayDayIndex + 1) % 7;
+  }
+
+  // "hôm nay" / "today" → today's day index
+  if (
+    typeof todayDayIndex === 'number' &&
+    (normalized.includes('hom nay') || normalized.includes('today'))
+  ) {
+    return todayDayIndex;
+  }
 
   if (normalized.includes('chu nhat') || /\bcn\b/.test(normalized)) {
     return 6;

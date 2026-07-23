@@ -8,7 +8,7 @@ import { supabase } from './config/Supabase';
 import { initTelegramBot } from './TelegramBot';
 import { type TrainingPrescription } from './lib/TrainingPrescription';
 import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
-import { detectIntent, extractDayIndexFromText, getResponseModeForIntent } from './services/ai/aiRouterService';
+import { detectIntent, extractDayIndexFromText, getResponseModeForIntent, normalizeVietnameseText as normalizeVietForChat } from './services/ai/aiRouterService';
 import { aiChatService } from './services/ai/aiChatService';
 import { aiPlannerService } from './services/ai/aiPlannerService';
 import { workoutAdjusterService } from './services/ai/workoutAdjusterService';
@@ -3822,7 +3822,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     const day = today.getDay();
     const todayDayIndex = day === 0 ? 6 : day - 1;
     const requestDayIndex = isValidDayIndex(Number(selectedDayIndex)) ? Number(selectedDayIndex) : null;
-    const referencedDayIndex = extractDayIndexFromText(normalizedMessage);
+    const referencedDayIndex = extractDayIndexFromText(normalizedMessage, todayDayIndex);
     const dayIndex = referencedDayIndex ?? requestDayIndex ?? todayDayIndex;
     const requestedWeekStartDate = String(weekStartDate || '').trim() || null;
     let trackingActionLog = '';
@@ -4114,7 +4114,11 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         todayMealCount: targetMealRows.length,
         todayDayIndex: todayDayIndex,
         targetDayIndex: dayIndex,
-        targetDayLabel: AI_CHAT_DAY_LABELS[dayIndex] || 'Hom nay',
+        targetDayLabel: (() => {
+          if (dayIndex === todayDayIndex) return 'Hôm nay';
+          if (dayIndex === (todayDayIndex + 1) % 7 && /\bmai\b/.test(normalizeVietForChat(normalizedMessage))) return 'Ngày mai';
+          return AI_CHAT_DAY_LABELS[dayIndex] || 'Hôm nay';
+        })(),
         profile: profileRes.data || null,
         bodyMetrics: bodyMetricsRes.data || null,
         lifestyle: normalizedChatLifestyle,
