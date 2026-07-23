@@ -1602,7 +1602,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
               <X className="h-6 w-6" />
             </button>
           ) : null}
-          <div className="my-auto space-y-6 md:space-y-8">
+          <div className="w-full my-auto py-2 space-y-6 md:space-y-8">
             <div className="hidden">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
