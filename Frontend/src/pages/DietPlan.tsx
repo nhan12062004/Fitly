@@ -908,34 +908,20 @@ export default function DietPlan() {
             .from('weekly_food_plans')
             .select('*')
             .eq('user_id', user.id)
-            .gte('week_start_date', toDateKey(addDays(selectedWeekStart, -6)))
-            .lte('week_start_date', toDateKey(addDays(selectedWeekStart, 6)))
             .eq('plan_status', 'active')
-            .order('week_start_date', { ascending: false })
-            .limit(20);
+            .order('created_at', { ascending: false });
 
           if (error) throw error;
-          const todayPlanStartKey = toDateKey(addDays(getVietnamTodayDate(), -6));
-          const todayKey = getVietnamDateKey();
-          const plan = [...(plans || [])]
-            .filter((item: any) => {
-              const startKey = String(item.week_start_date || '');
-              return startKey >= todayPlanStartKey && startKey <= todayKey;
-            })
-            .sort((a: any, b: any) => String(b.week_start_date || '').localeCompare(String(a.week_start_date || '')))[0]
-            || pickLatestPlan(plans);
+          let plan = (plans || []).find((item: any) => String(item.week_start_date || '') === selectedWeekKey);
+          if (!plan && isCurrentWeek) {
+            const todayKey = getVietnamDateKey();
+            plan = [...(plans || [])]
+              .filter((item: any) => String(item.week_start_date || '') <= todayKey)
+              .sort((a: any, b: any) => String(b.week_start_date || '').localeCompare(String(a.week_start_date || '')))[0]
+              || (plans || [])[0];
+          }
 
           if (plan) {
-            const planStartKey = String(plan.week_start_date || '');
-            if (planStartKey && planStartKey !== selectedWeekKey) {
-              const planStartDate = getWeekStart(new Date(`${planStartKey}T00:00:00`));
-              const todayOffset = getTodayDayIndex();
-              if (!cancelled) {
-                setSelectedWeekStart(planStartDate);
-                setSelectedDayId(todayOffset);
-              }
-              return;
-            }
             nextPlanId = plan.id;
             nextPlanName = plan.name === 'Kế hoạch ăn uống tuần' ? DEFAULT_PLAN_NAME : (plan.name || DEFAULT_PLAN_NAME);
 
