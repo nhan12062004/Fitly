@@ -5149,11 +5149,17 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
       .map((item: any) => `${item.log_date}|${truncateText(item.exercises?.name || item.exercise_id, 32)}|${item.sets}x${item.reps}|${item.weight_kg || 0}kg|done=${!!item.is_completed}`)
       .join('\n') || 'No recent training history.';
 
+    const todayKey = getVietnamDateKey();
+    const todayDate = new Date(`${todayKey}T00:00:00`);
+    const todayDay = todayDate.getDay();
+    const todayDayIndex = todayDay === 0 ? 6 : todayDay - 1;
+
     const promptHeader = 'Generate one personalized 7-day workout plan only.\nUse only EX## references from EXERCISE_CATALOG. Return valid JSON only.';
     const rulesPrompt = `
 Rules:
 - Respect SAFETY_CONSTRAINTS above. They override weekly_workouts and all other goals.
-- Exactly 7 days, day_of_week 0..6 where 0 is the plan start date.
+- Exactly 7 days, day_of_week 0..6 where 0 is Monday and 6 is Sunday.
+- Today's day_of_week index is ${todayDayIndex} (0=Monday, 6=Sunday). Ensure scheduled workout days prioritize starting on or after day_of_week ${todayDayIndex} (i.e. starting from TODAY), so the user gets workout sessions starting today and upcoming days rather than on days that have already passed in the current week.
 - Never create new exercises. Use the EX## reference code from EXERCISE_CATALOG for every exercise_id.
 - Prefer exercise difficulty, goal_type, movement_pattern, equipment and duration that match the user profile.
 - Avoid exercises whose contraindications conflict with injuries or health conditions.

@@ -85,7 +85,9 @@ export default function Dashboard() {
   const generateSevenDayWorkoutPreview = async (summary: SurveyPlanSummary) => {
     const todayKey = getVietnamDateKey();
     const weekStartKey = getWeekStartKey(new Date(`${todayKey}T00:00:00`));
-    const todayDayIndex = 0;
+    const todayDate = new Date(`${todayKey}T00:00:00`);
+    const day = todayDate.getDay();
+    const todayDayIndex = day === 0 ? 6 : day - 1;
 
     const response = await fetchWithAuth('/api/ai-coach/generate-weekly-plan', {
       method: 'POST',

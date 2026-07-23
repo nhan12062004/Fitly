@@ -1,6 +1,7 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
+  Calendar,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -1476,7 +1477,12 @@ export default function DietPlan() {
           <div className="flex flex-col gap-4">
             <div className="diet-day-tabs diet-week-calendar overflow-visible px-1 py-2">
               {/* Navigation chuyển tuần (tuần trước / tuần sau) */}
-              <div className="mb-3 flex items-center justify-between gap-2 border-b border-border-primary/40 pb-2.5">
+              <div className="mb-3 flex items-center justify-between gap-2 pb-1">
+                <div className="flex items-center gap-2 text-sm font-black text-text-primary">
+                  <Calendar className="h-4 w-4 text-accent" />
+                  <span>Lịch tuần</span>
+                </div>
+
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     type="button"
@@ -1486,9 +1492,21 @@ export default function DietPlan() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  <span className="text-xs font-black text-text-primary sm:text-sm">
-                    Tuần {selectedWeekStart.getDate()}/{selectedWeekStart.getMonth() + 1} – {addDays(selectedWeekStart, 6).getDate()}/{addDays(selectedWeekStart, 6).getMonth() + 1}/{selectedWeekStart.getFullYear()}
-                  </span>
+
+                  <button
+                    type="button"
+                    disabled={isCurrentWeek}
+                    onClick={() => {
+                      if (!isCurrentWeek) {
+                        setSelectedWeekStart(getWeekStart(getVietnamTodayDate()));
+                        setSelectedDayId(getTodayDayIndex());
+                      }
+                    }}
+                    className="text-xs font-black text-text-primary sm:text-sm transition hover:opacity-80"
+                  >
+                    {selectedWeekStart.getDate()}/{selectedWeekStart.getMonth() + 1} – {addDays(selectedWeekStart, 6).getDate()}/{addDays(selectedWeekStart, 6).getMonth() + 1}/{selectedWeekStart.getFullYear()}
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => setSelectedWeekStart((prev) => addDays(prev, 7))}
@@ -1498,18 +1516,6 @@ export default function DietPlan() {
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
-                {!isCurrentWeek && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedWeekStart(getWeekStart(getVietnamTodayDate()));
-                      setSelectedDayId(getTodayDayIndex());
-                    }}
-                    className="rounded-xl border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-bold text-accent transition hover:bg-accent/20"
-                  >
-                    Về tuần này
-                  </button>
-                )}
               </div>
 
               <div ref={dayTabContainerRef} className="grid min-w-0 grid-cols-7 gap-1.5 sm:gap-2">
