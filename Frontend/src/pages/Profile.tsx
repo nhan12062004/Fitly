@@ -1429,17 +1429,17 @@ export default function Profile() {
                 {membershipTier === 'pro'
                   ? 0
                   : membershipTier === 'plus'
-                  ? Math.max(0, 25 - referralCount)
+                  ? Math.max(0, 20 - referralCount)
                   : referralCount < 5
                   ? 5 - referralCount
-                  : Math.max(0, 25 - referralCount)}
+                  : Math.max(0, 20 - referralCount)}
               </p>
               <p className="mt-0.5 text-[11px] font-semibold text-text-secondary">
                 {membershipTier === 'pro'
                   ? 'Đã đạt PRO 🎉'
                   : membershipTier === 'plus'
-                  ? (referralCount < 25 ? 'Còn đến PRO' : 'Đã đạt PRO 🎉')
-                  : (referralCount < 5 ? 'Còn đến PLUS' : referralCount < 25 ? 'Còn đến PRO' : 'Đã đạt PRO 🎉')}
+                  ? (referralCount < 20 ? 'Còn đến PRO' : 'Đã đạt PRO 🎉')
+                  : (referralCount < 5 ? 'Còn đến PLUS' : referralCount < 20 ? 'Còn đến PRO' : 'Đã đạt PRO 🎉')}
               </p>
             </div>
           </div>
@@ -1476,16 +1476,16 @@ export default function Profile() {
                   <span className="text-[11px] font-bold text-text-secondary">
                     <span className="text-amber-400 font-black">PRO</span> — 800 credit/tháng
                   </span>
-                  <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 25)}/25</span>
+                  <span className="text-[11px] font-black text-text-tertiary">{Math.min(referralCount, 20)}/20</span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-300 transition-[width] duration-500"
-                    style={{ width: `${Math.min(100, (referralCount / 25) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (referralCount / 20) * 100)}%` }}
                   />
                 </div>
                 <p className="mt-1 text-[10px] font-semibold text-text-tertiary">
-                  Còn {Math.max(0, 25 - referralCount)} người nữa
+                  Còn {Math.max(0, 20 - referralCount)} người nữa
                 </p>
               </div>
             </div>
