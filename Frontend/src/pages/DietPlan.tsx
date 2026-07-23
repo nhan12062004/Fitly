@@ -1091,6 +1091,16 @@ export default function DietPlan() {
           protein: Number(item.protein || 0),
           carbs: Number(item.carbs || 0),
           fat: Number(item.fat || 0),
+          estimated_cost_min_vnd: item.estimated_cost_min_vnd === null || item.estimated_cost_min_vnd === undefined ? null : Number(item.estimated_cost_min_vnd),
+          ingredients: Array.isArray(item.recipe_ingredients)
+            ? item.recipe_ingredients.map((ing: any) => ({
+                ingredient_name: String(ing.ingredient_name || 'Nguyên liệu'),
+                amount: ing.amount === null || ing.amount === undefined ? null : Number(ing.amount),
+                unit: ing.unit || null,
+                preparation_note: ing.preparation_note || null,
+                food: ing.food || null,
+              }))
+            : [],
           is_rest_day: false,
         }));
       if (!nextItems.length) throw new Error('AI chưa trả về món hợp lệ cho ngày này.');

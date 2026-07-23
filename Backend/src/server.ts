@@ -5748,7 +5748,9 @@ const generateAiMealDraft = async (params: {
         error: 'Khong co cong thuc nao an toan va phu hop voi ho so hien tai.',
       });
     }
-    const compactRecipes = buildCompactRecipeCatalog(eligibleRecipes, AI_FOOD_CATALOG_LIMIT);
+    // Shuffle eligible recipes slightly to give varied recommendations when clicking generate multiple times
+    const shuffledEligibleRecipes = [...eligibleRecipes].sort(() => Math.random() - 0.5);
+    const compactRecipes = buildCompactRecipeCatalog(shuffledEligibleRecipes, AI_FOOD_CATALOG_LIMIT);
     const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
     const dayRule = scope === 'week'
       ? 'exactly 7 days indexed 0..6, each day exactly once'
@@ -5757,14 +5759,14 @@ const generateAiMealDraft = async (params: {
     const recipeCatalog = compactRecipes.map((recipe) => (
       `${recipe.id}|${truncateText(recipe.name, 36)}|meal=${recipe.meal_type.join(',')}|diet=${recipe.dietary_restrictions.join(',')}|style=${recipe.diet_styles.join(',')}|k=${recipe.calories}|p=${recipe.protein}|c=${recipe.carbs}|f=${recipe.fat}|price=${recipe.price_level}|time=${recipe.cooking_time_minutes}`
     )).join('\n');
-    const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; use only RECIPE_CATALOG recipe_id values; a recipe is already a complete dish, so never return food_ids or add carb/protein/vegetable components; do not invent IDs.\nRECIPE_CATALOG:\n${recipeCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","recipe_id":"exact id from catalog","servings":1,"notes":"optional"}]}]}}`;
+    const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; use only RECIPE_CATALOG recipe_id values; select varied and diverse recipes across days/meals; a recipe is already a complete dish, so never return food_ids or add carb/protein/vegetable components; do not invent IDs.\nRECIPE_CATALOG:\n${recipeCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","recipe_id":"exact id from catalog","servings":1,"notes":"optional"}]}]}}`;
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
         messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }],
-        temperature: 0.25,
+        temperature: 0.65,
         max_tokens: scope === 'week' ? 1600 : 700,
         response_format: { type: 'json_object' },
       }),
@@ -5802,6 +5804,16 @@ const generateAiMealDraft = async (params: {
           serving_unit: String(recipe.serving_unit || 'serving'), quantity: item.servings,
           servings: item.servings, notes: item.notes || '', calories: Number(recipe.calories || 0),
           protein: Number(recipe.protein || 0), carbs: Number(recipe.carbs || 0), fat: Number(recipe.fat || 0),
+          estimated_cost_min_vnd: recipe.estimated_cost_min_vnd === null || recipe.estimated_cost_min_vnd === undefined ? null : Number(recipe.estimated_cost_min_vnd),
+          recipe_ingredients: Array.isArray(recipe.recipe_ingredients)
+            ? recipe.recipe_ingredients.map((ing: any) => ({
+                ingredient_name: String(ing.ingredient_name || 'Nguyên liệu'),
+                amount: ing.amount === null || ing.amount === undefined ? null : Number(ing.amount),
+                unit: ing.unit || null,
+                preparation_note: ing.preparation_note || null,
+                food: ing.foods || null,
+              }))
+            : [],
           order_index: index, is_rest_day: false,
         });
       });
