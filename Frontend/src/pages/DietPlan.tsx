@@ -1473,21 +1473,23 @@ export default function DietPlan() {
   return (
     <div className="dashboard-page-shell diet-page-shell flex flex-col gap-4 overflow-x-hidden overflow-y-auto text-sm pb-4 md:gap-5 md:pb-6 lg:pb-7">
       <div className="w-full space-y-4 overflow-hidden">
-        <section className="diet-card diet-today-shell rounded-xl border border-border-primary bg-bg-secondary p-4 md:p-5">
-          <div className="flex flex-col gap-4">
-            <div className="diet-day-tabs diet-week-calendar overflow-visible px-1 py-2">
+        <section className="diet-card diet-today-shell rounded-xl border border-border-primary bg-bg-secondary p-3.5 md:p-4.5">
+          <div className="flex flex-col gap-3">
+            <div className="diet-day-tabs diet-week-calendar overflow-visible px-0 pb-1 pt-0">
               {/* Navigation chuyển tuần (tuần trước / tuần sau) */}
-              <div className="mb-3 flex items-center justify-between gap-2 pb-1">
-                <div className="flex items-center gap-2 text-sm font-black text-text-primary">
-                  <Calendar className="h-4 w-4 text-accent" />
-                  <span>Lịch tuần</span>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-black text-text-primary sm:text-base">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-info/25 bg-info/15 text-info shadow-sm sm:h-8 sm:w-8">
+                    <Calendar className="h-4 w-4" />
+                  </span>
+                  <span>Lịch thực đơn tuần</span>
                 </div>
 
-                <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="flex items-center gap-1 sm:gap-1.5">
                   <button
                     type="button"
                     onClick={() => setSelectedWeekStart((prev) => addDays(prev, -7))}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition hover:border-accent hover:text-accent"
+                    className="flex h-7 w-7 items-center justify-center rounded-xl text-text-secondary transition hover:bg-bg-tertiary hover:text-text-primary sm:h-8 sm:w-8"
                     title="Tuần trước"
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -1502,7 +1504,7 @@ export default function DietPlan() {
                         setSelectedDayId(getTodayDayIndex());
                       }
                     }}
-                    className="text-xs font-black text-text-primary sm:text-sm transition hover:opacity-80"
+                    className="px-1 text-xs font-black text-text-primary transition hover:opacity-80 sm:text-sm"
                   >
                     {selectedWeekStart.getDate()}/{selectedWeekStart.getMonth() + 1} – {addDays(selectedWeekStart, 6).getDate()}/{addDays(selectedWeekStart, 6).getMonth() + 1}/{selectedWeekStart.getFullYear()}
                   </button>
@@ -1510,7 +1512,7 @@ export default function DietPlan() {
                   <button
                     type="button"
                     onClick={() => setSelectedWeekStart((prev) => addDays(prev, 7))}
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary text-text-secondary transition hover:border-accent hover:text-accent"
+                    className="flex h-7 w-7 items-center justify-center rounded-xl text-text-secondary transition hover:bg-bg-tertiary hover:text-text-primary sm:h-8 sm:w-8"
                     title="Tuần sau"
                   >
                     <ChevronRight className="h-4 w-4" />
@@ -1534,7 +1536,7 @@ export default function DietPlan() {
                       }}
                       type="button"
                       onClick={() => setSelectedDayId(day.id)}
-                      className={`diet-week-day relative inline-flex min-h-[66px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 font-black transition sm:min-h-[68px] ${
+                      className={`diet-week-day relative inline-flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 font-black transition sm:min-h-[62px] ${
                         isSelected ? 'diet-week-day-selected' : isTodayLabel ? 'diet-week-day-today' : 'diet-week-day-default'
                       }`}
                       title={dayDate.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })}
@@ -1548,7 +1550,7 @@ export default function DietPlan() {
               </div>
             </div>
 
-            <div className="diet-macro-grid grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="diet-macro-grid grid grid-cols-2 gap-2.5 md:grid-cols-4">
               <div className="diet-today-calories diet-macro-card rounded-xl border px-3 py-2.5 md:px-4 md:py-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="diet-macro-card-label text-[11px] font-black uppercase tracking-[0.12em]">Calories</p>

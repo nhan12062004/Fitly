@@ -254,9 +254,9 @@ export default function TopBar() {
   };
 
   const navLinkClassName = ({ isActive }: { isActive: boolean }) =>
-    `topbar-nav-item group inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full px-3 text-sm transition-all ${
+    `topbar-nav-item group inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold transition-colors ${
       isActive
-        ? 'topbar-nav-item-active text-text-primary font-semibold'
+        ? 'topbar-nav-item-active text-text-primary'
         : 'text-text-secondary hover:text-text-primary'
     }`;
 
