@@ -336,7 +336,7 @@ export const buildMealReport = async (profile: ProfileLike) => {
   }, { kcal: 0, protein: 0, carbs: 0, fat: 0 });
 
   const mealLines = compactLines(items.map((item) => {
-    const food = item.foods as any;
+    const food = (item.recipes || item.foods) as any;
     const qty = Number(item.quantity || 1);
     return `- ${item.meal_type}: ${food?.name || 'Món ăn'} x${qty} ${food?.serving_unit || ''} (${Math.round(Number(item.calories || 0) * qty)} kcal, P${Math.round(Number(item.protein || 0) * qty)}g)`;
   }), 12);
@@ -464,7 +464,7 @@ export const buildCoachDataContext = async (userId: string) => {
     weeklyMeals
       .filter((item) => item.day_of_week === todayDayIndex && !item.is_rest_day)
       .map((item) => {
-        const food = item.foods as any;
+        const food = (item.recipes || item.foods) as any;
         const qty = Number(item.quantity || 1);
         return `${item.meal_type}: ${food?.name || 'Món ăn'} x${qty} (${Math.round(Number(item.calories || 0) * qty)}kcal, P${Math.round(Number(item.protein || 0) * qty)}g)`;
       }),

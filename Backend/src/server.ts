@@ -1518,7 +1518,7 @@ async function generateWeeklyCoachPlanForUser(params: {
     .join('\n') || 'No recent training history.';
 
   const recentEating = clampList(recentMealHistory, 6)
-    .map((item: any) => `d=${item.day_of_week || item.log_date || ''}|${item.meal_type}|${truncateText(item.foods?.name || item.custom_food_name || item.food_id, 28)}|qty=${item.quantity}`)
+    .map((item: any) => `d=${item.day_of_week || item.log_date || ''}|${item.meal_type}|${truncateText(item.recipes?.name || item.foods?.name || item.custom_food_name || item.recipe_id || item.food_id, 28)}|qty=${item.quantity}`)
     .join('\n') || 'No recent meal plan history.';
 
   const prompt = `
@@ -3987,7 +3987,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
       }));
     const targetWorkoutRows =
       dayIndex === todayDayIndex && dailyWorkoutRows.length > 0 ? dailyWorkoutRows : planWorkoutRows;
-    const targetMealRows = mealRows.filter((row: any) => Number(row.day_of_week) === dayIndex && row.food_id);
+    const targetMealRows = mealRows.filter((row: any) => Number(row.day_of_week) === dayIndex && (row.recipe_id || row.food_id));
     const targetWorkoutContext = targetWorkoutRows.map((row: any) => ({
       exercise_id: row.exercise_id,
       name: row.exercises?.name || null,
@@ -4079,8 +4079,8 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           ...((recentMealLogsRes.data || []) as any[]),
           ...mealRows,
         ]
-          .map((item: any) => String(item.food_id || ''))
-          .filter((foodId) => foodId && foodId !== String(currentMeal?.food_id || '')),
+          .map((item: any) => String(item.recipe_id || item.food_id || ''))
+          .filter((foodId) => foodId && foodId !== String(currentMeal?.recipe_id || currentMeal?.food_id || '')),
       }, 24);
 
       aiResponse = await mealAdjusterService({
@@ -4128,8 +4128,9 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         meals: targetMealRows.map((row: any) => ({
           id: row.id,
           meal_type: row.meal_type,
-          food_id: row.food_id,
-          name: row.foods?.name || null,
+          food_id: row.recipe_id || row.food_id,
+          recipe_id: row.recipe_id || row.food_id,
+          name: row.recipes?.name || row.foods?.name || null,
           quantity: row.quantity,
           calories: row.calories,
           protein: row.protein,
@@ -4221,8 +4222,9 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
             meal_items: targetMealRows.map((row: any) => ({
               id: row.id,
               meal_type: row.meal_type,
-              food_id: row.food_id,
-              name: row.foods?.name || null,
+              food_id: row.recipe_id || row.food_id,
+              recipe_id: row.recipe_id || row.food_id,
+              name: row.recipes?.name || row.foods?.name || null,
               quantity: row.quantity,
               calories: row.calories,
               protein: row.protein,
@@ -4613,7 +4615,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
         .update({
           day_of_week: dayOfWeek,
           meal_type: mealType,
-          food_id: newFoodId,
+          recipe_id: newFoodId,
           quantity: Math.max(0.25, Number(newData.quantity || 1)),
           calories: Number(foodRes.data.calories || 0),
           protein: Number(foodRes.data.protein || 0),
