@@ -6023,9 +6023,6 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     ]);
     const firstError = [workoutPlanRes.error, foodPlanRes.error].find(Boolean);
     if (firstError) throw firstError;
-    if (!workoutPlanRes.data?.[0]?.id) {
-      return res.status(409).json({ error: 'Weekly workout plan is not ready.' });
-    }
     if (foodPlanRes.data?.[0]?.id) {
       return res.status(409).json({ error: 'Weekly meal plan already exists.' });
     }
@@ -6060,10 +6057,10 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
       plan_type: 'meal',
       source_type: 'onboarding_meal_generate',
       old_plan_id: null,
-      new_plan_id: workoutPlanRes.data[0].id,
+      new_plan_id: workoutPlanRes.data?.[0]?.id || null,
       old_data: {},
       new_data: {
-        workout_plan_id: workoutPlanRes.data[0].id,
+        workout_plan_id: workoutPlanRes.data?.[0]?.id || null,
         food_plan_id: foodPlanId,
         target_calories: draft.mealPlan.target_calories,
       },
@@ -6076,7 +6073,7 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     return res.json({
       success: true,
       data: {
-        weeklyPlanId: workoutPlanRes.data[0].id,
+        weeklyPlanId: workoutPlanRes.data?.[0]?.id || null,
         foodPlanId,
         mealItems: draft.rows.length,
         weekStartDate: weekStartKey,

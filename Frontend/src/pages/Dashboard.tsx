@@ -188,7 +188,15 @@ export default function Dashboard() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(getApiErrorMessage({ status: response.status, payload, fallbackMessage: 'Không thể tạo thực đơn AI 7 ngày.' }));
+        throw new Error(getApiErrorMessage({
+          status: response.status,
+          payload,
+          fallbackMessage: 'Không thể tạo thực đơn AI 7 ngày. Vui lòng thử lại.',
+          fallbackByStatus: {
+            409: 'Lịch tập 7 ngày chưa sẵn sàng. Vui lòng quay lại trang khảo sát và thử lại.',
+            503: 'AI đang quá tải, vui lòng thử lại sau vài phút.',
+          }
+        }));
       }
 
       const foodPlanId = payload?.data?.foodPlanId;
@@ -224,6 +232,7 @@ export default function Dashboard() {
       navigate('/nutrition-assessment');
     } catch (err: any) {
       setNutritionPlanError(err?.message || 'Không thể tạo thực đơn AI 7 ngày.');
+      // Không re-throw để MealSurveyForm hiển thị lỗi mà không reset form
       throw err;
     } finally {
       setIsGeneratingNutritionPlan(false);
