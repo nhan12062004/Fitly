@@ -5492,7 +5492,7 @@ const generateAiMealDraft = async (params: {
           const recipe = recipeById.get(item.recipe_id) || compactRecipeCandidates[0];
           if (!recipe) return;
           rows.push({
-            day_of_week: expectedDayIndex, meal_type: item.meal_type, recipe_id: String(recipe.id), food_id: null,
+            day_of_week: expectedDayIndex, meal_type: item.meal_type, recipe_id: String(recipe.id),
             name: String(recipe.name || 'Món ăn AI chọn'), image_url: String(recipe.image_url || ''), category: 'recipe',
             serving_unit: String(recipe.serving_unit || 'serving'), quantity: item.servings,
             servings: item.servings, notes: item.notes || '', calories: Number(recipe.calories || 0),
@@ -5740,7 +5740,19 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     if (generatedPlan.error) throw generatedPlan.error;
     const foodPlanId = generatedPlan.data.id;
     const insertedItems = await supabase.from('weekly_food_items').insert(
-      draft.rows.map(({ name, image_url, category, serving_unit, servings, notes, ...row }) => ({ ...row, food_plan_id: foodPlanId }))
+      draft.rows.map((row: any) => ({
+        food_plan_id: foodPlanId,
+        day_of_week: Number(row.day_of_week || 0),
+        meal_type: String(row.meal_type || 'lunch'),
+        recipe_id: row.recipe_id ? String(row.recipe_id) : null,
+        quantity: Number(row.quantity || row.servings || 1),
+        calories: Number(row.calories || 0),
+        protein: Number(row.protein || 0),
+        carbs: Number(row.carbs || 0),
+        fat: Number(row.fat || 0),
+        order_index: Number(row.order_index || 0),
+        is_rest_day: Boolean(row.is_rest_day),
+      }))
     );
     if (insertedItems.error) throw insertedItems.error;
     const activatedPlan = await supabase
