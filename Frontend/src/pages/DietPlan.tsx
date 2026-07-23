@@ -1537,11 +1537,13 @@ export default function DietPlan() {
                       type="button"
                       onClick={() => setSelectedDayId(day.id)}
                       className={`diet-week-day relative inline-flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 font-black transition sm:min-h-[62px] ${
-                        isSelected ? 'diet-week-day-selected' : isTodayLabel ? 'diet-week-day-today' : 'diet-week-day-default'
+                        isSelected ? 'diet-week-day-selected' : 'diet-week-day-default'
                       }`}
                       title={dayDate.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })}
                     >
-                      {isTodayLabel ? <span className="diet-week-today-label">NAY</span> : null}
+                      {isToday ? (
+                        <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
+                      ) : null}
                       <span className="text-[11px] leading-none sm:text-xs">{compactWeekdayLabel}</span>
                       <span className="text-base leading-none sm:text-lg">{dayDate.getDate()}</span>
                     </button>
