@@ -5738,88 +5738,92 @@ const generateAiMealDraft = async (params: {
   const eligibleRecipes = recipeRows.length > 0 ? filterEligibleRecipes(recipeRows, recipeContext) : [];
 
   if (recipeRows.length > 0 && eligibleRecipes.length > 0) {
-
-    // Shuffle eligible recipes slightly to give varied recommendations when clicking generate multiple times
-    const shuffledEligibleRecipes = [...eligibleRecipes].sort(() => Math.random() - 0.5);
-    const compactRecipes = buildCompactRecipeCatalog(shuffledEligibleRecipes, AI_FOOD_CATALOG_LIMIT);
-    const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
-    const dayRule = scope === 'week'
-      ? 'exactly 7 days indexed 0..6, each day exactly once'
-      : `exactly one day with day_of_week=${targetDayIndex}`;
-    const requestLabel = scope === 'week' ? 'a 7-day recipe meal plan' : `the recipe meal plan for day index ${targetDayIndex}`;
-    const recipeCatalog = compactRecipes.map((recipe) => (
-      `${recipe.id}|${truncateText(recipe.name, 36)}|meal=${recipe.meal_type.join(',')}|diet=${recipe.dietary_restrictions.join(',')}|style=${recipe.diet_styles.join(',')}|k=${recipe.calories}|p=${recipe.protein}|c=${recipe.carbs}|f=${recipe.fat}|price=${recipe.price_level}|time=${recipe.cooking_time_minutes}`
-    )).join('\n');
-    const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; use only RECIPE_CATALOG recipe_id values; select varied and diverse recipes across days/meals; a recipe is already a complete dish, so never return food_ids or add carb/protein/vegetable components; do not invent IDs.\nRECIPE_CATALOG:\n${recipeCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","recipe_id":"exact id from catalog","servings":1,"notes":"optional"}]}]}}`;
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }],
-        temperature: 0.65,
-        max_tokens: scope === 'week' ? 1600 : 700,
-        response_format: { type: 'json_object' },
-      }),
-    });
-    const result: any = await response.json();
-    if (!response.ok || result.error) throw toAiProviderRequestError(result?.error?.message || 'Groq AI request failed');
-    const mealPlan = parseJsonFromAiText(result.choices?.[0]?.message?.content || '')?.meal_plan || {};
-    const days = Array.isArray(mealPlan.days) ? mealPlan.days : [];
-    const expectedDays = scope === 'week' ? [0, 1, 2, 3, 4, 5, 6] : [targetDayIndex];
-    const usedDays = new Set<number>();
-    const rows: any[] = [];
-    const normalizedDays: any[] = [];
-    for (const rawDay of days) {
-      const dayIndex = toDayOfWeekIndex((rawDay as any)?.day_of_week ?? (rawDay as any)?.day);
-      if (!expectedDays.includes(dayIndex) || usedDays.has(dayIndex)) {
-        throw new ApiRequestError(422, { error: 'AI recipe proposal has invalid or duplicate days.' });
-      }
-      usedDays.add(dayIndex);
-      const proposal = validateRecipeMealProposal(
-        (rawDay as any)?.meals,
-        compactRecipes.map((item) => recipeById.get(item.id)!).filter(Boolean),
-        recipeContext,
-        mealSlots as any,
-        Number(lifestyle.target_calories || mealPlan.target_calories || 0),
-      );
-      if (!proposal.valid) {
-        throw new ApiRequestError(422, { error: 'AI recipe proposal contains an ineligible or invalid recipe.', details: proposal.errors });
-      }
-      normalizedDays.push({ day_of_week: dayIndex, is_rest_day: false, meals: proposal.meals });
-      proposal.meals.forEach((item, index) => {
-        const recipe = recipeById.get(item.recipe_id)!;
-        rows.push({
-          day_of_week: dayIndex, meal_type: item.meal_type, recipe_id: item.recipe_id, food_id: null,
-          name: String(recipe.name || ''), image_url: String(recipe.image_url || ''), category: 'recipe',
-          serving_unit: String(recipe.serving_unit || 'serving'), quantity: item.servings,
-          servings: item.servings, notes: item.notes || '', calories: Number(recipe.calories || 0),
-          protein: Number(recipe.protein || 0), carbs: Number(recipe.carbs || 0), fat: Number(recipe.fat || 0),
-          estimated_cost_min_vnd: recipe.estimated_cost_min_vnd === null || recipe.estimated_cost_min_vnd === undefined ? null : Number(recipe.estimated_cost_min_vnd),
-          recipe_ingredients: Array.isArray(recipe.recipe_ingredients)
-            ? recipe.recipe_ingredients.map((ing: any) => ({
-                ingredient_name: String(ing.ingredient_name || 'Nguyên liệu'),
-                amount: ing.amount === null || ing.amount === undefined ? null : Number(ing.amount),
-                unit: ing.unit || null,
-                preparation_note: ing.preparation_note || null,
-                food: ing.foods || null,
-              }))
-            : [],
-          order_index: index, is_rest_day: false,
-        });
+    try {
+      // Shuffle eligible recipes slightly to give varied recommendations when clicking generate multiple times
+      const shuffledEligibleRecipes = [...eligibleRecipes].sort(() => Math.random() - 0.5);
+      const compactRecipes = buildCompactRecipeCatalog(shuffledEligibleRecipes, AI_FOOD_CATALOG_LIMIT);
+      const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
+      const dayRule = scope === 'week'
+        ? 'exactly 7 days indexed 0..6, each day exactly once'
+        : `exactly one day with day_of_week=${targetDayIndex}`;
+      const requestLabel = scope === 'week' ? 'a 7-day recipe meal plan' : `the recipe meal plan for day index ${targetDayIndex}`;
+      const recipeCatalog = compactRecipes.map((recipe) => (
+        `${recipe.id}|${truncateText(recipe.name, 36)}|meal=${recipe.meal_type.join(',')}|diet=${recipe.dietary_restrictions.join(',')}|style=${recipe.diet_styles.join(',')}|k=${recipe.calories}|p=${recipe.protein}|c=${recipe.carbs}|f=${recipe.fat}|price=${recipe.price_level}|time=${recipe.cooking_time_minutes}`
+      )).join('\n');
+      const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; use only RECIPE_CATALOG recipe_id values; select varied and diverse recipes across days/meals; a recipe is already a complete dish, so never return food_ids or add carb/protein/vegetable components; do not invent IDs.\nRECIPE_CATALOG:\n${recipeCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","recipe_id":"exact id from catalog","servings":1,"notes":"optional"}]}]}}`;
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+          messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only.' }, { role: 'user', content: prompt }],
+          temperature: 0.65,
+          max_tokens: scope === 'week' ? 1600 : 700,
+          response_format: { type: 'json_object' },
+        }),
       });
+      const result: any = await response.json();
+      if (!response.ok || result.error) throw toAiProviderRequestError(result?.error?.message || 'Groq AI request failed');
+      const mealPlan = parseJsonFromAiText(result.choices?.[0]?.message?.content || '')?.meal_plan || {};
+      const days = Array.isArray(mealPlan.days) ? mealPlan.days : [];
+      const expectedDays = scope === 'week' ? [0, 1, 2, 3, 4, 5, 6] : [targetDayIndex];
+      const usedDays = new Set<number>();
+      const rows: any[] = [];
+      const normalizedDays: any[] = [];
+      for (const rawDay of days) {
+        const dayIndex = toDayOfWeekIndex((rawDay as any)?.day_of_week ?? (rawDay as any)?.day);
+        if (!expectedDays.includes(dayIndex) || usedDays.has(dayIndex)) {
+          throw new ApiRequestError(422, { error: 'AI recipe proposal has invalid or duplicate days.' });
+        }
+        usedDays.add(dayIndex);
+        const proposal = validateRecipeMealProposal(
+          (rawDay as any)?.meals,
+          compactRecipes.map((item) => recipeById.get(item.id)!).filter(Boolean),
+          recipeContext,
+          mealSlots as any,
+          Number(lifestyle.target_calories || mealPlan.target_calories || 0),
+        );
+        if (!proposal.valid) {
+          throw new ApiRequestError(422, { error: 'AI recipe proposal contains an ineligible or invalid recipe.', details: proposal.errors });
+        }
+        normalizedDays.push({ day_of_week: dayIndex, is_rest_day: false, meals: proposal.meals });
+        proposal.meals.forEach((item, index) => {
+          const recipe = recipeById.get(item.recipe_id)!;
+          rows.push({
+            day_of_week: dayIndex, meal_type: item.meal_type, recipe_id: item.recipe_id, food_id: null,
+            name: String(recipe.name || ''), image_url: String(recipe.image_url || ''), category: 'recipe',
+            serving_unit: String(recipe.serving_unit || 'serving'), quantity: item.servings,
+            servings: item.servings, notes: item.notes || '', calories: Number(recipe.calories || 0),
+            protein: Number(recipe.protein || 0), carbs: Number(recipe.carbs || 0), fat: Number(recipe.fat || 0),
+            estimated_cost_min_vnd: recipe.estimated_cost_min_vnd === null || recipe.estimated_cost_min_vnd === undefined ? null : Number(recipe.estimated_cost_min_vnd),
+            recipe_ingredients: Array.isArray(recipe.recipe_ingredients)
+              ? recipe.recipe_ingredients.map((ing: any) => ({
+                  ingredient_name: String(ing.ingredient_name || 'Nguyên liệu'),
+                  amount: ing.amount === null || ing.amount === undefined ? null : Number(ing.amount),
+                  unit: ing.unit || null,
+                  preparation_note: ing.preparation_note || null,
+                  food: ing.foods || null,
+                }))
+              : [],
+            order_index: index, is_rest_day: false,
+          });
+        });
+      }
+      if (usedDays.size !== expectedDays.length || expectedDays.some((day) => !usedDays.has(day)) || !rows.length) {
+        throw new ApiRequestError(422, { error: 'AI recipe proposal must provide every requested day with valid meals.' });
+      }
+      const targetCalories = Number(lifestyle.target_calories || mealPlan.target_calories || 0);
+      return {
+        mealPlan: { target_calories: targetCalories, explanation: String(mealPlan.explanation || '').slice(0, 1500), days: normalizedDays },
+        rows,
+        nutritionTargets: calculateNutritionMacroTargets({ targetCalories, fitnessGoal: lifestyle.fitness_goal, dietPreference: lifestyle.diet_preference, weightKg: bodyMetricsRes.data?.weight }),
+        mode: 'recipe' as const,
+      };
+    } catch (recipeError: any) {
+      console.warn('[generateAiMealDraft] Recipe mode failed, falling back to foods mode:', recipeError?.message || recipeError);
     }
-    if (usedDays.size !== expectedDays.length || expectedDays.some((day) => !usedDays.has(day)) || !rows.length) {
-      throw new ApiRequestError(422, { error: 'AI recipe proposal must provide every requested day with valid meals.' });
-    }
-    const targetCalories = Number(lifestyle.target_calories || mealPlan.target_calories || 0);
-    return {
-      mealPlan: { target_calories: targetCalories, explanation: String(mealPlan.explanation || '').slice(0, 1500), days: normalizedDays },
-      rows,
-      nutritionTargets: calculateNutritionMacroTargets({ targetCalories, fitnessGoal: lifestyle.fitness_goal, dietPreference: lifestyle.diet_preference, weightKg: bodyMetricsRes.data?.weight }),
-      mode: 'recipe' as const,
-    };
   }
+
   const foods = buildMealPlanningCatalog(foodRes.data as any[], {
     profile: profileRes.data || {},
     lifestyle,
