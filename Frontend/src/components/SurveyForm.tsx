@@ -1381,7 +1381,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
 
 
   return (
-    <div className={modalMode ? `fixed inset-0 z-[60] flex items-center justify-center ${isWorkoutPlanDesigner ? 'p-4 sm:p-6' : 'p-0 sm:p-5'}` : 'min-h-[100dvh] w-full bg-bg-primary px-3 py-3 sm:px-5 sm:py-5'}>
+    <div className={modalMode ? `fixed inset-0 z-[60] flex items-center justify-center ${isWorkoutPlanDesigner ? 'p-4 sm:p-6' : 'p-0 sm:p-5'}` : 'flex min-h-[100dvh] w-full items-center justify-center bg-bg-primary px-3 py-3 sm:px-5 sm:py-5'}>
       {/* Backdrop */}
       {modalMode ? <div className="themed-modal-backdrop absolute inset-0 backdrop-blur-md" /> : null}
 
@@ -1391,7 +1391,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           ? isWorkoutPlanDesigner
             ? 'max-h-[calc(100dvh-2rem)] max-w-2xl animate-in zoom-in duration-300 sm:max-h-[calc(100dvh-3rem)]'
             : 'max-h-[100dvh] max-w-3xl rounded-none animate-in zoom-in duration-300 sm:max-h-[92dvh]'
-          : 'mx-auto min-h-[calc(100dvh-1.5rem)] max-w-3xl sm:min-h-[calc(100dvh-2.5rem)]'
+          : 'w-full max-w-2xl mx-auto'
       }`}>
 
         {/* Close Button (Only for Profile Editing) */}
@@ -1602,7 +1602,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
               <X className="h-6 w-6" />
             </button>
           ) : null}
-          <div className="w-full my-auto py-2 space-y-6 md:space-y-8">
+          <div className="w-full space-y-6 md:space-y-8">
             <div className="hidden">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">

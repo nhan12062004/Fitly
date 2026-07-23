@@ -250,7 +250,7 @@ export default function Dashboard() {
 
   if (isLoggedIn && location.pathname === '/assessment/survey') {
     return (
-      <div className="min-h-[100dvh] w-full overflow-y-auto bg-bg-primary">
+      <div className="min-h-[100dvh] w-full bg-bg-primary">
         <SurveyForm onComplete={handleSurveyComplete} />
       </div>
     );
