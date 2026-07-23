@@ -1386,12 +1386,12 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       {modalMode ? <div className="themed-modal-backdrop absolute inset-0 backdrop-blur-md" /> : null}
 
       {/* Modal Content */}
-      <div className={`relative flex w-full flex-col overflow-hidden bg-transparent ${
+      <div className={`relative flex w-full flex-col ${
         modalMode
           ? isWorkoutPlanDesigner
-            ? 'max-h-[calc(100dvh-2rem)] max-w-2xl animate-in zoom-in duration-300 sm:max-h-[calc(100dvh-3rem)]'
-            : 'max-h-[100dvh] max-w-3xl rounded-none animate-in zoom-in duration-300 sm:max-h-[92dvh]'
-          : 'w-full max-w-2xl mx-auto'
+            ? 'max-h-[calc(100dvh-2rem)] max-w-2xl animate-in zoom-in duration-300 sm:max-h-[calc(100dvh-3rem)] overflow-hidden'
+            : 'max-h-[100dvh] max-w-3xl rounded-none animate-in zoom-in duration-300 sm:max-h-[92dvh] overflow-hidden'
+          : 'max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto custom-scrollbar sm:max-h-[calc(100dvh-2.5rem)]'
       }`}>
 
         {/* Close Button (Only for Profile Editing) */}
@@ -1503,7 +1503,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           </div>
         </aside>
 
-        <div className={`flex min-h-0 flex-1 flex-col ${isWorkoutPlanDesigner ? 'bg-transparent' : 'bg-bg-primary'} ${modalMode ? (isWorkoutPlanDesigner ? 'max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]' : 'max-h-[100dvh] sm:max-h-[92dvh]') : ''}`}>
+        <div className={`flex w-full flex-col ${isWorkoutPlanDesigner ? 'bg-transparent' : 'bg-bg-primary'} ${modalMode ? (isWorkoutPlanDesigner ? 'max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)]' : 'max-h-[100dvh] sm:max-h-[92dvh]') : ''}`}>
           <div className="hidden">
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0">
@@ -1591,7 +1591,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           </div>
 
         {/* Form Body */}
-        <form id="survey-form" onSubmit={handleSubmit} className={`custom-scrollbar relative mx-auto flex w-full max-w-2xl flex-1 flex-col overflow-y-auto px-0 ${isWorkoutPlanDesigner ? 'py-0' : 'py-4 md:py-6'} sm:px-0 md:px-0`}>
+        <form id="survey-form" onSubmit={handleSubmit} className={`relative mx-auto flex w-full max-w-2xl flex-col px-0 ${isWorkoutPlanDesigner ? 'py-0' : 'py-2 md:py-4'} sm:px-0 md:px-0`}>
           {isWorkoutPlanDesigner && onClose ? (
             <button
               type="button"

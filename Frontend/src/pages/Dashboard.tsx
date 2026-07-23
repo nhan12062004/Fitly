@@ -249,11 +249,7 @@ export default function Dashboard() {
   }
 
   if (isLoggedIn && location.pathname === '/assessment/survey') {
-    return (
-      <div className="min-h-[100dvh] w-full bg-bg-primary">
-        <SurveyForm onComplete={handleSurveyComplete} />
-      </div>
-    );
+    return <SurveyForm onComplete={handleSurveyComplete} />;
   }
 
   if (isLoggedIn && surveyPlanSummary && (location.pathname === '/assessment' || location.pathname === '/assessment/meals')) {
