@@ -2838,24 +2838,20 @@ app.post('/api/meal-plans/validate-foods', async (req, res) => {
     ));
     if (foodIds.length === 0 && recipeIds.length === 0) return res.json({ success: true });
 
-    const [profileRes, lifestyleRes, healthRes, foodsRes, recipesRes] = await Promise.all([
+    const [profileRes, lifestyleRes, healthRes, recipesRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
-      supabase.from('foods').select('id, name, category, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, goal_type').in('id', foodIds),
-      supabase.from('recipes').select('id, name, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, calories, protein, carbs, fat, cooking_time_minutes, cooking_difficulty, allergens, instructions, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source))').in('id', recipeIds),
+      supabase.from('recipes').select('id, name, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, calories, protein, carbs, fat, cooking_time_minutes, cooking_difficulty, allergens, instructions, is_active, recipe_ingredients(id, recipe_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index)').in('id', recipeIds.length > 0 ? recipeIds : foodIds),
     ]);
-    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, foodsRes.error, recipesRes.error].find(Boolean);
+    const firstError = [profileRes.error, lifestyleRes.error, healthRes.error, recipesRes.error].find(Boolean);
     if (firstError) throw firstError;
     const context = { profile: profileRes.data || {}, lifestyle: lifestyleRes.data || {}, health: healthRes.data || {} };
-    const byId = new Map((foodsRes.data || []).map((food: any) => [String(food.id), food]));
-    const rejected = foodIds.flatMap((foodId) => {
-      const decision = getFoodSafetyDecision(byId.get(foodId), context);
-      return decision.allowed ? [] : [{ food_id: foodId, reasons: decision.reasons }];
-    });
+    const rejected: any[] = [];
     const recipeContext = buildRecipeEligibilityContext(context);
     const recipeById = new Map((recipesRes.data || []).map((recipe: any) => [String(recipe.id), recipe]));
-    recipeIds.forEach((recipeId) => {
+    const targetCheckIds = recipeIds.length > 0 ? recipeIds : foodIds;
+    targetCheckIds.forEach((recipeId) => {
       const decision = filterEligibleRecipes([recipeById.get(recipeId)].filter(Boolean), recipeContext);
       if (decision.length !== 1) rejected.push({ food_id: recipeId, reasons: ['ineligible_recipe'] });
     });
@@ -2868,7 +2864,7 @@ app.post('/api/meal-plans/validate-foods', async (req, res) => {
   }
 });
 
-const RECIPE_WITH_INGREDIENTS_SELECT = '*, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, name, category, allergens, dietary_tags, ingredient_metadata, animal_source))';
+const RECIPE_WITH_INGREDIENTS_SELECT = '*, recipe_ingredients(id, recipe_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index)';
 
 const sanitizeRecipeAdminPayload = (source: unknown) => {
   const raw = source && typeof source === 'object' ? source as Record<string, unknown> : {};
@@ -3883,7 +3879,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
     const weeklyFoodPlanQuery = requestedWeekStartDate
       ? supabase
           .from('weekly_food_plans')
-          .select('id, weekly_food_items(id, day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level))')
+          .select('id, weekly_food_items(id, day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, recipes:recipe_id(id, name, meal_type, calories, protein, carbs, fat, goal_type, price_level))')
           .eq('user_id', authUserId)
           .eq('week_start_date', requestedWeekStartDate)
           .eq('plan_status', 'active')
@@ -3892,7 +3888,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
           .maybeSingle()
       : supabase
           .from('weekly_food_plans')
-          .select('id, weekly_food_items(id, day_of_week, meal_type, food_id, quantity, calories, protein, carbs, fat, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level))')
+          .select('id, weekly_food_items(id, day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, recipes:recipe_id(id, name, meal_type, calories, protein, carbs, fat, goal_type, price_level))')
           .eq('user_id', authUserId)
           .eq('plan_status', 'active')
           .order('updated_at', { ascending: false })
@@ -3967,7 +3963,7 @@ app.post('/api/ai/chat', aiLimiter, async (req, res) => {
         .in('log_date', recentDateKeys),
       supabase
         .from('daily_meal_logs')
-        .select('log_date, meal_type, food_id, quantity, calories, protein, carbs, fat, custom_food_name, foods:food_id(id, name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
+        .select('log_date, meal_type, recipe_id, quantity, calories, protein, carbs, fat, custom_food_name, recipes:recipe_id(id, name, meal_type, calories, protein, carbs, fat, goal_type, price_level)')
         .eq('user_id', authUserId)
         .in('log_date', recentDateKeys)
         .order('log_date', { ascending: false })

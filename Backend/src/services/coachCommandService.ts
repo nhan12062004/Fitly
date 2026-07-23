@@ -315,7 +315,7 @@ export const buildMealReport = async (profile: ProfileLike) => {
 
   const itemsRes = await supabase
     .from('weekly_food_items')
-    .select('day_of_week, meal_type, quantity, calories, protein, carbs, fat, is_rest_day, order_index, foods:food_id(name, category, serving_unit)')
+    .select('day_of_week, meal_type, quantity, calories, protein, carbs, fat, is_rest_day, order_index, recipes:recipe_id(name, meal_type, serving_unit)')
     .eq('food_plan_id', latestPlan.id)
     .eq('day_of_week', todayDayIndex)
     .order('order_index', { ascending: true });
@@ -423,7 +423,7 @@ export const buildCoachDataContext = async (userId: string) => {
     latestFoodPlan?.id
       ? supabase
         .from('weekly_food_items')
-        .select('day_of_week, meal_type, quantity, calories, protein, carbs, fat, is_rest_day, order_index, foods:food_id(name, category, serving_unit)')
+        .select('day_of_week, meal_type, quantity, calories, protein, carbs, fat, is_rest_day, order_index, recipes:recipe_id(name, meal_type, serving_unit)')
         .eq('food_plan_id', latestFoodPlan.id)
         .order('day_of_week', { ascending: true })
         .order('order_index', { ascending: true })
