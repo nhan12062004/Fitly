@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -15,6 +16,7 @@ import {
   Sparkles,
   User,
   X,
+
 } from 'lucide-react';
 import ScrollReveal from '../components/ScrollReveal';
 import { useAuth } from '../contexts/AuthContext';
@@ -55,7 +57,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
-  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
+  const [hasAcceptedTerms, setHasAcceptedTerms] = useState(true);
 
   useEffect(() => {
     setIsLogin(initialMode === 'login');
@@ -317,12 +319,20 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
               </div>
 
               <form onSubmit={handleAuth} className="mt-6 space-y-4">
+                {error && (
+                  <div className="flex items-start gap-3 rounded-lg border border-red-500/35 bg-red-500/10 p-4 text-sm font-semibold leading-6 text-red-400">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-400" />
+                    <p>{error}</p>
+                  </div>
+                )}
+
                 {isVerifiedEmail && (
                   <div className="flex items-start gap-3 rounded-lg border border-accent/35 bg-accent/10 p-4 text-sm font-semibold leading-6 text-text-secondary">
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
                     <p>Email đã được xác thực thành công. Vui lòng đăng nhập để tiếp tục.</p>
                   </div>
                 )}
+
 
                 {!isLogin && (
                   <div className="space-y-2">
@@ -438,9 +448,10 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
 
                 <button
                   type="submit"
-                  disabled={loading || (!isLogin && !hasAcceptedTerms)}
+                  disabled={loading}
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-70"
                 >
+
                   {loading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (

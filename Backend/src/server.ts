@@ -1325,11 +1325,11 @@ async function generateWeeklyCoachPlanForUser(params: {
     lifestyleRes,
     healthRes,
     exerciseCatalogRes,
-    foodCatalogRes,
     recipeCatalogRes,
     recentSessionsRes,
     recentMealsRes,
     recentMealLogsRes
+
   ] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('body_metrics').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -1340,13 +1340,8 @@ async function generateWeeklyCoachPlanForUser(params: {
       .select('id, name, body_part, target_muscle, secondary_muscles, equipment, training_locations, difficulty, min_experience_months, progression_level, goal_type, contraindications, estimated_duration_seconds, calories_per_minute, movement_pattern')
       .limit(AI_EXERCISE_CATALOG_FETCH_LIMIT),
     supabase
-      .from('foods')
-      .select('id, name, category, calories, protein, carbs, fat, serving_unit, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
-      .order('created_at', { ascending: false })
-      .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
-    supabase
       .from('recipes')
-      .select('id, name, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, calories, protein, carbs, fat, serving_unit, cooking_time_minutes, cooking_difficulty, allergens, instructions, image_url, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source, calories, protein, carbs, fat, serving_unit))')
+      .select('id, name, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, calories, protein, carbs, fat, serving_unit, cooking_time_minutes, cooking_difficulty, allergens, instructions, image_url, is_active, recipe_ingredients(id, recipe_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index)')
       .eq('is_active', true)
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
     supabase
@@ -1357,14 +1352,14 @@ async function generateWeeklyCoachPlanForUser(params: {
       .limit(20),
     supabase
       .from('weekly_food_items')
-      .select('day_of_week, meal_type, food_id, recipe_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level), recipes:recipe_id(name, meal_type, price_level)')
+      .select('day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, weekly_food_plans!inner(user_id), recipes:recipe_id(name, meal_type, price_level)')
       .eq('weekly_food_plans.user_id', userId)
       .eq('weekly_food_plans.plan_status', 'active')
       .order('created_at', { ascending: false })
       .limit(20),
     supabase
       .from('daily_meal_logs')
-      .select('log_date, meal_type, food_id, quantity, calories, protein, carbs, fat, custom_food_name, foods:food_id(name, category, calories, protein, carbs, fat, meal_type, goal_type, price_level)')
+      .select('log_date, meal_type, quantity, calories, protein, carbs, fat, custom_food_name')
       .eq('user_id', userId)
       .order('log_date', { ascending: false })
       .limit(40)
@@ -1376,13 +1371,13 @@ async function generateWeeklyCoachPlanForUser(params: {
     lifestyleRes.error,
     healthRes.error,
     exerciseCatalogRes.error,
-    foodCatalogRes.error,
     recipeCatalogRes.error,
     recentSessionsRes.error,
     recentMealsRes.error,
     recentMealLogsRes.error
   ].find(Boolean);
   if (firstError) throw firstError;
+
 
   let profile = profileRes.data || {};
   const bodyMetrics = bodyMetricsRes.data || {};
@@ -1420,7 +1415,8 @@ async function generateWeeklyCoachPlanForUser(params: {
 
   const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
   const compactRecipes = buildCompactRecipeCatalog(eligibleRecipes, AI_FOOD_CATALOG_LIMIT);
-  const foods = buildMealPlanningCatalog(foodCatalogRes.data as any[], {
+  const foods = buildMealPlanningCatalog([], {
+
     profile,
     lifestyle,
     health,
@@ -5704,23 +5700,20 @@ const generateAiMealDraft = async (params: {
     throw new ApiRequestError(500, { error: 'Missing GROQ_API_KEY in server config' });
   }
 
-  const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, foodRes, recipeRes] = await Promise.all([
+  const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, recipeRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('body_metrics').select('weight').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
     supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
     supabase
-      .from('foods')
-      .select('id, name, category, calories, protein, carbs, fat, serving_unit, image_url, meal_type, goal_type, allergens, dietary_tags, ingredient_metadata, animal_source, is_active, price_level, cooking_time_minutes, region, is_easy_to_prepare')
-      .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
-    supabase
       .from('recipes')
-      .select('id, name, name_en, description, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, estimated_cost_min_vnd, estimated_cost_max_vnd, calories, protein, carbs, fat, serving_size, serving_unit, cooking_time_minutes, cooking_difficulty, allergens, instructions, image_url, region, is_active, recipe_ingredients(id, recipe_id, food_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index, foods:food_id(id, category, allergens, dietary_tags, ingredient_metadata, animal_source, calories, protein, carbs, fat, serving_unit))')
+      .select('id, name, name_en, description, meal_type, dietary_restrictions, diet_styles, goal_type, price_level, estimated_cost_min_vnd, estimated_cost_max_vnd, calories, protein, carbs, fat, serving_size, serving_unit, cooking_time_minutes, cooking_difficulty, allergens, instructions, image_url, region, is_active, recipe_ingredients(id, recipe_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index)')
       .eq('is_active', true)
       .limit(AI_FOOD_CATALOG_FETCH_LIMIT),
   ]);
-  const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, foodRes.error, recipeRes.error].find(Boolean);
+  const firstError = [profileRes.error, bodyMetricsRes.error, lifestyleRes.error, healthRes.error, recipeRes.error].find(Boolean);
   if (firstError) throw firstError;
+
   if (!profileRes.data?.id) {
     throw new ApiRequestError(403, { code: 'PROFILE_REQUIRED', error: 'Vui lòng hoàn thành hồ sơ trước.' });
   }
@@ -5824,7 +5817,8 @@ const generateAiMealDraft = async (params: {
     }
   }
 
-  const foods = buildMealPlanningCatalog(foodRes.data as any[], {
+  const foods = buildMealPlanningCatalog([], {
+
     profile: profileRes.data || {},
     lifestyle,
     health,
@@ -5840,6 +5834,7 @@ const generateAiMealDraft = async (params: {
     : `exactly one day with day_of_week=${targetDayIndex}`;
   const requestLabel = scope === 'week' ? 'a 7-day meal plan' : `the meal plan for day index ${targetDayIndex}`;
   const prompt = `Generate ${requestLabel} only. Return valid JSON only.\nUSER: diet=${lifestyle.diet_preference || ''}; cooking=${lifestyle.cooking_ability || ''}; budget=${lifestyle.budget_level || ''}; goal=${lifestyle.fitness_goal || ''}; target_calories=${lifestyle.target_calories || ''}; meals_per_day=${mealsPerDay}.\n${buildSafetyPromptAddendum(safetyContext)}\nRULES: ${dayRule}; exactly ${mealsPerDay} meals/day using only ${mealSlots.join(', ')}; only FOOD_CATALOG ids; lunch/dinner need carb+protein+vegetable; breakfast needs carb+protein; avoid allergens; do not repeat a food family excessively.\nFOOD_CATALOG:\n${foodCatalog}\nJSON: {"meal_plan":{"target_calories":1800,"explanation":"Vietnamese explanation","days":[{"day_of_week":${scope === 'week' ? 0 : targetDayIndex},"meals":[{"meal_type":"breakfast","food_ids":["catalog id"],"quantities":[1]}]}]}}`;
+  
   const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
@@ -5861,6 +5856,8 @@ const generateAiMealDraft = async (params: {
     workout_plan: { days: [{ day_of_week: 0, is_rest_day: true, exercises: [] }] },
     meal_plan: parsed?.meal_plan,
   }, { requireMealPlan: true });
+
+
   if (scope === 'week') {
     normalizedPlan.mealPlan = startMealPlanOnCreationDay(ensureSevenDayMealPlan(normalizedPlan.mealPlan), weekStartKey);
   } else {
