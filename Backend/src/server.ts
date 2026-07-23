@@ -4994,11 +4994,13 @@ const callGroqWithRetry = async (payload: {
   temperature?: number;
   max_tokens?: number;
 }) => {
-  const primaryModel = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  const primaryModel = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
   const candidateModels = [
     primaryModel,
     'llama-3.1-8b-instant',
-    'mixtral-8x7b-32768',
+    'gemma2-9b-it',
+    'llama3-70b-8192',
+    'llama-3.3-70b-versatile',
   ];
   const models = Array.from(new Set(candidateModels));
 
@@ -5016,7 +5018,7 @@ const callGroqWithRetry = async (payload: {
           model,
           messages: payload.messages,
           temperature: payload.temperature ?? 0.35,
-          max_tokens: payload.max_tokens ?? 1800,
+          max_tokens: payload.max_tokens ?? 1000,
           response_format: { type: 'json_object' },
         }),
       });
@@ -5032,7 +5034,9 @@ const callGroqWithRetry = async (payload: {
       console.warn(`[GroqAPI] Attempt ${attempt + 1} (${model}) network error:`, lastErrorMsg);
     }
     if (attempt < models.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      const isRateLimit = lastErrorMsg.toLowerCase().includes('rate limit');
+      const waitMs = isRateLimit ? 1800 : 400;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
   }
   throw toAiProviderRequestError(lastErrorMsg);
@@ -5468,7 +5472,7 @@ const generateAiMealDraft = async (params: {
     try {
       // Shuffle eligible recipes slightly to give varied recommendations when clicking generate multiple times
       const shuffledEligibleRecipes = [...eligibleRecipes].sort(() => Math.random() - 0.5);
-      const compactRecipes = buildCompactRecipeCatalog(shuffledEligibleRecipes, 32);
+      const compactRecipes = buildCompactRecipeCatalog(shuffledEligibleRecipes, 20);
       const recipeById = new Map(recipeRows.map((recipe) => [String(recipe.id || ''), recipe]));
       const dayRule = scope === 'week'
         ? 'exactly 7 days indexed 0..6, each day exactly once'
@@ -5484,7 +5488,7 @@ const generateAiMealDraft = async (params: {
           { role: 'user', content: prompt }
         ],
         temperature: 0.65,
-        max_tokens: scope === 'week' ? 1800 : 600,
+        max_tokens: scope === 'week' ? 950 : 400,
       });
       const mealPlan = parseJsonFromAiText(result.choices?.[0]?.message?.content || '')?.meal_plan || {};
       const rawDays = Array.isArray(mealPlan.days) ? mealPlan.days : [];
