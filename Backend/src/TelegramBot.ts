@@ -184,7 +184,7 @@ function startTelegramPolling(bot: TelegramBot) {
         })
         .catch((err: any) => {
           if (err?.code === 'ETELEGRAM' && String(err?.message || '').includes('409')) {
-            console.error('❌ Telegram 409: Có nhiều hơn 1 instance bot đang polling. Tắt backend local hoặc chỉ giữ 1 service Render.');
+            console.error('⚠️ Telegram 409 Conflict: Có 2 instance bot đang kết nối cùng lúc (do Render đang deploy bản mới hoặc backend local đang chạy). Bot sẽ tự thử lại.');
           } else {
             console.error('❌ Không thể bật Telegram polling:', err?.message || err);
           }
@@ -1823,7 +1823,7 @@ export const initTelegramBot = () => {
   if (enablePolling) {
     botInstance.on('polling_error', (err: any) => {
       if (err?.code === 'ETELEGRAM' && String(err?.message || '').includes('409')) {
-        console.error('❌ Telegram 409: Có nhiều hơn 1 instance bot đang chạy. Chỉ chạy backend trên Render, tắt npm run dev ở Backend trên máy local.');
+        console.warn('⚠️ Telegram 409 Conflict: Có 2 instance bot đang kết nối cùng lúc (xảy ra vài giây khi Render deploy bản mới). Bot sẽ tự động kết nối lại.');
       } else {
         console.error('❌ Telegram polling_error:', err?.message || err);
       }
