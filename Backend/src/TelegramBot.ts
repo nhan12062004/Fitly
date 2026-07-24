@@ -2602,7 +2602,7 @@ ${COACH_RESPONSE_STYLE_RULES}
           history: history.map((m) => ({ role: m.role, content: m.content })),
           userMessage,
           temperature: 0.7,
-          maxTokens: 260,
+          maxTokens: 650,
         });
 
         // Lưu cả tin nhắn user và assistant vào bộ nhớ
@@ -2632,7 +2632,7 @@ Không chẩn đoán bệnh; với dấu hiệu nguy hiểm hoặc chấn thươ
           history: history.map((m) => ({ role: m.role, content: m.content })),
           userMessage,
           temperature: 0.7,
-          maxTokens: 260,
+          maxTokens: 650,
         });
 
         addToHistory(chatId, 'user', userMessage);
