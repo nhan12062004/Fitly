@@ -262,7 +262,7 @@ export default function SurveyResultScreen({
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px] font-black text-[#cbd5e1] sm:min-w-[190px]">
                   <span className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0b1119] px-3 py-2">
-                    <CalendarDays className="h-3.5 w-3.5 text-[#c8ff19]" />
+                    <CalendarDays className="h-3.5 w-3.5 text-accent" />
                     {summary.weeklyWorkouts} buổi/tuần
                   </span>
                   <span className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0b1119] px-3 py-2">
@@ -276,12 +276,12 @@ export default function SurveyResultScreen({
             <div className="divide-y divide-[#273140]">
               {isGeneratingPlan ? (
                 <div className="flex items-center gap-3 p-4 text-sm font-semibold text-[#9ca8ba] sm:p-5">
-                  <Loader2 className="h-5 w-5 animate-spin text-[#c8ff19]" />
+                  <Loader2 className="h-5 w-5 animate-spin text-accent" />
                   AI đang phân tích hồ sơ và chọn bài tập phù hợp cho hôm nay.
                 </div>
               ) : workoutItems.length > 0 ? workoutItems.map((exercise, index) => (
                 <div key={`${exercise.name}-${index}`} className="grid grid-cols-[36px_minmax(0,1fr)] gap-3 p-4 sm:p-5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#c8ff19]/12 text-[#c8ff19]">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent/12 text-accent">
                     <Dumbbell className="h-4 w-4" strokeWidth={2.4} />
                   </span>
                   <div className="min-w-0">
@@ -421,15 +421,15 @@ export default function SurveyResultScreen({
           </Panel>
 
           {isGeneratingPlan ? (
-            <Panel className="border-[#bfff18]/35 bg-[#bfff18]/10 p-4">
+            <Panel className="border-accent/35 bg-accent/10 p-4">
               <div className="flex gap-3">
                 {isGeneratingPlan ? (
-                  <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[#c8ff19]" />
+                  <Loader2 className="h-5 w-5 shrink-0 animate-spin text-accent" />
                 ) : (
                   <Info className="h-5 w-5 shrink-0 text-red-300" />
                 )}
                 <div>
-                  <p className={`text-sm font-black ${generationError ? 'text-red-300' : 'text-[#c8ff19]'}`}>
+                  <p className={`text-sm font-black ${generationError ? 'text-red-300' : 'text-accent'}`}>
                     {generationError ? 'Chưa tạo được lịch tập AI 7 ngày' : 'AI đang tạo lịch tập 7 ngày'}
                   </p>
                   <p className="mt-1 text-xs font-semibold leading-5 text-[#9ca8ba]">
@@ -448,7 +448,7 @@ export default function SurveyResultScreen({
             type="button"
             onClick={onStart}
             disabled={isGeneratingPlan}
-            className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#c8ff19] px-6 py-4 text-sm font-black text-[#071007] shadow-[0_16px_36px_rgba(200,255,25,0.22)] transition-colors hover:bg-[#b9f40f] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-accent px-6 py-4 text-sm font-black text-text-inverse transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isGeneratingPlan ? (
               <>

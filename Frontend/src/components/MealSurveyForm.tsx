@@ -184,15 +184,19 @@ export default function MealSurveyForm({ onComplete, onBack, isGenerating = fals
         </div>
 
         <div className="mt-5 flex flex-col-reverse gap-3 border-t border-border-primary pt-5 sm:mt-6 sm:flex-row sm:justify-between">
-          <button
-            type="button"
-            onClick={step === 1 ? onBack : () => setStep((current) => current - 1)}
-            disabled={isLoading}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-border-primary px-7 text-sm font-black text-accent transition-colors hover:border-accent/45 hover:bg-bg-secondary disabled:opacity-60"
-          >
-            <ChevronLeft className="h-4 w-4" strokeWidth={3} />
-            Quay lại
-          </button>
+          {step > 1 ? (
+            <button
+              type="button"
+              onClick={() => setStep((current) => current - 1)}
+              disabled={isLoading}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-border-primary px-7 text-sm font-black text-accent transition-colors hover:border-accent/45 hover:bg-bg-secondary disabled:opacity-60"
+            >
+              <ChevronLeft className="h-4 w-4" strokeWidth={3} />
+              Quay lại
+            </button>
+          ) : (
+            <div />
+          )}
           {step < 3 ? (
             <button
               type="button"
