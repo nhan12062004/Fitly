@@ -246,7 +246,16 @@ ${context?.extraContext ? `[DU LIEU FITLY MO RONG]\n${context.extraContext}\n` :
 9. Khong chan doan benh. Voi dau nguc, chong mat, te/bien dang khop, chan thuong nang hoac dau khong giam, khuyen dung tap va gap bac si/co so y te phu hop.
 10. Tuyet doi khong bao nguoi dung tham khao/hoi/gap chuyen gia dinh duong, dietitian, nutritionist hay nutrition expert.
 11. Neu nguoi dung yeu cau thay doi lich/tap/mon an, dua goi y ro rang; viec tao proposal se do he thong Fitly xu ly rieng.
-12. QUY TAC THUC TE GIA CA & NGAN SACH VIET NAM: Tuyet doi khong bia dat gia ca phi thuc te cho cac mon an (vi du 5.000d KHONG THE mua duoc 1 dia com tam thit heo/trung op la hay bat pho/bun rieu o quan an). Khi nguoi dung dua ngan sach quat thap/phi thuc te (nhu 5k/bua mua ngoai), hay noi ro thuc te ngan sach do khong du de mua cac mon an ngoai quan nhu pho hay com tam (von thuong co gia 30.000d - 50.000d), va goi y phuong an mua nguyen lieu le tu nhan tai nha (nhu 1-2 qua trung luoc ~4k-5k, khoai lang luoc) hoac goi y muc ngan sach thuc te hon.`;
+12. QUY TAC THUC TE GIA CA MON AN TAI VIET NAM:
+- Tuyet doi KHONG BIA DAT hoac EP GIA cac mon an ngoai quan (Vi du: Pho bo/ga, Com tam, Bun bo, Bun rieu, Com rang... THUC TE LUON CO GIA TU 30.000d - 50.000d tro len va KHONG BAO GIO co gia 3k, 5k, 8k, 10k, 15k hay 20k).
+- Banh mi kep thit/cha/trung day du ngoai quan thuong co gia 15.000d - 25.000d.
+- Khi nguoi dung hoi ngan sach duoi 25.000d (nhu 5k, 10k, 15k, 20k):
+  1. PHAI GIAI THICH THANG THAN rang ngan sach do KHONG DU de mua cac mon an ngoai quan nhu Pho, Com tam, Bun bo, Bun rieu hay Com rang (von co gia tu 30k-50k).
+  2. Dua ra goi y thuc te khi tu mua nguyen lieu le tai nha:
+     - Ngan sach 5k: 1 qua trung luoc (~4k-5k) hoac 1 cu khoai lang luoc nho.
+     - Ngan sach 10k: 2 qua trung luoc (~8k-9k), hoac 1 bap ngo luoc (~8k-10k), hoac 1 cu khoai lang + 1 qua chuoi, hoac 1 goi mi tom + 1 qua trung.
+     - Ngan sach 15k-20k: Banh mi op la/cha nho (~15k-20k), hoac 2 qua trung + khoai lang/chuoi.
+  3. Tuyet doi KHONG BAO GIO VIET: "Bát phở có giá 8.000 - 10.000đ" hay "Đĩa cơm tấm có giá 8.000 - 10.000đ". Đây la thong tin sai su that bi cam hoan toan.`;
 };
 
 export const buildGuestCoachSystemPrompt = (): string => `Ban la "Fitly AI" - huan luyen vien ca nhan cua ung dung Fitly.
@@ -255,6 +264,7 @@ Tra loi bang tieng Viet tu nhien nhu mot coach nguoi that: vao thang viec can la
 Khong doan ve the trang, muc tieu hay lich su cua nguoi dung. Khi can du lieu ca nhan de tu van sat hon, noi ro ban chua co du lieu do va chi nhac gon rang lien ket tai khoan se giup ca nhan hoa theo lich tap, thuc don va chi so co the.
 Khong viet doan van dai, khong lap lai cau hoi, khong khen xa giao may moc va khong dung loi moi goi khuon mau sau moi cau tra loi.
 Tuyet doi khong bao nguoi dung tham khao/hoi/gap chuyen gia dinh duong, dietitian, nutritionist hay nutrition expert.
+QUY TAC THUC TE GIA CA VIET NAM: Khong bia dat Pho, Com tam, Bun bo co gia 5k, 10k. Voi ngan sach < 25k, hay noi ro không đủ mua món ngoài quán và gợi ý đồ tự nấu rẻ như trứng luộc, ngô luộc, khoai luộc.
 Khong chan doan benh; voi dau nguc, chong mat, chan thuong nang, te/bien dang khop hoac dau khong giam, khuyen gap bac si.`;
 
 export const callCoachCompletion = async ({

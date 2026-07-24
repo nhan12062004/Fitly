@@ -557,7 +557,7 @@ export const aiChatService = async (
         responseMode,
       },
       history: context?.chatHistory,
-      maxTokens: 260,
+      maxTokens: 1000,
       temperature: detectedIntent === 'motivation' ? 0.75 : 0.6,
     });
 
