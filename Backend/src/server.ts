@@ -782,55 +782,113 @@ const balanceWorkoutDays = (workoutPlan: NormalizedAiPlan['workoutPlan'], weekly
   };
 };
 
+const getDayName = (dayIndex: number) => {
+  const names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  return names[Math.max(0, Math.min(6, dayIndex))] || 'Monday';
+};
+
 // Weekly plans are stored Monday–Sunday so they can be materialized into
-// calendar dates consistently. When a user creates a plan mid-week, rotate
-// the AI's sequence so its first workout lands on today rather than leaving
-// the user with a rest day on their first visit.
+// calendar dates consistently. When a user creates a plan mid-week,
+// ensure no workouts are scheduled on days before creation date (past days),
+// and assign training sessions starting directly on TODAY.
 const startWorkoutPlanOnCreationDay = (
   workoutPlan: NormalizedAiPlan['workoutPlan'],
-  planStartKey: string,
+  _planStartKey?: string,
 ) => {
   const todayKey = getVietnamDateKey();
-  if (planStartKey !== todayKey) return workoutPlan;
+  const todayDate = new Date(`${todayKey}T00:00:00`);
+  const day = todayDate.getDay();
+  const todayDayIndex = day === 0 ? 6 : day - 1; // 0=Mon, 1=Tue, ..., 6=Sun
 
-  const firstTrainingDay = [...workoutPlan.days]
-    .sort((a, b) => a.day_of_week - b.day_of_week)
-    .find((day) => !day.is_rest_day && day.exercises.length > 0);
-  if (!firstTrainingDay) return workoutPlan;
+  // Extract all non-rest training days from AI proposal
+  const trainingDays = workoutPlan.days.filter(
+    (item) => !item.is_rest_day && Array.isArray(item.exercises) && item.exercises.length > 0
+  );
 
-  const offset = (7 - firstTrainingDay.day_of_week) % 7;
-  if (offset === 0) return workoutPlan;
+  if (trainingDays.length === 0) return workoutPlan;
+
+  // If created on Monday (0), no past days in this calendar week
+  if (todayDayIndex === 0) {
+    return {
+      ...workoutPlan,
+      days: workoutPlan.days.map((item, idx) => ({
+        ...item,
+        day_of_week: Number(item.day_of_week ?? idx),
+      })),
+    };
+  }
+
+  // Re-map 7 days (0..6):
+  // Days < todayDayIndex (past days in current week) -> Forced rest days (no workouts in the past!)
+  // Days >= todayDayIndex -> Assigned training sessions starting from TODAY
+  const newDays = Array.from({ length: 7 }, (_, d) => {
+    if (d < todayDayIndex) {
+      return {
+        day: getDayName(d),
+        day_of_week: d,
+        type: 'rest',
+        duration_minutes: 0,
+        is_rest_day: true,
+        exercises: [],
+      };
+    }
+
+    const trainingIdx = d - todayDayIndex;
+    if (trainingIdx < trainingDays.length) {
+      return {
+        ...trainingDays[trainingIdx],
+        day: getDayName(d),
+        day_of_week: d,
+      };
+    }
+
+    return {
+      day: getDayName(d),
+      day_of_week: d,
+      type: 'rest',
+      duration_minutes: 0,
+      is_rest_day: true,
+      exercises: [],
+    };
+  });
 
   return {
     ...workoutPlan,
-    days: workoutPlan.days.map((day) => ({
-      ...day,
-      day_of_week: (day.day_of_week + offset) % 7,
-    })),
+    days: newDays,
   };
 };
 
 const startMealPlanOnCreationDay = (
   mealPlan: NormalizedAiPlan['mealPlan'],
-  planStartKey: string,
+  _planStartKey?: string,
 ) => {
   const todayKey = getVietnamDateKey();
-  if (planStartKey !== todayKey) return mealPlan;
+  const todayDate = new Date(`${todayKey}T00:00:00`);
+  const day = todayDate.getDay();
+  const todayDayIndex = day === 0 ? 6 : day - 1;
 
-  const firstMealDay = [...mealPlan.days]
-    .sort((a, b) => a.day_of_week - b.day_of_week)
-    .find((day) => day.meals.length > 0);
-  if (!firstMealDay) return mealPlan;
+  if (todayDayIndex === 0) return mealPlan;
 
-  const offset = (7 - firstMealDay.day_of_week) % 7;
-  if (offset === 0) return mealPlan;
+  const validDays = mealPlan.days.filter(
+    (item) => Array.isArray(item.meals) && item.meals.length > 0
+  );
+
+  if (validDays.length === 0) return mealPlan;
+
+  const newDays = Array.from({ length: 7 }, (_, d) => {
+    const mealIdx = (d - todayDayIndex + 7) % validDays.length;
+    const sourceDay = validDays[mealIdx < validDays.length ? mealIdx : 0];
+
+    return {
+      ...sourceDay,
+      day: getDayName(d),
+      day_of_week: d,
+    };
+  });
 
   return {
     ...mealPlan,
-    days: mealPlan.days.map((day) => ({
-      ...day,
-      day_of_week: (day.day_of_week + offset) % 7,
-    })),
+    days: newDays,
   };
 };
 
