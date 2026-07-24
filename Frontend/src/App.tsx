@@ -24,8 +24,6 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import WorkoutSession from './pages/WorkoutSession';
 
-const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'));
-
 function ScrollToTop() {
   const { pathname } = useLocation();
 
