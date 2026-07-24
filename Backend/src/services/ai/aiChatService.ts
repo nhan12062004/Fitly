@@ -2,6 +2,7 @@ import { askFitlyCoach } from './coachConversationService';
 import { getResponseModeForIntent, normalizeVietnameseText } from './aiRouterService';
 import { AIChatContext, AIChatMealSummary, AIChatResponse, AIIntent } from './types';
 import { normalizeAllergies, normalizeDietaryRestrictions } from '../../../../shared/dietaryPreferences';
+import { fetchRealtimeMarketPrices, isMarketPriceQuery } from './marketPriceService';
 
 const getMealTypeLabel = (mealType?: string | null): string => {
   const key = String(mealType || '').toLowerCase();
@@ -548,10 +549,19 @@ export const aiChatService = async (
   }
 
   try {
+    let extraContext = context?.extraContext || '';
+    if (isMarketPriceQuery(message)) {
+      const priceData = await fetchRealtimeMarketPrices(message);
+      if (priceData && priceData.summary) {
+        extraContext = `${extraContext}\n[DỮ LIỆU GIÁ THỊ TRƯỜNG THỜI GIAN THỰC TRA CỨU TỪ WEB HÔM NAY (${priceData.searchedAt})]:\n${priceData.summary}`.trim();
+      }
+    }
+
     const aiReply = await askFitlyCoach({
       userMessage: message,
       context: {
         ...context,
+        extraContext,
         platform: 'web',
         detectedIntent,
         responseMode,

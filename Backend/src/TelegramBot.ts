@@ -9,6 +9,7 @@ import {
   getExerciseEligibilityDecision,
 } from './services/exerciseCatalogService';
 import { callCoachCompletion, COACH_RESPONSE_STYLE_RULES } from './services/ai/coachConversationService';
+import { fetchRealtimeMarketPrices, isMarketPriceQuery } from './services/ai/marketPriceService';
 import {
   analyzeMealPhotoCalories,
   answerVoiceCoachQuestion,
@@ -2551,6 +2552,14 @@ export const initTelegramBot = () => {
         const weeklyWorkoutDays = trainingContext.trainingPrescription.weeklyWorkouts;
         const coachDataContext = await buildCoachDataContext(userProfile.id);
 
+        let marketPriceContext = '';
+        if (isMarketPriceQuery(userMessage)) {
+          const priceData = await fetchRealtimeMarketPrices(userMessage);
+          if (priceData && priceData.summary) {
+            marketPriceContext = `[DỮ LIỆU GIÁ THỊ TRƯỜNG THỜI GIAN THỰC TRA CỨU TỪ WEB HÔM NAY (${priceData.searchedAt})]:\n${priceData.summary}\n`;
+          }
+        }
+
         // === XÂY DỰNG SYSTEM PROMPT CHUYÊN NGHIỆP ===
         const systemPrompt = `Bạn là "Fitly AI" — Huấn luyện viên cá nhân của ứng dụng Fitly.
 
@@ -2575,6 +2584,7 @@ ${actionLog ? `[HỆ THỐNG VỪA THỰC HIỆN]\n${actionLog}` : ''}
 
 [DU LIEU FITLY MO RONG]
 ${coachDataContext}
+${marketPriceContext}
 
 [QUY TAC SU DUNG DU LIEU]
 - Khi người dùng hỏi "mai", "ngày mai", "tomorrow", dùng ngày mai (${addDaysToDateKey(today, 1)}) và day_of_week index = ${(getVietnamDayIndex(today) + 1) % 7} trong lịch tuần để trả lời.
