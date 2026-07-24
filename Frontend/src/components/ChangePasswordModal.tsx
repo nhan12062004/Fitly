@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { Lock, Loader2, X, Eye, EyeOff } from 'lucide-react';
+import { Lock, Loader2, X, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from './ToastProvider';
+import PasswordRequirements from './PasswordRequirements';
+import { parsePasswordError, validatePassword } from '../lib/passwordValidator';
 interface ChangePasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -36,13 +38,13 @@ const [oldPassword, setOldPassword] = useState('');
       return;
     }
 
-    if (newPassword.length < 6) {
-      setMessage({ type: 'error', text: "Mật khẩu mới phải có ít nhất 6 ký tự" });
+    if (!validatePassword(newPassword).isValid) {
+      setMessage({ type: 'error', text: 'Mật khẩu mới chưa đủ mạnh. Vui lòng thỏa mãn đủ 4 tiêu chí bên dưới.' });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setMessage({ type: 'error', text: "Mật khẩu xác nhận không khớp" });
+      setMessage({ type: 'error', text: 'Mật khẩu xác nhận không khớp' });
       return;
     }
 
@@ -74,7 +76,7 @@ const [oldPassword, setOldPassword] = useState('');
         setMessage({ type: '', text: '' });
       }, 2000);
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || "Có lỗi xảy ra, vui lòng thử lại" });
+      setMessage({ type: 'error', text: parsePasswordError(err.message) || 'Có lỗi xảy ra, vui lòng thử lại' });
     } finally {
       setLoading(false);
     }
@@ -123,7 +125,7 @@ const [oldPassword, setOldPassword] = useState('');
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 text-sm outline-none focus:border-accent text-text-primary pr-12"
-                placeholder={"Nhập ít nhất 6 ký tự"}
+                placeholder={"Nhập mật khẩu mới"}
               />
               <button
                 type="button"
@@ -133,18 +135,34 @@ const [oldPassword, setOldPassword] = useState('');
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <PasswordRequirements password={newPassword} />
           </div>
 
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider ml-1">{"Xác nhận mật khẩu"}</label>
-            <input
-              required
-              type={showPassword ? "text" : "password"}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-3 px-4 text-sm outline-none focus:border-accent text-text-primary"
-              placeholder={"Nhập lại mật khẩu mới"}
-            />
+            <div className="relative">
+              <input
+                required
+                type={showPassword ? "text" : "password"}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className={`w-full bg-bg-tertiary border rounded-xl py-3 pl-4 pr-12 text-sm outline-none transition-colors text-text-primary ${
+                  confirmPassword.length > 0
+                    ? confirmPassword !== newPassword
+                      ? 'border-red-500 bg-red-500/5 focus:border-red-500'
+                      : 'border-accent/70 bg-accent/5 focus:border-accent'
+                    : 'border-border-primary focus:border-accent'
+                }`}
+                placeholder={"Nhập lại mật khẩu mới"}
+              />
+              {confirmPassword.length > 0 && (
+                confirmPassword !== newPassword ? (
+                  <AlertCircle className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-red-500 animate-in fade-in zoom-in duration-200" />
+                ) : (
+                  <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-accent animate-in fade-in zoom-in duration-200" />
+                )
+              )}
+            </div>
           </div>
 
           <button

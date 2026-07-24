@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Eye, EyeOff, KeyRound, Loader2, Lock } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, KeyRound, Loader2, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { useToast } from '../components/ToastProvider';
+import PasswordRequirements from '../components/PasswordRequirements';
+import { parsePasswordError, validatePassword } from '../lib/passwordValidator';
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
@@ -41,8 +43,8 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (password.length < 6) {
-      toast.error('Mật khẩu mới phải có ít nhất 6 ký tự');
+    if (!validatePassword(password).isValid) {
+      toast.error('Mật khẩu mới chưa đủ mạnh. Vui lòng thỏa mãn đủ 4 tiêu chí bên dưới.');
       return;
     }
 
@@ -59,7 +61,7 @@ export default function ResetPasswordPage() {
       toast.success('Đổi mật khẩu thành công. Bạn có thể tiếp tục sử dụng Fitly.');
       navigate('/overview', { replace: true });
     } catch (err: any) {
-      toast.error(err.message || 'Không thể đổi mật khẩu, vui lòng mở lại link trong email');
+      toast.error(parsePasswordError(err.message) || 'Không thể đổi mật khẩu, vui lòng mở lại link trong email');
     } finally {
       setLoading(false);
     }
@@ -91,16 +93,15 @@ export default function ResetPasswordPage() {
           ) : hasRecoverySession ? (
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-text-secondary">Mật khẩu mới</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-text-secondary">MẬT KHẨU MỚI</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Ít nhất 6 ký tự"
+                    placeholder="********"
                     className="landing-input h-12 w-full rounded-xl border border-border-primary pl-11 pr-12 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-accent"
                   />
                   <button
@@ -111,21 +112,34 @@ export default function ResetPasswordPage() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                <PasswordRequirements password={password} />
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-text-secondary">Xác nhận mật khẩu</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-text-secondary">XÁC NHẬN MẬT KHẨU</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    minLength={6}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Nhập lại mật khẩu mới"
-                    className="landing-input h-12 w-full rounded-xl border border-border-primary pl-11 pr-4 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-accent"
+                    placeholder="********"
+                    className={`landing-input h-12 w-full rounded-xl border pl-11 pr-12 text-sm font-semibold text-text-primary outline-none transition-colors placeholder:text-text-tertiary ${
+                      confirmPassword.length > 0
+                        ? confirmPassword !== password
+                          ? 'border-red-500 bg-red-500/5 focus:border-red-500'
+                          : 'border-accent/70 bg-accent/5 focus:border-accent'
+                        : 'border-border-primary focus:border-accent'
+                    }`}
                   />
+                  {confirmPassword.length > 0 && (
+                    confirmPassword !== password ? (
+                      <AlertCircle className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-red-500 animate-in fade-in zoom-in duration-200" />
+                    ) : (
+                      <CheckCircle2 className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 text-accent animate-in fade-in zoom-in duration-200" />
+                    )
+                  )}
                 </div>
               </div>
 

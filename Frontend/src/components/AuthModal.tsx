@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Lock, User, Loader2, Eye, EyeOff } from 'lucide-react';
+import { X, Mail, Lock, User, Loader2, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { useToast } from './ToastProvider';
+import PasswordRequirements from './PasswordRequirements';
+import { parsePasswordError, validatePassword } from '../lib/passwordValidator';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -57,6 +59,9 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
         if (error) throw error;
         onClose();
       } else {
+        if (!validatePassword(password).isValid) {
+          throw new Error('Mật khẩu chưa đủ mạnh. Vui lòng thỏa mãn đủ 4 tiêu chí bên dưới.');
+        }
         if (password !== confirmPassword) {
           throw new Error('Mật khẩu không khớp');
         }
@@ -85,17 +90,7 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
         setIsEmailSent(true);
       }
     } catch (err: any) {
-      let errorMessage = err.message;
-      if (errorMessage === 'Invalid login credentials') {
-        errorMessage = 'Email hoặc mật khẩu không chính xác';
-      } else if (errorMessage === 'User already registered') {
-        errorMessage = 'Email này đã được đăng ký';
-      } else if (errorMessage.includes('Password should be at least')) {
-        errorMessage = 'Mật khẩu phải có ít nhất 6 ký tự';
-      } else if (errorMessage === 'Email not confirmed') {
-        errorMessage = 'Vui lòng xác nhận email trước khi đăng nhập';
-      }
-      setError(errorMessage);
+      setError(parsePasswordError(err.message));
     } finally {
       setLoading(false);
     }
@@ -207,7 +202,9 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-text-secondary ml-1">Mật khẩu</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-text-secondary ml-1">
+                {isLogin ? 'Mật khẩu' : 'MẬT KHẨU'}
+              </label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
                 <input
@@ -226,11 +223,14 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {!isLogin && <PasswordRequirements password={password} />}
             </div>
 
             {!isLogin && (
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-text-secondary ml-1">Xác nhận mật khẩu</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-text-secondary ml-1">
+                  XÁC NHẬN MẬT KHẨU
+                </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
                   <input
@@ -239,15 +239,30 @@ export default function AuthModal({ isOpen, initialMode = 'login', onClose }: Au
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-bg-tertiary border border-border-primary rounded-xl py-2.5 pl-11 pr-12 text-sm focus:border-accent outline-none transition-colors sm:py-3"
+                    className={`w-full bg-bg-tertiary border rounded-xl py-2.5 pl-11 pr-20 text-sm outline-none transition-colors sm:py-3 ${
+                      confirmPassword.length > 0
+                        ? confirmPassword !== password
+                          ? 'border-red-500 bg-red-500/5 focus:border-red-500'
+                          : 'border-accent/70 bg-accent/5 focus:border-accent'
+                        : 'border-border-primary focus:border-accent'
+                    }`}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary transition-colors"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                  <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                    {confirmPassword.length > 0 && (
+                      confirmPassword !== password ? (
+                        <AlertCircle className="w-4 h-4 text-red-500 animate-in fade-in zoom-in duration-200" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 text-accent animate-in fade-in zoom-in duration-200" />
+                      )
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="text-text-tertiary hover:text-text-primary transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
