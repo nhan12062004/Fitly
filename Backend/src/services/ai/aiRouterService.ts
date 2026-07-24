@@ -219,6 +219,10 @@ export const detectIntent = (message: string, context?: AIChatContext): IntentDe
     'thay mon',
     'goi y mon khac',
     'gon hon',
+    'thay uc ga',
+    'di ung',
+    'khong an duoc',
+    'bo mon',
   ]);
 
   const asksForWorkoutChange = hasAny(normalized, [
@@ -232,8 +236,11 @@ export const detectIntent = (message: string, context?: AIChatContext): IntentDe
     'nhe hon',
     'giam tai',
     'giam do nang',
+    'nang qua',
+    'khong co ta',
     '10 phut',
     'dieu chinh',
+    'doi lich tap',
   ]);
 
   const mentionsGeneralHealth = hasAny(normalized, [
@@ -249,6 +256,9 @@ export const detectIntent = (message: string, context?: AIChatContext): IntentDe
     'nuoc',
     'ngu',
     'stress',
+    'ky thuat',
+    'huong dan',
+    'tap sao',
   ]);
 
   if (isInjuryAdviceRequest(normalized)) {

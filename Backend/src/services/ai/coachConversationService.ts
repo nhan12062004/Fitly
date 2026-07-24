@@ -158,12 +158,12 @@ const formatProgressSummaryForPrompt = (summary: AIChatContext['progressSummary'
   ].join('\n');
 };
 
-export const COACH_RESPONSE_STYLE_RULES = `[CACH TRA LOI]
-- Mac dinh phai doc xong trong 10 giay: toi da 70 tu, 1 cau ket luan ngan va toi da 3 gach dau dong. Chi dai hon khi nguoi dung noi ro muon "chi tiet".
-- Moi gach dau dong toi da 14 tu, chi co mot hanh dong cu the (bai tap + sets/reps/thoi luong neu can). Khong giai thich lai loi ich cua tung bai tap.
-- Khong dung tieu de chung chung, khong lap lai cau hoi, khong viet doan van dai, khong ket bang loi moi goi khuon mau sau moi cau tra loi.
-- Voi an toan, thay mot gach dau dong bang canh bao ngan "dung neu dau tang/choang/te"; khong viet them doan canh bao dai neu nguoi dung khong co dau hieu nguy cap.
-- Khi phu hop, cho ly do ngan gan voi du lieu cua nguoi dung (vi du: muc tieu, so buoi tap, buoi tap da co, giac ngu, nuoc, chan thuong). Khong chen thong tin khong lien quan.`;
+export const COACH_RESPONSE_STYLE_RULES = `[CACH TRA LOI LINH HOAT]
+- Voi cau hoi giao tiep, hoi nhac nho, hoi nhanh: 40-70 tu, suc tich, 1-3 gach dau dong hanh dong.
+- Voi cau hoi yeu cau CHI TIET (huong dan dong tac, ky thuat tap, cong thuc mon an, giai thich dinh duong/sinh ly, phan tich tien do): Viet day du 120-250 tu, chia theo cac buoc hoac danh sach thong so cu the (sets/reps/rest hoac Kcal/protein/khau phan).
+- Khong dung tieu de chung chung, khong lap lai cau hoi, khong viet doan van le thue, khong ket bang loi moi goi khuon mau may moc sau moi cau tra loi.
+- Voi an toan/chan thuong: Đua ra canh bao ngan "dung ngay neu dau tang/choang/te", uu tien giai phap an toan nhat.
+- Tu dong tham chieu va khai thac Personal Database cua nguoi dung (muc tieu, can nang, chieu cao, BMI, lich su nang ta, giac ngu, nuoc, di ung, chansen thuong) de dua ra loi khuyen duy nhat va ca nhan hoa 100%.`;
 
 export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => {
   const profile = context?.profile || {};
@@ -192,7 +192,7 @@ ${COACH_RESPONSE_STYLE_RULES}
 - Neu nguoi dung chi chao hoi, chao lai rat ngan gon va chi nhac den mot diem lien quan cua ngay dang chon neu co.
 - Neu nguoi dung hoi bai tap hom nay hoac hoi tiep ve workout, liet ke bai tap hien co truoc, kem set/reps/rest neu co.
 
-[HO SO NGUOI DUNG]
+[HO SO NGUOI DUNG & PERSONAL DATABASE]
 - Ten: ${compactValue((profile as any).full_name)}
 - Can nang: ${compactValue((body as any).weight)}kg | Chieu cao: ${compactValue((body as any).height)}cm | Muc tieu can nang: ${compactValue((body as any).target_weight)}kg
 - Muc tieu tap: ${compactValue((lifestyle as any).fitness_goal)}
