@@ -261,7 +261,6 @@ const awaitWithTimeout = <T>(operation: PromiseLike<T>, timeoutMs: number): Prom
       },
     );
   });
-
 const getAuthUserId = async (req: express.Request): Promise<string | null> => {
   const token = getBearerToken(req.headers.authorization);
   if (!token) return null;
