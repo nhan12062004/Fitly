@@ -305,6 +305,22 @@ describe('Express application bootstrap', () => {
     expect(response.body).toEqual({ error: { code: 'VALIDATION_ERROR', message: 'Invalid request', requestId } });
   });
 
+  it('validates account, workout, and AI inputs before invoking providers', async () => {
+    const { app } = await import('../src/app');
+    const [account, workout, ai] = await Promise.all([
+      request(app).delete('/api/account').send({ confirmation: 'nope' }),
+      request(app).post('/api/workout/daily-exercises/from-plan').send({ logDate: 'not-a-date' }),
+      request(app).post('/api/ai/chat').send({ message: '' }),
+    ]);
+
+    for (const response of [account, workout, ai]) {
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.requestId).toBe(response.headers['x-request-id']);
+    }
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
   it('builds avatar paths from the authenticated user and never accepts a client path', async () => {
     const { app } = await import('../src/app');
 

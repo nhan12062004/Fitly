@@ -2,7 +2,9 @@ import TelegramBot, { type InlineKeyboardMarkup, type Message } from 'node-teleg
 import { supabase } from './config/Supabase';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
-import { isJobsEnabled, isTelegramEnabled, isTelegramRequired } from './config/runtime';
+import { isJobsEnabled } from './config/runtime';
+import { isTelegramEnabled, isTelegramRequired } from './config/runtime';
+import { startTelegramReminderJobs, stopTelegramReminderJobs } from './jobs/telegramReminders';
 import { logOperational } from './lib/operationalLogger';
 import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
 import { verifyTelegramLinkToken } from './lib/telegramLinkToken';
@@ -2047,7 +2049,11 @@ export const startTelegramBot = () => {
 
   // Thiết lập lịch nhắc nhở (chỉ một lần)
   if (!remindersInitialized) {
-    setupDailyReminders(bot);
+    startTelegramReminderJobs({
+      acquireDispatchLock: acquireReminderDispatchLock,
+      sendWater: (slotIndex) => sendWaterReminders(bot, slotIndex),
+      sendSleep: () => sendSleepReminders(bot),
+    });
     setupCallbackHandlers(bot);
     remindersInitialized = true;
   }
@@ -2686,7 +2692,7 @@ Không chẩn đoán bệnh; với dấu hiệu nguy hiểm hoặc chấn thươ
 };
 
 export const stopTelegramBot = async () => {
-  reminderTasks.splice(0).forEach((task) => task.stop());
+  stopTelegramReminderJobs();
   remindersInitialized = false;
 
   const bot = botInstance;

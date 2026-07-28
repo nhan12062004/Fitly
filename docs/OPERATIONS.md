@@ -17,6 +17,7 @@
 | `TELEGRAM_ENABLE_REMINDERS` | enabled unless explicitly `false` | Controls Telegram reminder schedules; `ENABLE_JOBS` must also be enabled. |
 | `READY_TIMEOUT_MS` | `3000` | Bounded timeout for the lightweight Supabase readiness check. |
 | `SHUTDOWN_TIMEOUT_MS` | `10000` | Bounded maximum wait for graceful shutdown. |
+| `SENTRY_DSN` | unset | Enables optional sanitized Sentry exception reporting at runtime. |
 | `PREMIUM_AUTO_PLAN_CRON` | `5 0 * * *` | Premium planner schedule in `Asia/Ho_Chi_Minh`. |
 
 Only `true`, `1`, `yes`, and `on` enable Boolean flags. Invalid values fall back safely. Tests and CI force jobs and Telegram off even if flags are present.
@@ -50,6 +51,8 @@ On SIGINT or SIGTERM the runtime accepts the first signal only:
 Operational logs are JSON objects containing `level`, `event`, `timestamp`, plus applicable `status`, `errorCode`, `jobName`, and request/correlation IDs. Events include `server_started`, `server_shutdown_started`, `server_shutdown_completed`, `job_started`, `job_completed`, `job_failed`, `telegram_started`, `telegram_start_failed`, `telegram_stopped`, and `readiness_failed`.
 
 `requestId` comes from the incoming `X-Request-ID`; job executions use a generated `correlationId`. Messages are sanitized to avoid tokens, URLs, provider credentials, and request data.
+
+When `SENTRY_DSN` is configured, Sentry starts only in the runtime entrypoint (never while importing `app` or in tests). Request headers, cookies, and bodies are removed before events are sent.
 
 ## Deliberately deferred
 

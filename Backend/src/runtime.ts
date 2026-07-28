@@ -3,6 +3,7 @@ import { app } from './app';
 import { getBoundedTimeoutMs, isTelegramEnabled, isTelegramRequired } from './config/runtime';
 import { startJobs, stopJobs } from './jobs';
 import { logOperational } from './lib/operationalLogger';
+import { initializeObservability } from './lib/observability';
 import { startTelegramBot, stopTelegramBot } from './TelegramBot';
 
 const PORT = Number(process.env.PORT || 5001);
@@ -18,6 +19,7 @@ export type RuntimeDependencies = {
 };
 
 export const startRuntime = (dependencies: RuntimeDependencies = {}): Server => {
+  initializeObservability();
   const listen = dependencies.listen || ((port, callback) => app.listen(port, callback));
   const startRuntimeJobs = dependencies.startJobs || startJobs;
   const stopRuntimeJobs = dependencies.stopJobs || stopJobs;

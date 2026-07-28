@@ -2299,6 +2299,19 @@ app.get('/api/profiles', requireAuth, requireAdmin, async (_req, res) => {
 });
 
 const emptyBodySchema = z.object({}).strict();
+const adminPayloadSchema = z.object({}).passthrough();
+const dateKeySchema = z.string().regex(DATE_KEY_REGEX);
+const accountDeletionSchema = z.object({ confirmation: z.literal('DELETE') }).strict();
+const dailyExercisesFromPlanSchema = z.object({ logDate: dateKeySchema }).strict();
+const aiChatSchema = z.object({
+  message: z.string().trim().min(1).max(1000),
+  selectedDayIndex: z.number().int().min(0).max(6).optional(),
+  weekStartDate: dateKeySchema.optional().or(z.literal('')),
+  clientHistory: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().trim().min(1).max(1200),
+  }).strict()).max(10).optional(),
+}).strict();
 
 app.post('/api/membership/renew', requireAuth, validateBody(emptyBodySchema), (_req, res) => {
   return res.status(503).json({
@@ -2443,7 +2456,7 @@ app.delete('/api/profile/avatar', requireAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/account', async (req, res) => {
+app.delete('/api/account', validateBody(accountDeletionSchema), async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -2989,7 +3002,7 @@ app.get('/api/admin/exercises', async (req, res) => {
   }
 });
 
-app.post('/api/admin/exercises', async (req, res) => {
+app.post('/api/admin/exercises', validateBody(adminPayloadSchema), async (req, res) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3005,7 +3018,7 @@ app.post('/api/admin/exercises', async (req, res) => {
   }
 });
 
-app.put('/api/admin/exercises/:id', async (req, res) => {
+app.put('/api/admin/exercises/:id', validateBody(adminPayloadSchema), async (req, res) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3154,7 +3167,7 @@ app.get('/api/admin/recipes', async (req, res) => {
   }
 });
 
-app.post('/api/admin/recipes', async (req, res) => {
+app.post('/api/admin/recipes', validateBody(adminPayloadSchema), async (req, res) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3175,7 +3188,7 @@ app.post('/api/admin/recipes', async (req, res) => {
   }
 });
 
-app.put('/api/admin/recipes/:id', async (req, res) => {
+app.put('/api/admin/recipes/:id', validateBody(adminPayloadSchema), async (req, res) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3225,11 +3238,11 @@ app.get('/api/admin/foods', async (req, res) => {
   }
 });
 
-app.post('/api/admin/foods', async (req, res) => {
+app.post('/api/admin/foods', validateBody(adminPayloadSchema), async (req, res) => {
   return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
 });
 
-app.put('/api/admin/foods/:id', async (req, res) => {
+app.put('/api/admin/foods/:id', validateBody(adminPayloadSchema), async (req, res) => {
   return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
 });
 
@@ -3237,7 +3250,7 @@ app.delete('/api/admin/foods/:id', async (req, res) => {
   return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
 });
 
-app.post('/api/workout/daily-exercises/from-plan', async (req, res) => {
+app.post('/api/workout/daily-exercises/from-plan', validateBody(dailyExercisesFromPlanSchema), async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3987,7 +4000,7 @@ app.get('/api/ai/quota', aiLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/ai/chat', aiLimiter, async (req, res) => {
+app.post('/api/ai/chat', aiLimiter, validateBody(aiChatSchema), async (req, res) => {
   const startedAt = Date.now();
   const traceId = `ai-chat-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;

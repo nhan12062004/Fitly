@@ -45,6 +45,14 @@ jobs:
         working-directory: Frontend
         run: npm run build
 
+      - name: Audit backend dependencies
+        working-directory: Backend
+        run: npm audit --audit-level=high
+
+      - name: Audit frontend dependencies
+        working-directory: Frontend
+        run: npm audit --audit-level=high
+
       - name: Test backend bootstrap
         working-directory: Backend
         env:
@@ -54,3 +62,11 @@ jobs:
           SUPABASE_ANON_KEY: test-anon-key
           TELEGRAM_BOT_ENABLED: 'false'
         run: npm test
+
+      - name: Install Playwright Chromium
+        working-directory: Frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run frontend smoke test
+        working-directory: Frontend
+        run: npm run test:smoke
