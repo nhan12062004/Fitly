@@ -5,6 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => {
   const limit = vi.fn();
   const select = vi.fn(() => ({ limit }));
+  const userMaybeSingle = vi.fn();
+  const userEq = vi.fn(() => ({ maybeSingle: userMaybeSingle }));
+  const userSelect = vi.fn(() => ({ eq: userEq }));
+  const userFrom = vi.fn(() => ({ select: userSelect }));
+  const userGetUser = vi.fn();
+  const createUserScopedSupabaseClient = vi.fn(() => ({
+    auth: { getUser: userGetUser },
+    from: userFrom,
+  }));
 
   return {
     from: vi.fn(() => ({ select })),
@@ -12,19 +21,32 @@ const mocks = vi.hoisted(() => {
     limit,
     cronSchedule: vi.fn(),
     initTelegramBot: vi.fn(),
+    userMaybeSingle,
+    userEq,
+    userSelect,
+    userFrom,
+    userGetUser,
+    createUserScopedSupabaseClient,
   };
 });
 
-vi.mock('../src/config/Supabase', () => ({
-  supabase: {
+vi.mock('../src/config/Supabase', () => {
+  const adminSupabase = {
     from: mocks.from,
     auth: {
       getUser: vi.fn(),
       admin: { getUserById: vi.fn() },
     },
     storage: { from: vi.fn() },
-  },
-}));
+  };
+
+  return {
+    adminSupabase,
+    supabase: adminSupabase,
+    createUserScopedSupabaseClient: mocks.createUserScopedSupabaseClient,
+    hasUserScopedSupabaseConfiguration: () => true,
+  };
+});
 
 vi.mock('node-cron', () => ({
   default: { schedule: mocks.cronSchedule },
@@ -43,8 +65,15 @@ describe('Express application bootstrap', () => {
     process.env.NODE_ENV = 'test';
     process.env.SUPABASE_URL = 'https://example.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
+    process.env.SUPABASE_ANON_KEY = 'test-anon-key';
+    delete process.env.SUPABASE_PUBLISHABLE_KEY;
     process.env.TELEGRAM_BOT_ENABLED = 'false';
     delete process.env.READY_TIMEOUT_MS;
+    mocks.userGetUser.mockResolvedValue({
+      data: { user: { id: 'authenticated-user', app_metadata: {}, user_metadata: {} } },
+      error: null,
+    });
+    mocks.userMaybeSingle.mockResolvedValue({ data: { id: 'authenticated-user' }, error: null });
   });
 
   it('imports the Express app without opening an HTTP port or starting runtime services', async () => {
@@ -99,6 +128,8 @@ describe('Express application bootstrap', () => {
   it('returns not ready without querying Supabase when required environment is missing', async () => {
     process.env.SUPABASE_URL = '';
     process.env.SUPABASE_SERVICE_ROLE_KEY = '';
+    process.env.SUPABASE_ANON_KEY = '';
+    process.env.SUPABASE_PUBLISHABLE_KEY = '';
     const { app } = await import('../src/app');
 
     const response = await request(app).get('/ready');
@@ -144,5 +175,20 @@ describe('Express application bootstrap', () => {
     } finally {
       process.off('unhandledRejection', onUnhandledRejection);
     }
+  });
+
+  it('uses the request-scoped client for the self-service Telegram link endpoint', async () => {
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .post('/api/telegram/link-token')
+      .set('Authorization', 'Bearer user-jwt')
+      .send({ user_id: 'attacker-controlled-id' });
+
+    expect(response.status).toBe(200);
+    expect(mocks.createUserScopedSupabaseClient).toHaveBeenCalledWith('user-jwt');
+    expect(mocks.userFrom).toHaveBeenCalledWith('profiles');
+    expect(mocks.userEq).toHaveBeenCalledWith('id', 'authenticated-user');
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 });

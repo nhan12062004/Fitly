@@ -4,7 +4,8 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
 import rateLimit from 'express-rate-limit';
-import { supabase } from './config/Supabase';
+import { adminSupabase, supabase } from './config/Supabase';
+import { requireAdmin, requireAuth } from './auth/middleware';
 import { type TrainingPrescription } from './lib/TrainingPrescription';
 import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
 import { detectIntent, extractDayIndexFromText, getResponseModeForIntent, normalizeVietnameseText as normalizeVietForChat } from './services/ai/aiRouterService';
@@ -2276,8 +2277,12 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/ready', async (_req, res) => {
-  const missingEnvironment = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']
-    .filter((name) => !process.env[name]);
+  const missingEnvironment = [
+    ...['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'].filter((name) => !process.env[name]),
+    ...(!process.env.SUPABASE_PUBLISHABLE_KEY && !process.env.SUPABASE_ANON_KEY
+      ? ['SUPABASE_PUBLISHABLE_KEY_OR_SUPABASE_ANON_KEY']
+      : []),
+  ];
 
   if (missingEnvironment.length > 0) {
     return res.status(503).json({
@@ -2318,24 +2323,15 @@ app.get('/ready', async (_req, res) => {
   }
 });
 
-app.get('/api/profiles', async (req, res) => {
+app.get('/api/profiles', requireAuth, requireAdmin, async (_req, res) => {
   try {
-    const authUserId = await getAuthUserId(req);
-    if (!authUserId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const isAdmin = await isAdminUser(authUserId);
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
-
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('profiles')
       .select('id, full_name, email, gender, birthday, role, membership_tier, telegram_chat_id, created_at, updated_at');
 
     if (error) {
       console.error('[profiles] query failed:', error.message);
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: 'Internal Server Error' });
     }
 
     res.json({ message: 'Ket noi thanh cong!', data });
@@ -2344,12 +2340,7 @@ app.get('/api/profiles', async (req, res) => {
   }
 });
 
-app.post('/api/membership/renew', async (req, res) => {
-  const authUserId = await getAuthUserId(req);
-  if (!authUserId) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+app.post('/api/membership/renew', requireAuth, (_req, res) => {
   return res.status(503).json({
     error: 'Thanh toán đang tạm khóa cho đến khi tích hợp xác thực hóa đơn từ App Store và Google Play.',
     code: 'PAYMENT_PROVIDER_NOT_CONFIGURED'
@@ -5911,17 +5902,14 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
   }
 });
 
-app.post('/api/telegram/link-token', async (req, res) => {
+app.post('/api/telegram/link-token', requireAuth, async (req, res) => {
   try {
-    const authUserId = await getAuthUserId(req);
-    if (!authUserId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!req.auth || !req.supabase) return res.status(401).json({ error: 'Unauthorized' });
 
-    const profileRes = await supabase
+    const profileRes = await req.supabase
       .from('profiles')
       .select('id')
-      .eq('id', authUserId)
+      .eq('id', req.auth.user.id)
       .maybeSingle();
     if (profileRes.error) throw profileRes.error;
     if (!profileRes.data?.id) {
@@ -5929,14 +5917,14 @@ app.post('/api/telegram/link-token', async (req, res) => {
     }
 
     const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'fitlyforbot';
-    const token = createTelegramLinkToken(authUserId);
+    const token = createTelegramLinkToken(req.auth.user.id);
     return res.json({
       success: true,
       token,
       telegramLink: `https://t.me/${botUsername}?start=${token}`
     });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Internal Server Error' });
+  } catch {
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
 

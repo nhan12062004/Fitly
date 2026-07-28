@@ -51,5 +51,6 @@ jobs:
           NODE_ENV: test
           SUPABASE_URL: https://example.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+          SUPABASE_ANON_KEY: test-anon-key
           TELEGRAM_BOT_ENABLED: 'false'
         run: npm test

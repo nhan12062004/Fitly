@@ -51,3 +51,16 @@ Snapshot taken before PR 1. The API had 38 endpoints; PR 1 adds only `GET /healt
 | --- | --- | --- | --- | --- |
 | GET | `/health` | Public | None | None |
 | GET | `/ready` | Public | Required Supabase environment and a head-only `profiles` query | None |
+
+## Phase 2 endpoint classification and first migration slice
+
+| Classification | Endpoints | Current client | Phase 2 decision |
+| --- | --- | --- | --- |
+| Public | `/`, `/health`, `/ready`, legacy `POST/PUT/DELETE /api/admin/foods*` | None | No change |
+| Authenticated user | Membership, meal validation, recipe, workout, AI, AI Coach and Telegram-link routes | Service role (except membership, which has no query) | Migrate only Telegram link in this phase |
+| Admin | `/api/profiles`, `/api/admin/*`, `/api/ai/metrics` | Service role | Keep service role; `/api/profiles` now uses shared middleware |
+| Mixed user + system operation | `DELETE /api/account` | Service role | Deferred: Auth-user deletion still needs an admin operation |
+| System/cron | None | Service role in runtime jobs | No HTTP endpoint to migrate |
+| Trusted webhook | None | N/A | No endpoint to migrate |
+
+`POST /api/telegram/link-token` is the first migrated self-service endpoint. It now reads the authenticated user's profile through a request-scoped client using the request JWT; it does not derive ownership from request input and does not use the service-role client. Database-level RLS coverage remains deferred until the baseline migration/RLS phase.
