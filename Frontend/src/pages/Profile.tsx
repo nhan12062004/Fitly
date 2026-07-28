@@ -366,7 +366,13 @@ export default function Profile() {
       setError('');
       try {
         const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, aiQuotaPayload, allChallenges] = await Promise.all([
-          supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+          fetchWithAuth('/api/profile')
+            .then(async (response) => {
+              const payload = await response.json().catch(() => ({}));
+              return response.ok
+                ? { data: payload.data, error: null }
+                : { data: null, error: new Error(payload?.error || 'Unable to load profile.') };
+            }),
           supabase
             .from('body_metrics')
             .select('*')
@@ -505,11 +511,9 @@ export default function Profile() {
     const maxAttempts = 40;
     const interval = window.setInterval(async () => {
       attempts += 1;
-      const { data: updatedProfile } = await supabase
-        .from('profiles')
-        .select('telegram_chat_id')
-        .eq('id', user.id)
-        .maybeSingle();
+      const response = await fetchWithAuth('/api/profile');
+      const payload = await response.json().catch(() => ({}));
+      const updatedProfile = response.ok ? payload?.data : null;
 
       if (updatedProfile?.telegram_chat_id) {
         window.clearInterval(interval);
@@ -543,12 +547,13 @@ export default function Profile() {
 
     setIsUnlinkingTelegram(true);
     try {
-      const { error: unlinkError } = await supabase
-        .from('profiles')
-        .update({ telegram_chat_id: null })
-        .eq('id', user.id);
-
-      if (unlinkError) throw unlinkError;
+      const response = await fetchWithAuth('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegram_chat_id: null }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Unable to unlink Telegram.');
       await refreshProfile();
       setReloadKey((value) => value + 1);
       toast.success('Đã hủy liên kết Telegram thành công');
@@ -566,19 +571,16 @@ export default function Profile() {
     }
 
     try {
-      const { data: profileExists, error: checkError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
+      const profileResponse = await fetchWithAuth('/api/profile');
+      const profilePayload = await profileResponse.json().catch(() => ({}));
 
-      if (checkError) {
-        console.error('Profile check error:', checkError);
+      if (!profileResponse.ok && profileResponse.status !== 404) {
+        console.error('Profile check error:', profilePayload?.error);
         notifyTelegramResult('Lỗi kết nối. Vui lòng thử lại.');
         return;
       }
 
-      if (!profileExists) {
+      if (!profileResponse.ok || !profilePayload?.data) {
         notifyTelegramResult('Hồ sơ chưa được tạo. Vui lòng hoàn thành khảo sát lần đầu trước khi kết nối Telegram.');
         return;
       }
@@ -626,23 +628,16 @@ export default function Profile() {
 
     setAvatarUploading(true);
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const filePath = `${user.id}/avatar.${ext}`;
-
-      const { error: uploadErr } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true, contentType: file.type });
-
-      if (uploadErr) throw uploadErr;
-
-      const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      const publicUrl = `${publicData.publicUrl}?t=${Date.now()}`;
-
-      const { error: updateErr } = await supabase
-        .from('profiles')
-        .upsert({ id: user.id, avatar_url: publicUrl, updated_at: new Date().toISOString() });
-
-      if (updateErr) throw updateErr;
+      const response = await fetchWithAuth('/api/profile/avatar', {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.avatarUrl) {
+        throw new Error(payload?.error || 'Unable to upload avatar.');
+      }
+      const publicUrl = `${payload.avatarUrl}?t=${Date.now()}`;
 
       setAvatarUrl(publicUrl);
       await refreshProfile();
@@ -739,13 +734,20 @@ export default function Profile() {
       const normalizedBudget = normalizeBudgetLevel(formData.budget_level);
       const normalizedAllergies = normalizeAllergies(formData.allergies);
       const [profileRes, bodyRes, healthRes, lifestyleRes] = await Promise.all([
-        supabase.from('profiles').upsert({
-          id: user.id,
-          full_name: formData.full_name.trim(),
-          email: formData.email || user.email,
-          gender: formData.gender,
-          birthday: getBirthdayFromAge(formData.age),
-          updated_at: new Date().toISOString(),
+        fetchWithAuth('/api/profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            full_name: formData.full_name.trim(),
+            email: formData.email || user.email,
+            gender: formData.gender,
+            birthday: getBirthdayFromAge(formData.age),
+          }),
+        }).then(async (response) => {
+          const payload = await response.json().catch(() => ({}));
+          return response.ok
+            ? { data: payload.data, error: null }
+            : { data: null, error: new Error(payload?.error || 'Unable to save profile.') };
         }),
         supabase.from('body_metrics').insert({
           user_id: user.id,

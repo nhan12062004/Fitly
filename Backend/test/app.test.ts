@@ -8,11 +8,26 @@ const mocks = vi.hoisted(() => {
   const userMaybeSingle = vi.fn();
   const userEq = vi.fn(() => ({ maybeSingle: userMaybeSingle }));
   const userSelect = vi.fn(() => ({ eq: userEq }));
-  const userFrom = vi.fn(() => ({ select: userSelect }));
+  const userUpdateMaybeSingle = vi.fn();
+  const userUpdateSelect = vi.fn(() => ({ maybeSingle: userUpdateMaybeSingle }));
+  const userUpdateEq = vi.fn(() => ({ error: null, select: userUpdateSelect }));
+  const userUpdate = vi.fn(() => ({ eq: userUpdateEq }));
+  const userStorageUpload = vi.fn();
+  const userStorageList = vi.fn();
+  const userStorageRemove = vi.fn();
+  const userStorageGetPublicUrl = vi.fn();
+  const userStorageFrom = vi.fn(() => ({
+    upload: userStorageUpload,
+    list: userStorageList,
+    remove: userStorageRemove,
+    getPublicUrl: userStorageGetPublicUrl,
+  }));
+  const userFrom = vi.fn(() => ({ select: userSelect, update: userUpdate }));
   const userGetUser = vi.fn();
   const createUserScopedSupabaseClient = vi.fn(() => ({
     auth: { getUser: userGetUser },
     from: userFrom,
+    storage: { from: userStorageFrom },
   }));
 
   return {
@@ -24,7 +39,16 @@ const mocks = vi.hoisted(() => {
     userMaybeSingle,
     userEq,
     userSelect,
+    userUpdateMaybeSingle,
+    userUpdateSelect,
+    userUpdateEq,
+    userUpdate,
     userFrom,
+    userStorageUpload,
+    userStorageList,
+    userStorageRemove,
+    userStorageGetPublicUrl,
+    userStorageFrom,
     userGetUser,
     createUserScopedSupabaseClient,
   };
@@ -74,6 +98,11 @@ describe('Express application bootstrap', () => {
       error: null,
     });
     mocks.userMaybeSingle.mockResolvedValue({ data: { id: 'authenticated-user' }, error: null });
+    mocks.userUpdateMaybeSingle.mockResolvedValue({ data: { id: 'authenticated-user' }, error: null });
+    mocks.userStorageUpload.mockResolvedValue({ error: null });
+    mocks.userStorageList.mockResolvedValue({ data: [{ name: 'avatar.png' }], error: null });
+    mocks.userStorageRemove.mockResolvedValue({ error: null });
+    mocks.userStorageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://example.supabase.co/storage/v1/object/public/avatars/authenticated-user/avatar.png' } });
   });
 
   it('imports the Express app without opening an HTTP port or starting runtime services', async () => {
@@ -189,6 +218,141 @@ describe('Express application bootstrap', () => {
     expect(mocks.createUserScopedSupabaseClient).toHaveBeenCalledWith('user-jwt');
     expect(mocks.userFrom).toHaveBeenCalledWith('profiles');
     expect(mocks.userEq).toHaveBeenCalledWith('id', 'authenticated-user');
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('requires a token to read the authenticated user profile', async () => {
+    const { app } = await import('../src/app');
+
+    const response = await request(app).get('/api/profile');
+
+    expect(response.status).toBe(401);
+    expect(response.body).toEqual({ error: 'Unauthorized' });
+    expect(mocks.userFrom).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('reads only the authenticated user profile with the request-scoped client', async () => {
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .get('/api/profile?user_id=another-user')
+      .set('Authorization', 'Bearer user-jwt')
+      .send({ user_id: 'another-user' });
+
+    expect(response.status).toBe(200);
+    expect(mocks.createUserScopedSupabaseClient).toHaveBeenCalledWith('user-jwt');
+    expect(mocks.userFrom).toHaveBeenCalledWith('profiles');
+    expect(mocks.userEq).toHaveBeenCalledWith('id', 'authenticated-user');
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('ignores attacker-controlled ownership fields when updating a profile', async () => {
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .patch('/api/profile?user_id=another-user')
+      .set('Authorization', 'Bearer user-jwt')
+      .send({
+        id: 'another-user',
+        user_id: 'another-user',
+        role: 'admin',
+        full_name: 'Authenticated User',
+      });
+
+    expect(response.status).toBe(200);
+    expect(mocks.userUpdate).toHaveBeenCalledWith(expect.objectContaining({ full_name: 'Authenticated User' }));
+    expect(mocks.userUpdate).toHaveBeenCalledWith(expect.not.objectContaining({ id: expect.anything(), user_id: expect.anything(), role: expect.anything() }));
+    expect(mocks.userUpdateEq).toHaveBeenCalledWith('id', 'authenticated-user');
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('builds avatar paths from the authenticated user and never accepts a client path', async () => {
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .put('/api/profile/avatar?path=another-user/avatar.png')
+      .set('Authorization', 'Bearer user-jwt')
+      .set('Content-Type', 'image/png')
+      .send(Buffer.from('png-bytes'));
+
+    expect(response.status).toBe(200);
+    expect(mocks.userStorageFrom).toHaveBeenCalledWith('avatars');
+    expect(mocks.userStorageUpload).toHaveBeenCalledWith(
+      'authenticated-user/avatar.png',
+      expect.any(Buffer),
+      { upsert: true, contentType: 'image/png' },
+    );
+    expect(mocks.userUpdateEq).toHaveBeenCalledWith('id', 'authenticated-user');
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('removes only avatar objects listed inside the authenticated user folder', async () => {
+    mocks.userStorageList.mockResolvedValueOnce({
+      data: [{ name: 'avatar.png' }, { name: '../another-user/avatar.png' }],
+      error: null,
+    });
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .delete('/api/profile/avatar?path=another-user/avatar.png')
+      .set('Authorization', 'Bearer user-jwt')
+      .send({ user_id: 'another-user', path: 'another-user/avatar.png' });
+
+    expect(response.status).toBe(204);
+    expect(mocks.userStorageList).toHaveBeenCalledWith('authenticated-user', { limit: 100 });
+    expect(mocks.userStorageRemove).toHaveBeenCalledWith(['authenticated-user/avatar.png']);
+    expect(mocks.userUpdateEq).toHaveBeenCalledWith('id', 'authenticated-user');
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('does not expose provider errors, tokens, or storage URLs from self-service routes', async () => {
+    mocks.userMaybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: new Error('https://bucket.example/private user-jwt provider failure'),
+    });
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .get('/api/profile')
+      .set('Authorization', 'Bearer user-jwt');
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ error: 'Unable to load profile.' });
+    expect(JSON.stringify(response.body)).not.toContain('user-jwt');
+    expect(JSON.stringify(response.body)).not.toContain('bucket.example');
+  });
+
+  it('keeps the admin profile list gated while allowing a trusted app_metadata admin', async () => {
+    const { app } = await import('../src/app');
+
+    const regularResponse = await request(app)
+      .get('/api/profiles')
+      .set('Authorization', 'Bearer user-jwt');
+    expect(regularResponse.status).toBe(403);
+    expect(mocks.from).not.toHaveBeenCalled();
+
+    mocks.userGetUser.mockResolvedValueOnce({
+      data: { user: { id: 'admin-user', app_metadata: { role: 'admin' }, user_metadata: { role: 'user' } } },
+      error: null,
+    });
+    const adminResponse = await request(app)
+      .get('/api/profiles')
+      .set('Authorization', 'Bearer admin-jwt');
+
+    expect(adminResponse.status).toBe(200);
+    expect(mocks.from).toHaveBeenCalledWith('profiles');
+  });
+
+  it('keeps the unrelated membership route behaviour unchanged', async () => {
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .post('/api/membership/renew')
+      .set('Authorization', 'Bearer user-jwt');
+
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({ code: 'PAYMENT_PROVIDER_NOT_CONFIGURED' });
     expect(mocks.from).not.toHaveBeenCalled();
   });
 });

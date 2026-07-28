@@ -63,4 +63,19 @@ Snapshot taken before PR 1. The API had 38 endpoints; PR 1 adds only `GET /healt
 | System/cron | None | Service role in runtime jobs | No HTTP endpoint to migrate |
 | Trusted webhook | None | N/A | No endpoint to migrate |
 
-`POST /api/telegram/link-token` is the first migrated self-service endpoint. It now reads the authenticated user's profile through a request-scoped client using the request JWT; it does not derive ownership from request input and does not use the service-role client. Database-level RLS coverage remains deferred until the baseline migration/RLS phase.
+`POST /api/telegram/link-token` is the first migrated self-service endpoint. It now reads the authenticated user's profile through a request-scoped client using the request JWT; it does not derive ownership from request input and does not use the service-role client.
+
+## Phase 2B profile and avatar slice
+
+| Method | Path | Previous client | Current client | Ownership source | RLS / policy confirmation |
+| --- | --- | --- | --- | --- | --- |
+| GET | `/api/profile` | Frontend direct user Supabase query; no backend endpoint | `req.supabase` after `requireAuth` | `req.auth.user.id` | `profiles_owner_select` requires `auth.uid() = id` |
+| PATCH | `/api/profile` | Frontend direct user Supabase upsert/update; no backend endpoint | `req.supabase` after `requireAuth` | `req.auth.user.id`; request `id`, `user_id`, role and ownership query values are ignored | `profiles_owner_update` has matching `using` and `with check` clauses; authenticated column grants are restricted to safe profile fields |
+| PUT | `/api/profile/avatar` | Frontend direct Storage upload and profile upsert; no backend endpoint | `req.supabase.storage` and `req.supabase` after `requireAuth` | `req.auth.user.id`; path is server-built as `<authenticated-user-id>/avatar.<allowed-extension>` | `avatars` Storage INSERT/UPDATE policies require the UUID first folder to equal `auth.uid()`; bucket allows JPEG, PNG, WebP and GIF up to 5 MB |
+| DELETE | `/api/profile/avatar` | No backend endpoint | `req.supabase.storage` and `req.supabase` after `requireAuth` | `req.auth.user.id`; server lists and removes only names returned from that user's top-level folder | `avatars` Storage SELECT/DELETE policies require the UUID first folder to equal `auth.uid()` |
+
+RLS was verified twice before this slice: from `supabase/migrations/20260728053215_harden_auth_profiles_and_rpc.sql`, and against the linked production schema by read-only catalog queries on 2026-07-28. The live checks confirmed RLS is enabled on `public.profiles`, the owner SELECT/INSERT/UPDATE policies target `authenticated` and use `auth.uid() = id`, the `avatars` bucket is public for object delivery, and its metadata/upload/update/delete policies restrict the first storage path segment to the authenticated UUID. No production data, schema, policy, or migration was changed.
+
+`GET /api/profiles` remains an admin endpoint and deliberately uses `adminSupabase` after `requireAdmin`. `DELETE /api/account` remains a mixed operation using the admin client because Auth-user deletion is a system action. Admin routes, runtime cron work, Telegram bot work, AI, workout, nutrition, and all other unmigrated user routes continue to use their existing client boundaries; they are outside this small slice.
+
+The API tests mock Supabase and do not contact production. They validate application-level ownership and client selection, but they do not prove database-level RLS behavior end-to-end; a baseline-migration/RLS test phase is still required before making an audit-complete claim.

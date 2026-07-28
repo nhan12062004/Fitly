@@ -2347,6 +2347,132 @@ app.post('/api/membership/renew', requireAuth, (_req, res) => {
   });
 });
 
+const SELF_SERVICE_PROFILE_COLUMNS = 'id, full_name, email, gender, birthday, avatar_url, telegram_chat_id, telegram_notify_water, telegram_notify_sleep, telegram_notify_workout, exp, level, ref_code, referral_count, updated_at';
+const SELF_SERVICE_PROFILE_FIELDS = [
+  'full_name',
+  'email',
+  'gender',
+  'birthday',
+  'telegram_chat_id',
+  'telegram_notify_water',
+  'telegram_notify_sleep',
+  'telegram_notify_workout',
+] as const;
+const AVATAR_CONTENT_TYPES = new Map([
+  ['image/jpeg', 'jpg'],
+  ['image/png', 'png'],
+  ['image/webp', 'webp'],
+  ['image/gif', 'gif'],
+]);
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+const getAuthenticatedRequestContext = (req: express.Request, res: express.Response) => {
+  if (req.auth && req.supabase) return { auth: req.auth, supabase: req.supabase };
+  res.status(401).json({ error: 'Unauthorized' });
+  return null;
+};
+
+app.get('/api/profile', requireAuth, async (req, res) => {
+  const context = getAuthenticatedRequestContext(req, res);
+  if (!context) return;
+
+  try {
+    const { data, error } = await context.supabase
+      .from('profiles')
+      .select(SELF_SERVICE_PROFILE_COLUMNS)
+      .eq('id', context.auth.user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Profile not found.' });
+    return res.json({ data });
+  } catch {
+    return res.status(500).json({ error: 'Unable to load profile.' });
+  }
+});
+
+app.patch('/api/profile', requireAuth, async (req, res) => {
+  const context = getAuthenticatedRequestContext(req, res);
+  if (!context) return;
+
+  const updates: Record<string, string | boolean | null> = {};
+  for (const field of SELF_SERVICE_PROFILE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, field)) {
+      updates[field] = req.body[field] ?? null;
+    }
+  }
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: 'No supported profile fields were provided.' });
+  }
+
+  try {
+    const { data, error } = await context.supabase
+      .from('profiles')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', context.auth.user.id)
+      .select(SELF_SERVICE_PROFILE_COLUMNS)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Profile not found.' });
+    return res.json({ data });
+  } catch {
+    return res.status(500).json({ error: 'Unable to update profile.' });
+  }
+});
+
+app.put('/api/profile/avatar', requireAuth, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], limit: MAX_AVATAR_BYTES }), async (req, res) => {
+  const context = getAuthenticatedRequestContext(req, res);
+  if (!context) return;
+
+  const contentType = String(req.headers['content-type'] || '').toLowerCase().split(';')[0];
+  const extension = AVATAR_CONTENT_TYPES.get(contentType);
+  if (!extension || !Buffer.isBuffer(req.body) || req.body.length === 0 || req.body.length > MAX_AVATAR_BYTES) {
+    return res.status(400).json({ error: 'Avatar must be a JPEG, PNG, WebP, or GIF image no larger than 5 MB.' });
+  }
+
+  const avatarPath = `${context.auth.user.id}/avatar.${extension}`;
+  try {
+    const bucket = context.supabase.storage.from('avatars');
+    const upload = await bucket.upload(avatarPath, req.body, { upsert: true, contentType });
+    if (upload.error) throw upload.error;
+    const { data: publicUrlData } = bucket.getPublicUrl(avatarPath);
+    const avatarUrl = publicUrlData.publicUrl;
+    const update = await context.supabase
+      .from('profiles')
+      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+      .eq('id', context.auth.user.id);
+    if (update.error) throw update.error;
+    return res.json({ avatarUrl });
+  } catch {
+    return res.status(500).json({ error: 'Unable to update avatar.' });
+  }
+});
+
+app.delete('/api/profile/avatar', requireAuth, async (req, res) => {
+  const context = getAuthenticatedRequestContext(req, res);
+  if (!context) return;
+
+  try {
+    const bucket = context.supabase.storage.from('avatars');
+    const listed = await bucket.list(context.auth.user.id, { limit: 100 });
+    if (listed.error) throw listed.error;
+    const paths = (listed.data || [])
+      .filter((file) => file.name && !file.name.includes('/'))
+      .map((file) => `${context.auth.user.id}/${file.name}`);
+    if (paths.length > 0) {
+      const removed = await bucket.remove(paths);
+      if (removed.error) throw removed.error;
+    }
+    const update = await context.supabase
+      .from('profiles')
+      .update({ avatar_url: null, updated_at: new Date().toISOString() })
+      .eq('id', context.auth.user.id);
+    if (update.error) throw update.error;
+    return res.status(204).send();
+  } catch {
+    return res.status(500).json({ error: 'Unable to delete avatar.' });
+  }
+});
+
 app.delete('/api/account', async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
