@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: |
+            Backend/package-lock.json
+            Frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: Backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: Frontend
+        run: npm ci
+
+      - name: Typecheck backend
+        working-directory: Backend
+        run: npm run typecheck
+
+      - name: Typecheck frontend
+        working-directory: Frontend
+        run: npm run lint
+
+      - name: Build backend
+        working-directory: Backend
+        run: npm run build
+
+      - name: Build frontend
+        working-directory: Frontend
+        run: npm run build
+
+      - name: Test backend bootstrap
+        working-directory: Backend
+        env:
+          NODE_ENV: test
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+          TELEGRAM_BOT_ENABLED: 'false'
+        run: npm test

@@ -163,6 +163,7 @@ const WATER_PER_CONFIRM_ML = 250;
 
 let botInstance: TelegramBot | null = null;
 let remindersInitialized = false;
+const reminderTasks: Array<{ stop: () => void }> = [];
 let pollingStartRequested = false;
 
 function isEnvEnabled(value: string | undefined): boolean {
@@ -1688,7 +1689,7 @@ const setupDailyReminders = (bot: TelegramBot) => {
 
   // 1. Nhắc uống nước (nhiều khung giờ)
   REMINDER_HOURS.forEach((schedule, index) => {
-    cron.schedule(
+    const reminderTask = cron.schedule(
       schedule,
       async () => {
         console.log(`⏰ Cron nhắc uống nước (${schedule}) lúc ${new Date().toLocaleString('vi-VN', { timeZone: VIETNAM_TIMEZONE })}`);
@@ -1705,10 +1706,11 @@ const setupDailyReminders = (bot: TelegramBot) => {
       },
       { timezone: VIETNAM_TIMEZONE }
     );
+    reminderTasks.push(reminderTask);
   });
 
   // 2. Hỏi về thời lượng giấc ngủ (9h30 sáng)
-  cron.schedule(
+  const sleepReminderTask = cron.schedule(
     '30 9 * * *',
     async () => {
       console.log(`⏰ Cron hỏi giấc ngủ lúc ${new Date().toLocaleString('vi-VN', { timeZone: VIETNAM_TIMEZONE })}`);
@@ -1725,6 +1727,7 @@ const setupDailyReminders = (bot: TelegramBot) => {
     },
     { timezone: VIETNAM_TIMEZONE }
   );
+  reminderTasks.push(sleepReminderTask);
 
   console.log('📅 Đã thiết lập lịch nhắc nhở Nước & Giấc ngủ (Asia/Ho_Chi_Minh).');
 };
@@ -2664,4 +2667,19 @@ Không chẩn đoán bệnh; với dấu hiệu nguy hiểm hoặc chấn thươ
   }
 
   return bot;
+};
+
+export const stopTelegramBot = async () => {
+  reminderTasks.splice(0).forEach((task) => task.stop());
+  remindersInitialized = false;
+
+  const bot = botInstance;
+  botInstance = null;
+  if (!bot) return;
+
+  try {
+    await bot.stopPolling();
+  } catch (error: any) {
+    console.warn('⚠️ Không thể dừng Telegram polling sạch sẽ:', error?.message || error);
+  }
 };
