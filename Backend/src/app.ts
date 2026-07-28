@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import cron from 'node-cron';
 import rateLimit from 'express-rate-limit';
 import { adminSupabase, supabase } from './config/Supabase';
 import { requireAdmin, requireAuth } from './auth/middleware';
@@ -66,6 +65,7 @@ import { z } from 'zod';
 import { errorHandler, notFoundHandler } from './http/errorHandler';
 import { ExternalProviderError, NotFoundError, ValidationError } from './http/errors';
 import { requestIdMiddleware } from './http/requestId';
+import { logOperational } from './lib/operationalLogger';
 import { validateBody } from './http/validation';
 import {
   normalizeRecipe,
@@ -86,7 +86,6 @@ export const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 const AI_ACTION_FLOW_ENABLED = process.env.AI_ACTION_FLOW_ENABLED !== 'false';
-const PREMIUM_AUTO_PLAN_ENABLED = process.env.PREMIUM_AUTO_PLAN_ENABLED !== 'false';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const AI_EXERCISE_CATALOG_LIMIT = 48;
 const AI_EXERCISE_CATALOG_FETCH_LIMIT = 500;
@@ -2086,7 +2085,7 @@ JSON schema (fixed):
   };
 }
 
-async function runPremiumMondayAutoPlanner() {
+export async function runPremiumMondayAutoPlanner() {
   const todayKey = getVietnamDateKey();
   const weekStartKey = todayKey;
   const premiumProfilesRes = await supabase
@@ -2152,60 +2151,13 @@ async function runPremiumMondayAutoPlanner() {
         userId,
         error: error?.message || 'Unknown error',
       });
-      console.error('[premium-auto-planner] Failed for one premium user:', error?.message || 'unknown_error');
+      logOperational({ level: 'error', event: 'job_item_failed', jobName: 'premium_auto_planner', status: 'failed', errorCode: 'PREMIUM_PLAN_FAILED', message: error });
     }
   }
 
   return result;
 }
 
-const PREMIUM_AUTO_PLAN_CRON = process.env.PREMIUM_AUTO_PLAN_CRON || '5 0 * * *';
-let premiumAutoPlannerScheduled = false;
-let premiumAutoPlannerTask: { stop: () => void } | null = null;
-
-export function schedulePremiumMondayAutoPlanner() {
-  if (!PREMIUM_AUTO_PLAN_ENABLED) {
-    console.log('[premium-auto-planner] Disabled by PREMIUM_AUTO_PLAN_ENABLED=false');
-    return;
-  }
-  if (premiumAutoPlannerScheduled) return;
-  premiumAutoPlannerScheduled = true;
-
-  premiumAutoPlannerTask = cron.schedule(
-    PREMIUM_AUTO_PLAN_CRON,
-    async () => {
-      console.log(`[premium-auto-planner] Checking completed plan cycles at ${new Date().toISOString()}`);
-      try {
-        const result = await runPremiumMondayAutoPlanner();
-        console.log('[premium-auto-planner] Result:', JSON.stringify({
-          trigger: result.trigger,
-          weekStartDate: result.weekStartDate,
-          totalPremium: result.totalPremium,
-          generated: result.generated,
-          skippedExisting: result.skippedExisting,
-          skippedNotDue: result.skippedNotDue,
-          skippedWithoutPriorPlan: result.skippedWithoutPriorPlan,
-          skippedProfile: result.skippedProfile,
-          failed: result.failed,
-        }));
-      } catch (error: any) {
-        console.error('[premium-auto-planner] Failed:', error?.message || 'unknown_error');
-      }
-    },
-    { timezone: VIETNAM_TIMEZONE }
-  );
-
-  console.log(`[premium-auto-planner] Scheduled with cron "${PREMIUM_AUTO_PLAN_CRON}" (${VIETNAM_TIMEZONE})`);
-}
-
-export function stopPremiumMondayAutoPlanner() {
-  premiumAutoPlannerTask?.stop();
-  premiumAutoPlannerTask = null;
-  premiumAutoPlannerScheduled = false;
-}
-
-// Telegram bot khởi tạo tự động trên Production (Render).
-// Ở môi trường local dev, bot chỉ bật khi có TELEGRAM_FORCE_ENABLE=true hoặc TELEGRAM_ENABLE_POLLING=true để tránh lỗi Telegram 409 Conflict với Render server.
 const defaultAllowedOrigins = [
   'https://trend-fit.vercel.app'
 ];
@@ -2318,7 +2270,7 @@ app.get('/ready', async (_req, res) => {
     });
   } catch (error) {
     const failureReason = error instanceof ReadinessTimeoutError ? 'timeout' : 'unavailable';
-    console.error(`[ready] Supabase connectivity check failed: ${failureReason}`);
+    logOperational({ level: 'error', event: 'readiness_failed', status: failureReason, errorCode: failureReason === 'timeout' ? 'READINESS_TIMEOUT' : 'READINESS_UNAVAILABLE', message: 'Supabase connectivity check failed' });
     return res.status(503).json({
       status: 'not_ready',
       checks: {

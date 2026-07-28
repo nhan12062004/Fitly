@@ -2,6 +2,8 @@ import TelegramBot, { type InlineKeyboardMarkup, type Message } from 'node-teleg
 import { supabase } from './config/Supabase';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
+import { isJobsEnabled, isTelegramEnabled, isTelegramRequired } from './config/runtime';
+import { logOperational } from './lib/operationalLogger';
 import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
 import { verifyTelegramLinkToken } from './lib/telegramLinkToken';
 import {
@@ -26,7 +28,7 @@ import {
 
 dotenv.config();
 
-const token = process.env.TELEGRAM_BOT_TOKEN;
+const getTelegramToken = () => process.env.TELEGRAM_BOT_TOKEN?.trim() || null;
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
 // === BỘ NHỚ HỘI THOẠI ===
@@ -1666,9 +1668,9 @@ export async function sendSleepReminders(bot: TelegramBot) {
 
 export async function getTelegramReminderStatus() {
   const users = await getLinkedTelegramUsers().catch(() => []);
-  const botActive = !!token;
+  const botActive = !!getTelegramToken();
   return {
-    botConfigured: !!token,
+    botConfigured: !!getTelegramToken(),
     botActive,
     runtime: process.env.NODE_ENV || 'development',
     pollingEnabled: botActive && isTelegramPollingEnabled(),
@@ -1682,7 +1684,8 @@ export async function getTelegramReminderStatus() {
 }
 
 const setupDailyReminders = (bot: TelegramBot) => {
-  if (process.env.TELEGRAM_ENABLE_REMINDERS === 'false') {
+  if (!isJobsEnabled() || process.env.TELEGRAM_ENABLE_REMINDERS === 'false') {
+    logOperational({ level: 'info', event: 'jobs_disabled', jobName: 'telegram_reminders', status: 'disabled', message: 'ENABLE_JOBS or TELEGRAM_ENABLE_REMINDERS is disabled' });
     console.warn('⚠️ TELEGRAM_ENABLE_REMINDERS=false — bỏ qua lịch nhắc tự động.');
     return;
   }
@@ -1692,6 +1695,8 @@ const setupDailyReminders = (bot: TelegramBot) => {
     const reminderTask = cron.schedule(
       schedule,
       async () => {
+        const correlationId = crypto.randomUUID();
+        logOperational({ level: 'info', event: 'job_started', jobName: 'telegram_water_reminder', correlationId });
         console.log(`⏰ Cron nhắc uống nước (${schedule}) lúc ${new Date().toLocaleString('vi-VN', { timeZone: VIETNAM_TIMEZONE })}`);
         try {
           const dispatchLock = await acquireReminderDispatchLock('water', schedule);
@@ -1700,7 +1705,9 @@ const setupDailyReminders = (bot: TelegramBot) => {
             return;
           }
           await sendWaterReminders(bot, index);
+          logOperational({ level: 'info', event: 'job_completed', jobName: 'telegram_water_reminder', correlationId, status: 'ok' });
         } catch (err: any) {
+          logOperational({ level: 'error', event: 'job_failed', jobName: 'telegram_water_reminder', correlationId, status: 'failed', errorCode: 'TELEGRAM_REMINDER_FAILED', message: err });
           console.error('❌ Lỗi gửi nhắc nhở nước:', err.message);
         }
       },
@@ -1713,6 +1720,8 @@ const setupDailyReminders = (bot: TelegramBot) => {
   const sleepReminderTask = cron.schedule(
     '30 9 * * *',
     async () => {
+      const correlationId = crypto.randomUUID();
+      logOperational({ level: 'info', event: 'job_started', jobName: 'telegram_sleep_reminder', correlationId });
       console.log(`⏰ Cron hỏi giấc ngủ lúc ${new Date().toLocaleString('vi-VN', { timeZone: VIETNAM_TIMEZONE })}`);
       try {
         const dispatchLock = await acquireReminderDispatchLock('sleep', '09:30');
@@ -1721,7 +1730,9 @@ const setupDailyReminders = (bot: TelegramBot) => {
           return;
         }
         await sendSleepReminders(bot);
+        logOperational({ level: 'info', event: 'job_completed', jobName: 'telegram_sleep_reminder', correlationId, status: 'ok' });
       } catch (err: any) {
+        logOperational({ level: 'error', event: 'job_failed', jobName: 'telegram_sleep_reminder', correlationId, status: 'failed', errorCode: 'TELEGRAM_REMINDER_FAILED', message: err });
         console.error('❌ Lỗi gửi câu hỏi giấc ngủ:', err.message);
       }
     },
@@ -1979,13 +1990,17 @@ const setupCallbackHandlers = (bot: TelegramBot) => {
   });
 };
 
-export const initTelegramBot = () => {
-  if (process.env.TELEGRAM_BOT_ENABLED === 'false') {
+export const startTelegramBot = () => {
+  if (!isTelegramEnabled()) {
+    logOperational({ level: 'info', event: 'telegram_disabled', status: 'disabled', message: 'ENABLE_TELEGRAM is not enabled' });
     console.log('ℹ️ Telegram Bot đã tắt trên môi trường này (TELEGRAM_BOT_ENABLED=false).');
     return null;
   }
 
+  const token = getTelegramToken();
   if (!token) {
+    logOperational({ level: isTelegramRequired() ? 'error' : 'warn', event: 'telegram_start_failed', status: 'not_configured', errorCode: 'TELEGRAM_TOKEN_MISSING', message: 'Telegram token is not configured' });
+    if (isTelegramRequired()) throw new Error('Telegram is required but not configured');
     console.warn('⚠️ TELEGRAM_BOT_TOKEN không tồn tại. Bot sẽ không được khởi chạy.');
     return null;
   }
@@ -2001,6 +2016,7 @@ export const initTelegramBot = () => {
 
   const enablePolling = isTelegramPollingEnabled();
   botInstance = new TelegramBot(token, { polling: false });
+  logOperational({ level: 'info', event: 'telegram_started', status: enablePolling ? 'polling_enabled' : 'polling_disabled' });
 
   if (enablePolling) {
     botInstance.on('polling_error', (err: any) => {
@@ -2675,11 +2691,17 @@ export const stopTelegramBot = async () => {
 
   const bot = botInstance;
   botInstance = null;
+  pollingStartRequested = false;
   if (!bot) return;
 
   try {
     await bot.stopPolling();
+    logOperational({ level: 'info', event: 'telegram_stopped', status: 'ok' });
   } catch (error: any) {
+    logOperational({ level: 'warn', event: 'telegram_stopped', status: 'error', errorCode: 'TELEGRAM_STOP_FAILED', message: error });
     console.warn('⚠️ Không thể dừng Telegram polling sạch sẽ:', error?.message || error);
   }
 };
+
+// Backwards-compatible name for integrations that imported the former API.
+export const initTelegramBot = startTelegramBot;
