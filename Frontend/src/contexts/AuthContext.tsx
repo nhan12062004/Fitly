@@ -3,7 +3,7 @@ import { supabase } from '../lib/Supabase';
 import { User } from '@supabase/supabase-js';
 import AuthModal from '../components/AuthModal';
 import LoadingScreen from '../components/LoadingScreen';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 export type MembershipTier = 'free' | 'plus' | 'pro';
 

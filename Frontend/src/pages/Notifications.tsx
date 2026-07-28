@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bell, CalendarCheck, CheckCheck, CheckCircle2, ChevronRight, Droplet, Flame, Loader2, MessageSquare } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
 import {

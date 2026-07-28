@@ -1,5 +1,5 @@
 import { Suspense, useState, useEffect } from 'react';
-import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import TopBar from '../layout/TopBar';
 import SurveyForm, { type SurveyPlanSummary } from '../components/SurveyForm';
 import SurveyResultScreen from '../components/SurveyResultScreen';

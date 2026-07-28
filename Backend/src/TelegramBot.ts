@@ -1,4 +1,4 @@
-import TelegramBot from 'node-telegram-bot-api';
+import TelegramBot, { type InlineKeyboardMarkup, type Message } from 'node-telegram-bot-api';
 import { supabase } from './config/Supabase';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
@@ -516,7 +516,7 @@ function buildSleepReminderText(user: { full_name?: string | null }, snapshot: A
   ].join('\n');
 }
 
-function buildSettingsKeyboard(profile: LinkedProfile): TelegramBot.InlineKeyboardMarkup {
+function buildSettingsKeyboard(profile: LinkedProfile): InlineKeyboardMarkup {
   const waterActive = profile.telegram_notify_water !== false;
   const sleepActive = profile.telegram_notify_sleep !== false;
   const workoutActive = profile.telegram_notify_workout !== false;
@@ -582,7 +582,7 @@ async function sendSettingsMenu(bot: TelegramBot, chatId: number, existingProfil
   });
 }
 
-function buildMainMenuKeyboard(): TelegramBot.InlineKeyboardMarkup {
+function buildMainMenuKeyboard(): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [
@@ -608,7 +608,7 @@ function buildMainMenuKeyboard(): TelegramBot.InlineKeyboardMarkup {
   };
 }
 
-function buildWaterKeyboard(): TelegramBot.InlineKeyboardMarkup {
+function buildWaterKeyboard(): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [
@@ -627,7 +627,7 @@ function buildWaterKeyboard(): TelegramBot.InlineKeyboardMarkup {
   };
 }
 
-function buildSleepKeyboard(): TelegramBot.InlineKeyboardMarkup {
+function buildSleepKeyboard(): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [
@@ -1231,7 +1231,7 @@ function isPendingMealSaveRequest(message: string) {
   return wantsSave && mentionsMeal;
 }
 
-function getTelegramMediaInfo(msg: TelegramBot.Message): TelegramMediaInfo | null {
+function getTelegramMediaInfo(msg: Message): TelegramMediaInfo | null {
   const caption = String(msg.caption || '').trim();
   const largestPhoto = msg.photo?.length ? msg.photo[msg.photo.length - 1] : null;
   if (largestPhoto?.file_id) {
@@ -1473,7 +1473,7 @@ async function saveConfirmedMealEstimate(userId: string, chatId: number, calorie
   ].join(' ');
 }
 
-async function handleTelegramMediaMessage(bot: TelegramBot, msg: TelegramBot.Message): Promise<boolean> {
+async function handleTelegramMediaMessage(bot: TelegramBot, msg: Message): Promise<boolean> {
   const media = getTelegramMediaInfo(msg);
   if (!media) return false;
 

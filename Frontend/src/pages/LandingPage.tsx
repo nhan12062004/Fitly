@@ -10,7 +10,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import ScrollReveal from '../components/ScrollReveal';
 

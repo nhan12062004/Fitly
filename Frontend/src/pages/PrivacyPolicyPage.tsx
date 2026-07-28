@@ -1,5 +1,5 @@
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 const sections = [
   {

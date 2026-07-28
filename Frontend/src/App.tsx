@@ -1,28 +1,30 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router';
 import LoadingScreen from './components/LoadingScreen';
 import { ToastProvider } from './components/ToastProvider';
 import { AuthProvider } from './contexts/AuthContext';
-import AuthPage from './pages/AuthPage';
-import AICoach from './pages/AICoach';
-import AdminPanel from './pages/AdminPanel';
-import CourseDetails from './pages/CourseDetails';
-import Challenges from './pages/Challenges';
-import ChallengeDetails from './pages/ChallengeDetails';
-import Dashboard from './pages/Dashboard';
-import DietPlan from './pages/DietPlan';
-import ExerciseDetails from './pages/ExerciseDetails';
-import Exercises from './pages/Exercises';
-import LandingPage from './pages/LandingPage';
-import Notifications from './pages/Notifications';
-import Overview from './pages/Overview';
-import PremiumCheckout from './pages/PremiumCheckout';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import Profile from './pages/Profile';
-import Progress from './pages/Progress';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import TermsOfServicePage from './pages/TermsOfServicePage';
-import WorkoutSession from './pages/WorkoutSession';
+
+const AuthPage = lazy(() => import('./pages/AuthPage'));
+const AICoach = lazy(() => import('./pages/AICoach'));
+const AccountDeletionPage = lazy(() => import('./pages/AccountDeletionPage'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const CourseDetails = lazy(() => import('./pages/CourseDetails'));
+const Challenges = lazy(() => import('./pages/Challenges'));
+const ChallengeDetails = lazy(() => import('./pages/ChallengeDetails'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const DietPlan = lazy(() => import('./pages/DietPlan'));
+const ExerciseDetails = lazy(() => import('./pages/ExerciseDetails'));
+const Exercises = lazy(() => import('./pages/Exercises'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const Overview = lazy(() => import('./pages/Overview'));
+const PremiumCheckout = lazy(() => import('./pages/PremiumCheckout'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Progress = lazy(() => import('./pages/Progress'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
+const WorkoutSession = lazy(() => import('./pages/WorkoutSession'));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -51,6 +53,7 @@ export default function App() {
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/terms" element={<TermsOfServicePage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                <Route path="/account-deletion" element={<AccountDeletionPage />} />
                 <Route path="/dieu-khoan" element={<Navigate to="/terms" replace />} />
                 <Route path="/chinh-sach-bao-mat" element={<Navigate to="/privacy" replace />} />
                 <Route path="/login" element={<AuthPage initialMode="login" />} />

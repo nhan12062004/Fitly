@@ -25,7 +25,6 @@ import {
   LogOut,
   Mars,
   PencilLine,
-  PowerOff,
   Ruler,
   Save,
   Scale,
@@ -44,7 +43,7 @@ import {
   Zap,
   Apple,
 } from 'lucide-react';
-import { useLocation, useNavigate, useOutletContext } from 'react-router-dom';
+import { useLocation, useNavigate, useOutletContext } from 'react-router';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
@@ -346,6 +345,11 @@ export default function Profile() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPollingTelegram, setIsPollingTelegram] = useState(false);
   const [isUnlinkingTelegram, setIsUnlinkingTelegram] = useState(false);
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
 
@@ -610,6 +614,11 @@ export default function Profile() {
     if (!file || !user?.id) return;
 
     const maxMb = 5;
+    const acceptedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+    if (!acceptedTypes.has(file.type)) {
+      toast.error('Chỉ hỗ trợ ảnh JPG, PNG, WebP hoặc GIF.');
+      return;
+    }
     if (file.size > maxMb * 1024 * 1024) {
       toast.error(`Ảnh quá lớn. Vui lòng chọn ảnh dưới ${maxMb}MB.`);
       return;
@@ -670,16 +679,53 @@ export default function Profile() {
     navigate('/profile/edit');
   };
 
-  const handleDisableAccount = () => {
+  const openDeleteAccountDialog = () => {
     setIsSettingsOpen(false);
-    const confirmed = window.confirm('Vô hiệu hóa tài khoản sẽ cần khóa đăng nhập và bảo vệ dữ liệu của bạn. Bạn muốn tiếp tục?');
-    if (!confirmed) return;
+    setDeletePassword('');
+    setDeleteConfirmation('');
+    setDeleteAccountError('');
+    setIsDeleteAccountOpen(true);
+  };
 
-    toast.warning({
-      title: 'Chưa thể vô hiệu hóa tự động',
-      message: 'Hệ thống hiện chưa có backend/schema để khóa tài khoản an toàn. Cần thêm API vô hiệu hóa tài khoản trước khi thao tác này hoạt động thật.',
-      duration: 6000,
-    });
+  const handleDeleteAccount = async () => {
+    if (!user?.email || isDeletingAccount) return;
+    if (deleteConfirmation.trim().toUpperCase() !== 'XÓA') {
+      setDeleteAccountError('Vui lòng nhập XÓA để xác nhận.');
+      return;
+    }
+    if (!deletePassword) {
+      setDeleteAccountError('Vui lòng nhập mật khẩu hiện tại.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setDeleteAccountError('');
+    try {
+      const reauth = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: deletePassword,
+      });
+      if (reauth.error) {
+        throw new Error('Mật khẩu không chính xác.');
+      }
+
+      const response = await fetchWithAuth('/api/account', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: 'DELETE' }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Không thể xóa tài khoản lúc này.');
+      }
+
+      await signOut();
+      navigate('/', { replace: true });
+    } catch (error: any) {
+      setDeleteAccountError(error?.message || 'Không thể xóa tài khoản lúc này.');
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   const handleSave = async (e: FormEvent) => {
@@ -1003,11 +1049,11 @@ export default function Profile() {
               <div className="my-1 h-px bg-border-primary" />
               <button
                 type="button"
-                onClick={handleDisableAccount}
+                onClick={openDeleteAccountDialog}
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-danger transition-colors hover:bg-danger/10"
               >
-                <PowerOff className="h-4 w-4" />
-                Vô hiệu hóa tài khoản
+                <Trash2 className="h-4 w-4" />
+                Xóa tài khoản và dữ liệu
               </button>
             </div>
           )}
@@ -1501,6 +1547,85 @@ export default function Profile() {
         <LogOut className="h-4 w-4" />
         Đăng xuất
       </button>
+
+      {isDeleteAccountOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+            className="w-full max-w-md rounded-2xl border border-danger/30 bg-bg-secondary p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="delete-account-title" className="text-lg font-black text-danger">
+                  Xóa vĩnh viễn tài khoản?
+                </h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-text-secondary">
+                  Hồ sơ, dữ liệu sức khỏe, lịch tập, thực đơn, hội thoại AI và ảnh đại diện sẽ bị xóa. Thao tác này không thể hoàn tác.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDeleteAccountOpen(false)}
+                disabled={isDeletingAccount}
+                className="rounded-lg p-2 text-text-tertiary hover:bg-bg-tertiary hover:text-text-primary disabled:opacity-50"
+                aria-label="Đóng"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <label className="mt-5 block">
+              <span className="text-xs font-black uppercase text-text-tertiary">Mật khẩu hiện tại</span>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(event) => setDeletePassword(event.target.value)}
+                autoComplete="current-password"
+                className="mt-2 h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary px-3 text-sm font-semibold text-text-primary outline-none focus:border-danger"
+              />
+            </label>
+
+            <label className="mt-4 block">
+              <span className="text-xs font-black uppercase text-text-tertiary">
+                Nhập XÓA để xác nhận
+              </span>
+              <input
+                type="text"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                autoComplete="off"
+                className="mt-2 h-11 w-full rounded-xl border border-border-primary bg-bg-tertiary px-3 text-sm font-semibold text-text-primary outline-none focus:border-danger"
+              />
+            </label>
+
+            {deleteAccountError ? (
+              <p className="mt-3 text-sm font-semibold text-danger">{deleteAccountError}</p>
+            ) : null}
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDeleteAccountOpen(false)}
+                disabled={isDeletingAccount}
+                className="h-11 flex-1 rounded-xl border border-border-primary bg-bg-tertiary text-sm font-black text-text-secondary disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteAccount()}
+                disabled={isDeletingAccount}
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-danger text-sm font-black text-white disabled:opacity-60"
+              >
+                {isDeletingAccount ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {isDeletingAccount ? 'Đang xóa...' : 'Xóa vĩnh viễn'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
     </form>
   );

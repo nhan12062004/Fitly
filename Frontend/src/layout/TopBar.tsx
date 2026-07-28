@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ElementType } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import {
   archiveNotification,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import ExerciseDetailOverlay, { toExerciseDetailItem, type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchWithAuth } from '../lib/Api';

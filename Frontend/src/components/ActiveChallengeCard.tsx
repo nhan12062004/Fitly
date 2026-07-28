@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, Dumbbell, Flame, Loader2, Users } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { getTodayChallengeStatus, type TodayChallengeStatus } from '../lib/Challenges';
 

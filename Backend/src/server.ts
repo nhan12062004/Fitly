@@ -229,13 +229,9 @@ const getAuthUserId = async (req: express.Request): Promise<string | null> => {
   return authRes.data.user.id;
 };
 const isAdminUser = async (userId: string): Promise<boolean> => {
-  const profileRes = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle();
-  if (profileRes.error) return false;
-  return String(profileRes.data?.role || '') === 'admin';
+  const userRes = await supabase.auth.admin.getUserById(userId);
+  if (userRes.error || !userRes.data.user) return false;
+  return String(userRes.data.user.app_metadata?.role || '').toLowerCase() === 'admin';
 };
 const requireAdminUserId = async (req: express.Request, res: express.Response): Promise<string | null> => {
   const authUserId = await getAuthUserId(req);
@@ -2258,64 +2254,50 @@ app.get('/api/profiles', async (req, res) => {
   }
 });
 
-const addMonthsToUtcDate = (date: Date, months: number): Date => {
-  const next = new Date(date);
-  next.setUTCMonth(next.getUTCMonth() + months);
-  return next;
-};
-
 app.post('/api/membership/renew', async (req, res) => {
+  const authUserId = await getAuthUserId(req);
+  if (!authUserId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  return res.status(503).json({
+    error: 'Thanh toán đang tạm khóa cho đến khi tích hợp xác thực hóa đơn từ App Store và Google Play.',
+    code: 'PAYMENT_PROVIDER_NOT_CONFIGURED'
+  });
+});
+
+app.delete('/api/account', async (req, res) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-
-    const requestedTier = normalizeMembershipTier(req.body?.tier);
-    if (requestedTier === 'free') {
-      return res.status(400).json({ error: 'Vui lòng chọn gói Plus hoặc Pro để gia hạn.' });
+    if (String(req.body?.confirmation || '') !== 'DELETE') {
+      return res.status(400).json({ error: 'Missing account deletion confirmation.' });
     }
 
-    const profileRes = await supabase
-      .from('profiles')
-      .select('id, membership_tier, membership_expires_at')
-      .eq('id', authUserId)
-      .maybeSingle();
-    if (profileRes.error) throw profileRes.error;
+    const avatarList = await supabase.storage
+      .from('avatars')
+      .list(authUserId, { limit: 100 });
+    if (avatarList.error) throw avatarList.error;
 
-    const now = new Date();
-    const currentExpiresAt = profileRes.data?.membership_expires_at
-      ? new Date(profileRes.data.membership_expires_at)
-      : null;
-    const baseDate = currentExpiresAt && currentExpiresAt > now ? currentExpiresAt : now;
-    const nextExpiresAt = addMonthsToUtcDate(baseDate, 1).toISOString();
-
-    const updatePayload: Record<string, any> = {
-      membership_tier: requestedTier,
-      membership_expires_at: nextExpiresAt,
-      updated_at: now.toISOString(),
-    };
-    if (requestedTier === 'plus') {
-      updatePayload.has_purchased_plus = true;
-    } else if (requestedTier === 'pro') {
-      updatePayload.has_purchased_plus = true;
-      updatePayload.has_purchased_pro = true;
+    const avatarPaths = (avatarList.data || [])
+      .filter((item) => item.name)
+      .map((item) => `${authUserId}/${item.name}`);
+    if (avatarPaths.length > 0) {
+      const avatarDelete = await supabase.storage.from('avatars').remove(avatarPaths);
+      if (avatarDelete.error) throw avatarDelete.error;
     }
 
-    const updateRes = await supabase
-      .from('profiles')
-      .update(updatePayload)
-      .eq('id', authUserId)
-      .select('id, membership_tier, membership_expires_at, has_purchased_plus, has_purchased_pro')
-      .maybeSingle();
-    if (updateRes.error) throw updateRes.error;
+    const deleteUser = await supabase.auth.admin.deleteUser(authUserId);
+    if (deleteUser.error) throw deleteUser.error;
 
-    res.json({
-      success: true,
-      data: updateRes.data
-    });
+    return res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ error: error?.message || 'Không thể gia hạn gói lúc này.' });
+    console.error('[account-delete] failed:', error?.message || error);
+    return res.status(500).json({
+      error: error?.message || 'Không thể xóa tài khoản lúc này.'
+    });
   }
 });
 

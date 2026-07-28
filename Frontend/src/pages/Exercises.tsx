@@ -3,7 +3,7 @@ import {
   Plus, AlertCircle, Calendar, ImageOff,
   Play, Eye, Moon, ChevronRight, Shield, RefreshCw, Check, RotateCcw
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';

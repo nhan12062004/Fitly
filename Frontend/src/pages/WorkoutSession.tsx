@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router';
 import { ArrowLeft, Check, CheckCircle2, ChevronRight, Maximize2, Pause, Play, SlidersHorizontal, Timer, Trash2, Volume2, VolumeX } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchWithAuth } from '../lib/Api';

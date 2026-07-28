@@ -21,7 +21,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../contexts/AuthContext';
 import {

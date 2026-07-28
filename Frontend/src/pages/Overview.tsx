@@ -12,7 +12,7 @@ import {
   type StreakWorkoutRow,
 } from '../lib/DailyStreak';
 import { supabase } from '../lib/Supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { estimateWorkoutDurationMinutes } from '../lib/workoutDuration';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';

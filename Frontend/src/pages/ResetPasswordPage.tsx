@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import { ArrowRight, Eye, EyeOff, KeyRound, Loader2, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { useToast } from '../components/ToastProvider';

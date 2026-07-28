@@ -17,7 +17,7 @@ import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const RECENT_CHAT_LIMIT = 80;

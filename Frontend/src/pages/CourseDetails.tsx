@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, Play, Info } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
 import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';

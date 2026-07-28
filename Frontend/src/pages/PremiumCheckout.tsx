@@ -1,11 +1,8 @@
-import { useState } from 'react';
 import {
   X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useAuth, type MembershipTier } from '../contexts/AuthContext';
-import { API_BASE_URL } from '../lib/Api';
-import { supabase } from '../lib/Supabase';
 import { useToast } from '../components/ToastProvider';
 
 const tierRank: Record<MembershipTier, number> = {
@@ -87,10 +84,9 @@ const formatMembershipExpiry = (value: unknown): string => {
 };
 
 export default function PremiumCheckout() {
-  const { user, profile, membershipTier, refreshProfile } = useAuth();
+  const { profile, membershipTier } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const [submittingPlanId, setSubmittingPlanId] = useState<MembershipTier | null>(null);
   const membershipExpiryLabel = formatMembershipExpiry(profile?.membership_expires_at);
 
   const handleClose = () => {
@@ -101,32 +97,12 @@ export default function PremiumCheckout() {
     }
   };
 
-  const handlePlanAction = async (tier: MembershipTier) => {
-    if (!user?.id || tier === 'free' || submittingPlanId) return;
-    setSubmittingPlanId(tier);
-    try {
-      const sessionRes = await supabase.auth.getSession();
-      const accessToken = sessionRes.data.session?.access_token;
-      if (!accessToken) throw new Error('Missing access token');
-
-      const response = await fetch(`${API_BASE_URL}/api/membership/renew`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ tier }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'Không thể gia hạn gói lúc này.');
-
-      await refreshProfile();
-      toast.success(tier === membershipTier ? 'Đã gia hạn thêm 1 tháng.' : `Đã kích hoạt gói ${tier.toUpperCase()} trong 1 tháng.`);
-    } catch (error: any) {
-      toast.error(error?.message || 'Không thể xử lý gói lúc này.');
-    } finally {
-      setSubmittingPlanId(null);
-    }
+  const handlePlanAction = () => {
+    toast.warning({
+      title: 'Thanh toán đang được hoàn thiện',
+      message: 'Fitly sẽ mở lại nâng cấp sau khi tích hợp thanh toán và xác thực hóa đơn từ App Store/Google Play.',
+      duration: 6000,
+    });
   };
 
   return (
@@ -145,6 +121,9 @@ export default function PremiumCheckout() {
           <h1 className="premium-checkout-title">
             Nâng cấp gói của bạn
           </h1>
+          <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">
+            Nâng cấp Plus/Pro đang tạm khóa để hoàn thiện thanh toán an toàn qua App Store và Google Play.
+          </p>
         </div>
 
         <div className="premium-plan-grid">
@@ -157,8 +136,6 @@ export default function PremiumCheckout() {
             const isSuggested = (membershipTier === 'free' && isPlus) || (membershipTier === 'plus' && isPro);
             const canUpgrade = !isCurrent && !isLowerTier;
             const canSubmit = canUpgrade;
-            const isSubmitting = submittingPlanId === plan.id;
-            
             const hasUsedPromo = isFree
               ? false
               : Boolean(
@@ -244,11 +221,10 @@ export default function PremiumCheckout() {
                 ) : (
                   <button
                     type="button"
-                    onClick={() => void handlePlanAction(plan.id)}
-                    disabled={!!submittingPlanId}
+                    onClick={handlePlanAction}
                     className={`premium-plan-cta ${isPlus ? 'premium-plan-cta-plus' : 'premium-plan-cta-pro'}`}
                   >
-                    {isSubmitting ? 'Đang xử lý...' : ctaLabel}
+                    {ctaLabel} — Sắp mở bán
                   </button>
                 )}
 

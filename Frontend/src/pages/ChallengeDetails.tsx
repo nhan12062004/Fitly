@@ -16,7 +16,7 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router';
 import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../contexts/AuthContext';
 import {

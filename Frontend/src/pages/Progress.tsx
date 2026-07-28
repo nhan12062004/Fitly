@@ -20,7 +20,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { SkeletonBlock, SkeletonSurface } from '../components/PageSkeleton';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
