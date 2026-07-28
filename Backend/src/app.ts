@@ -86,6 +86,9 @@ const AI_EXERCISE_CATALOG_LIMIT = 48;
 const AI_EXERCISE_CATALOG_FETCH_LIMIT = 500;
 const AI_FOOD_CATALOG_LIMIT = 72;
 const AI_FOOD_CATALOG_FETCH_LIMIT = 320;
+const DEFAULT_READY_TIMEOUT_MS = 3000;
+const MIN_READY_TIMEOUT_MS = 10;
+const MAX_READY_TIMEOUT_MS = 60_000;
 type MembershipTier = 'free' | 'plus' | 'pro';
 type AiQuotaKey = 'planGenerations' | 'workoutAdjustments' | 'mealAdjustments' | 'chatMessages';
 const AI_QUOTAS_BY_TIER: Record<MembershipTier, Record<AiQuotaKey, number>> = {
@@ -218,6 +221,46 @@ const getBearerToken = (authorizationHeader: unknown): string | null => {
   if (!raw.toLowerCase().startsWith('bearer ')) return null;
   return raw.slice(7).trim() || null;
 };
+
+class ReadinessTimeoutError extends Error {
+  constructor() {
+    super('Readiness check timed out');
+  }
+}
+
+const getReadyTimeoutMs = (): number => {
+  const configuredTimeout = Number(process.env.READY_TIMEOUT_MS);
+  if (!Number.isSafeInteger(configuredTimeout)) return DEFAULT_READY_TIMEOUT_MS;
+  if (configuredTimeout < MIN_READY_TIMEOUT_MS || configuredTimeout > MAX_READY_TIMEOUT_MS) {
+    return DEFAULT_READY_TIMEOUT_MS;
+  }
+  return configuredTimeout;
+};
+
+const awaitWithTimeout = <T>(operation: PromiseLike<T>, timeoutMs: number): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new ReadinessTimeoutError());
+    }, timeoutMs);
+
+    Promise.resolve(operation).then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(error);
+      },
+    );
+  });
 const getAuthUserId = async (req: express.Request): Promise<string | null> => {
   const token = getBearerToken(req.headers.authorization);
   if (!token) return null;
@@ -2247,10 +2290,11 @@ app.get('/ready', async (_req, res) => {
   }
 
   try {
-    const { error } = await supabase
+    const readinessQuery = supabase
       .from('profiles')
       .select('id', { head: true })
       .limit(1);
+    const { error } = await awaitWithTimeout(readinessQuery, getReadyTimeoutMs());
 
     if (error) throw error;
 
@@ -2261,8 +2305,9 @@ app.get('/ready', async (_req, res) => {
         database: 'ok',
       },
     });
-  } catch (error: any) {
-    console.error('[ready] Supabase connectivity check failed:', error?.message || 'unknown_error');
+  } catch (error) {
+    const failureReason = error instanceof ReadinessTimeoutError ? 'timeout' : 'unavailable';
+    console.error(`[ready] Supabase connectivity check failed: ${failureReason}`);
     return res.status(503).json({
       status: 'not_ready',
       checks: {
