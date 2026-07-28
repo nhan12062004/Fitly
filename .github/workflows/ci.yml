@@ -43,6 +43,9 @@ jobs:
 
       - name: Build frontend
         working-directory: Frontend
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: test-anon-key
         run: npm run build
 
       - name: Audit backend dependencies
@@ -69,4 +72,7 @@ jobs:
 
       - name: Run frontend smoke test
         working-directory: Frontend
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: test-anon-key
         run: npm run test:smoke
