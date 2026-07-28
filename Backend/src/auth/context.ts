@@ -10,6 +10,7 @@ declare global {
     interface Request {
       auth?: AuthContext;
       supabase?: SupabaseClient;
+      requestId: string;
     }
   }
 }

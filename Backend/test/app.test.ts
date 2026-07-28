@@ -171,6 +171,22 @@ describe('Express application bootstrap', () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
+  it('creates and returns a request ID when the client does not provide one', async () => {
+    const { app } = await import('../src/app');
+    const response = await request(app).get('/health');
+    expect(response.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it('preserves a valid client request ID and replaces unsafe values', async () => {
+    const { app } = await import('../src/app');
+    const requestId = '123e4567-e89b-42d3-a456-426614174000';
+    const accepted = await request(app).get('/health').set('x-request-id', requestId);
+    const replaced = await request(app).get('/health').set('x-request-id', 'unsafe-request-id');
+    expect(accepted.headers['x-request-id']).toBe(requestId);
+    expect(replaced.headers['x-request-id']).not.toBe('unsafe-request-id');
+    expect(replaced.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
   it('returns not ready when the lightweight Supabase query exceeds the configured timeout', async () => {
     process.env.READY_TIMEOUT_MS = '10';
     mocks.limit.mockImplementationOnce(() => new Promise(() => undefined));
@@ -211,8 +227,7 @@ describe('Express application bootstrap', () => {
 
     const response = await request(app)
       .post('/api/telegram/link-token')
-      .set('Authorization', 'Bearer user-jwt')
-      .send({ user_id: 'attacker-controlled-id' });
+      .set('Authorization', 'Bearer user-jwt');
 
     expect(response.status).toBe(200);
     expect(mocks.createUserScopedSupabaseClient).toHaveBeenCalledWith('user-jwt');
@@ -247,7 +262,7 @@ describe('Express application bootstrap', () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
-  it('ignores attacker-controlled ownership fields when updating a profile', async () => {
+  it('rejects attacker-controlled ownership fields when updating a profile', async () => {
     const { app } = await import('../src/app');
 
     const response = await request(app)
@@ -260,11 +275,34 @@ describe('Express application bootstrap', () => {
         full_name: 'Authenticated User',
       });
 
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(mocks.userUpdate).not.toHaveBeenCalled();
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('accepts the existing valid profile update payload through the user-scoped client', async () => {
+    const { app } = await import('../src/app');
+    const response = await request(app)
+      .patch('/api/profile')
+      .set('Authorization', 'Bearer user-jwt')
+      .send({ full_name: 'Authenticated User', gender: 'Nam' });
     expect(response.status).toBe(200);
-    expect(mocks.userUpdate).toHaveBeenCalledWith(expect.objectContaining({ full_name: 'Authenticated User' }));
-    expect(mocks.userUpdate).toHaveBeenCalledWith(expect.not.objectContaining({ id: expect.anything(), user_id: expect.anything(), role: expect.anything() }));
+    expect(mocks.userUpdate).toHaveBeenCalledWith(expect.objectContaining({ full_name: 'Authenticated User', gender: 'Nam' }));
     expect(mocks.userUpdateEq).toHaveBeenCalledWith('id', 'authenticated-user');
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('returns the standardized validation error with its request ID', async () => {
+    const { app } = await import('../src/app');
+    const requestId = '123e4567-e89b-42d3-a456-426614174001';
+    const response = await request(app)
+      .patch('/api/profile')
+      .set('Authorization', 'Bearer user-jwt')
+      .set('x-request-id', requestId)
+      .send({ role: 'admin' });
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: { code: 'VALIDATION_ERROR', message: 'Invalid request', requestId } });
   });
 
   it('builds avatar paths from the authenticated user and never accepts a client path', async () => {
@@ -317,8 +355,9 @@ describe('Express application bootstrap', () => {
       .get('/api/profile')
       .set('Authorization', 'Bearer user-jwt');
 
-    expect(response.status).toBe(500);
-    expect(response.body).toEqual({ error: 'Unable to load profile.' });
+    expect(response.status).toBe(502);
+    expect(response.body.error).toMatchObject({ code: 'EXTERNAL_PROVIDER_ERROR', message: 'Internal server error' });
+    expect(response.body.error.requestId).toBe(response.headers['x-request-id']);
     expect(JSON.stringify(response.body)).not.toContain('user-jwt');
     expect(JSON.stringify(response.body)).not.toContain('bucket.example');
   });

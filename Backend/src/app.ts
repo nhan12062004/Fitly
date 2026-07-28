@@ -62,6 +62,11 @@ import {
   normalizeTrainingLocation,
 } from '../../shared/exerciseCatalog';
 import { normalizeAllergies } from '../../shared/dietaryPreferences';
+import { z } from 'zod';
+import { errorHandler, notFoundHandler } from './http/errorHandler';
+import { ExternalProviderError, NotFoundError, ValidationError } from './http/errors';
+import { requestIdMiddleware } from './http/requestId';
+import { validateBody } from './http/validation';
 import {
   normalizeRecipe,
   normalizeRecipeIngredient,
@@ -2230,6 +2235,7 @@ const aiLimiter = rateLimit({
   message: { error: 'Too many AI requests. Please try again later.' },
 });
 
+app.use(requestIdMiddleware);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
@@ -2340,7 +2346,9 @@ app.get('/api/profiles', requireAuth, requireAdmin, async (_req, res) => {
   }
 });
 
-app.post('/api/membership/renew', requireAuth, (_req, res) => {
+const emptyBodySchema = z.object({}).strict();
+
+app.post('/api/membership/renew', requireAuth, validateBody(emptyBodySchema), (_req, res) => {
   return res.status(503).json({
     error: 'Thanh toán đang tạm khóa cho đến khi tích hợp xác thực hóa đơn từ App Store và Google Play.',
     code: 'PAYMENT_PROVIDER_NOT_CONFIGURED'
@@ -2358,6 +2366,16 @@ const SELF_SERVICE_PROFILE_FIELDS = [
   'telegram_notify_sleep',
   'telegram_notify_workout',
 ] as const;
+const profileUpdateSchema = z.object({
+  full_name: z.string().trim().max(120).nullable().optional(),
+  email: z.string().trim().email().max(254).nullable().optional(),
+  gender: z.enum(['Nam', 'Nữ', 'Khác']).nullable().optional(),
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  telegram_chat_id: z.string().trim().max(128).nullable().optional(),
+  telegram_notify_water: z.boolean().optional(),
+  telegram_notify_sleep: z.boolean().optional(),
+  telegram_notify_workout: z.boolean().optional(),
+}).strict().refine((body) => Object.keys(body).length > 0);
 const AVATAR_CONTENT_TYPES = new Map([
   ['image/jpeg', 'jpg'],
   ['image/png', 'png'],
@@ -2372,7 +2390,7 @@ const getAuthenticatedRequestContext = (req: express.Request, res: express.Respo
   return null;
 };
 
-app.get('/api/profile', requireAuth, async (req, res) => {
+app.get('/api/profile', requireAuth, async (req, res, next) => {
   const context = getAuthenticatedRequestContext(req, res);
   if (!context) return;
 
@@ -2383,14 +2401,14 @@ app.get('/api/profile', requireAuth, async (req, res) => {
       .eq('id', context.auth.user.id)
       .maybeSingle();
     if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'Profile not found.' });
+    if (!data) return next(new NotFoundError('Profile not found.'));
     return res.json({ data });
   } catch {
-    return res.status(500).json({ error: 'Unable to load profile.' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.patch('/api/profile', requireAuth, async (req, res) => {
+app.patch('/api/profile', requireAuth, validateBody(profileUpdateSchema), async (req, res, next) => {
   const context = getAuthenticatedRequestContext(req, res);
   if (!context) return;
 
@@ -2401,7 +2419,7 @@ app.patch('/api/profile', requireAuth, async (req, res) => {
     }
   }
   if (Object.keys(updates).length === 0) {
-    return res.status(400).json({ error: 'No supported profile fields were provided.' });
+    return next(new ValidationError());
   }
 
   try {
@@ -2412,10 +2430,10 @@ app.patch('/api/profile', requireAuth, async (req, res) => {
       .select(SELF_SERVICE_PROFILE_COLUMNS)
       .maybeSingle();
     if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'Profile not found.' });
+    if (!data) return next(new NotFoundError('Profile not found.'));
     return res.json({ data });
-  } catch {
-    return res.status(500).json({ error: 'Unable to update profile.' });
+  } catch (error) {
+    return next(new ExternalProviderError());
   }
 });
 
@@ -6028,9 +6046,9 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
   }
 });
 
-app.post('/api/telegram/link-token', requireAuth, async (req, res) => {
+app.post('/api/telegram/link-token', requireAuth, validateBody(emptyBodySchema), async (req, res, next) => {
   try {
-    if (!req.auth || !req.supabase) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.auth || !req.supabase) return next(new ExternalProviderError());
 
     const profileRes = await req.supabase
       .from('profiles')
@@ -6039,7 +6057,7 @@ app.post('/api/telegram/link-token', requireAuth, async (req, res) => {
       .maybeSingle();
     if (profileRes.error) throw profileRes.error;
     if (!profileRes.data?.id) {
-      return res.status(404).json({ error: 'Profile khong ton tai' });
+      return next(new NotFoundError('Profile not found'));
     }
 
     const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'fitlyforbot';
@@ -6050,7 +6068,10 @@ app.post('/api/telegram/link-token', requireAuth, async (req, res) => {
       telegramLink: `https://t.me/${botUsername}?start=${token}`
     });
   } catch {
-    return res.status(500).json({ error: 'Internal Server Error' });
+    return next(new ExternalProviderError());
   }
 });
+
+app.use(notFoundHandler);
+app.use(errorHandler);
 
