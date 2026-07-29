@@ -639,7 +639,7 @@ export default function Exercises() {
       } else {
         // 2. No session on this day. Try to clone from weekly plan
         setSession([]);
-        await clonePlanToSelectedDate(selectedDateKey, selectedDayId);
+        await clonePlanToSelectedDate(selectedDateKey);
       }
       // Calendar statistics are independent of today's session. Do not keep
       // the exercise cards and their media behind these extra queries.
@@ -702,7 +702,7 @@ export default function Exercises() {
     if (progressRes.error) throw progressRes.error;
   };
 
-  const clonePlanToSelectedDate = async (logDate: string, dayIndex: number) => {
+  const clonePlanToSelectedDate = async (logDate: string) => {
     try {
       const response = await fetchWithAuth('/api/workout/daily-exercises/from-plan', {
         method: 'POST',
@@ -710,9 +710,7 @@ export default function Exercises() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          logDate,
-          dayIndex,
-          weekStartDate: getWeekStartKey(new Date(`${logDate}T00:00:00`))
+          logDate
         })
       });
       const payload = await response.json().catch(() => ({}));

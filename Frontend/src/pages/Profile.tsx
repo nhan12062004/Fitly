@@ -96,6 +96,16 @@ const toInput = (value: unknown) => {
   return String(value);
 };
 
+const getApiErrorMessage = (value: unknown, fallback: string) => {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (value && typeof value === 'object') {
+    const record = value as { message?: unknown; error?: unknown };
+    if (typeof record.message === 'string' && record.message.trim()) return record.message;
+    if (typeof record.error === 'string' && record.error.trim()) return record.error;
+  }
+  return fallback;
+};
+
 const parseNumberOrNull = (value: string) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -371,7 +381,7 @@ export default function Profile() {
               const payload = await response.json().catch(() => ({}));
               return response.ok
                 ? { data: payload.data, error: null }
-                : { data: null, error: new Error(payload?.error || 'Unable to load profile.') };
+                : { data: null, error: new Error(getApiErrorMessage(payload?.error, 'Unable to load profile.')) };
             }),
           supabase
             .from('body_metrics')
@@ -553,7 +563,7 @@ export default function Profile() {
         body: JSON.stringify({ telegram_chat_id: null }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'Unable to unlink Telegram.');
+      if (!response.ok) throw new Error(getApiErrorMessage(payload?.error, 'Unable to unlink Telegram.'));
       await refreshProfile();
       setReloadKey((value) => value + 1);
       toast.success('Đã hủy liên kết Telegram thành công');
@@ -600,7 +610,7 @@ export default function Profile() {
       });
       const payload = await linkRes.json().catch(() => ({}));
       if (!linkRes.ok || !payload?.telegramLink) {
-        throw new Error(payload?.error || 'Không thể tạo liên kết Telegram an toàn.');
+        throw new Error(getApiErrorMessage(payload?.error, 'Không thể tạo liên kết Telegram an toàn.'));
       }
 
       window.open(String(payload.telegramLink), '_blank');
@@ -635,7 +645,7 @@ export default function Profile() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.avatarUrl) {
-        throw new Error(payload?.error || 'Unable to upload avatar.');
+        throw new Error(getApiErrorMessage(payload?.error, 'Unable to upload avatar.'));
       }
       const publicUrl = `${payload.avatarUrl}?t=${Date.now()}`;
 
@@ -711,7 +721,7 @@ export default function Profile() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || 'Không thể xóa tài khoản lúc này.');
+        throw new Error(getApiErrorMessage(payload?.error, 'Không thể xóa tài khoản lúc này.'));
       }
 
       await signOut();
@@ -744,10 +754,10 @@ export default function Profile() {
             birthday: getBirthdayFromAge(formData.age),
           }),
         }).then(async (response) => {
-          const payload = await response.json().catch(() => ({}));
-          return response.ok
-            ? { data: payload.data, error: null }
-            : { data: null, error: new Error(payload?.error || 'Unable to save profile.') };
+            const payload = await response.json().catch(() => ({}));
+            return response.ok
+              ? { data: payload.data, error: null }
+              : { data: null, error: new Error(getApiErrorMessage(payload?.error, 'Unable to save profile.')) };
         }),
         supabase.from('body_metrics').insert({
           user_id: user.id,

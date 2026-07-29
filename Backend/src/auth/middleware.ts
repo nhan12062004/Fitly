@@ -17,23 +17,44 @@ const extractBearerToken = (authorizationHeader: unknown): string | null => {
 const sendUnauthorized = (res: Parameters<RequestHandler>[1]) =>
   res.status(401).json({ error: 'Unauthorized' });
 
+const logAuthRejection = (reason: string, error?: { status?: number; code?: string; message?: string } | null) => {
+  // Do not log the Authorization header or access token. These fields are
+  // sufficient to distinguish a missing token from an invalid backend config.
+  console.warn(JSON.stringify({
+    level: 'warn',
+    event: 'auth_rejected',
+    reason,
+    status: error?.status ?? null,
+    code: error?.code ?? null,
+    message: error?.message ?? null,
+  }));
+};
+
 export const createRequireAuth = (dependencies: AuthDependencies): RequestHandler => async (req, res, next) => {
   const accessToken = extractBearerToken(req.headers.authorization);
-  if (!accessToken) return sendUnauthorized(res);
+  if (!accessToken) {
+    logAuthRejection('missing_bearer_token');
+    return sendUnauthorized(res);
+  }
 
   if (!dependencies.hasUserScopedConfiguration()) {
+    logAuthRejection('missing_user_scoped_supabase_configuration');
     return res.status(503).json({ error: 'Authentication service is not configured.' });
   }
 
   try {
     const userSupabase = dependencies.createUserScopedClient(accessToken);
     const { data, error } = await userSupabase.auth.getUser(accessToken);
-    if (error || !data.user) return sendUnauthorized(res);
+    if (error || !data.user) {
+      logAuthRejection('supabase_rejected_access_token', error);
+      return sendUnauthorized(res);
+    }
 
     req.auth = { user: data.user, accessToken };
     req.supabase = userSupabase;
     return next();
-  } catch {
+  } catch (error: any) {
+    logAuthRejection('supabase_auth_request_failed', error);
     return sendUnauthorized(res);
   }
 };
