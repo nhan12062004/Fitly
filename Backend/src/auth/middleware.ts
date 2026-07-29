@@ -1,11 +1,15 @@
 import type { RequestHandler } from 'express';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { createUserScopedSupabaseClient, hasUserScopedSupabaseConfiguration } from '../config/Supabase';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
+import { adminSupabase, createUserScopedSupabaseClient, hasUserScopedSupabaseConfiguration } from '../config/Supabase';
 import './context';
 
 type AuthDependencies = {
   createUserScopedClient: (accessToken: string) => SupabaseClient;
   hasUserScopedConfiguration: () => boolean;
+  verifyAccessToken: (accessToken: string) => Promise<{
+    data: { user: User | null };
+    error: { status?: number; code?: string; message?: string } | null;
+  }>;
 };
 
 const extractBearerToken = (authorizationHeader: unknown): string | null => {
@@ -43,12 +47,16 @@ export const createRequireAuth = (dependencies: AuthDependencies): RequestHandle
   }
 
   try {
-    const userSupabase = dependencies.createUserScopedClient(accessToken);
-    const { data, error } = await userSupabase.auth.getUser(accessToken);
+    // Supabase disallows auth.getUser() on a client created with the
+    // accessToken option. Verify with the server client first, then use the
+    // user-scoped client only for RLS-bound database requests.
+    const { data, error } = await dependencies.verifyAccessToken(accessToken);
     if (error || !data.user) {
       logAuthRejection('supabase_rejected_access_token', error);
       return sendUnauthorized(res);
     }
+
+    const userSupabase = dependencies.createUserScopedClient(accessToken);
 
     req.auth = { user: data.user, accessToken };
     req.supabase = userSupabase;
@@ -62,6 +70,7 @@ export const createRequireAuth = (dependencies: AuthDependencies): RequestHandle
 export const requireAuth = createRequireAuth({
   createUserScopedClient: createUserScopedSupabaseClient,
   hasUserScopedConfiguration: hasUserScopedSupabaseConfiguration,
+  verifyAccessToken: (accessToken) => adminSupabase.auth.getUser(accessToken),
 });
 
 export const requireAdmin: RequestHandler = (req, res, next) => {

@@ -30,10 +30,11 @@ const createTestApp = (middleware: ReturnType<typeof createRequireAuth>, adminOn
   return app;
 };
 
-const createMiddleware = (getUser: ReturnType<typeof vi.fn>, createUserScopedClient = vi.fn(() => makeClient(getUser))) => ({
+const createMiddleware = (getUser: ReturnType<typeof vi.fn>, createUserScopedClient = vi.fn(() => makeClient(vi.fn()))) => ({
   middleware: createRequireAuth({
     createUserScopedClient,
     hasUserScopedConfiguration: () => true,
+    verifyAccessToken: getUser,
   }),
   createUserScopedClient,
 });
@@ -81,7 +82,7 @@ describe('authentication middleware', () => {
     expect(getUser).toHaveBeenCalledWith('verified-jwt');
   });
 
-  it('does not depend on an admin client for an authenticated user request', async () => {
+  it('verifies the token before constructing a user-scoped client', async () => {
     const getUser = vi.fn().mockResolvedValue({ data: { user: makeUser() }, error: null });
     const createUserScopedClient = vi.fn(() => makeClient(getUser));
     const { middleware } = createMiddleware(getUser, createUserScopedClient);
