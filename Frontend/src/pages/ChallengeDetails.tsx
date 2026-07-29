@@ -12,6 +12,7 @@ import {
   Loader2,
   Medal,
   ShieldCheck,
+  Target,
   Trophy,
   Users,
   Zap,
@@ -324,6 +325,11 @@ export default function ChallengeDetails() {
 
   const { challenge, participants } = detail;
   const isCrew = challenge.mode === 'crew';
+  const goalKey = typeof challenge.target.goal_key === 'string' ? challenge.target.goal_key : 'any';
+  const goalLabel = typeof challenge.target.goal_label === 'string'
+    ? challenge.target.goal_label
+    : 'Hoàn thành một hoạt động lành mạnh mỗi ngày';
+  const requiresTrackedActivity = goalKey !== 'any';
   const rewardBadge = typeof challenge.target.reward_badge === 'string'
     ? challenge.target.reward_badge
     : null;
@@ -368,6 +374,10 @@ export default function ChallengeDetails() {
                 <CalendarDays className="h-3.5 w-3.5" />
                 {formatDate(challenge.start_date)} – {challenge.end_date ? formatDate(challenge.end_date) : 'Không giới hạn'}
               </span>
+              <span className="inline-flex items-center gap-2 rounded-lg bg-accent/10 px-3 py-2 text-xs font-bold text-accent">
+                <Target className="h-3.5 w-3.5" />
+                {goalLabel}
+              </span>
               <span className="inline-flex items-center gap-2 rounded-lg bg-bg-tertiary px-3 py-2 text-xs font-bold text-text-secondary">
                 <Users className="h-3.5 w-3.5" />
                 {participants.length}/{challenge.max_members} thành viên
@@ -392,27 +402,22 @@ export default function ChallengeDetails() {
                 <span className="font-mono tracking-[0.14em]">{challenge.invite_code}</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={completeToday}
-              disabled={!challengeIsActive || checkedToday || isCheckingIn}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse disabled:cursor-default disabled:opacity-55"
-            >
-              {isCheckingIn ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : checkedToday ? (
-                <CheckCircle2 className="h-4 w-4" />
-              ) : (
-                <Flame className="h-4 w-4" />
-              )}
-              {challenge.status === 'completed'
-                ? 'Thử thách đã hoàn thành'
-                : checkedToday
-                ? 'Đã hoàn thành hôm nay'
-                : challengeIsActive
-                  ? 'Hoàn thành hôm nay'
-                  : 'Thử thách chưa hoạt động'}
-            </button>
+            {requiresTrackedActivity ? (
+              <div className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-center text-sm font-black ${checkedToday ? 'border-accent/25 bg-accent/10 text-accent' : 'border-border-primary bg-bg-secondary text-text-secondary'}`}>
+                {checkedToday ? <CheckCircle2 className="h-4 w-4" /> : <Target className="h-4 w-4 text-accent" />}
+                {checkedToday ? 'Đã được ghi nhận hôm nay' : 'Hoàn thành đúng hoạt động để được ghi nhận'}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={completeToday}
+                disabled={!challengeIsActive || checkedToday || isCheckingIn}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse disabled:cursor-default disabled:opacity-55"
+              >
+                {isCheckingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : checkedToday ? <CheckCircle2 className="h-4 w-4" /> : <Flame className="h-4 w-4" />}
+                {challenge.status === 'completed' ? 'Thử thách đã hoàn thành' : checkedToday ? 'Đã hoàn thành hôm nay' : challengeIsActive ? 'Hoàn thành hôm nay' : 'Thử thách chưa hoạt động'}
+              </button>
+            )}
             {currentParticipant?.role === 'member' && challenge.status === 'active' && (
               <button type="button" onClick={leaveCurrentChallenge} disabled={isLeaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-danger/25 bg-danger/10 px-5 text-sm font-black text-danger disabled:opacity-50">
                 {isLeaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -725,7 +730,9 @@ export default function ChallengeDetails() {
       <section className="flex items-start gap-3 rounded-2xl border border-border-primary bg-bg-secondary/55 p-4 text-sm font-semibold leading-6 text-text-secondary">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
         <p>
-          Việc ghi nước, bữa ăn, giấc ngủ và tập luyện sẽ tự động điểm danh. Thành viên chỉ thấy trạng thái theo ngày, không thấy dữ liệu sức khỏe riêng tư.
+          {requiresTrackedActivity
+            ? `Thử thách này chỉ tự động ghi nhận khi bạn ${goalLabel.charAt(0).toLowerCase()}${goalLabel.slice(1)}. Thành viên chỉ thấy trạng thái theo ngày, không thấy dữ liệu sức khỏe riêng tư.`
+            : 'Việc ghi nước, bữa ăn, giấc ngủ và tập luyện sẽ tự động điểm danh. Thành viên chỉ thấy trạng thái theo ngày, không thấy dữ liệu sức khỏe riêng tư.'}
         </p>
       </section>
     </div>

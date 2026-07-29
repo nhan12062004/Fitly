@@ -4,6 +4,7 @@ export type ChallengeMode = 'solo' | 'crew';
 export type ChallengeStatus = 'active' | 'completed' | 'cancelled';
 export type ChallengeSourceType = 'water' | 'meal' | 'workout' | 'sleep' | 'manual';
 export type ChallengeDifficulty = 'easy' | 'medium' | 'hard';
+export type ChallengeGoalKey = 'any' | 'workout' | 'meal' | 'water' | 'sleep';
 
 export type ChallengeTemplate = {
   id: string;
@@ -207,14 +208,18 @@ export const createCustomChallenge = async (
     description?: string;
     mode: ChallengeMode;
     durationDays: number | null;
+    goalKey?: ChallengeGoalKey;
+    maxMembers?: number;
   },
 ): Promise<string> => {
   await assertCurrentUser(userId);
-  const { data, error } = await supabase.rpc('create_custom_challenge', {
+  const { data, error } = await supabase.rpc('create_configured_challenge', {
     p_title: input.title,
     p_description: input.description || null,
     p_mode: input.mode,
     p_duration_days: input.durationDays,
+    p_goal_key: input.goalKey || 'any',
+    p_max_members: input.mode === 'crew' ? input.maxMembers || 5 : 1,
   });
   if (error) throw error;
   return String(data);
