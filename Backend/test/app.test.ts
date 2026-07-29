@@ -39,8 +39,6 @@ const mocks = vi.hoisted(() => {
     from: vi.fn(() => ({ select })),
     select,
     limit,
-    cronSchedule: vi.fn(),
-    initTelegramBot: vi.fn(),
     userMaybeSingle,
     userEq,
     userSelect,
@@ -82,15 +80,6 @@ vi.mock('../src/config/Supabase', () => {
   };
 });
 
-vi.mock('node-cron', () => ({
-  default: { schedule: mocks.cronSchedule },
-}));
-
-vi.mock('../src/TelegramBot', () => ({
-  initTelegramBot: mocks.initTelegramBot,
-  stopTelegramBot: vi.fn(),
-}));
-
 describe('Express application bootstrap', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -124,8 +113,6 @@ describe('Express application bootstrap', () => {
     await import('../src/app');
 
     expect(listenSpy).not.toHaveBeenCalled();
-    expect(mocks.cronSchedule).not.toHaveBeenCalled();
-    expect(mocks.initTelegramBot).not.toHaveBeenCalled();
     listenSpy.mockRestore();
   });
 

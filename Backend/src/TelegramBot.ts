@@ -1,8 +1,6 @@
 import TelegramBot, { type InlineKeyboardMarkup, type Message } from 'node-telegram-bot-api';
 import { supabase } from './config/Supabase';
 import dotenv from 'dotenv';
-import cron from 'node-cron';
-import { isJobsEnabled } from './config/runtime';
 import { isTelegramEnabled, isTelegramRequired } from './config/runtime';
 import { startTelegramReminderJobs, stopTelegramReminderJobs } from './jobs/telegramReminders';
 import { logOperational } from './lib/operationalLogger';
@@ -152,8 +150,6 @@ function clearPendingMealEstimate(chatId: number) {
   pendingMealEstimateStore.delete(chatId);
 }
 
-// Các khung giờ nhắc uống nước (9h, 11h, 14h, 16h, 20h, 22h)
-const REMINDER_HOURS = ['0 9 * * *', '0 11 * * *', '0 14 * * *', '0 16 * * *', '0 20 * * *', '0 22 * * *'];
 
 const WATER_MESSAGES = [
   "Bắt đầu ngày mới bằng vài ngụm nước để giữ năng lượng ổn định.",
@@ -167,7 +163,6 @@ const WATER_PER_CONFIRM_ML = 250;
 
 let botInstance: TelegramBot | null = null;
 let remindersInitialized = false;
-const reminderTasks: Array<{ stop: () => void }> = [];
 let pollingStartRequested = false;
 
 function isEnvEnabled(value: string | undefined): boolean {
@@ -1685,66 +1680,6 @@ export async function getTelegramReminderStatus() {
   };
 }
 
-const setupDailyReminders = (bot: TelegramBot) => {
-  if (!isJobsEnabled() || process.env.TELEGRAM_ENABLE_REMINDERS === 'false') {
-    logOperational({ level: 'info', event: 'jobs_disabled', jobName: 'telegram_reminders', status: 'disabled', message: 'ENABLE_JOBS or TELEGRAM_ENABLE_REMINDERS is disabled' });
-    console.warn('⚠️ TELEGRAM_ENABLE_REMINDERS=false — bỏ qua lịch nhắc tự động.');
-    return;
-  }
-
-  // 1. Nhắc uống nước (nhiều khung giờ)
-  REMINDER_HOURS.forEach((schedule, index) => {
-    const reminderTask = cron.schedule(
-      schedule,
-      async () => {
-        const correlationId = crypto.randomUUID();
-        logOperational({ level: 'info', event: 'job_started', jobName: 'telegram_water_reminder', correlationId });
-        console.log(`⏰ Cron nhắc uống nước (${schedule}) lúc ${new Date().toLocaleString('vi-VN', { timeZone: VIETNAM_TIMEZONE })}`);
-        try {
-          const dispatchLock = await acquireReminderDispatchLock('water', schedule);
-          if (!dispatchLock.acquired) {
-            console.warn(`⚠️ Bỏ qua nhắc uống nước trùng cho ${dispatchLock.reminderKey}.`);
-            return;
-          }
-          await sendWaterReminders(bot, index);
-          logOperational({ level: 'info', event: 'job_completed', jobName: 'telegram_water_reminder', correlationId, status: 'ok' });
-        } catch (err: any) {
-          logOperational({ level: 'error', event: 'job_failed', jobName: 'telegram_water_reminder', correlationId, status: 'failed', errorCode: 'TELEGRAM_REMINDER_FAILED', message: err });
-          console.error('❌ Lỗi gửi nhắc nhở nước:', err.message);
-        }
-      },
-      { timezone: VIETNAM_TIMEZONE }
-    );
-    reminderTasks.push(reminderTask);
-  });
-
-  // 2. Hỏi về thời lượng giấc ngủ (9h30 sáng)
-  const sleepReminderTask = cron.schedule(
-    '30 9 * * *',
-    async () => {
-      const correlationId = crypto.randomUUID();
-      logOperational({ level: 'info', event: 'job_started', jobName: 'telegram_sleep_reminder', correlationId });
-      console.log(`⏰ Cron hỏi giấc ngủ lúc ${new Date().toLocaleString('vi-VN', { timeZone: VIETNAM_TIMEZONE })}`);
-      try {
-        const dispatchLock = await acquireReminderDispatchLock('sleep', '09:30');
-        if (!dispatchLock.acquired) {
-          console.warn(`⚠️ Bỏ qua câu hỏi giấc ngủ trùng cho ${dispatchLock.reminderKey}.`);
-          return;
-        }
-        await sendSleepReminders(bot);
-        logOperational({ level: 'info', event: 'job_completed', jobName: 'telegram_sleep_reminder', correlationId, status: 'ok' });
-      } catch (err: any) {
-        logOperational({ level: 'error', event: 'job_failed', jobName: 'telegram_sleep_reminder', correlationId, status: 'failed', errorCode: 'TELEGRAM_REMINDER_FAILED', message: err });
-        console.error('❌ Lỗi gửi câu hỏi giấc ngủ:', err.message);
-      }
-    },
-    { timezone: VIETNAM_TIMEZONE }
-  );
-  reminderTasks.push(sleepReminderTask);
-
-  console.log('📅 Đã thiết lập lịch nhắc nhở Nước & Giấc ngủ (Asia/Ho_Chi_Minh).');
-};
-
 const setupCallbackHandlers = (bot: TelegramBot) => {
   bot.on('callback_query', async (query) => {
     const chatId = query.message?.chat.id;
@@ -2710,4 +2645,3 @@ export const stopTelegramBot = async () => {
 };
 
 // Backwards-compatible name for integrations that imported the former API.
-export const initTelegramBot = startTelegramBot;
