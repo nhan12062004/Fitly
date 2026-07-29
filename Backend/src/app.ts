@@ -63,7 +63,8 @@ import {
 import { normalizeAllergies } from '../../shared/dietaryPreferences';
 import { z } from 'zod';
 import { errorHandler, notFoundHandler } from './http/errorHandler';
-import { ExternalProviderError, NotFoundError, ValidationError } from './http/errors';
+import { ExternalProviderError, InternalConfigurationError, NotFoundError, ValidationError } from './http/errors';
+import { legacyErrorContractMiddleware } from './http/legacyErrorContract';
 import { requestIdMiddleware } from './http/requestId';
 import { logOperational } from './lib/operationalLogger';
 import { validateBody } from './http/validation';
@@ -2188,6 +2189,7 @@ const aiLimiter = rateLimit({
 });
 
 app.use(requestIdMiddleware);
+app.use(legacyErrorContractMiddleware);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
@@ -2793,17 +2795,11 @@ const ensureExerciseIdAvailable = async (exerciseId: string) => {
   }
 };
 
-const sendExercisePayloadError = (res: express.Response, error: any, fallback: string) => {
-  if (error instanceof ExercisePayloadValidationError) {
-    return res.status(400).json({ error: error.message, fields: error.fields });
+const toExercisePayloadError = (error: unknown): ValidationError => {
+  if (error instanceof ExercisePayloadValidationError || String((error as { code?: unknown } | undefined)?.code || '') === '23505') {
+    return new ValidationError();
   }
-  if (String(error?.code || '') === '23505') {
-    return res.status(400).json({
-      error: 'Invalid exercise payload',
-      fields: { id: ['already exists'] }
-    });
-  }
-  return res.status(400).json({ error: error?.message || fallback });
+  return new ValidationError();
 };
 
 const sanitizeFoodPayload = (raw: any) => {
@@ -2998,7 +2994,7 @@ app.get('/api/admin/exercises', async (req, res, next) => {
   }
 });
 
-app.post('/api/admin/exercises', validateBody(adminPayloadSchema), async (req, res) => {
+app.post('/api/admin/exercises', validateBody(adminPayloadSchema), async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3009,12 +3005,12 @@ app.post('/api/admin/exercises', validateBody(adminPayloadSchema), async (req, r
     const { data, error } = await supabase.from('exercises').insert(payload).select('*').single();
     if (error) throw error;
     res.status(201).json({ success: true, data });
-  } catch (error: any) {
-    return sendExercisePayloadError(res, error, 'Failed to create exercise');
+  } catch (error: unknown) {
+    return next(toExercisePayloadError(error));
   }
 });
 
-app.put('/api/admin/exercises/:id', validateBody(adminPayloadSchema), async (req, res) => {
+app.put('/api/admin/exercises/:id', validateBody(adminPayloadSchema), async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3032,8 +3028,8 @@ app.put('/api/admin/exercises/:id', validateBody(adminPayloadSchema), async (req
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Exercise not found' });
     res.json({ success: true, data });
-  } catch (error: any) {
-    return sendExercisePayloadError(res, error, 'Failed to update exercise');
+  } catch (error: unknown) {
+    return next(toExercisePayloadError(error));
   }
 });
 
@@ -4986,7 +4982,7 @@ app.post('/api/ai-coach/generate-daily-workout', aiLimiter, async (req, res, nex
       return res.status(400).json({ error: 'logDate must be YYYY-MM-DD' });
     }
     if (!process.env.GROQ_API_KEY) {
-      return next(new ExternalProviderError());
+      return next(new InternalConfigurationError());
     }
 
     const existingRes = await supabase
@@ -5293,7 +5289,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res, next)
     const { weekStartDate } = req.body || {};
     const userId = authUserId;
     if (!process.env.GROQ_API_KEY) {
-      return next(new ExternalProviderError());
+      return next(new InternalConfigurationError());
     }
 
     const weekStartKey = weekStartDate || getVietnamDateKey();
@@ -5684,7 +5680,7 @@ const generateAiMealDraft = async (params: {
   const { userId, weekStartKey, scope } = params;
   const targetDayIndex = Math.max(0, Math.min(6, Number(params.targetDayIndex) || 0));
   if (!process.env.GROQ_API_KEY) {
-    throw new ApiRequestError(500, { error: 'Missing GROQ_API_KEY in server config' });
+    throw new InternalConfigurationError();
   }
 
   const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, recipeRes] = await Promise.all([
@@ -5897,7 +5893,7 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-    if (!process.env.GROQ_API_KEY) return next(new ExternalProviderError());
+    if (!process.env.GROQ_API_KEY) return next(new InternalConfigurationError());
 
     const rawWeekStartKey = String(req.body?.weekStartDate || getVietnamDateKey()).trim();
     const weekStartKey = getWeekStartKey(new Date(`${rawWeekStartKey}T00:00:00`));

@@ -242,7 +242,8 @@ describe('Express application bootstrap', () => {
     const response = await request(app).get('/api/profile');
 
     expect(response.status).toBe(401);
-    expect(response.body).toEqual({ error: 'Unauthorized' });
+    expect(response.body.error).toMatchObject({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
+    expect(response.body.error.requestId).toBe(response.headers['x-request-id']);
     expect(mocks.userFrom).not.toHaveBeenCalled();
     expect(mocks.from).not.toHaveBeenCalled();
   });
@@ -407,7 +408,8 @@ describe('Express application bootstrap', () => {
       .set('Authorization', 'Bearer user-jwt');
 
     expect(response.status).toBe(503);
-    expect(response.body).toMatchObject({ code: 'PAYMENT_PROVIDER_NOT_CONFIGURED' });
+    expect(response.body.error).toMatchObject({ code: 'EXTERNAL_PROVIDER_ERROR', message: 'A dependent service is unavailable' });
+    expect(response.body.error.requestId).toBe(response.headers['x-request-id']);
     expect(mocks.from).not.toHaveBeenCalled();
   });
 });

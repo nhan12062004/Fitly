@@ -18,3 +18,4 @@ export class NotFoundError extends AppError { constructor(message = 'Not found')
 export class ConflictError extends AppError { constructor(message = 'Conflict') { super(409, 'CONFLICT', message); } }
 export class QuotaExceededError extends AppError { constructor(message = 'Quota exceeded') { super(429, 'QUOTA_EXCEEDED', message); } }
 export class ExternalProviderError extends AppError { constructor() { super(502, 'EXTERNAL_PROVIDER_ERROR', 'A dependent service is unavailable', false); } }
+export class InternalConfigurationError extends AppError { constructor() { super(500, 'INTERNAL_CONFIGURATION_ERROR', 'Service is temporarily unavailable'); } }
