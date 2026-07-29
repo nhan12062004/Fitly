@@ -96,6 +96,10 @@ describe('Express application bootstrap', () => {
       data: { user: { id: 'authenticated-user', app_metadata: {}, user_metadata: {} } },
       error: null,
     });
+    mocks.adminGetUser.mockResolvedValue({
+      data: { user: { id: 'authenticated-user', app_metadata: {}, user_metadata: {} } },
+      error: null,
+    });
     mocks.userMaybeSingle.mockResolvedValue({ data: { id: 'authenticated-user' }, error: null });
     mocks.userUpdateMaybeSingle.mockResolvedValue({ data: { id: 'authenticated-user' }, error: null });
     mocks.userStorageUpload.mockResolvedValue({ error: null });
@@ -425,7 +429,7 @@ describe('Express application bootstrap', () => {
     expect(regularResponse.status).toBe(403);
     expect(mocks.from).not.toHaveBeenCalled();
 
-    mocks.userGetUser.mockResolvedValueOnce({
+    mocks.adminGetUser.mockResolvedValueOnce({
       data: { user: { id: 'admin-user', app_metadata: { role: 'admin' }, user_metadata: { role: 'user' } } },
       error: null,
     });

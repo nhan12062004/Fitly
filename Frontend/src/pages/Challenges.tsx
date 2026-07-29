@@ -136,7 +136,7 @@ function ChallengeDialog({
   return (
     <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
       <button type="button" aria-label="Đóng hộp thoại" className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
-      <section className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-2xl">
+      <section className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-2xl">
         <div className="border-b border-border-primary bg-[linear-gradient(120deg,rgba(139,92,246,0.12),transparent_55%)] p-5 md:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -148,7 +148,7 @@ function ChallengeDialog({
             </button>
           </div>
         </div>
-        <div className="p-5 md:p-6">{children}</div>
+        <div className="min-h-0 overflow-y-auto p-5 md:p-6">{children}</div>
       </section>
     </div>
   );
@@ -763,7 +763,7 @@ export default function Challenges() {
 
       {dialog === 'create' && (
         <ChallengeDialog title={challengeMode === 'crew' ? 'Tạo thử thách nhóm' : 'Tạo thử thách cá nhân'} description={challengeMode === 'crew' ? 'Thiết lập một mục tiêu chung, quy mô đội và nhận mã mời riêng để bắt đầu cùng nhau.' : 'Chọn một cam kết cụ thể để biến mỗi ngày thành một bước tiến rõ ràng.'} onClose={() => setDialog(null)}>
-          <form onSubmit={createChallenge} className="space-y-4">
+          <form onSubmit={createChallenge} className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               {([
                 ['solo', 'Cá nhân', <Flame className="h-4 w-4" />],
@@ -772,58 +772,36 @@ export default function Challenges() {
                 <button key={mode} type="button" onClick={() => setChallengeMode(mode)} className={`flex h-12 items-center justify-center gap-2 rounded-xl border text-sm font-black ${challengeMode === mode ? 'border-accent/30 bg-accent/10 text-accent' : 'border-border-primary bg-bg-tertiary text-text-secondary'}`}>{icon}{label}</button>
               ))}
             </div>
-            <fieldset>
-              <legend className="text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">Mục tiêu được tính mỗi ngày</legend>
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {GOAL_OPTIONS.map((goal) => {
-                  const GoalIcon = goal.icon;
-                  const selected = challengeGoal === goal.id;
-                  return (
-                    <button key={goal.id} type="button" onClick={() => setChallengeGoal(goal.id)} className={`flex min-h-16 items-start gap-3 rounded-xl border p-3 text-left transition-colors ${selected ? 'border-accent/40 bg-accent/10 text-text-primary' : 'border-border-primary bg-bg-tertiary text-text-secondary hover:border-border-secondary'}`}>
-                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${selected ? 'bg-accent text-text-inverse' : 'bg-bg-secondary text-text-tertiary'}`}><GoalIcon className="h-4 w-4" /></span>
-                      <span><span className="block text-sm font-black">{goal.label}</span><span className="mt-0.5 block text-[11px] font-semibold leading-4 text-text-tertiary">{goal.description}</span></span>
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
+            <label className="block">
+              <span className="text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">Mục tiêu mỗi ngày</span>
+              <select value={challengeGoal} onChange={(event) => setChallengeGoal(event.target.value as ChallengeGoalKey)} className="mt-2 h-12 w-full rounded-xl border border-border-primary bg-bg-tertiary px-4 text-sm font-bold text-text-primary outline-none focus:border-accent/50">
+                {GOAL_OPTIONS.map((goal) => <option key={goal.id} value={goal.id}>{goal.label}</option>)}
+              </select>
+              <span className="mt-1.5 block text-xs font-semibold text-text-tertiary">{GOAL_OPTIONS.find((goal) => goal.id === challengeGoal)?.description}</span>
+            </label>
             <label className="block">
               <span className="text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">Tên thử thách</span>
               <input autoFocus value={challengeTitle} onChange={(event) => setChallengeTitle(event.target.value)} maxLength={80} className="mt-2 h-12 w-full rounded-xl border border-border-primary bg-bg-tertiary px-4 text-sm font-bold text-text-primary outline-none focus:border-accent/50" />
             </label>
-            <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">Mô tả</span>
-              <textarea value={challengeDescription} onChange={(event) => setChallengeDescription(event.target.value)} maxLength={500} rows={3} placeholder="Một mục tiêu ngắn gọn, dễ duy trì mỗi ngày." className="mt-2 w-full resize-none rounded-xl border border-border-primary bg-bg-tertiary px-4 py-3 text-sm font-semibold text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent/50" />
-            </label>
-            <label className="block">
-              <span className="text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">Thời lượng</span>
-              <select
-                value={challengeDuration === null ? 'unlimited' : String(challengeDuration)}
-                onChange={(event) => setChallengeDuration(event.target.value === 'unlimited' ? null : Number(event.target.value))}
-                className="mt-2 h-12 w-full rounded-xl border border-border-primary bg-bg-tertiary px-4 text-sm font-bold text-text-primary outline-none focus:border-accent/50"
-              >
-                <option value="7">7 ngày</option>
-                <option value="14">14 ngày</option>
-                <option value="30">30 ngày</option>
-                <option value="unlimited">Không giới hạn</option>
-              </select>
-            </label>
-            {challengeMode === 'crew' && (
-              <div className="space-y-3 rounded-xl border border-ai/15 bg-ai/8 p-4">
-                <label className="block">
-                  <span className="text-xs font-black uppercase tracking-[0.12em] text-ai">Quy mô đội</span>
-                  <select value={challengeMaxMembers} onChange={(event) => setChallengeMaxMembers(Number(event.target.value))} className="mt-2 h-11 w-full rounded-xl border border-ai/20 bg-bg-secondary px-3 text-sm font-bold text-text-primary outline-none focus:border-ai/50">
-                    <option value="2">2 người · một cặp cùng tiến</option>
-                    <option value="3">3 người · nhóm nhỏ</option>
-                    <option value="5">5 người · đội đầy đủ</option>
-                  </select>
-                </label>
-                <div className="flex items-start gap-3 border-t border-ai/15 pt-3">
-                  <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-ai" />
-                  <p className="text-sm font-semibold leading-6 text-text-secondary">Sau khi tạo, Fitly cấp mã mời riêng cho {challengeMaxMembers - 1} đồng đội. Cả nhóm chỉ thấy tiến độ và điểm; chỉ số sức khỏe luôn riêng tư.</p>
-                </div>
-              </div>
-            )}
+            <div className={`grid gap-3 ${challengeMode === 'crew' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.12em] text-text-tertiary">Thời lượng</span>
+                <select value={challengeDuration === null ? 'unlimited' : String(challengeDuration)} onChange={(event) => setChallengeDuration(event.target.value === 'unlimited' ? null : Number(event.target.value))} className="mt-2 h-12 w-full rounded-xl border border-border-primary bg-bg-tertiary px-3 text-sm font-bold text-text-primary outline-none focus:border-accent/50">
+                  <option value="7">7 ngày</option><option value="14">14 ngày</option><option value="30">30 ngày</option><option value="unlimited">Không giới hạn</option>
+                </select>
+              </label>
+              {challengeMode === 'crew' && <label className="block">
+                <span className="text-xs font-black uppercase tracking-[0.12em] text-ai">Quy mô</span>
+                <select value={challengeMaxMembers} onChange={(event) => setChallengeMaxMembers(Number(event.target.value))} className="mt-2 h-12 w-full rounded-xl border border-ai/20 bg-ai/8 px-3 text-sm font-bold text-text-primary outline-none focus:border-ai/50">
+                  <option value="2">2 người</option><option value="3">3 người</option><option value="5">5 người</option>
+                </select>
+              </label>}
+            </div>
+            <details className="group rounded-xl border border-border-primary bg-bg-tertiary/50">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-black text-text-secondary marker:text-accent">Thêm mô tả (tuỳ chọn)</summary>
+              <div className="px-3 pb-3"><textarea value={challengeDescription} onChange={(event) => setChallengeDescription(event.target.value)} maxLength={500} rows={2} placeholder="Ví dụ: cùng hoàn thành 3 buổi tập tuần này." className="w-full resize-none rounded-lg border border-border-primary bg-bg-secondary px-3 py-2 text-sm font-semibold text-text-primary outline-none placeholder:text-text-tertiary focus:border-accent/50" /></div>
+            </details>
+            {challengeMode === 'crew' && <p className="flex items-center gap-2 text-xs font-semibold leading-5 text-text-secondary"><LockKeyhole className="h-3.5 w-3.5 shrink-0 text-ai" />Mã mời riêng sẽ được tạo cho {challengeMaxMembers - 1} đồng đội; nhóm chỉ thấy tiến độ và điểm.</p>}
             <button type="submit" disabled={challengeTitle.trim().length < 2 || isSubmitting} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent text-sm font-black text-text-inverse disabled:opacity-50">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : challengeMode === 'crew' ? <Users className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               Tạo thử thách {challengeMode === 'crew' ? 'nhóm' : 'cá nhân'}
