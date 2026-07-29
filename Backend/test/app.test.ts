@@ -24,6 +24,11 @@ const mocks = vi.hoisted(() => {
   }));
   const userFrom = vi.fn(() => ({ select: userSelect, update: userUpdate }));
   const userGetUser = vi.fn();
+  const adminGetUser = vi.fn();
+  const adminDeleteUser = vi.fn();
+  const adminStorageList = vi.fn();
+  const adminStorageRemove = vi.fn();
+  const adminStorageFrom = vi.fn(() => ({ list: adminStorageList, remove: adminStorageRemove }));
   const createUserScopedSupabaseClient = vi.fn(() => ({
     auth: { getUser: userGetUser },
     from: userFrom,
@@ -50,6 +55,11 @@ const mocks = vi.hoisted(() => {
     userStorageGetPublicUrl,
     userStorageFrom,
     userGetUser,
+    adminGetUser,
+    adminDeleteUser,
+    adminStorageList,
+    adminStorageRemove,
+    adminStorageFrom,
     createUserScopedSupabaseClient,
   };
 });
@@ -58,10 +68,10 @@ vi.mock('../src/config/Supabase', () => {
   const adminSupabase = {
     from: mocks.from,
     auth: {
-      getUser: vi.fn(),
-      admin: { getUserById: vi.fn() },
+      getUser: mocks.adminGetUser,
+      admin: { getUserById: vi.fn(), deleteUser: mocks.adminDeleteUser },
     },
-    storage: { from: vi.fn() },
+    storage: { from: mocks.adminStorageFrom },
   };
 
   return {
@@ -103,6 +113,9 @@ describe('Express application bootstrap', () => {
     mocks.userStorageList.mockResolvedValue({ data: [{ name: 'avatar.png' }], error: null });
     mocks.userStorageRemove.mockResolvedValue({ error: null });
     mocks.userStorageGetPublicUrl.mockReturnValue({ data: { publicUrl: 'https://example.supabase.co/storage/v1/object/public/avatars/authenticated-user/avatar.png' } });
+    mocks.adminStorageList.mockResolvedValue({ data: [{ name: 'avatar.png' }], error: null });
+    mocks.adminStorageRemove.mockResolvedValue({ error: null });
+    mocks.adminDeleteUser.mockResolvedValue({ error: null });
   });
 
   it('imports the Express app without opening an HTTP port or starting runtime services', async () => {
@@ -359,6 +372,26 @@ describe('Express application bootstrap', () => {
     expect(mocks.userStorageRemove).toHaveBeenCalledWith(['authenticated-user/avatar.png']);
     expect(mocks.userUpdateEq).toHaveBeenCalledWith('id', 'authenticated-user');
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('deletes only the authenticated account and its avatar objects after confirmation', async () => {
+    mocks.adminGetUser.mockResolvedValueOnce({
+      data: { user: { id: 'authenticated-user' } },
+      error: null,
+    });
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .delete('/api/account')
+      .set('Authorization', 'Bearer user-jwt')
+      .send({ confirmation: 'DELETE' });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: true });
+    expect(mocks.adminStorageFrom).toHaveBeenCalledWith('avatars');
+    expect(mocks.adminStorageList).toHaveBeenCalledWith('authenticated-user', { limit: 100 });
+    expect(mocks.adminStorageRemove).toHaveBeenCalledWith(['authenticated-user/avatar.png']);
+    expect(mocks.adminDeleteUser).toHaveBeenCalledWith('authenticated-user');
   });
 
   it('does not expose provider errors, tokens, or storage URLs from self-service routes', async () => {

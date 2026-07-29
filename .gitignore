@@ -76,8 +76,13 @@ scratch/
 supabase/*
 !supabase/migrations/
 !supabase/migrations/*.sql
+!supabase/config.toml
+!supabase/tests/
+!supabase/tests/*.sql
+!supabase/tests/*.md
 !supabase/seeds/
 !supabase/seeds/*.sql
+!supabase/BASELINE.md
 !supabase/verify_rpc_execute_privileges.sql
 !supabase/verify_security_hardening.sql
 Backend/migrations/

@@ -1,12 +1,28 @@
 # Technical debt
 
-## Deferred database baseline and RLS verification
+## Database baseline and RLS verification
 
-Phase 3A database-baseline work is deferred. The repository does not contain the complete historical migration chain, and this environment has no Docker-compatible local Supabase/Postgres runtime. Production profile/avatar policies were inspected read-only, but they have not been replayed and tested automatically against a clean database.
+A schema-only public-schema baseline now exists at
+`supabase/migrations/20260728000000_schema_baseline.sql`. It was generated from a
+read-only schema inventory of the linked project, with no production rows,
+credentials, API keys, or auth records. A clean local Supabase database has been
+reset repeatedly with this migration set, and the transactional pgTAP ownership
+suite passes all 16 assertions.
 
-Do not claim database-level RLS has end-to-end automated verification until a Docker or isolated test-database environment is available. Current backend tests mock Supabase; they validate application client boundaries and ownership handling, not the database policy engine.
+The baseline is a reviewed state snapshot rather than a reconstruction of the
+unavailable historical migration chain. Any future production schema drift must
+be captured in a reviewed migration (or a carefully regenerated schema-only
+baseline) and verified locally before deployment. Storage objects remain managed
+by the dedicated migration because the local Supabase platform owns the `storage`
+schema.
 
-The future baseline phase must use schema-only inventory, no production rows or secrets, and must never run a baseline reset against production.
+## RLS policy performance follow-up
+
+The local performance advisor still reports repeated `auth.uid()` evaluations in
+several RLS policies and two pairs of duplicate indexes (`ai_plan_adjustments` and
+`challenge_checkins`). These are performance improvements outside PR 3's
+ownership-correctness scope and should be handled in a separately benchmarked
+migration.
 
 ## Multi-instance operational scheduling
 

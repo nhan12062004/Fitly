@@ -1,8 +1,3 @@
-create index if not exists user_custom_foods_user_id_idx
-  on public.user_custom_foods (user_id);
-
-alter table public.user_custom_foods
-  add constraint user_custom_foods_user_id_fkey
-  foreign key (user_id)
-  references public.profiles (id)
-  on delete cascade;
+-- The user_custom_foods foreign key with ON DELETE CASCADE is included in
+-- 20260728000000_schema_baseline.sql. This retained migration version keeps
+-- the linked project's migration history compatible with clean local resets.

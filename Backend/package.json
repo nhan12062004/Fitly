@@ -8,6 +8,7 @@
         "build": "tsc --noEmit",
         "typecheck": "tsc --noEmit",
         "test": "vitest run",
+        "db:test:rls": "npx supabase test db --local ../supabase/tests/rls_ownership_test.sql --workdir ..",
         "db:migration:list": "npx supabase migration list --workdir ..",
         "db:migration:repair:normalize-rls": "npx supabase migration repair 20260602110000 --status applied --linked --workdir ..",
         "db:push": "npx supabase db push --linked --include-all --workdir .."
