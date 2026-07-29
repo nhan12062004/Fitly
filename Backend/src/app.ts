@@ -1,10 +1,10 @@
-import express from 'express';
+import express, { type RequestHandler } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { adminSupabase, supabase } from './config/Supabase';
-import { requireAdmin, requireAuth } from './auth/middleware';
+import { requireAuth } from './auth/middleware';
 import { type TrainingPrescription } from './lib/TrainingPrescription';
 import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
 import { detectIntent, extractDayIndexFromText, getResponseModeForIntent, normalizeVietnameseText as normalizeVietForChat } from './services/ai/aiRouterService';
@@ -19,6 +19,10 @@ import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservab
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
 import { accountRouter } from './modules/account/accountRouter';
+import { registerAdminRoutes } from './modules/admin/adminRoutes';
+import { registerAiCoachRoutes } from './modules/ai-coach/aiCoachRoutes';
+import { registerNutritionRoutes } from './modules/nutrition/nutritionRoutes';
+import { registerWorkoutRoutes } from './modules/workout/workoutRoutes';
 import {
   buildSafetyPromptAddendum,
   getFoodSafetyDecision,
@@ -2284,7 +2288,7 @@ app.get('/ready', async (_req, res) => {
   }
 });
 
-app.get('/api/profiles', requireAuth, requireAdmin, async (_req, res) => {
+const listLegacyAdminProfiles: RequestHandler = async (_req, res) => {
   try {
     const { data, error } = await adminSupabase
       .from('profiles')
@@ -2299,7 +2303,7 @@ app.get('/api/profiles', requireAuth, requireAdmin, async (_req, res) => {
   } catch {
     res.status(500).json({ error: 'Internal Server Error' });
   }
-});
+};
 
 const emptyBodySchema = z.object({}).strict();
 const adminPayloadSchema = z.object({}).passthrough();
@@ -2705,7 +2709,7 @@ const loadAdminCount = async (
   }
 };
 
-app.get('/api/admin/overview', async (req, res, next) => {
+const getAdminOverview: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2760,9 +2764,9 @@ app.get('/api/admin/overview', async (req, res, next) => {
   } catch {
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.get('/api/admin/users', async (req, res, next) => {
+const getAdminUsers: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2799,9 +2803,9 @@ app.get('/api/admin/users', async (req, res, next) => {
   } catch {
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.get('/api/admin/exercises', async (req, res, next) => {
+const listAdminExercises: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2824,9 +2828,9 @@ app.get('/api/admin/exercises', async (req, res, next) => {
   } catch {
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/admin/exercises', validateBody(adminPayloadSchema), async (req, res, next) => {
+const createAdminExercise: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2840,9 +2844,9 @@ app.post('/api/admin/exercises', validateBody(adminPayloadSchema), async (req, r
   } catch (error: unknown) {
     return next(toExercisePayloadError(error));
   }
-});
+};
 
-app.put('/api/admin/exercises/:id', validateBody(adminPayloadSchema), async (req, res, next) => {
+const updateAdminExercise: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2863,9 +2867,9 @@ app.put('/api/admin/exercises/:id', validateBody(adminPayloadSchema), async (req
   } catch (error: unknown) {
     return next(toExercisePayloadError(error));
   }
-});
+};
 
-app.delete('/api/admin/exercises/:id', async (req, res, next) => {
+const deleteAdminExercise: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2888,11 +2892,11 @@ app.delete('/api/admin/exercises/:id', async (req, res, next) => {
   } catch (error: any) {
     return next(new ExternalProviderError());
   }
-});
+};
 
 // Diet Plan's manual picker calls this before persisting. This closes the
 // former direct-client write path with the same hard eligibility rules used by AI.
-app.post('/api/meal-plans/validate-foods', async (req, res, next) => {
+const validateMealPlanFoods: RequestHandler = async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -2932,7 +2936,7 @@ app.post('/api/meal-plans/validate-foods', async (req, res, next) => {
   } catch {
     return next(new ExternalProviderError());
   }
-});
+};
 
 const RECIPE_WITH_INGREDIENTS_SELECT = '*, recipe_ingredients(id, recipe_id, ingredient_name, amount, unit, preparation_note, is_optional, order_index)';
 
@@ -2953,7 +2957,7 @@ const recipeValidationResponse = (source: unknown, ingredients: RecipeIngredient
   return validation.valid ? null : { error: 'Recipe validation failed', fields: { recipe: validation.errors }, warnings: validation.warnings };
 };
 
-app.get('/api/recipes/:id', async (req, res, next) => {
+const getRecipeDetails: RequestHandler = async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -2973,9 +2977,14 @@ app.get('/api/recipes/:id', async (req, res, next) => {
   } catch {
     return next(new ExternalProviderError());
   }
+};
+
+registerNutritionRoutes(app, {
+  validateFoods: validateMealPlanFoods,
+  getRecipe: getRecipeDetails,
 });
 
-app.get('/api/admin/recipes', async (req, res, next) => {
+const listAdminRecipes: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2989,9 +2998,9 @@ app.get('/api/admin/recipes', async (req, res, next) => {
   } catch {
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/admin/recipes', validateBody(adminPayloadSchema), async (req, res, next) => {
+const createAdminRecipe: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3010,9 +3019,9 @@ app.post('/api/admin/recipes', validateBody(adminPayloadSchema), async (req, res
   } catch {
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.put('/api/admin/recipes/:id', validateBody(adminPayloadSchema), async (req, res, next) => {
+const updateAdminRecipe: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3035,9 +3044,9 @@ app.put('/api/admin/recipes/:id', validateBody(adminPayloadSchema), async (req, 
   } catch {
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.get('/api/admin/foods', async (req, res, next) => {
+const listAdminFoods: RequestHandler = async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3060,21 +3069,39 @@ app.get('/api/admin/foods', async (req, res, next) => {
   } catch (error: any) {
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/admin/foods', validateBody(adminPayloadSchema), async (req, res) => {
+const createAdminFood: RequestHandler = async (req, res) => {
   return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
-});
+};
 
-app.put('/api/admin/foods/:id', validateBody(adminPayloadSchema), async (req, res) => {
+const updateAdminFood: RequestHandler = async (req, res) => {
   return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
-});
+};
 
-app.delete('/api/admin/foods/:id', async (req, res) => {
+const deleteAdminFood: RequestHandler = async (req, res) => {
   return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
+};
+
+registerAdminRoutes(app, {
+  adminPayloadSchema,
+  profileList: listLegacyAdminProfiles,
+  overview: getAdminOverview,
+  users: getAdminUsers,
+  listExercises: listAdminExercises,
+  createExercise: createAdminExercise,
+  updateExercise: updateAdminExercise,
+  deleteExercise: deleteAdminExercise,
+  listRecipes: listAdminRecipes,
+  createRecipe: createAdminRecipe,
+  updateRecipe: updateAdminRecipe,
+  listFoods: listAdminFoods,
+  createFood: createAdminFood,
+  updateFood: updateAdminFood,
+  deleteFood: deleteAdminFood,
 });
 
-app.post('/api/workout/daily-exercises/from-plan', validateBody(dailyExercisesFromPlanSchema), async (req, res, next) => {
+const materializeDailyExercisesFromPlan: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3263,9 +3290,9 @@ app.post('/api/workout/daily-exercises/from-plan', validateBody(dailyExercisesFr
     }
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, async (req, res, next) => {
+const replaceDailyExercise: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) return res.status(401).json({ error: 'Unauthorized' });
@@ -3419,9 +3446,9 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, a
     console.error('[workout/replace-daily-exercise] failed:', error?.message || error);
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/workout/daily-exercises', async (req, res, next) => {
+const createDailyExercise: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3534,9 +3561,9 @@ app.post('/api/workout/daily-exercises', async (req, res, next) => {
     console.error('[workout/create-daily-exercise] failed:', error?.message || error);
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, res, next) => {
+const updateDailyExerciseConfig: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3621,9 +3648,9 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, r
     console.error('[workout/update-daily-exercise-config] failed:', error?.message || error);
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (req, res, next) => {
+const updateDailyExerciseCompletion: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3711,9 +3738,9 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (re
     console.error('[workout/update-daily-exercise-completion] failed:', error?.message || error);
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (req, res, next) => {
+const completeDailyExerciseSet: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3796,9 +3823,20 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (
     console.error('[workout/complete-set] failed:', error?.message || error);
     return next(new ExternalProviderError());
   }
+};
+
+registerWorkoutRoutes(app, {
+  aiLimiter,
+  dailyExercisesFromPlanSchema,
+  materializeFromPlan: materializeDailyExercisesFromPlan,
+  replaceDailyExercise,
+  createDailyExercise,
+  updateDailyExerciseConfig,
+  updateDailyExerciseCompletion,
+  completeDailyExerciseSet,
 });
 
-app.get('/api/ai/quota', aiLimiter, async (req, res, next) => {
+const getAiQuota: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3822,9 +3860,9 @@ app.get('/api/ai/quota', aiLimiter, async (req, res, next) => {
   } catch {
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/ai/chat', aiLimiter, validateBody(aiChatSchema), async (req, res, next) => {
+const chatWithAiCoach: RequestHandler = async (req, res, next) => {
   const startedAt = Date.now();
   const traceId = `ai-chat-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -4341,9 +4379,9 @@ app.post('/api/ai/chat', aiLimiter, validateBody(aiChatSchema), async (req, res,
       latencyMs: Date.now() - startedAt
     });
   }
-});
+};
 
-app.post('/api/ai/coach-command', aiLimiter, async (req, res, next) => {
+const executeAiCoachCommand: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -4396,9 +4434,9 @@ app.post('/api/ai/coach-command', aiLimiter, async (req, res, next) => {
     console.error('[ai-coach-command] failed:', error?.message || error);
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/ai/chat/clear', aiLimiter, async (req, res, next) => {
+const clearAiCoachChat: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -4416,9 +4454,9 @@ app.post('/api/ai/chat/clear', aiLimiter, async (req, res, next) => {
     console.error('[ai-chat-clear] failed:', error?.message || error);
     return next(new ExternalProviderError());
   }
-});
+};
 
-app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res, next) => {
+const applyAiAdjustment: RequestHandler = async (req, res, next) => {
   const startedAt = Date.now();
   const traceId = `ai-apply-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -4729,9 +4767,9 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res, next) => {
       latencyMs: Date.now() - startedAt
     });
   }
-});
+};
 
-app.post('/api/ai/reject-adjustment', aiLimiter, async (req, res, next) => {
+const rejectAiAdjustment: RequestHandler = async (req, res, next) => {
   const startedAt = Date.now();
   const traceId = `ai-reject-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -4784,9 +4822,9 @@ app.post('/api/ai/reject-adjustment', aiLimiter, async (req, res, next) => {
       latencyMs: Date.now() - startedAt
     });
   }
-});
+};
 
-app.get('/api/ai/metrics', async (req, res) => {
+const getAiMetrics: RequestHandler = async (req, res) => {
   const authUserId = await getAuthUserId(req);
   if (!authUserId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -4800,9 +4838,9 @@ app.get('/api/ai/metrics', async (req, res) => {
     data: snapshotAIMetrics(),
     actionFlowEnabled: AI_ACTION_FLOW_ENABLED
   });
-});
+};
 
-app.post('/api/ai-coach/generate-daily-workout', aiLimiter, async (req, res, next) => {
+const generateAiDailyWorkout: RequestHandler = async (req, res, next) => {
   let createdWorkoutSessionId: string | null = null;
   let createdDailyExerciseIds: string[] = [];
   try {
@@ -5057,7 +5095,7 @@ JSON schema:
     if (isDatabaseMigrationRequiredError(error)) return res.status(503).json(databaseMigrationRequiredResponse);
     return res.status(500).json({ code: 'AI_GENERATION_FAILED', error: 'Khong the tao lich tap hom nay. Vui long thu lai sau.' });
   }
-});
+};
 
 const callGroqWithRetry = async (payload: {
   messages: Array<{ role: string; content: string }>;
@@ -5112,7 +5150,7 @@ const callGroqWithRetry = async (payload: {
   throw toAiProviderRequestError(lastErrorMsg);
 };
 
-app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res, next) => {
+const generateAiWeeklyPlan: RequestHandler = async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -5496,7 +5534,7 @@ ${jsonSchemaPrompt}
       error: 'Không thể tạo lịch AI 7 ngày lúc này. Vui lòng thử lại sau.'
     });
   }
-});
+};
 
 type AiMealGenerationScope = 'day' | 'week';
 
@@ -5635,7 +5673,7 @@ const generateAiMealDraft = async (params: {
   throw new ApiRequestError(500, { error: 'Không tìm thấy công thức ăn uống phù hợp trong danh mục.' });
 };
 
-app.post('/api/ai-coach/generate-meal-plan', aiLimiter, async (req, res) => {
+const generateAiMealPlan: RequestHandler = async (req, res) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -5682,9 +5720,9 @@ app.post('/api/ai-coach/generate-meal-plan', aiLimiter, async (req, res) => {
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI lúc này.' });
   }
-});
+};
 
-app.post('/api/ai-coach/record-meal-swap', async (req, res) => {
+const recordAiMealSwap: RequestHandler = async (req, res) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -5716,12 +5754,12 @@ app.post('/api/ai-coach/record-meal-swap', async (req, res) => {
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     return res.status(500).json({ error: 'Không thể ghi nhận lượt đổi món.' });
   }
-});
+};
 
 // The onboarding flow deliberately generates meals in a second, smaller request.
 // Workout generation already happened after the training survey; regenerating it
 // here wastes Groq tokens and replaces a plan the user has just reviewed.
-app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, res, next) => {
+const generateAiOnboardingMealPlan: RequestHandler = async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -5833,6 +5871,23 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI 7 ngày lúc này.' });
   }
+};
+
+registerAiCoachRoutes(app, {
+  aiLimiter,
+  aiChatSchema,
+  getQuota: getAiQuota,
+  chat: chatWithAiCoach,
+  coachCommand: executeAiCoachCommand,
+  clearChat: clearAiCoachChat,
+  applyAdjustment: applyAiAdjustment,
+  rejectAdjustment: rejectAiAdjustment,
+  metrics: getAiMetrics,
+  generateDailyWorkout: generateAiDailyWorkout,
+  generateWeeklyPlan: generateAiWeeklyPlan,
+  generateMealPlan: generateAiMealPlan,
+  recordMealSwap: recordAiMealSwap,
+  generateOnboardingMealPlan: generateAiOnboardingMealPlan,
 });
 
 app.use(notFoundHandler);
