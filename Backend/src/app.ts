@@ -2456,7 +2456,7 @@ app.delete('/api/profile/avatar', requireAuth, async (req, res) => {
   }
 });
 
-app.delete('/api/account', validateBody(accountDeletionSchema), async (req, res) => {
+app.delete('/api/account', validateBody(accountDeletionSchema), async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -2483,11 +2483,8 @@ app.delete('/api/account', validateBody(accountDeletionSchema), async (req, res)
     if (deleteUser.error) throw deleteUser.error;
 
     return res.json({ success: true });
-  } catch (error: any) {
-    console.error('[account-delete] failed:', error?.message || error);
-    return res.status(500).json({
-      error: error?.message || 'Không thể xóa tài khoản lúc này.'
-    });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
@@ -2880,7 +2877,7 @@ const loadAdminCount = async (
   }
 };
 
-app.get('/api/admin/overview', async (req, res) => {
+app.get('/api/admin/overview', async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2932,13 +2929,12 @@ app.get('/api/admin/overview', async (req, res) => {
         todayCompletedMeals: mealsDoneRes
       }
     });
-  } catch (error: any) {
-    console.error('[admin-overview] failed:', error?.message || error);
-    res.status(500).json({ error: error?.message || 'Internal Server Error' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
-app.get('/api/admin/users', async (req, res) => {
+app.get('/api/admin/users', async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2972,12 +2968,12 @@ app.get('/api/admin/users', async (req, res) => {
 
     if (error) throw error;
     res.json({ success: true, data: data || [] });
-  } catch (error: any) {
-    res.status(500).json({ error: error?.message || 'Internal Server Error' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
-app.get('/api/admin/exercises', async (req, res) => {
+app.get('/api/admin/exercises', async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -2997,8 +2993,8 @@ app.get('/api/admin/exercises', async (req, res) => {
     const { data, error } = await request;
     if (error) throw error;
     res.json({ success: true, data: data || [] });
-  } catch (error: any) {
-    res.status(500).json({ error: error?.message || 'Internal Server Error' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
@@ -3041,7 +3037,7 @@ app.put('/api/admin/exercises/:id', validateBody(adminPayloadSchema), async (req
   }
 });
 
-app.delete('/api/admin/exercises/:id', async (req, res) => {
+app.delete('/api/admin/exercises/:id', async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3062,13 +3058,13 @@ app.delete('/api/admin/exercises/:id', async (req, res) => {
     if (error) throw error;
     res.json({ success: true });
   } catch (error: any) {
-    res.status(400).json({ error: error?.message || 'Failed to delete exercise' });
+    return next(new ExternalProviderError());
   }
 });
 
 // Diet Plan's manual picker calls this before persisting. This closes the
 // former direct-client write path with the same hard eligibility rules used by AI.
-app.post('/api/meal-plans/validate-foods', async (req, res) => {
+app.post('/api/meal-plans/validate-foods', async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -3105,8 +3101,8 @@ app.post('/api/meal-plans/validate-foods', async (req, res) => {
       return res.status(422).json({ error: 'One or more foods violate hard dietary or safety constraints.', rejected });
     }
     return res.json({ success: true });
-  } catch (error: any) {
-    return res.status(400).json({ error: error?.message || 'Failed to validate meal foods' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
@@ -3129,7 +3125,7 @@ const recipeValidationResponse = (source: unknown, ingredients: RecipeIngredient
   return validation.valid ? null : { error: 'Recipe validation failed', fields: { recipe: validation.errors }, warnings: validation.warnings };
 };
 
-app.get('/api/recipes/:id', async (req, res) => {
+app.get('/api/recipes/:id', async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -3146,12 +3142,12 @@ app.get('/api/recipes/:id', async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Không tìm thấy chi tiết món ăn.' });
     return res.json({ success: true, data });
-  } catch (error: any) {
-    return res.status(400).json({ error: error?.message || 'Failed to load recipe' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
-app.get('/api/admin/recipes', async (req, res) => {
+app.get('/api/admin/recipes', async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3162,12 +3158,12 @@ app.get('/api/admin/recipes', async (req, res) => {
     const { data, error } = await request;
     if (error) throw error;
     return res.json({ success: true, data: data || [] });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'Failed to load recipes' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/admin/recipes', validateBody(adminPayloadSchema), async (req, res) => {
+app.post('/api/admin/recipes', validateBody(adminPayloadSchema), async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3183,12 +3179,12 @@ app.post('/api/admin/recipes', validateBody(adminPayloadSchema), async (req, res
     const result = await supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).eq('id', data.id).single();
     if (result.error) throw result.error;
     return res.status(201).json({ success: true, data: result.data });
-  } catch (error: any) {
-    return res.status(400).json({ error: error?.message || 'Failed to create recipe' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
-app.put('/api/admin/recipes/:id', validateBody(adminPayloadSchema), async (req, res) => {
+app.put('/api/admin/recipes/:id', validateBody(adminPayloadSchema), async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3208,12 +3204,12 @@ app.put('/api/admin/recipes/:id', validateBody(adminPayloadSchema), async (req, 
     const result = await supabase.from('recipes').select(RECIPE_WITH_INGREDIENTS_SELECT).eq('id', id).single();
     if (result.error) throw result.error;
     return res.json({ success: true, data: result.data });
-  } catch (error: any) {
-    return res.status(400).json({ error: error?.message || 'Failed to update recipe' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
-app.get('/api/admin/foods', async (req, res) => {
+app.get('/api/admin/foods', async (req, res, next) => {
   try {
     const adminUserId = await requireAdminUserId(req, res);
     if (!adminUserId) return;
@@ -3234,7 +3230,7 @@ app.get('/api/admin/foods', async (req, res) => {
     if (error) throw error;
     res.json({ success: true, data: data || [] });
   } catch (error: any) {
-    res.status(500).json({ error: error?.message || 'Internal Server Error' });
+    return next(new ExternalProviderError());
   }
 });
 
@@ -3250,7 +3246,7 @@ app.delete('/api/admin/foods/:id', async (req, res) => {
   return res.status(400).json({ error: 'Bảng foods đã được hợp nhất sang kho công thức recipes.' });
 });
 
-app.post('/api/workout/daily-exercises/from-plan', validateBody(dailyExercisesFromPlanSchema), async (req, res) => {
+app.post('/api/workout/daily-exercises/from-plan', validateBody(dailyExercisesFromPlanSchema), async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3437,11 +3433,11 @@ app.post('/api/workout/daily-exercises/from-plan', validateBody(dailyExercisesFr
     if (isDatabaseMigrationRequiredError(error)) {
       return res.status(503).json(databaseMigrationRequiredResponse);
     }
-    return res.status(500).json({ error: error?.message || 'Failed to create daily exercises from plan' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, async (req, res) => {
+app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) return res.status(401).json({ error: 'Unauthorized' });
@@ -3593,11 +3589,11 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, a
     });
   } catch (error: any) {
     console.error('[workout/replace-daily-exercise] failed:', error?.message || error);
-    return res.status(500).json({ error: error?.message || 'Không thể đổi bài tập.' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/workout/daily-exercises', async (req, res) => {
+app.post('/api/workout/daily-exercises', async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3708,11 +3704,11 @@ app.post('/api/workout/daily-exercises', async (req, res) => {
       return res.status(error.status).json(error.body);
     }
     console.error('[workout/create-daily-exercise] failed:', error?.message || error);
-    return res.status(500).json({ error: error?.message || 'Failed to create daily exercise session' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, res) => {
+app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3795,11 +3791,11 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/config', async (req, r
       return res.status(error.status).json(error.body);
     }
     console.error('[workout/update-daily-exercise-config] failed:', error?.message || error);
-    return res.status(500).json({ error: error?.message || 'Failed to update exercise config' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (req, res) => {
+app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3885,11 +3881,11 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', async (re
       return res.status(error.status).json(error.body);
     }
     console.error('[workout/update-daily-exercise-completion] failed:', error?.message || error);
-    return res.status(500).json({ error: error?.message || 'Failed to update exercise completion' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (req, res) => {
+app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3970,11 +3966,11 @@ app.post('/api/workout/daily-exercises/:exerciseSessionId/complete-set', async (
       return res.status(error.status).json(error.body);
     }
     console.error('[workout/complete-set] failed:', error?.message || error);
-    return res.status(500).json({ error: error?.message || 'Failed to complete set' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.get('/api/ai/quota', aiLimiter, async (req, res) => {
+app.get('/api/ai/quota', aiLimiter, async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -3995,12 +3991,12 @@ app.get('/api/ai/quota', aiLimiter, async (req, res) => {
       trialExpired: accessState.trialExpired,
       aiQuota: buildAiQuotaSnapshot(accessState)
     });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'Failed to load AI quota' });
+  } catch {
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/ai/chat', aiLimiter, validateBody(aiChatSchema), async (req, res) => {
+app.post('/api/ai/chat', aiLimiter, validateBody(aiChatSchema), async (req, res, next) => {
   const startedAt = Date.now();
   const traceId = `ai-chat-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -4506,7 +4502,7 @@ app.post('/api/ai/chat', aiLimiter, validateBody(aiChatSchema), async (req, res)
       latencyMs: Date.now() - startedAt
     });
     console.error(`[ai-chat] failed traceId=${traceId}:`, error?.message || 'unknown_error');
-    return res.status(500).json({ error: error?.message || 'Failed to process AI chat' });
+    return next(new ExternalProviderError());
   } finally {
     logAIEvent({
       event: 'ai_chat',
@@ -4519,7 +4515,7 @@ app.post('/api/ai/chat', aiLimiter, validateBody(aiChatSchema), async (req, res)
   }
 });
 
-app.post('/api/ai/coach-command', aiLimiter, async (req, res) => {
+app.post('/api/ai/coach-command', aiLimiter, async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -4570,11 +4566,11 @@ app.post('/api/ai/coach-command', aiLimiter, async (req, res) => {
     return res.json(result);
   } catch (error: any) {
     console.error('[ai-coach-command] failed:', error?.message || error);
-    return res.status(500).json({ error: error?.message || 'Failed to process coach command' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/ai/chat/clear', aiLimiter, async (req, res) => {
+app.post('/api/ai/chat/clear', aiLimiter, async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -4590,11 +4586,11 @@ app.post('/api/ai/chat/clear', aiLimiter, async (req, res) => {
     return res.json({ success: true });
   } catch (error: any) {
     console.error('[ai-chat-clear] failed:', error?.message || error);
-    return res.status(500).json({ error: error?.message || 'Failed to clear chat history' });
+    return next(new ExternalProviderError());
   }
 });
 
-app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
+app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res, next) => {
   const startedAt = Date.now();
   const traceId = `ai-apply-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -4895,7 +4891,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
       latencyMs: Date.now() - startedAt
     });
     console.error(`[ai-apply] failed traceId=${traceId}:`, error?.message || 'unknown_error');
-    return res.status(500).json({ error: error?.message || 'Failed to apply adjustment' });
+    return next(new ExternalProviderError());
   } finally {
     logAIEvent({
       event: 'ai_apply',
@@ -4907,7 +4903,7 @@ app.post('/api/ai/apply-adjustment', aiLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/ai/reject-adjustment', aiLimiter, async (req, res) => {
+app.post('/api/ai/reject-adjustment', aiLimiter, async (req, res, next) => {
   const startedAt = Date.now();
   const traceId = `ai-reject-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -4950,7 +4946,7 @@ app.post('/api/ai/reject-adjustment', aiLimiter, async (req, res) => {
       latencyMs: Date.now() - startedAt
     });
     console.error(`[ai-reject] failed traceId=${traceId}:`, error?.message || 'unknown_error');
-    return res.status(500).json({ error: error?.message || 'Failed to reject adjustment' });
+    return next(new ExternalProviderError());
   } finally {
     logAIEvent({
       event: 'ai_reject',
@@ -4978,7 +4974,7 @@ app.get('/api/ai/metrics', async (req, res) => {
   });
 });
 
-app.post('/api/ai-coach/generate-daily-workout', aiLimiter, async (req, res) => {
+app.post('/api/ai-coach/generate-daily-workout', aiLimiter, async (req, res, next) => {
   let createdWorkoutSessionId: string | null = null;
   let createdDailyExerciseIds: string[] = [];
   try {
@@ -4990,7 +4986,7 @@ app.post('/api/ai-coach/generate-daily-workout', aiLimiter, async (req, res) => 
       return res.status(400).json({ error: 'logDate must be YYYY-MM-DD' });
     }
     if (!process.env.GROQ_API_KEY) {
-      return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
+      return next(new ExternalProviderError());
     }
 
     const existingRes = await supabase
@@ -5288,7 +5284,7 @@ const callGroqWithRetry = async (payload: {
   throw toAiProviderRequestError(lastErrorMsg);
 };
 
-app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
+app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res, next) => {
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -5297,7 +5293,7 @@ app.post('/api/ai-coach/generate-weekly-plan', aiLimiter, async (req, res) => {
     const { weekStartDate } = req.body || {};
     const userId = authUserId;
     if (!process.env.GROQ_API_KEY) {
-      return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
+      return next(new ExternalProviderError());
     }
 
     const weekStartKey = weekStartDate || getVietnamDateKey();
@@ -5897,11 +5893,11 @@ app.post('/api/ai-coach/record-meal-swap', async (req, res) => {
 // The onboarding flow deliberately generates meals in a second, smaller request.
 // Workout generation already happened after the training survey; regenerating it
 // here wastes Groq tokens and replaces a plan the user has just reviewed.
-app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, res) => {
+app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-    if (!process.env.GROQ_API_KEY) return res.status(500).json({ error: 'Missing GROQ_API_KEY in server config' });
+    if (!process.env.GROQ_API_KEY) return next(new ExternalProviderError());
 
     const rawWeekStartKey = String(req.body?.weekStartDate || getVietnamDateKey()).trim();
     const weekStartKey = getWeekStartKey(new Date(`${rawWeekStartKey}T00:00:00`));
