@@ -394,6 +394,23 @@ describe('Express application bootstrap', () => {
     expect(mocks.adminDeleteUser).toHaveBeenCalledWith('authenticated-user');
   });
 
+  it('does not delete nested or attacker-controlled avatar paths during account deletion', async () => {
+    mocks.adminStorageList.mockResolvedValueOnce({
+      data: [{ name: 'avatar.png' }, { name: '../another-user/avatar.png' }],
+      error: null,
+    });
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .delete('/api/account')
+      .set('Authorization', 'Bearer user-jwt')
+      .send({ confirmation: 'DELETE' });
+
+    expect(response.status).toBe(200);
+    expect(mocks.adminStorageRemove).toHaveBeenCalledWith(['authenticated-user/avatar.png']);
+    expect(mocks.adminDeleteUser).toHaveBeenCalledWith('authenticated-user');
+  });
+
   it('does not expose provider errors, tokens, or storage URLs from self-service routes', async () => {
     mocks.userMaybeSingle.mockResolvedValueOnce({
       data: null,

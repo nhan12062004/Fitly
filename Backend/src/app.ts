@@ -18,7 +18,7 @@ import { WorkoutPrescription, estimateWorkoutKcal, prescribeWorkoutExercise } fr
 import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservability';
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
-import { createTelegramLinkToken } from './lib/telegramLinkToken';
+import { accountRouter } from './modules/account/accountRouter';
 import {
   buildSafetyPromptAddendum,
   getFoodSafetyDecision,
@@ -63,7 +63,7 @@ import {
 import { normalizeAllergies } from '../../shared/dietaryPreferences';
 import { z } from 'zod';
 import { errorHandler, notFoundHandler } from './http/errorHandler';
-import { ExternalProviderError, InternalConfigurationError, NotFoundError, ValidationError } from './http/errors';
+import { ExternalProviderError, InternalConfigurationError, ValidationError } from './http/errors';
 import { legacyErrorContractMiddleware } from './http/legacyErrorContract';
 import { requestIdMiddleware } from './http/requestId';
 import { logOperational } from './lib/operationalLogger';
@@ -2220,6 +2220,7 @@ app.use(cors({
 
 app.use(generalLimiter);
 app.use(express.json({ limit: '1mb' }));
+app.use('/api', accountRouter);
 
 app.get('/', (_req, res) => {
   res.json({
@@ -2303,7 +2304,6 @@ app.get('/api/profiles', requireAuth, requireAdmin, async (_req, res) => {
 const emptyBodySchema = z.object({}).strict();
 const adminPayloadSchema = z.object({}).passthrough();
 const dateKeySchema = z.string().regex(DATE_KEY_REGEX);
-const accountDeletionSchema = z.object({ confirmation: z.literal('DELETE') }).strict();
 const dailyExercisesFromPlanSchema = z.object({ logDate: dateKeySchema }).strict();
 const aiChatSchema = z.object({
   message: z.string().trim().min(1).max(1000),
@@ -2320,174 +2320,6 @@ app.post('/api/membership/renew', requireAuth, validateBody(emptyBodySchema), (_
     error: 'Thanh toán đang tạm khóa cho đến khi tích hợp xác thực hóa đơn từ App Store và Google Play.',
     code: 'PAYMENT_PROVIDER_NOT_CONFIGURED'
   });
-});
-
-const SELF_SERVICE_PROFILE_COLUMNS = 'id, full_name, email, gender, birthday, avatar_url, telegram_chat_id, telegram_notify_water, telegram_notify_sleep, telegram_notify_workout, exp, level, ref_code, referral_count, updated_at';
-const SELF_SERVICE_PROFILE_FIELDS = [
-  'full_name',
-  'email',
-  'gender',
-  'birthday',
-  'telegram_chat_id',
-  'telegram_notify_water',
-  'telegram_notify_sleep',
-  'telegram_notify_workout',
-] as const;
-const profileUpdateSchema = z.object({
-  full_name: z.string().trim().max(120).nullable().optional(),
-  email: z.string().trim().email().max(254).nullable().optional(),
-  gender: z.enum(['Nam', 'Nữ', 'Khác']).nullable().optional(),
-  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  telegram_chat_id: z.string().trim().max(128).nullable().optional(),
-  telegram_notify_water: z.boolean().optional(),
-  telegram_notify_sleep: z.boolean().optional(),
-  telegram_notify_workout: z.boolean().optional(),
-}).strict().refine((body) => Object.keys(body).length > 0);
-const AVATAR_CONTENT_TYPES = new Map([
-  ['image/jpeg', 'jpg'],
-  ['image/png', 'png'],
-  ['image/webp', 'webp'],
-  ['image/gif', 'gif'],
-]);
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
-
-const getAuthenticatedRequestContext = (req: express.Request, res: express.Response) => {
-  if (req.auth && req.supabase) return { auth: req.auth, supabase: req.supabase };
-  res.status(401).json({ error: 'Unauthorized' });
-  return null;
-};
-
-app.get('/api/profile', requireAuth, async (req, res, next) => {
-  const context = getAuthenticatedRequestContext(req, res);
-  if (!context) return;
-
-  try {
-    const { data, error } = await context.supabase
-      .from('profiles')
-      .select(SELF_SERVICE_PROFILE_COLUMNS)
-      .eq('id', context.auth.user.id)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return next(new NotFoundError('Profile not found.'));
-    return res.json({ data });
-  } catch {
-    return next(new ExternalProviderError());
-  }
-});
-
-app.patch('/api/profile', requireAuth, validateBody(profileUpdateSchema), async (req, res, next) => {
-  const context = getAuthenticatedRequestContext(req, res);
-  if (!context) return;
-
-  const updates: Record<string, string | boolean | null> = {};
-  for (const field of SELF_SERVICE_PROFILE_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(req.body || {}, field)) {
-      updates[field] = req.body[field] ?? null;
-    }
-  }
-  if (Object.keys(updates).length === 0) {
-    return next(new ValidationError());
-  }
-
-  try {
-    const { data, error } = await context.supabase
-      .from('profiles')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', context.auth.user.id)
-      .select(SELF_SERVICE_PROFILE_COLUMNS)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return next(new NotFoundError('Profile not found.'));
-    return res.json({ data });
-  } catch (error) {
-    return next(new ExternalProviderError());
-  }
-});
-
-app.put('/api/profile/avatar', requireAuth, express.raw({ type: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], limit: MAX_AVATAR_BYTES }), async (req, res) => {
-  const context = getAuthenticatedRequestContext(req, res);
-  if (!context) return;
-
-  const contentType = String(req.headers['content-type'] || '').toLowerCase().split(';')[0];
-  const extension = AVATAR_CONTENT_TYPES.get(contentType);
-  if (!extension || !Buffer.isBuffer(req.body) || req.body.length === 0 || req.body.length > MAX_AVATAR_BYTES) {
-    return res.status(400).json({ error: 'Avatar must be a JPEG, PNG, WebP, or GIF image no larger than 5 MB.' });
-  }
-
-  const avatarPath = `${context.auth.user.id}/avatar.${extension}`;
-  try {
-    const bucket = context.supabase.storage.from('avatars');
-    const upload = await bucket.upload(avatarPath, req.body, { upsert: true, contentType });
-    if (upload.error) throw upload.error;
-    const { data: publicUrlData } = bucket.getPublicUrl(avatarPath);
-    const avatarUrl = publicUrlData.publicUrl;
-    const update = await context.supabase
-      .from('profiles')
-      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
-      .eq('id', context.auth.user.id);
-    if (update.error) throw update.error;
-    return res.json({ avatarUrl });
-  } catch {
-    return res.status(500).json({ error: 'Unable to update avatar.' });
-  }
-});
-
-app.delete('/api/profile/avatar', requireAuth, async (req, res) => {
-  const context = getAuthenticatedRequestContext(req, res);
-  if (!context) return;
-
-  try {
-    const bucket = context.supabase.storage.from('avatars');
-    const listed = await bucket.list(context.auth.user.id, { limit: 100 });
-    if (listed.error) throw listed.error;
-    const paths = (listed.data || [])
-      .filter((file) => file.name && !file.name.includes('/'))
-      .map((file) => `${context.auth.user.id}/${file.name}`);
-    if (paths.length > 0) {
-      const removed = await bucket.remove(paths);
-      if (removed.error) throw removed.error;
-    }
-    const update = await context.supabase
-      .from('profiles')
-      .update({ avatar_url: null, updated_at: new Date().toISOString() })
-      .eq('id', context.auth.user.id);
-    if (update.error) throw update.error;
-    return res.status(204).send();
-  } catch {
-    return res.status(500).json({ error: 'Unable to delete avatar.' });
-  }
-});
-
-app.delete('/api/account', validateBody(accountDeletionSchema), async (req, res, next) => {
-  try {
-    const authUserId = await getAuthUserId(req);
-    if (!authUserId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    if (String(req.body?.confirmation || '') !== 'DELETE') {
-      return res.status(400).json({ error: 'Missing account deletion confirmation.' });
-    }
-
-    const avatarList = await supabase.storage
-      .from('avatars')
-      .list(authUserId, { limit: 100 });
-    if (avatarList.error) throw avatarList.error;
-
-    const avatarPaths = (avatarList.data || [])
-      .filter((item) => item.name)
-      .map((item) => `${authUserId}/${item.name}`);
-    if (avatarPaths.length > 0) {
-      const avatarDelete = await supabase.storage.from('avatars').remove(avatarPaths);
-      if (avatarDelete.error) throw avatarDelete.error;
-    }
-
-    const deleteUser = await supabase.auth.admin.deleteUser(authUserId);
-    if (deleteUser.error) throw deleteUser.error;
-
-    return res.json({ success: true });
-  } catch {
-    return next(new ExternalProviderError());
-  }
 });
 
 const parseStringArrayInput = (value: unknown): string[] | undefined => {
@@ -6000,32 +5832,6 @@ app.post('/api/ai-coach/generate-onboarding-meal-plan', aiLimiter, async (req, r
     console.error('[ai-coach-onboarding-meal] failed:', error?.message || 'unknown_error');
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI 7 ngày lúc này.' });
-  }
-});
-
-app.post('/api/telegram/link-token', requireAuth, validateBody(emptyBodySchema), async (req, res, next) => {
-  try {
-    if (!req.auth || !req.supabase) return next(new ExternalProviderError());
-
-    const profileRes = await req.supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', req.auth.user.id)
-      .maybeSingle();
-    if (profileRes.error) throw profileRes.error;
-    if (!profileRes.data?.id) {
-      return next(new NotFoundError('Profile not found'));
-    }
-
-    const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'fitlyforbot';
-    const token = createTelegramLinkToken(req.auth.user.id);
-    return res.json({
-      success: true,
-      token,
-      telegramLink: `https://t.me/${botUsername}?start=${token}`
-    });
-  } catch {
-    return next(new ExternalProviderError());
   }
 });
 
