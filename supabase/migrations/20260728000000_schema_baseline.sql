@@ -2246,8 +2246,22 @@ CREATE TABLE IF NOT EXISTS "public"."workout_session_feedback" (
 ALTER TABLE "public"."workout_session_feedback" OWNER TO "postgres";
 
 
-ALTER TABLE ONLY "public"."ai_chat_messages"
-    ADD CONSTRAINT "ai_chat_messages_pkey" PRIMARY KEY ("id");
+-- The preview database can already contain this table (created before this
+-- baseline was recorded). PostgreSQL permits only one primary key per table,
+-- so add ours only when one is not already present.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.ai_chat_messages'::regclass
+          AND contype = 'p'
+    ) THEN
+        ALTER TABLE ONLY "public"."ai_chat_messages"
+            ADD CONSTRAINT "ai_chat_messages_pkey" PRIMARY KEY ("id");
+    END IF;
+END
+$$;
 
 
 
