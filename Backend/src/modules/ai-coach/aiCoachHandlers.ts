@@ -886,6 +886,12 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
       }
 
       const atomicResult = atomicApplyRes.data as { already_applied?: boolean } | null;
+      // The RPC is the source of truth for whether this mutation was newly
+      // applied. Only charge quota after a fresh apply; a replay with the same
+      // idempotency key must not consume another adjustment.
+      if (!atomicResult?.already_applied) {
+        await recordAiQuotaUsage(authUserId, adjustmentQuotaKey);
+      }
       success = true;
       return res.json({
         success: true,
@@ -990,6 +996,9 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
       return res.status(409).json({ error: 'Adjustment is not in proposed status' });
     }
 
+    // This is after the guarded proposed -> applied transition, so only the
+    // request that actually applies an adjustment can record quota usage.
+    await recordAiQuotaUsage(authUserId, adjustmentQuotaKey);
     success = true;
     return res.json({
       success: true,

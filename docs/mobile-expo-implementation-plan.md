@@ -1,6 +1,6 @@
 # Kế hoạch triển khai Fitly Mobile (Expo)
 
-**Trạng thái:** Lập kế hoạch — chưa khởi tạo ứng dụng
+**Trạng thái (31/07/2026):** Expo foundation hoàn tất. Đăng nhập/SecureStore và các luồng đọc Core đã chạy trên Android emulator với Supabase RLS. Reset password/deep link được hoãn theo quyết định sản phẩm. Workout mutation đã xác minh E2E cho đọc, ghi một set, chống chạm nhanh, refetch sau khi mở lại app và timeout có kiểm soát; còn một gate RLS cross-user trước khi đóng milestone.
 
 **Mục tiêu:** Xây dựng ứng dụng Android ưu tiên mobile bằng Expo, với giao diện riêng cho Fitly, đồng thời dùng nguyên Supabase Auth, PostgreSQL/RLS và Express Backend hiện có.
 
@@ -15,7 +15,6 @@
 - AI Coach: chat, đề xuất thay đổi và xác nhận áp dụng/từ chối.
 - Progress và Profile.
 - Premium mobile UI dành cho fitness, gym và yoga.
-- Kết nối Apple HealthKit (iOS) và Health Connect (Android) với sự đồng ý rõ ràng của người dùng.
 - Android emulator, Android thiết bị thật và build nội bộ.
 
 ### Ngoài phạm vi V1
@@ -24,6 +23,7 @@
 - Challenges, Premium checkout và Telegram bot.
 - Thay đổi schema, migration hoặc thay thế Express Backend.
 - Đồng bộ offline có thể ghi dữ liệu; chỉ triển khai cache đọc ở V1.
+- Health Connect và Apple HealthKit; đây là phạm vi sau Android MVP.
 - Đọc clinical/medical records, nhịp tim liên tục, vị trí hoặc dữ liệu lịch sử quá 30 ngày.
 
 ### Nguyên tắc kỹ thuật
@@ -44,7 +44,7 @@
 | Auth/Data | Supabase Auth + PostgreSQL + RLS | Web và mobile dùng cùng user/session/data. |
 | Data access | Web có nhiều truy vấn Supabase trực tiếp | Cần chuẩn hóa theo domain, không nhân bản từng query vào mobile. |
 | Shared | Có các type/catalog thuần TypeScript | Có thể dùng dần cho contract không phụ thuộc web/Node. |
-| Health data | `daily_progress_logs` đã có calories burned, workout duration và sleep hours | Có thể đồng bộ aggregate dữ liệu V1 mà không cần migration. |
+| Health data | `daily_progress_logs` không có `source`, `synced_at` hay merge rule | Không ghi dữ liệu health vào DB trước khi có migration và quy tắc merge được duyệt. |
 
 ## 3. Kiến trúc mục tiêu
 
@@ -66,14 +66,14 @@ Supabase hiện tại ───────── Express Backend hiện tại
 Auth / PostgreSQL / RLS      AI / workout mutation / business logic
 ```
 
-### Kiến trúc health platform
+### Kiến trúc health platform (sau Android MVP)
 
 ```text
 iOS: Apple HealthKit ─────┐
                             ├─ Health service trên thiết bị
 Android: Health Connect ───┘   ├─ Permission + consent + sync toggle
                                ├─ Aggregate theo ngày
-                               └─ Progress UI / daily_progress_logs
+                               └─ Health preview UI (read-only ở V1.1)
 ```
 
 - **Apple HealthKit** chỉ dành cho iPhone/Apple Watch. HealthKit yêu cầu quyền theo từng data type và không cho app biết rõ người dùng đã từ chối quyền đọc; app phải xử lý trạng thái không có dữ liệu một cách tôn trọng riêng tư. [Apple HealthKit](https://developer.apple.com/documentation/healthkit), [HealthKit authorization](https://developer.apple.com/documentation/HealthKit/authorizing-access-to-health-data)
@@ -86,7 +86,7 @@ Android: Health Connect ───┘   ├─ Permission + consent + sync toggle
 
 ```env
 EXPO_PUBLIC_SUPABASE_URL=
-EXPO_PUBLIC_SUPABASE_ANON_KEY=
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 EXPO_PUBLIC_API_URL=https://trendfit.onrender.com
 ```
 
@@ -100,7 +100,7 @@ EXPO_PUBLIC_API_URL=https://trendfit.onrender.com
 - TanStack Query cho server-state, loading, retry và cache.
 - Thiết kế native bằng React Native styles/tokens; chỉ thêm NativeWind nếu được chọn rõ ràng khi bắt đầu UI.
 - Expo Notifications ở giai đoạn sau của V1.
-- Native bridge tương thích Expo cho HealthKit và Health Connect; chọn package/config plugin sau khi chốt Expo SDK để tránh dependency native không tương thích.
+- Native bridge tương thích Expo cho HealthKit và Health Connect là phạm vi sau Android MVP; chọn package/config plugin sau khi chốt Expo SDK để tránh dependency native không tương thích.
 
 ## 4.1. Design direction: Premium Performance & Serenity
 
@@ -138,18 +138,26 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 
 ## 6. Lộ trình triển khai
 
-### Milestone 0 — Chốt hướng sản phẩm, visual và health consent
+### Milestone 0 — API contract
+
+- Dùng `docs/mobile-api-contract.md` làm contract chính thức cho Mobile; `BACKEND_ENDPOINT_INVENTORY.md` chỉ là nguồn rà soát.
+- Chốt endpoint nào dùng Supabase trực tiếp và endpoint nào bắt buộc đi qua Express.
+- Bổ sung và chạy trong CI/local bộ fixture cho idempotency AI apply và hành vi gửi trùng `complete-set`.
+- Chốt idempotency: khóa UI và reconcile cho workout mutation; `Idempotency-Key` bắt buộc cho AI apply; không auto-retry AI chat hoặc `complete-set`.
+- Chỉ chuyển sang Expo foundation khi AI apply được kiểm thử với cùng key/khác key và `complete-set` có test chứng minh nguy cơ gửi trùng.
+
+**Hoàn thành khi:** contract được review, 5 test gate trong `Backend/test/mobile-contract-milestone0.test.ts` chạy đạt trong CI/local và Mobile không phải suy đoán payload từ web UI.
+
+### Milestone 1 — Chốt hướng sản phẩm và visual
 
 - Chọn tên hiển thị, Android application ID, icon và màu thương hiệu.
-- Chốt Android-first cho UI delivery, đồng thời giữ iOS là target chính thức cho HealthKit.
+- Chốt Android-first cho UI delivery.
 - Chốt 5 tab và phạm vi V1 ở trên.
 - Chốt direction **Premium Performance & Serenity**, dark mode strategy, app icon và asset direction.
-- Chốt data Health V1: steps, active calories, exercise sessions và sleep. Không xin heart rate/clinical records/location.
-- Chốt rõ dữ liệu nào chỉ hiển thị trên máy, dữ liệu nào được phép đồng bộ lên Fitly.
 
-**Hoàn thành khi:** có danh sách màn hình V1, style direction và health consent scope được duyệt.
+**Hoàn thành khi:** có danh sách màn hình V1 và style direction được duyệt.
 
-### Milestone 1 — Khởi tạo Expo foundation
+### Milestone 2 — Khởi tạo Expo foundation
 
 - Khởi tạo project trong `Mobile/` bằng Expo Router + TypeScript.
 - Thiết lập app config, icon/splash placeholder, ESLint và aliases.
@@ -158,7 +166,7 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 
 **Hoàn thành khi:** app mở trên emulator, đọc cấu hình đúng và chưa có secret trong Git.
 
-### Milestone 2 — Navigation và design system
+### Milestone 3 — Navigation và design system
 
 - Dựng root layout, auth gate, tab navigation và stack navigation.
 - Tạo foundation: color, spacing, typography, radius, elevation và dark/light strategy (nếu được chọn).
@@ -167,7 +175,7 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 
 **Hoàn thành khi:** có thể điều hướng toàn bộ flow V1 trên emulator, không phụ thuộc UI web.
 
-### Milestone 3 — Auth và onboarding
+### Milestone 4 — Auth và onboarding
 
 - Login/signup/reset password bằng Supabase Auth.
 - Persist/refresh session qua SecureStore.
@@ -176,7 +184,9 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 
 **Hoàn thành khi:** một tài khoản web hiện có có thể đăng nhập mobile và thấy đúng dữ liệu của chính mình.
 
-### Milestone 4 — Core fitness MVP
+**Tiến độ:** Đăng nhập, SecureStore/persist/refresh session và Bearer API đã xác minh trên Android emulator. Luồng reset password/email deep link được hoãn theo quyết định sản phẩm; không được coi là đã hoàn tất E2E.
+
+### Milestone 5 — Core fitness MVP
 
 - Home: today plan, summary và quick actions.
 - Workout: plan, exercise list, session, complete set và completion.
@@ -185,7 +195,21 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 
 **Hoàn thành khi:** dữ liệu ghi từ mobile hiển thị đúng ở web và ngược lại, vẫn tuân thủ RLS.
 
-### Milestone 5 — AI Coach
+**Tiến độ:** Home, Workout, Meals và Profile đã có luồng chỉ đọc bằng dữ liệu thật trên emulator: truy vấn user-scoped qua RLS, có loading/empty/error/retry; Home trả về summary tập/kcal, Profile trả về body metric và lifestyle settings thật. Workout `complete-set` đã gọi qua Express, nhận trạng thái chuẩn từ server, khóa đồng bộ chống chạm nhanh, giữ kết quả sau khi khởi động lại app và refetch sau timeout mà không retry POST; chưa có mutation meal hay recipe detail.
+
+#### Workout mutation E2E gate (test account thường)
+
+Không tạo dữ liệu để test trong tài khoản thật. Dùng một test account không có quyền admin, có một daily exercise session được tạo rõ ràng từ web hoặc fixture test.
+
+- [x] Hoàn thành một set: `completed_sets` tăng đúng một lần và UI chỉ thay đổi theo response từ server.
+- [x] Bấm nhanh cùng một set: ba thao tác liên tiếp chỉ tăng `completed_sets` từ `0` lên `1`; UI lock đồng bộ bằng `ref` trước khi gửi POST.
+- [x] Đóng/mở lại app: refetch hiển thị `completed_sets` đã được server lưu.
+- [x] Giả lập timeout có kiểm soát trong lúc POST: một POST duy nhất được backend nhận, app timeout rồi refetch từ `2/3` lên `3/3`; không tự gửi lại POST.
+- [ ] Dùng ID session thuộc test account khác: backend trả `404`/`403`, không thay đổi session nào.
+
+Chỉ khi năm mục này đạt mới chuyển Workout mutation sang hoàn tất và bắt đầu kiểm tra reset password end-to-end.
+
+### Milestone 6 — AI Coach
 
 - Chat UI tối ưu mobile, streaming/loading/error states theo API hiện có.
 - Hiển thị quota, structured proposal và confirmation trước khi apply/reject.
@@ -193,31 +217,29 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 
 **Hoàn thành khi:** mobile dùng cùng AI flow với web mà không tự ý ghi thay đổi plan.
 
-### Milestone 6 — Apple HealthKit và Android Health Connect
-
-- Tạo `health` domain service với API chung cho iOS/Android, còn native provider được tách riêng theo platform.
-- Thêm màn hình **Connected health** trong Profile: mô tả lợi ích, chọn data type, connect/disconnect và sync toggle.
-- Xin quyền ngay khi user bấm kết nối, chỉ cho 4 data type V1: steps, active calories, exercise sessions, sleep.
-- Đọc dữ liệu **aggregate theo ngày** thay vì lưu raw records. Lịch sử mặc định chỉ đồng bộ 7 ngày gần nhất.
-- Mapping V1 vào dữ liệu Fitly hiện có:
-  - active calories → `daily_progress_logs.calories_burned`
-  - exercise duration → `daily_progress_logs.workout_duration`
-  - sleep duration → `daily_progress_logs.sleep_hours`
-  - steps → hiển thị trong mobile health card, chưa ghi database vì schema hiện tại chưa có field rõ nghĩa
-- Không tự động ghi đè số người dùng đã nhập. Trước khi write cần có source/merge rule được duyệt; V1 an toàn nhất là hiển thị preview và user bấm **Sync today**.
-- Không xin quyền background read hoặc đọc lịch sử hơn 30 ngày ở V1. Android có giới hạn mặc định 30 ngày từ khi cấp quyền và cần permission riêng cho lịch sử xa hơn. [Health Connect data access](https://developer.android.com/health-and-fitness/health-connect/read-data)
-- iOS: cấu hình HealthKit entitlement và usage description. Android: manifest permissions, privacy rationale activity và khai báo Play Console theo data type.
-
-**Hoàn thành khi:** user có thể connect/disconnect, sync dữ liệu aggregate được cấp quyền và vẫn dùng app bình thường khi không cấp quyền.
-
-### Milestone 7 — Notifications, QA và Android/iOS delivery
+### Milestone 7 — Android internal build và QA
 
 - Local notifications cho nhắc tập/ăn/uống nước theo setting người dùng.
 - Cache đọc cho Home, Workout và Meals; xử lý offline/error/retry.
 - Test Android emulator và thiết bị thật: auth expiry, mạng chậm, thao tác workout, AI quota.
-- Tạo internal Android build và iOS TestFlight build; chuẩn bị production `.aab`/iOS release sau khi QA đạt.
+- Tạo Android internal build; chuẩn bị production `.aab` sau khi QA đạt.
 
 **Hoàn thành khi:** internal build cài được và checklist regression V1 đạt.
+
+### Milestone 8 — Health Connect V1.1 (Android, read-only)
+
+- Tạo `health` domain service và màn hình **Connected health** trong Profile.
+- Chỉ xin quyền khi user bấm kết nối, chỉ cho steps, active calories, exercise sessions và sleep.
+- Đọc aggregate theo ngày và hiển thị preview trên thiết bị; không ghi vào Supabase/Express/database.
+- Không xin background read hoặc lịch sử hơn 30 ngày. App vẫn hoạt động đầy đủ nếu user từ chối quyền.
+
+**Hoàn thành khi:** user có thể connect/disconnect Health Connect và xem preview dữ liệu được cấp quyền mà không có database mutation.
+
+### Sau V1.1 — Apple HealthKit
+
+- Bắt đầu sau khi có Apple Developer account và iPhone thật để kiểm thử.
+- Áp dụng cùng scope read-only, consent tối thiểu và privacy UX như Health Connect.
+- Chỉ thiết kế migration `source`, `synced_at` và merge rule nếu có quyết định rõ ràng về việc ghi dữ liệu health lên Fitly.
 
 ## 7. Quy tắc phân chia data access
 
@@ -227,7 +249,7 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 | Đọc/ghi dữ liệu riêng của user đã có RLS | Supabase client | Không cần nhân bản endpoint đơn giản. |
 | AI chat, AI plan, quota | Express API | Bảo vệ Groq key, limiter và business logic. |
 | Workout mutation có endpoint | Express API | Tái sử dụng validation và logic đang chạy trên web. |
-| Health aggregate được user xác nhận sync | Supabase client theo RLS hoặc API riêng khi cần merge rule | Không đẩy raw health records và không vượt quyền user. |
+| Health data | Không có trong Android MVP | Health Connect V1.1 chỉ đọc/hiển thị; không ghi database. |
 | Admin | Không đưa vào V1 | Tránh mở rộng quyền mobile sớm. |
 
 ## 8. Rủi ro và cách xử lý
@@ -242,9 +264,9 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 | Expo Go không đủ native module | Chuyển sang development build sớm khi cần native configuration/notifications. |
 | Health permission bị từ chối hoặc data trống | Treat as normal state; giải thích lợi ích và cho phép dùng app đầy đủ khi không connect. |
 | Người dùng mất niềm tin về dữ liệu sức khỏe | Xin quyền tối thiểu, sync toggle rõ ràng, không dùng cho ads và có privacy policy dễ hiểu. |
-| Mapping tự động làm sai dữ liệu progress | Sync aggregate theo ngày, preview trước write và áp dụng source/merge rule rõ ràng. |
+| Mapping tự động làm sai dữ liệu progress | Health V1.1 không ghi DB; chỉ thiết kế source/merge rule trong migration riêng sau khi được duyệt. |
 
-## 9. Checklist trước khi bắt đầu Milestone 1
+## 9. Checklist trước khi bắt đầu Milestone 2
 
 - [ ] Chốt application name và Android package ID.
 - [ ] Chốt visual direction (màu, dark mode có/không, reference screen).
@@ -253,9 +275,7 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 - [ ] Lấy Supabase URL và publishable/anon key cho môi trường mobile.
 - [ ] Có một test account không phải admin.
 - [ ] Xác nhận emulator Android mở được từ Android Studio.
-- [ ] Có thiết bị iPhone và Apple Developer account trước khi kiểm thử HealthKit/release iOS.
-- [ ] Chuẩn bị Privacy Policy mô tả rõ cách đọc, đồng bộ và ngắt kết nối dữ liệu sức khỏe.
-- [ ] Chốt 4 data type Health V1: steps, active calories, exercise sessions, sleep.
+- [ ] Review `docs/mobile-api-contract.md` và bổ sung fixture test cần thiết trước khi gọi Express từ Mobile.
 - [ ] Không đưa service role/Groq/Telegram secrets vào Mobile.
 
 ## 10. Definition of Done cho V1
@@ -264,7 +284,5 @@ Mỗi màn hình cần có một “hero metric” duy nhất (ví dụ hôm nay
 - Workout, meals, profile/progress và AI Coach chạy được trên Android.
 - Không có secret server trong source/app build.
 - RLS và API authorization được kiểm thử với user thường.
-- HealthKit/Health Connect chỉ xin quyền tối thiểu, có connect/disconnect và sync toggle rõ ràng.
-- App hoạt động đầy đủ khi user không cấp bất kỳ health permission nào.
 - App có loading, empty, error và retry state cho tất cả luồng chính.
 - Có Android internal build đã kiểm thử trên emulator và thiết bị thật.

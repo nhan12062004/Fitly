@@ -1206,8 +1206,17 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
     setLoading(true);
 
     try {
-      const { data: authUserData } = await supabase.auth.getUser();
-      const targetUserId = authUserData.user?.id || user.id;
+      // Do not fall back to the cached context user here. A stale browser session
+      // would send an anonymous/expired JWT to PostgREST and fail RLS with 403.
+      const { data: refreshedSession, error: refreshSessionError } = await supabase.auth.refreshSession();
+      if (refreshSessionError || !refreshedSession.session?.user) {
+        throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại trước khi lưu hồ sơ.');
+      }
+      const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
+      if (authUserError || !authUserData.user || authUserData.user.id !== user.id) {
+        throw new Error('Không thể xác minh phiên đăng nhập hiện tại. Vui lòng đăng xuất và đăng nhập lại.');
+      }
+      const targetUserId = authUserData.user.id;
 
       const resolvedBirthday = formData.birthday || ageToBirthday(formData.age);
       const resolvedFullName = formData.full_name.trim() || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Thành viên';
@@ -1236,16 +1245,31 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
       });
 
       // 1. Cập nhật hoặc Tạo mới Profile (Thông tin cơ bản)
-      const profilePromise = supabase
-        .from('profiles')
-        .upsert({
-          id: targetUserId,
-          full_name: resolvedFullName,
-          email: formData.email,
-          gender: formData.gender,
-          birthday: resolvedBirthday,
-          updated_at: new Date().toISOString()
-        });
+      // Avoid UPSERT here: its ON CONFLICT path requires table-wide INSERT/UPDATE
+      // permissions. This explicit flow keeps the existing column-level protection.
+      const profilePayload = {
+        full_name: resolvedFullName,
+        email: formData.email,
+        gender: formData.gender,
+        birthday: resolvedBirthday,
+        updated_at: new Date().toISOString()
+      };
+      const profilePromise = (async () => {
+        const { data: updatedProfile, error: updateProfileError } = await supabase
+          .from('profiles')
+          .update(profilePayload)
+          .eq('id', targetUserId)
+          .select('id')
+          .maybeSingle();
+
+        if (updateProfileError) throw updateProfileError;
+        if (updatedProfile) return;
+
+        const { error: insertProfileError } = await supabase
+          .from('profiles')
+          .insert({ id: targetUserId, ...profilePayload });
+        if (insertProfileError) throw insertProfileError;
+      })();
 
       // 2. Lưu số đo cơ thể đầy đủ
       const bodyMetricsPromise = supabase
@@ -1313,8 +1337,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
 
 
       // 1. ĐẢM BẢO Profile tồn tại trước (Sequential to avoid FK errors)
-      const { error: pError } = await profilePromise;
-      if (pError) throw pError;
+      await profilePromise;
       
       // 2. Chạy các lệnh còn lại (Concurrent ok now)
       const results = await Promise.all([
