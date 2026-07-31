@@ -11,6 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "io.github.nhan12062004.fitly",
       "adaptiveIcon": {
         "backgroundColor": "#0B1310",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -38,6 +39,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2965c6fe-b108-41a0-b820-41022acb2e54"
+      }
+    },
+    "owner": "nhan12062004"
   }
 }

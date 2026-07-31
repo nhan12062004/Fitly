@@ -1,6 +1,6 @@
 # Kế hoạch triển khai Fitly Mobile (Expo)
 
-**Trạng thái (31/07/2026):** Expo foundation hoàn tất. Đăng nhập/SecureStore và các luồng đọc Core đã chạy trên Android emulator với Supabase RLS. Reset password/deep link được hoãn theo quyết định sản phẩm. Workout mutation đã xác minh E2E cho đọc, ghi một set, chống chạm nhanh, refetch sau khi mở lại app và timeout có kiểm soát; còn một gate RLS cross-user trước khi đóng milestone.
+**Trạng thái (31/07/2026):** Expo foundation hoàn tất. Đăng nhập/SecureStore và các luồng đọc Core đã chạy trên Android emulator với Supabase RLS. Reset password/deep link được hoãn theo quyết định sản phẩm. Workout mutation hoàn tất theo waiver của chủ dự án cho E2E cross-user (backend contract test vẫn đạt). Milestone AI Coach đang triển khai.
 
 **Mục tiêu:** Xây dựng ứng dụng Android ưu tiên mobile bằng Expo, với giao diện riêng cho Fitly, đồng thời dùng nguyên Supabase Auth, PostgreSQL/RLS và Express Backend hiện có.
 
@@ -205,9 +205,9 @@ Không tạo dữ liệu để test trong tài khoản thật. Dùng một test 
 - [x] Bấm nhanh cùng một set: ba thao tác liên tiếp chỉ tăng `completed_sets` từ `0` lên `1`; UI lock đồng bộ bằng `ref` trước khi gửi POST.
 - [x] Đóng/mở lại app: refetch hiển thị `completed_sets` đã được server lưu.
 - [x] Giả lập timeout có kiểm soát trong lúc POST: một POST duy nhất được backend nhận, app timeout rồi refetch từ `2/3` lên `3/3`; không tự gửi lại POST.
-- [ ] Dùng ID session thuộc test account khác: backend trả `404`/`403`, không thay đổi session nào.
+- [x] Dùng ID session thuộc test account khác: backend contract test cục bộ trả `404` và không gọi update. E2E token thứ hai được chủ dự án chấp thuận bỏ qua vì Supabase email rate limit.
 
-Chỉ khi năm mục này đạt mới chuyển Workout mutation sang hoàn tất và bắt đầu kiểm tra reset password end-to-end.
+Chỉ khi năm mục này đạt, hoặc có waiver rõ ràng của chủ dự án cho E2E cross-user, mới chuyển Workout mutation sang hoàn tất.
 
 ### Milestone 6 — AI Coach
 
@@ -217,6 +217,8 @@ Chỉ khi năm mục này đạt mới chuyển Workout mutation sang hoàn tấ
 
 **Hoàn thành khi:** mobile dùng cùng AI flow với web mà không tự ý ghi thay đổi plan.
 
+**Tiến độ:** Đã thay placeholder Coach bằng quota read, chat UI, proposal preview và Apply/Reject controls. Chat E2E đã trả lời thành công trên Android emulator. Luồng `adjust_workout` đã tạo proposal `replace_today_workout` thật ở trạng thái `proposed`; màn xem trước hiển thị 4 bài/10 phút thay cho JSON kỹ thuật. Apply giữ một `Idempotency-Key` ổn định cho cùng adjustment; chat không auto-retry, reject khóa khi kết quả mạng không chắc chắn. Proposal đang chờ xác nhận của chủ tài khoản; chỉ sau đó mới chạy E2E apply hoặc reject để đóng milestone.
+
 ### Milestone 7 — Android internal build và QA
 
 - Local notifications cho nhắc tập/ăn/uống nước theo setting người dùng.
@@ -225,6 +227,8 @@ Chỉ khi năm mục này đạt mới chuyển Workout mutation sang hoàn tấ
 - Tạo Android internal build; chuẩn bị production `.aab` sau khi QA đạt.
 
 **Hoàn thành khi:** internal build cài được và checklist regression V1 đạt.
+
+**Tiến độ:** Android application ID đã chốt là `io.github.nhan12062004.fitly`; `Mobile/eas.json` có profile `development`, `preview` (APK internal) và `production`. Expo config và React Native autolinking đã xác nhận cùng dùng ID này. EAS đã tạo thành công APK internal build `0.1.0 (1)` và đã cài/mở trên Redmi Note 4X thật, hiển thị đúng màn đăng nhập; chưa phát hành Play Store. Cần chạy checklist regression đăng nhập/session, đọc dữ liệu, Workout và AI Coach trên thiết bị thật trước khi đóng milestone.
 
 ### Milestone 8 — Health Connect V1.1 (Android, read-only)
 
