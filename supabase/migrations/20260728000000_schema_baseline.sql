@@ -2265,8 +2265,22 @@ $$;
 
 
 
-ALTER TABLE ONLY "public"."ai_plan_adjustments"
-    ADD CONSTRAINT "ai_plan_adjustments_pkey" PRIMARY KEY ("id");
+-- The preview database can already contain this table (created before this
+-- baseline was recorded). PostgreSQL permits only one primary key per table,
+-- so add ours only when one is not already present.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.ai_plan_adjustments'::regclass
+          AND contype = 'p'
+    ) THEN
+        ALTER TABLE ONLY "public"."ai_plan_adjustments"
+            ADD CONSTRAINT "ai_plan_adjustments_pkey" PRIMARY KEY ("id");
+    END IF;
+END
+$$;
 
 
 
