@@ -282,6 +282,15 @@ Chỉ khi năm mục này đạt, hoặc có waiver rõ ràng của chủ dự �
 - [ ] Review `docs/mobile-api-contract.md` và bổ sung fixture test cần thiết trước khi gọi Express từ Mobile.
 - [ ] Không đưa service role/Groq/Telegram secrets vào Mobile.
 
+## 9.1. Local Redmi QA (2026-07-31)
+
+- [x] Debug APK built locally with Gradle and installed directly on the Redmi through ADB.
+- [x] Metro runs from the ASCII workspace with `Mobile/.env`; no EAS environment is required for local testing.
+- [x] Sign-in succeeds against the real Supabase project without a runtime configuration error.
+- [x] App restart preserves the authenticated session and real workout data loads through the existing RLS/API flow.
+- [x] Added an auth initialization timeout so a storage/network stall cannot leave the splash screen permanently blank.
+- [ ] Physical-device mutation regression (complete-set timeout/no retry) remains the next test; do not create extra production data just for testing.
+
 ## 10. Definition of Done cho V1
 
 - User đăng nhập được bằng cùng tài khoản web và thấy cùng dữ liệu.

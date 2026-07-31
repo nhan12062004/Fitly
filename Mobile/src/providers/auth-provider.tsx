@@ -71,9 +71,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
     const initialize = async () => {
       await consumeRecoveryLink(await Linking.getInitialURL());
-      const { data } = await supabase.auth.getSession();
+      let nextSession: Session | null = null;
+      try {
+        const { data } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Auth session initialization timed out.')), 8000);
+          }),
+        ]);
+        nextSession = data.session;
+      } catch {
+        // Do not leave the splash screen mounted forever when storage/network is unavailable.
+        nextSession = null;
+      }
       if (mounted) {
-        setSession(data.session);
+        setSession(nextSession);
         setIsLoading(false);
         await SplashScreen.hideAsync();
       }
