@@ -2284,18 +2284,83 @@ $$;
 
 
 
-ALTER TABLE ONLY "public"."ai_quota_usage_events"
-    ADD CONSTRAINT "ai_quota_usage_events_pkey" PRIMARY KEY ("id");
+-- The preview database can already contain this table (created before this
+-- baseline was recorded). PostgreSQL permits only one primary key per table,
+-- so add ours only when one is not already present.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.ai_quota_usage_events'::regclass
+          AND contype = 'p'
+    ) THEN
+        ALTER TABLE ONLY "public"."ai_quota_usage_events"
+            ADD CONSTRAINT "ai_quota_usage_events_pkey" PRIMARY KEY ("id");
+    END IF;
+END
+$$;
 
 
 
-ALTER TABLE ONLY "public"."ai_recommendations"
-    ADD CONSTRAINT "ai_recommendations_pkey" PRIMARY KEY ("id");
+-- Apply the remaining primary keys idempotently as well. This baseline is
+-- replayed against preview databases that can already have a primary key.
+DO $$
+DECLARE
+    primary_key record;
+BEGIN
+    FOR primary_key IN
+        VALUES
+            ('ai_recommendations', 'id'),
+            ('body_metrics', 'id'),
+            ('challenge_checkins', 'id'),
+            ('challenge_participants', 'id'),
+            ('challenge_templates', 'id'),
+            ('challenges', 'id'),
+            ('daily_exercise_sessions', 'id'),
+            ('daily_exercise_set_logs', 'id'),
+            ('daily_meal_logs', 'id'),
+            ('daily_progress_logs', 'id'),
+            ('daily_workout_session_exercises', 'id'),
+            ('daily_workout_sessions', 'id'),
+            ('exercises', 'id'),
+            ('health_conditions', 'user_id'),
+            ('lifestyle_settings', 'user_id'),
+            ('meal_feedback', 'id'),
+            ('profiles', 'id'),
+            ('recipe_ingredients', 'id'),
+            ('recipes', 'id'),
+            ('telegram_reminder_dispatches', 'reminder_key'),
+            ('user_custom_foods', 'id'),
+            ('user_notifications', 'id'),
+            ('weekly_food_items', 'id'),
+            ('weekly_food_plans', 'id'),
+            ('weekly_plan_exercises', 'id'),
+            ('weekly_plans', 'id'),
+            ('workout_session_feedback', 'id')
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conrelid = format('public.%I', primary_key.column1)::regclass
+              AND contype = 'p'
+        ) THEN
+            EXECUTE format(
+                'ALTER TABLE ONLY public.%I ADD CONSTRAINT %I PRIMARY KEY (%I)',
+                primary_key.column1,
+                primary_key.column1 || '_pkey',
+                primary_key.column2
+            );
+        END IF;
+    END LOOP;
+END
+$$;
 
 
 
-ALTER TABLE ONLY "public"."body_metrics"
-    ADD CONSTRAINT "body_metrics_pkey" PRIMARY KEY ("id");
+
+
+
 
 
 
@@ -2304,8 +2369,6 @@ ALTER TABLE ONLY "public"."challenge_checkins"
 
 
 
-ALTER TABLE ONLY "public"."challenge_checkins"
-    ADD CONSTRAINT "challenge_checkins_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2314,13 +2377,9 @@ ALTER TABLE ONLY "public"."challenge_participants"
 
 
 
-ALTER TABLE ONLY "public"."challenge_participants"
-    ADD CONSTRAINT "challenge_participants_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."challenge_templates"
-    ADD CONSTRAINT "challenge_templates_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2334,28 +2393,18 @@ ALTER TABLE ONLY "public"."challenges"
 
 
 
-ALTER TABLE ONLY "public"."challenges"
-    ADD CONSTRAINT "challenges_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."daily_exercise_sessions"
-    ADD CONSTRAINT "daily_exercise_sessions_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."daily_exercise_set_logs"
-    ADD CONSTRAINT "daily_exercise_set_logs_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."daily_meal_logs"
-    ADD CONSTRAINT "daily_meal_logs_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."daily_progress_logs"
-    ADD CONSTRAINT "daily_progress_logs_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2364,38 +2413,24 @@ ALTER TABLE ONLY "public"."daily_progress_logs"
 
 
 
-ALTER TABLE ONLY "public"."daily_workout_session_exercises"
-    ADD CONSTRAINT "daily_workout_session_exercises_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."daily_workout_sessions"
-    ADD CONSTRAINT "daily_workout_sessions_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."exercises"
-    ADD CONSTRAINT "exercises_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."health_conditions"
-    ADD CONSTRAINT "health_conditions_pkey" PRIMARY KEY ("user_id");
 
 
 
-ALTER TABLE ONLY "public"."lifestyle_settings"
-    ADD CONSTRAINT "lifestyle_settings_pkey" PRIMARY KEY ("user_id");
 
 
 
-ALTER TABLE ONLY "public"."meal_feedback"
-    ADD CONSTRAINT "meal_feedback_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2409,28 +2444,18 @@ ALTER TABLE ONLY "public"."profiles"
 
 
 
-ALTER TABLE ONLY "public"."recipe_ingredients"
-    ADD CONSTRAINT "recipe_ingredients_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."recipes"
-    ADD CONSTRAINT "recipes_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."telegram_reminder_dispatches"
-    ADD CONSTRAINT "telegram_reminder_dispatches_pkey" PRIMARY KEY ("reminder_key");
 
 
 
-ALTER TABLE ONLY "public"."user_custom_foods"
-    ADD CONSTRAINT "user_custom_foods_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."user_notifications"
-    ADD CONSTRAINT "user_notifications_pkey" PRIMARY KEY ("id");
 
 
 
@@ -2439,28 +2464,18 @@ ALTER TABLE ONLY "public"."user_notifications"
 
 
 
-ALTER TABLE ONLY "public"."weekly_food_items"
-    ADD CONSTRAINT "weekly_food_items_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."weekly_food_plans"
-    ADD CONSTRAINT "weekly_food_plans_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."weekly_plan_exercises"
-    ADD CONSTRAINT "weekly_plan_exercises_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."weekly_plans"
-    ADD CONSTRAINT "weekly_plans_pkey" PRIMARY KEY ("id");
 
 
 
-ALTER TABLE ONLY "public"."workout_session_feedback"
-    ADD CONSTRAINT "workout_session_feedback_pkey" PRIMARY KEY ("id");
 
 
 
