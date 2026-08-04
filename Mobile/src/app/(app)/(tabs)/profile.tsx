@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 
 import { FoundationCard } from '@/components/ui/foundation-card';
 import { Screen } from '@/components/ui/screen';
@@ -44,6 +45,9 @@ export default function ProfileScreen() {
           <Text style={styles.stat}>Mục tiêu: {profile.targetCalories ?? '—'} kcal</Text>
         </View>
       </FoundationCard> : null}
+      <Pressable style={styles.progressButton} onPress={() => router.push('/progress')}>
+        <Text style={styles.progressButtonText}>Xem tiến độ tập luyện →</Text>
+      </Pressable>
       <Pressable style={styles.button} onPress={() => void signOut()}>
         <Text style={styles.buttonText}>Đăng xuất</Text>
       </Pressable>
@@ -58,6 +62,8 @@ const styles = StyleSheet.create({
   error: { color: tokens.colors.coral, lineHeight: 21 },
   stats: { gap: tokens.spacing.xs, marginTop: tokens.spacing.xs },
   stat: { color: tokens.colors.lime, fontWeight: '800' },
+  progressButton: { alignSelf: 'flex-start', paddingVertical: tokens.spacing.md, paddingHorizontal: tokens.spacing.lg, borderRadius: tokens.radius.pill, backgroundColor: tokens.colors.surfaceRaised, borderWidth: 1, borderColor: tokens.colors.border },
+  progressButtonText: { color: tokens.colors.lime, fontWeight: '800' },
   button: { alignSelf: 'flex-start', paddingVertical: tokens.spacing.md, paddingHorizontal: tokens.spacing.lg, borderRadius: tokens.radius.pill, borderWidth: 1, borderColor: tokens.colors.coral },
   buttonText: { color: tokens.colors.coral, fontWeight: '800' },
 });

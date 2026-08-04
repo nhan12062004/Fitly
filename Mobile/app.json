@@ -34,7 +34,21 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Cho phép Fitly sử dụng micro để ghi âm tin nhắn cho AI Coach."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Cho phép Fitly dùng camera để chụp ảnh gửi cho AI Coach.",
+          "photosPermission": "Cho phép Fitly truy cập ảnh để gửi cho AI Coach."
+        }
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

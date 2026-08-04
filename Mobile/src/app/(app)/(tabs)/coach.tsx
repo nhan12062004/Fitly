@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { requestRecordingPermissionsAsync } from 'expo-audio';
+import * as ImagePicker from 'expo-image-picker';
 
 import { ApiClientError, apiRequest } from '@/lib/api-client';
+import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
 import { tokens } from '@/theme/tokens';
 
@@ -75,19 +78,20 @@ const actionTitle = (actionType: string | null | undefined) => actionType === 'r
   ? 'Đề xuất buổi tập mới'
   : 'Đề xuất điều chỉnh kế hoạch';
 
-const formatQuota = (quota: AiQuota | null) => {
+const formatQuotaBadge = (quota: AiQuota | null) => {
   const messages = quota?.chatMessages;
-  return typeof messages?.used === 'number' && typeof messages.limit === 'number'
-    ? `${messages.used}/${messages.limit} lượt chat`
-    : 'Quota được kiểm soát bởi server';
+  if (typeof messages?.used === 'number' && typeof messages.limit === 'number') return `${Math.max(0, messages.limit - messages.used)} lượt`;
+  return '— lượt';
 };
 
 export default function CoachScreen() {
+  const [greetingTime] = useState(() => new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }));
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [isLoadingQuota, setIsLoadingQuota] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
   const [pendingAdjustments, setPendingAdjustments] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const applyKeysRef = useRef(new Map<string, string>());
@@ -168,7 +172,10 @@ export default function CoachScreen() {
         body: { adjustmentId },
         timeoutMs: 20_000,
       });
-      if (response.aiQuota) setQuota((current) => current ? { ...current, aiQuota: response.aiQuota } : current);
+      if (response.aiQuota) {
+        const nextQuota = response.aiQuota;
+        setQuota((current) => current ? { ...current, aiQuota: nextQuota } : current);
+      }
       setMessages((current) => current.map((message) => message.adjustmentId === adjustmentId
         ? { ...message, actionRequired: false, content: `${message.content}\n\n${response.alreadyApplied ? 'Đề xuất này đã được áp dụng trước đó.' : 'Đề xuất đã được áp dụng.'}` }
         : message));
@@ -202,28 +209,86 @@ export default function CoachScreen() {
     }
   };
 
+  const launchCamera = useCallback(async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Chưa có quyền camera', 'Hãy cấp quyền Camera trong cài đặt để chụp ảnh gửi cho AI Coach.');
+      return;
+    }
+    await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
+  }, []);
+
+  const takePhoto = useCallback(() => {
+    setIsAttachmentMenuOpen(false);
+    Alert.alert(
+      'Cần cấp quyền camera',
+      'Fitly cần sử dụng camera để bạn chụp ảnh gửi cho AI Coach.',
+      [
+        { text: 'Để sau', style: 'cancel' },
+        { text: 'Cấp quyền', onPress: () => void launchCamera() },
+      ],
+    );
+  }, [launchCamera]);
+
+  const openImageLibrary = useCallback(async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Chưa có quyền thư viện ảnh', 'Hãy cấp quyền Ảnh trong cài đặt để chọn ảnh từ thiết bị.');
+      return;
+    }
+    await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+  }, []);
+
+  const pickFromDevice = useCallback(() => {
+    setIsAttachmentMenuOpen(false);
+    Alert.alert(
+      'Chọn ảnh từ thiết bị',
+      'Fitly cần quyền truy cập thư viện ảnh để bạn chọn ảnh gửi cho AI Coach.',
+      [
+        { text: 'Để sau', style: 'cancel' },
+        { text: 'Cấp quyền', onPress: () => void openImageLibrary() },
+      ],
+    );
+  }, [openImageLibrary]);
+
+  const requestMicrophonePermission = useCallback(() => {
+    Alert.alert(
+      'Cần cấp quyền micro',
+      'Fitly cần sử dụng micro để bạn ghi âm tin nhắn cho AI Coach.',
+      [
+        { text: 'Để sau', style: 'cancel' },
+        {
+          text: 'Cấp quyền',
+          onPress: () => void requestRecordingPermissionsAsync().then((permission) => {
+            if (!permission.granted) Alert.alert('Chưa có quyền micro', 'Hãy cấp quyền Micro trong cài đặt để sử dụng ghi âm.');
+          }),
+        },
+      ],
+    );
+  }, []);
+
   return (
     <Screen contentStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>AI PERFORMANCE PARTNER</Text>
-        <Text style={styles.title}>Coach</Text>
-        <Text style={styles.lead}>Hỏi về buổi tập, hồi phục hoặc điều chỉnh kế hoạch. Mọi thay đổi đều cần bạn xác nhận.</Text>
-      </View>
+      <View style={styles.chatShell}>
+        <View style={styles.chatHeader}>
+          <View style={styles.brandRow}>
+            <View style={styles.botAvatar}><AppIcon name="bot" color={tokens.colors.ink} size={19} /><View style={styles.botStatus} /></View>
+            <View style={styles.brandCopy}><Text style={styles.title}>AI Coach</Text></View>
+          </View>
+          <View style={styles.quotaPill}>
+            {isLoadingQuota ? <ActivityIndicator color={tokens.colors.lime} size="small" /> : <><AppIcon name="zap" color={tokens.colors.lime} size={15} /><Text style={styles.quotaValue}>{formatQuotaBadge(quota?.aiQuota ?? null)}</Text></>}
+          </View>
+        </View>
 
-      <View style={styles.quotaCard}>
-        {isLoadingQuota ? <ActivityIndicator color={tokens.colors.lime} /> : <>
-          <Text style={styles.quotaLabel}>{quota?.membershipTier?.toUpperCase() ?? 'AI COACH'}</Text>
-          <Text style={styles.quotaValue}>{formatQuota(quota?.aiQuota ?? null)}</Text>
-          <Text style={styles.quotaDetail}>{quota?.canChat ? 'Sẵn sàng hỗ trợ bạn.' : 'Chat hiện chưa khả dụng cho tài khoản này.'}</Text>
-        </>}
-      </View>
-
-      {messages.length === 0 ? <View style={styles.emptyCard}>
-        <Text style={styles.emptyTitle}>Bắt đầu cùng Coach</Text>
-        <Text style={styles.emptyCopy}>Ví dụ: “Tôi đau vai, hãy đề xuất bài thay thế cho hôm nay.”</Text>
-      </View> : messages.map((message) => (
-        <View key={message.id} style={[styles.message, message.role === 'user' ? styles.userMessage : styles.coachMessage]}>
-          <Text style={styles.messageLabel}>{message.role === 'user' ? 'BẠN' : 'FITLY COACH'}</Text>
+        <View style={styles.conversation}>
+          {messages.length === 0 ? <View style={styles.messageWrap}>
+            <View style={[styles.message, styles.coachMessage]}>
+              <Text style={styles.messageText}>Chào bạn, mình là huấn luyện viên AI của bạn. Bạn muốn mình tư vấn gì hôm nay: bài tập, dinh dưỡng hay điều chỉnh kế hoạch?</Text>
+            </View>
+            <Text style={styles.messageTime}>{greetingTime}</Text>
+          </View> : messages.map((message) => (
+            <View key={message.id} style={[styles.messageWrap, message.role === 'user' && styles.userMessageWrap]}>
+              <View style={[styles.message, message.role === 'user' ? styles.userMessage : styles.coachMessage]}>
           <Text style={styles.messageText}>{message.content}</Text>
           {message.actionRequired && message.adjustmentId ? <View style={styles.proposal}>
             <Text style={styles.proposalTitle}>Cần xác nhận</Text>
@@ -251,38 +316,61 @@ export default function CoachScreen() {
               </Pressable>
             </View>
           </View> : null}
+              </View>
+              <Text style={[styles.messageTime, message.role === 'user' && styles.userMessageTime]}>{message.role === 'user' ? 'Bạn' : 'Fitly Coach'}</Text>
+            </View>
+          ))}
         </View>
-      ))}
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <View style={styles.composer}>
-        <TextInput value={draft} onChangeText={setDraft} editable={!isSending && quota?.canChat !== false} multiline maxLength={1000} placeholder="Nhắn cho Coach…" placeholderTextColor={tokens.colors.muted} style={styles.input} />
-        <Pressable disabled={isSending || !draft.trim() || quota?.canChat === false} onPress={() => void sendMessage()} style={[styles.sendButton, (isSending || !draft.trim() || quota?.canChat === false) && styles.disabledButton]}>
-          {isSending ? <ActivityIndicator color={tokens.colors.canvas} /> : <Text style={styles.sendText}>Gửi</Text>}
-        </Pressable>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.composer}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Thêm ảnh" hitSlop={8} onPress={() => setIsAttachmentMenuOpen(true)}>
+            <AppIcon name="paperclip" color={tokens.colors.muted} size={20} />
+          </Pressable>
+          <TextInput value={draft} onChangeText={setDraft} editable={!isSending && quota?.canChat !== false} multiline maxLength={1000} placeholder="Nhắn tin cho AI Coach hôm nay..." placeholderTextColor={tokens.colors.muted} style={styles.input} />
+          {draft.trim() ? <Pressable disabled={isSending || quota?.canChat === false} onPress={() => void sendMessage()} style={[styles.sendButton, (isSending || quota?.canChat === false) && styles.disabledButton]}>{isSending ? <ActivityIndicator color={tokens.colors.canvas} size="small" /> : <AppIcon name="send" color={tokens.colors.canvas} size={18} />}</Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Ghi âm" hitSlop={8} onPress={requestMicrophonePermission}><AppIcon name="mic" color={tokens.colors.muted} size={19} /></Pressable>}
+        </View>
       </View>
+      <Modal visible={isAttachmentMenuOpen} transparent animationType="fade" onRequestClose={() => setIsAttachmentMenuOpen(false)}>
+        <View style={styles.attachmentOverlay}>
+          <Pressable style={styles.attachmentBackdrop} onPress={() => setIsAttachmentMenuOpen(false)} />
+          <View style={styles.attachmentSheet}>
+            <Text style={styles.attachmentTitle}>Thêm ảnh cho AI Coach</Text>
+            <Pressable accessibilityRole="button" onPress={takePhoto} style={styles.attachmentOption}>
+              <View style={styles.attachmentIcon}><AppIcon name="camera" color={tokens.colors.lime} size={20} /></View>
+              <View style={styles.attachmentCopy}><Text style={styles.attachmentOptionTitle}>Chụp ảnh</Text><Text style={styles.attachmentOptionHint}>Dùng camera của thiết bị</Text></View>
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={pickFromDevice} style={styles.attachmentOption}>
+              <View style={styles.attachmentIcon}><AppIcon name="image" color={tokens.colors.lime} size={20} /></View>
+              <View style={styles.attachmentCopy}><Text style={styles.attachmentOptionTitle}>Chọn từ thiết bị</Text><Text style={styles.attachmentOptionHint}>Chọn ảnh trong thư viện</Text></View>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: tokens.spacing.hero },
-  header: { gap: tokens.spacing.sm },
-  eyebrow: { color: tokens.colors.lime, fontWeight: '900', fontSize: tokens.type.overline, letterSpacing: 1.4 },
-  title: { color: tokens.colors.ink, fontSize: tokens.type.display, fontWeight: '900', letterSpacing: -1.2 },
-  lead: { color: tokens.colors.muted, fontSize: tokens.type.body, lineHeight: 23 },
-  quotaCard: { gap: tokens.spacing.xs, padding: tokens.spacing.lg, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.surfaceRaised, borderWidth: 1, borderColor: tokens.colors.border },
-  quotaLabel: { color: tokens.colors.lime, fontWeight: '900', fontSize: tokens.type.overline, letterSpacing: 1.2 },
-  quotaValue: { color: tokens.colors.ink, fontWeight: '900', fontSize: 22 },
-  quotaDetail: { color: tokens.colors.muted, fontSize: tokens.type.body },
-  emptyCard: { padding: tokens.spacing.xl, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.surface, gap: tokens.spacing.sm },
-  emptyTitle: { color: tokens.colors.ink, fontSize: 20, fontWeight: '900' },
-  emptyCopy: { color: tokens.colors.muted, fontSize: tokens.type.body, lineHeight: 23 },
-  message: { padding: tokens.spacing.lg, borderRadius: tokens.radius.lg, gap: tokens.spacing.sm },
-  userMessage: { backgroundColor: tokens.colors.surfaceRaised, marginLeft: tokens.spacing.xl },
-  coachMessage: { backgroundColor: tokens.colors.surface, marginRight: tokens.spacing.sm, borderWidth: 1, borderColor: tokens.colors.border },
-  messageLabel: { color: tokens.colors.lime, fontSize: tokens.type.overline, fontWeight: '900', letterSpacing: 1.1 },
-  messageText: { color: tokens.colors.ink, fontSize: tokens.type.body, lineHeight: 23 },
+  content: { padding: tokens.spacing.sm, paddingBottom: 0 },
+  chatShell: { minHeight: 520, backgroundColor: tokens.colors.canvas },
+  chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.md, marginHorizontal: tokens.spacing.md, paddingVertical: tokens.spacing.md },
+  brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
+  botAvatar: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: tokens.colors.surfaceRaised, position: 'relative' },
+  botStatus: { position: 'absolute', right: 0, bottom: 1, width: 8, height: 8, borderRadius: 4, backgroundColor: '#A97CFF', borderWidth: 1, borderColor: tokens.colors.surface },
+  brandCopy: { flex: 1, gap: 2 },
+  title: { color: tokens.colors.ink, fontSize: 18, fontWeight: '900' },
+  quotaPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minWidth: 76, minHeight: 34, paddingHorizontal: tokens.spacing.sm, borderRadius: tokens.radius.pill, backgroundColor: '#0C2817', borderWidth: 1, borderColor: '#168C49' },
+  quotaValue: { color: tokens.colors.lime, fontSize: 12, fontWeight: '900' },
+  conversation: { flex: 1, minHeight: 280, padding: tokens.spacing.md, justifyContent: 'flex-start' },
+  messageWrap: { alignSelf: 'flex-start', maxWidth: '88%', gap: 5, marginBottom: tokens.spacing.md },
+  userMessageWrap: { alignSelf: 'flex-end' },
+  message: { padding: tokens.spacing.md, borderRadius: tokens.radius.md },
+  userMessage: { backgroundColor: '#143723', borderBottomRightRadius: 4 },
+  coachMessage: { backgroundColor: '#111111', borderWidth: 1, borderColor: '#303330', borderBottomLeftRadius: 4 },
+  messageText: { color: tokens.colors.ink, fontSize: 14, lineHeight: 22 },
+  messageTime: { color: tokens.colors.muted, fontSize: 10, marginLeft: tokens.spacing.xs },
+  userMessageTime: { alignSelf: 'flex-end', marginRight: tokens.spacing.xs },
   proposal: { gap: tokens.spacing.sm, marginTop: tokens.spacing.sm, paddingTop: tokens.spacing.md, borderTopWidth: 1, borderColor: tokens.colors.border },
   proposalTitle: { color: tokens.colors.coral, fontWeight: '900', fontSize: tokens.type.label },
   proposalCopy: { color: tokens.colors.ink, fontWeight: '700' },
@@ -300,10 +388,18 @@ const styles = StyleSheet.create({
   applyText: { color: tokens.colors.canvas, fontWeight: '900' },
   rejectButton: { flex: 1, minHeight: 48, borderRadius: tokens.radius.md, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: tokens.colors.coral },
   rejectText: { color: tokens.colors.coral, fontWeight: '900' },
-  composer: { gap: tokens.spacing.sm, padding: tokens.spacing.md, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.surface, borderWidth: 1, borderColor: tokens.colors.border },
-  input: { minHeight: 76, color: tokens.colors.ink, fontSize: tokens.type.body, textAlignVertical: 'top' },
-  sendButton: { minHeight: 50, borderRadius: tokens.radius.md, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.colors.lime },
-  sendText: { color: tokens.colors.canvas, fontWeight: '900', fontSize: tokens.type.label },
+  composer: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, marginTop: tokens.spacing.md, marginHorizontal: tokens.spacing.md, marginBottom: tokens.spacing.xs, minHeight: 50, paddingLeft: tokens.spacing.md, paddingRight: tokens.spacing.sm, borderRadius: tokens.radius.pill, backgroundColor: '#0B0B0B', borderWidth: 1, borderColor: tokens.colors.border },
+  input: { flex: 1, minHeight: 42, maxHeight: 96, color: tokens.colors.ink, fontSize: 13, textAlignVertical: 'center' },
+  sendButton: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.colors.lime },
+  attachmentOverlay: { flex: 1, justifyContent: 'flex-end' },
+  attachmentBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.62)' },
+  attachmentSheet: { marginHorizontal: tokens.spacing.lg, marginBottom: tokens.spacing.xxl, padding: tokens.spacing.lg, gap: tokens.spacing.sm, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.surface, borderWidth: 1, borderColor: tokens.colors.border },
+  attachmentTitle: { color: tokens.colors.ink, fontSize: tokens.type.label, fontWeight: '900', marginBottom: tokens.spacing.xs },
+  attachmentOption: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md, minHeight: 62, paddingHorizontal: tokens.spacing.sm, borderRadius: tokens.radius.md, backgroundColor: tokens.colors.surfaceRaised },
+  attachmentIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: '#0C2817' },
+  attachmentCopy: { flex: 1, gap: 2 },
+  attachmentOptionTitle: { color: tokens.colors.ink, fontSize: tokens.type.body, fontWeight: '800' },
+  attachmentOptionHint: { color: tokens.colors.muted, fontSize: tokens.type.caption },
   disabledButton: { opacity: 0.48 },
   error: { color: tokens.colors.danger, fontSize: tokens.type.body, lineHeight: 22 },
 });

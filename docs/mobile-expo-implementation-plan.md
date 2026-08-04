@@ -289,7 +289,8 @@ Chỉ khi năm mục này đạt, hoặc có waiver rõ ràng của chủ dự �
 - [x] Sign-in succeeds against the real Supabase project without a runtime configuration error.
 - [x] App restart preserves the authenticated session and real workout data loads through the existing RLS/API flow.
 - [x] Added an auth initialization timeout so a storage/network stall cannot leave the splash screen permanently blank.
-- [ ] Physical-device mutation regression (complete-set timeout/no retry) remains the next test; do not create extra production data just for testing.
+- [x] Test account sign-in and protected `/api/profile` Bearer call verified on the Redmi; current account has no workout for today (`0/0`).
+- [ ] Physical-device mutation regression (complete-set timeout/no retry) remains pending until an existing incomplete set is available; do not create extra production data just for testing.
 
 ## 10. Definition of Done cho V1
 
