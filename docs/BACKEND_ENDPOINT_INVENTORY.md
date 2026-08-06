@@ -43,7 +43,6 @@ Snapshot taken before PR 1. The API had 38 endpoints; PR 1 adds only `GET /healt
 | POST | `/api/ai-coach/generate-meal-plan` | Auth | Current user's meal adjustment | Service role | AI call and writes adjustment/quota | User ID comes from authentication |
 | POST | `/api/ai-coach/record-meal-swap` | Auth | Current user's adjustment | Service role | Writes adjustment/quota | User ID comes from authentication |
 | POST | `/api/ai-coach/generate-onboarding-meal-plan` | Auth | Current user's food/workout plans | Service role | AI call and writes food plan | User ID comes from authentication |
-| POST | `/api/telegram/link-token` | Auth | Current user's Telegram link | Service role | Generates signed link token | Filters profile by authenticated user ID |
 
 ## PR 1 operational endpoints
 
@@ -57,13 +56,11 @@ Snapshot taken before PR 1. The API had 38 endpoints; PR 1 adds only `GET /healt
 | Classification | Endpoints | Current client | Phase 2 decision |
 | --- | --- | --- | --- |
 | Public | `/`, `/health`, `/ready`, legacy `POST/PUT/DELETE /api/admin/foods*` | None | No change |
-| Authenticated user | Membership, meal validation, recipe, workout, AI, AI Coach and Telegram-link routes | Service role (except membership, which has no query) | Migrate only Telegram link in this phase |
+| Authenticated user | Membership, meal validation, recipe, workout, AI and AI Coach routes | Service role (except membership, which has no query) | Migrate routes to request-scoped clients where applicable |
 | Admin | `/api/profiles`, `/api/admin/*`, `/api/ai/metrics` | Service role | Keep service role; `/api/profiles` now uses shared middleware |
 | Mixed user + system operation | `DELETE /api/account` | Service role | Deferred: Auth-user deletion still needs an admin operation |
 | System/cron | None | Service role in runtime jobs | No HTTP endpoint to migrate |
 | Trusted webhook | None | N/A | No endpoint to migrate |
-
-`POST /api/telegram/link-token` is the first migrated self-service endpoint. It now reads the authenticated user's profile through a request-scoped client using the request JWT; it does not derive ownership from request input and does not use the service-role client.
 
 ## Phase 2B profile and avatar slice
 
@@ -76,6 +73,6 @@ Snapshot taken before PR 1. The API had 38 endpoints; PR 1 adds only `GET /healt
 
 RLS was verified twice before this slice: from `supabase/migrations/20260728053215_harden_auth_profiles_and_rpc.sql`, and against the linked production schema by read-only catalog queries on 2026-07-28. The live checks confirmed RLS is enabled on `public.profiles`, the owner SELECT/INSERT/UPDATE policies target `authenticated` and use `auth.uid() = id`, the `avatars` bucket is public for object delivery, and its metadata/upload/update/delete policies restrict the first storage path segment to the authenticated UUID. No production data, schema, policy, or migration was changed.
 
-`GET /api/profiles` remains an admin endpoint and deliberately uses `adminSupabase` after `requireAdmin`. `DELETE /api/account` remains a mixed operation using the admin client because Auth-user deletion is a system action. Admin routes, runtime cron work, Telegram bot work, AI, workout, nutrition, and all other unmigrated user routes continue to use their existing client boundaries; they are outside this small slice.
+`GET /api/profiles` remains an admin endpoint and deliberately uses `adminSupabase` after `requireAdmin`. `DELETE /api/account` remains a mixed operation using the admin client because Auth-user deletion is a system action. Admin routes, runtime cron work, AI, workout, nutrition, and all other unmigrated user routes continue to use their existing client boundaries; they are outside this small slice.
 
 The API tests mock Supabase and do not contact production. They validate application-level ownership and client selection, but they do not prove database-level RLS behavior end-to-end; a baseline-migration/RLS test phase is still required before making an audit-complete claim.

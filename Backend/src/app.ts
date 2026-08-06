@@ -2296,7 +2296,7 @@ const listLegacyAdminProfiles: RequestHandler = async (_req, res) => {
   try {
     const { data, error } = await adminSupabase
       .from('profiles')
-      .select('id, full_name, email, gender, birthday, role, membership_tier, telegram_chat_id, created_at, updated_at');
+      .select('id, full_name, email, gender, birthday, role, membership_tier, created_at, updated_at');
 
     if (error) {
       console.error('[profiles] query failed:', error.message);

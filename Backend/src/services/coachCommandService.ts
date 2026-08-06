@@ -183,7 +183,7 @@ export const getSleepSnapshot = async (userId: string) => {
 export const buildHelpText = () =>
   [
     'Fitly AI Coach',
-    'Các chức năng nhanh đã được đồng bộ với Telegram bot.',
+    'Các chức năng nhanh được thực hiện trực tiếp trong Fitly.',
     '',
     'Lệnh nhanh:',
     '/menu - mở bảng điều khiển',

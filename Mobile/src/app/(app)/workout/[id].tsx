@@ -6,7 +6,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
 import { ApiClientError, apiRequest } from '@/lib/api-client';
-import { loadTodayWorkout, toWorkoutItem, type WorkoutItem } from '@/lib/fitness-read-model';
+import { formatWorkoutExerciseMeta, loadTodayWorkout, toWorkoutItem, type WorkoutItem } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
 const toClock = (totalSeconds: number) => {
@@ -128,7 +128,7 @@ export default function ActiveWorkoutScreen() {
 
   const currentSet = Math.min(item.totalSets, item.completedSets + 1);
   const progress = item.totalSets > 0 ? (item.completedSets / item.totalSets) * 100 : 0;
-  const exerciseMeta = [item.bodyPart, item.targetMuscle].filter(Boolean).join(' · ') || 'Bài tập hôm nay';
+  const exerciseMeta = formatWorkoutExerciseMeta(item.bodyPart, item.targetMuscle);
 
   return (
     <Screen contentStyle={styles.content}>

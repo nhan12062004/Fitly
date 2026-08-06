@@ -13,11 +13,6 @@ export const isTestEnvironment = (): boolean => process.env.NODE_ENV === 'test';
 export const isJobsEnabled = (): boolean =>
   !isTestEnvironment() && isExplicitlyEnabled(process.env.ENABLE_JOBS, false);
 
-export const isTelegramEnabled = (): boolean =>
-  !isTestEnvironment() && isExplicitlyEnabled(process.env.ENABLE_TELEGRAM, false);
-
-export const isTelegramRequired = (): boolean => isExplicitlyEnabled(process.env.TELEGRAM_REQUIRED, false);
-
 export const getBoundedTimeoutMs = (
   value: string | undefined,
   defaultValue: number,

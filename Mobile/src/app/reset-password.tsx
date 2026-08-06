@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { router } from 'expo-router';
 
 import { Screen } from '@/components/ui/screen';
+import { getVietnameseAuthError } from '@/lib/auth-errors';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth-provider';
 import { tokens } from '@/theme/tokens';
@@ -33,7 +34,7 @@ export default function ResetPasswordScreen() {
     setIsSubmitting(false);
 
     if (error) {
-      Alert.alert('Không thể cập nhật', error.message);
+      Alert.alert('Không thể cập nhật', getVietnameseAuthError(error, 'Chưa thể cập nhật mật khẩu. Vui lòng thử lại.'));
       return;
     }
     clearPasswordRecovery();
@@ -60,7 +61,7 @@ export default function ResetPasswordScreen() {
   return (
     <Screen contentStyle={styles.content}>
       <View style={styles.brandBlock}>
-        <Text style={styles.eyebrow}>SECURE YOUR ACCOUNT</Text>
+        <Text style={styles.eyebrow}>BẢO MẬT TÀI KHOẢN</Text>
         <Text style={styles.title}>Đặt lại mật khẩu</Text>
         <Text style={styles.message}>Tài khoản của bạn đã được xác nhận. Tạo mật khẩu mới để tiếp tục.</Text>
       </View>

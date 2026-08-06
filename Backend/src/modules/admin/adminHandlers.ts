@@ -36,7 +36,6 @@ const getAdminOverview: RequestHandler = async (req, res, next) => {
       usersRes,
       premiumRes,
       newUsersRes,
-      telegramLinkedRes,
       exercisesRes,
       foodsRes,
       aiProposedRes,
@@ -48,7 +47,6 @@ const getAdminOverview: RequestHandler = async (req, res, next) => {
       loadAdminCount('profiles', supabase.from('profiles').select('id', { count: 'exact', head: true })),
       loadAdminCount('premium profiles', supabase.from('profiles').select('id', { count: 'exact', head: true }).in('membership_tier', ['plus', 'pro', 'premium'])),
       loadAdminCount('new users', supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', sevenDaysAgo)),
-      loadAdminCount('telegram linked users', supabase.from('profiles').select('id', { count: 'exact', head: true }).not('telegram_chat_id', 'is', null)),
       loadAdminCount('exercises', supabase.from('exercises').select('id', { count: 'exact', head: true })),
       loadAdminCount('recipes', supabase.from('recipes').select('id', { count: 'exact', head: true })),
       loadAdminCount('ai proposed adjustments', supabase.from('ai_plan_adjustments').select('id', { count: 'exact', head: true }).eq('status', 'proposed')),
@@ -64,7 +62,6 @@ const getAdminOverview: RequestHandler = async (req, res, next) => {
         users: usersRes,
         premiumUsers: premiumRes,
         newUsers7d: newUsersRes,
-        telegramLinkedUsers: telegramLinkedRes,
         exercises: exercisesRes,
         foods: foodsRes,
         aiAdjustments: {
@@ -102,7 +99,7 @@ const getAdminUsers: RequestHandler = async (req, res, next) => {
       return request;
     };
 
-    const fullColumns = 'id, full_name, email, gender, birthday, role, membership_tier, membership_expires_at, telegram_chat_id, created_at, updated_at';
+    const fullColumns = 'id, full_name, email, gender, birthday, role, membership_tier, membership_expires_at, created_at, updated_at';
     const fallbackColumns = 'id, full_name, email, role, membership_tier, created_at, updated_at';
     let { data, error } = await buildProfilesRequest(fullColumns);
 

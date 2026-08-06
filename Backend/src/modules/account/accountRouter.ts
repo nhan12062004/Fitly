@@ -5,30 +5,20 @@ import { requireAuth } from '../../auth/middleware';
 import { adminSupabase } from '../../config/Supabase';
 import { ExternalProviderError, NotFoundError, UnauthorizedError, ValidationError } from '../../http/errors';
 import { validateBody } from '../../http/validation';
-import { createTelegramLinkToken } from '../../lib/telegramLinkToken';
 
 const accountDeletionSchema = z.object({ confirmation: z.literal('DELETE') }).strict();
-const emptyBodySchema = z.object({}).strict();
-const SELF_SERVICE_PROFILE_COLUMNS = 'id, full_name, email, gender, birthday, avatar_url, telegram_chat_id, telegram_notify_water, telegram_notify_sleep, telegram_notify_workout, exp, level, ref_code, referral_count, updated_at';
+const SELF_SERVICE_PROFILE_COLUMNS = 'id, full_name, email, gender, birthday, avatar_url, membership_tier, membership_expires_at, exp, level, ref_code, referral_count, created_at, updated_at';
 const SELF_SERVICE_PROFILE_FIELDS = [
   'full_name',
   'email',
   'gender',
   'birthday',
-  'telegram_chat_id',
-  'telegram_notify_water',
-  'telegram_notify_sleep',
-  'telegram_notify_workout',
 ] as const;
 const profileUpdateSchema = z.object({
   full_name: z.string().trim().max(120).nullable().optional(),
   email: z.string().trim().email().max(254).nullable().optional(),
   gender: z.enum(['Nam', 'Ná»¯', 'KhÃ¡c']).nullable().optional(),
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  telegram_chat_id: z.string().trim().max(128).nullable().optional(),
-  telegram_notify_water: z.boolean().optional(),
-  telegram_notify_sleep: z.boolean().optional(),
-  telegram_notify_workout: z.boolean().optional(),
 }).strict().refine((body) => Object.keys(body).length > 0);
 const AVATAR_CONTENT_TYPES = new Map([
   ['image/jpeg', 'jpg'],
@@ -182,29 +172,6 @@ export const createAccountRouter = ({ serviceRoleClient = adminSupabase }: Accou
       if (deleteUser.error) throw deleteUser.error;
 
       return res.json({ success: true });
-    } catch (error) {
-      return next(error instanceof UnauthorizedError ? error : new ExternalProviderError());
-    }
-  });
-
-  router.post('/telegram/link-token', requireAuth, validateBody(emptyBodySchema), async (req, res, next) => {
-    try {
-      const { userId, supabase } = getAuthenticatedContext(req);
-      const profileRes = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
-      if (profileRes.error) throw profileRes.error;
-      if (!profileRes.data?.id) return next(new NotFoundError('Profile not found'));
-
-      const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'fitlyforbot';
-      const token = createTelegramLinkToken(userId);
-      return res.json({
-        success: true,
-        token,
-        telegramLink: `https://t.me/${botUsername}?start=${token}`,
-      });
     } catch (error) {
       return next(error instanceof UnauthorizedError ? error : new ExternalProviderError());
     }

@@ -153,7 +153,6 @@ CREATE TABLE public.daily_meal_logs (
   source text,
   confidence text,
   image_url text,
-  telegram_file_id text,
   notes text,
   ai_estimate jsonb
 );
@@ -352,20 +351,11 @@ CREATE TABLE public.profiles (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   role text DEFAULT 'user'::text,
-  telegram_chat_id text,
   membership_tier text NOT NULL DEFAULT 'free'::text,
   membership_expires_at timestamp with time zone,
   ai_coach_free_used_at timestamp with time zone
 );
--- 19. Table: telegram_reminder_dispatches
-CREATE TABLE public.telegram_reminder_dispatches (
-  reminder_key text NOT NULL PRIMARY KEY,
-  reminder_type text NOT NULL,
-  reminder_date date NOT NULL,
-  slot_label text NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
-);
--- 20. Table: user_custom_foods
+-- 19. Table: user_custom_foods
 CREATE TABLE public.user_custom_foods (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL,
@@ -376,16 +366,15 @@ CREATE TABLE public.user_custom_foods (
   protein numeric DEFAULT 0,
   carbs numeric DEFAULT 0,
   fat numeric DEFAULT 0,
-  source text DEFAULT 'telegram_photo_ai'::text,
+  source text DEFAULT 'manual'::text,
   confidence text DEFAULT 'medium'::text,
   image_url text,
-  telegram_file_id text,
   usage_count integer NOT NULL DEFAULT 1,
   last_used_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now())
 );
--- 21. Table: user_notifications
+-- 20. Table: user_notifications
 CREATE TABLE public.user_notifications (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id uuid NOT NULL,

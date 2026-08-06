@@ -14,7 +14,7 @@ describe('runtime shutdown lifecycle', () => {
     vi.restoreAllMocks();
   });
 
-  it('stops jobs and Telegram once when a shutdown signal is repeated', async () => {
+  it('stops jobs once when a shutdown signal is repeated', async () => {
     const handlers = new Map<string, () => void>();
     vi.spyOn(process, 'once').mockImplementation(((signal: string, handler: () => void) => {
       handlers.set(signal, handler);
@@ -22,7 +22,6 @@ describe('runtime shutdown lifecycle', () => {
     }) as typeof process.once);
     const close = vi.fn((callback: (error?: Error) => void) => callback());
     const stopJobs = vi.fn();
-    const stopTelegram = vi.fn().mockResolvedValue(undefined);
     const exit = vi.fn((() => undefined) as never);
     const { startRuntime } = await import('../src/runtime');
 
@@ -33,8 +32,6 @@ describe('runtime shutdown lifecycle', () => {
       },
       startJobs: vi.fn(),
       stopJobs,
-      startTelegram: vi.fn(),
-      stopTelegram,
       exit,
     });
     handlers.get('SIGTERM')?.();
@@ -44,7 +41,6 @@ describe('runtime shutdown lifecycle', () => {
 
     expect(close).toHaveBeenCalledTimes(1);
     expect(stopJobs).toHaveBeenCalledTimes(1);
-    expect(stopTelegram).toHaveBeenCalledTimes(1);
     expect(exit).toHaveBeenCalledWith(0);
   });
 });

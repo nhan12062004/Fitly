@@ -17,7 +17,6 @@ with checks as (
     has_column_privilege('authenticated', 'public.profiles', 'full_name', 'UPDATE')
       and has_column_privilege('authenticated', 'public.profiles', 'birthday', 'UPDATE')
       and has_column_privilege('authenticated', 'public.profiles', 'avatar_url', 'UPDATE')
-      and has_column_privilege('authenticated', 'public.profiles', 'telegram_chat_id', 'UPDATE')
 
   union all
 

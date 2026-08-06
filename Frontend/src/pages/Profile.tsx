@@ -28,7 +28,6 @@ import {
   Ruler,
   Save,
   Scale,
-  Send,
   Settings,
   Shield,
   Trash2,
@@ -49,7 +48,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import { getUserChallenges, type ChallengeSummary } from '../lib/Challenges';
-import { API_BASE_URL, fetchWithAuth } from '../lib/Api';
+import { fetchWithAuth } from '../lib/Api';
 import {
   EQUIPMENT_TYPES,
   TRAINING_LOCATIONS,
@@ -353,8 +352,6 @@ export default function Profile() {
   const [aiSwapWorkout, setAiSwapWorkout] = useState(0);
   const [aiSwapMeal, setAiSwapMeal] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isPollingTelegram, setIsPollingTelegram] = useState(false);
-  const [isUnlinkingTelegram, setIsUnlinkingTelegram] = useState(false);
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
@@ -513,112 +510,6 @@ export default function Profile() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isSettingsOpen]);
-
-  useEffect(() => {
-    if (!isPollingTelegram || !user?.id) return;
-
-    let attempts = 0;
-    const maxAttempts = 40;
-    const interval = window.setInterval(async () => {
-      attempts += 1;
-      const response = await fetchWithAuth('/api/profile');
-      const payload = await response.json().catch(() => ({}));
-      const updatedProfile = response.ok ? payload?.data : null;
-
-      if (updatedProfile?.telegram_chat_id) {
-        window.clearInterval(interval);
-        setIsPollingTelegram(false);
-        await refreshProfile();
-        setReloadKey((value) => value + 1);
-        toast.success('Đã kết nối Telegram thành công');
-      }
-
-      if (attempts >= maxAttempts) {
-        window.clearInterval(interval);
-        setIsPollingTelegram(false);
-      }
-    }, 3000);
-
-    return () => window.clearInterval(interval);
-  }, [isPollingTelegram, refreshProfile, toast, user?.id]);
-
-  const notifyTelegramResult = (message: unknown) => {
-    const text = String(message || '');
-    if (/lỗi|loi|không tìm|khong tim|không thể|khong the|hết hạn|het han|chưa được|chua duoc/i.test(text)) {
-      toast.error(text);
-      return;
-    }
-    toast.success(text);
-  };
-
-  const handleUnlinkTelegram = async () => {
-    if (!user?.id) return;
-    if (!confirm('Bạn có chắc chắn muốn hủy liên kết với Telegram Bot không?')) return;
-
-    setIsUnlinkingTelegram(true);
-    try {
-      const response = await fetchWithAuth('/api/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegram_chat_id: null }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(getApiErrorMessage(payload?.error, 'Unable to unlink Telegram.'));
-      await refreshProfile();
-      setReloadKey((value) => value + 1);
-      toast.success('Đã hủy liên kết Telegram thành công');
-    } catch (err: any) {
-      toast.error(err?.message || 'Không thể hủy liên kết Telegram.');
-    } finally {
-      setIsUnlinkingTelegram(false);
-    }
-  };
-
-  const handleConnectTelegram = async () => {
-    if (!user?.id) {
-      notifyTelegramResult('Lỗi: Không tìm thấy ID người dùng. Vui lòng đăng nhập lại.');
-      return;
-    }
-
-    try {
-      const profileResponse = await fetchWithAuth('/api/profile');
-      const profilePayload = await profileResponse.json().catch(() => ({}));
-
-      if (!profileResponse.ok && profileResponse.status !== 404) {
-        console.error('Profile check error:', profilePayload?.error);
-        notifyTelegramResult('Lỗi kết nối. Vui lòng thử lại.');
-        return;
-      }
-
-      if (!profileResponse.ok || !profilePayload?.data) {
-        notifyTelegramResult('Hồ sơ chưa được tạo. Vui lòng hoàn thành khảo sát lần đầu trước khi kết nối Telegram.');
-        return;
-      }
-
-      const sessionRes = await supabase.auth.getSession();
-      const accessToken = sessionRes.data.session?.access_token;
-      if (!accessToken) {
-        notifyTelegramResult('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-        return;
-      }
-
-      const linkRes = await fetch(`${API_BASE_URL}/api/telegram/link-token`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      const payload = await linkRes.json().catch(() => ({}));
-      if (!linkRes.ok || !payload?.telegramLink) {
-        throw new Error(getApiErrorMessage(payload?.error, 'Không thể tạo liên kết Telegram an toàn.'));
-      }
-
-      window.open(String(payload.telegramLink), '_blank');
-      setIsPollingTelegram(true);
-    } catch (err: any) {
-      notifyTelegramResult(`Lỗi: ${err?.message || 'Không thể kết nối Telegram.'}`);
-    }
-  };
 
   // ── Avatar upload ────────────────────────────────────────────────────────
   const handleAvatarChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -1142,82 +1033,26 @@ export default function Profile() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-info/20 bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_18rem]">
-          <div className="p-4 md:p-5">
-            <div className="flex min-w-0 items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-info/20 bg-info/10 text-info">
-                <Send className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <h2 className="text-base font-black text-text-primary">Telegram Bot</h2>
-                <p className="mt-1 text-sm font-semibold leading-6 text-text-secondary">
-                  Bot nhận tín hiệu từ Fitly và gửi các nhắc nhở quan trọng vào Telegram, để bạn giữ nhịp tập luyện mà không cần mở web liên tục.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <div className="flex min-w-0 items-start gap-2">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-info" />
-                <div className="min-w-0">
-                  <p className="text-xs font-black text-text-primary">Nhắc đúng lúc</p>
-                  <p className="mt-0.5 text-[11px] font-semibold leading-5 text-text-secondary">Nước, ngủ nghỉ và thói quen hằng ngày.</p>
-                </div>
-              </div>
-              <div className="flex min-w-0 items-start gap-2">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-info" />
-                <div className="min-w-0">
-                  <p className="text-xs font-black text-text-primary">Theo lịch tập</p>
-                  <p className="mt-0.5 text-[11px] font-semibold leading-5 text-text-secondary">Nhận nhắc buổi tập và kế hoạch hôm nay.</p>
-                </div>
-              </div>
-              <div className="flex min-w-0 items-start gap-2">
-                <Check className="mt-0.5 h-4 w-4 shrink-0 text-info" />
-                <div className="min-w-0">
-                  <p className="text-xs font-black text-text-primary">Thao tác nhanh</p>
-                  <p className="mt-0.5 text-[11px] font-semibold leading-5 text-text-secondary">Theo dõi tiến độ ngay trong cuộc trò chuyện.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col justify-between gap-4 border-t border-border-primary bg-bg-tertiary/35 p-4 lg:border-l lg:border-t-0 md:p-5">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-text-tertiary">Trạng thái</p>
-              <p className="mt-1 text-lg font-black text-text-primary">
-                {profile?.telegram_chat_id ? 'Đã kết nối' : 'Sẵn sàng kích hoạt'}
-              </p>
-              <p className="mt-1 text-xs font-semibold leading-5 text-text-secondary">
-                {profile?.telegram_chat_id
-                  ? 'Bạn có thể hủy liên kết bất cứ lúc nào.'
-                  : 'Mở Telegram để xác nhận liên kết an toàn.'}
-              </p>
-            </div>
-
-            {profile?.telegram_chat_id ? (
-              <button
-                type="button"
-                onClick={() => void handleUnlinkTelegram()}
-                disabled={isUnlinkingTelegram}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-danger/25 bg-danger/10 px-3 text-xs font-black text-danger transition-colors hover:bg-danger/15 disabled:opacity-60"
-              >
-                {isUnlinkingTelegram ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                Hủy liên kết
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleConnectTelegram()}
-                disabled={isPollingTelegram}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-info px-4 text-xs font-black text-text-inverse transition-colors hover:bg-info/90 disabled:cursor-default disabled:opacity-70"
-              >
-                {isPollingTelegram ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {isPollingTelegram ? 'Đang chờ kết nối...' : 'Kết nối bot'}
-              </button>
-            )}
+      <section className="rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/10 via-bg-secondary to-bg-secondary p-4 shadow-[0_8px_24px_rgba(0,0,0,0.08)] md:p-5">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-bg-primary">
+            <Activity className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-base font-black text-text-primary">Nhắc nhở trên điện thoại</h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-text-secondary">
+              Tải ứng dụng Fitly để nhận nhắc uống nước, giấc ngủ, buổi tập và thực đơn ngay trên thiết bị của bạn.
+            </p>
           </div>
         </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['Uống nước', 'Giấc ngủ', 'Buổi tập', 'Thực đơn'].map((label) => (
+            <span key={label} className="rounded-full bg-bg-primary/70 px-3 py-1.5 text-xs font-black text-text-primary ring-1 ring-border-primary">
+              {label}
+            </span>
+          ))}
+        </div>
+        <p className="mt-4 text-xs font-bold text-accent">Thông báo chỉ khả dụng trên ứng dụng Fitly dành cho điện thoại.</p>
       </section>
 
       <div className="grid grid-cols-2 gap-3">

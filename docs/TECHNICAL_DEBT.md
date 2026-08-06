@@ -26,6 +26,6 @@ migration.
 
 ## Multi-instance operational scheduling
 
-The current premium auto-planner and Telegram reminders are isolated from the HTTP app and opt-in through `ENABLE_JOBS`, but remain in-process work. This is suitable only while a single Render web instance owns scheduling. It is not an exactly-once guarantee across horizontally scaled instances or deployment overlap.
+The current premium auto-planner is isolated from the HTTP app and opt-in through `ENABLE_JOBS`, but remains in-process work. This is suitable only while a single Render web instance owns scheduling. It is not an exactly-once guarantee across horizontally scaled instances or deployment overlap.
 
-When scaling, move each schedule to a Render Cron Job or dedicated worker and leave `ENABLE_JOBS=false` on web instances. Telegram polling must also have one explicit process owner.
+When scaling, move each schedule to a Render Cron Job or dedicated worker and leave `ENABLE_JOBS=false` on web instances.

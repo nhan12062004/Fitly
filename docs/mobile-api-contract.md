@@ -4,7 +4,7 @@
 
 **Source of truth:** This document is derived from the active Express routes, their handlers, Zod validation and the web client. `docs/BACKEND_ENDPOINT_INVENTORY.md` remains an audit inventory, not a mobile contract.
 
-**Scope:** Auth, Home, Workout, Meals, Profile and AI Coach. Admin, Challenges, Premium and Telegram are excluded from Android MVP.
+**Scope:** Auth, Home, Workout, Meals, Profile and AI Coach. Admin, Challenges and Premium are excluded from Android MVP.
 
 ## 1. Transport and error rules
 
@@ -110,7 +110,7 @@ The Expo app must register the `fitly://reset-password` deep link and route the 
 ### `PATCH /api/profile`
 
 - **Auth:** required.
-- **Request:** safe profile fields only. Current web callers use `full_name`, `email`, `gender`, `birthday` and `telegram_chat_id: null`.
+- **Request:** safe profile fields only. Current callers use `full_name`, `email`, `gender` and `birthday`.
 - **Success `200`:** `{ data: Profile }`.
 - **Contract rule:** ignore/reject client `id`, `user_id`, role and ownership fields. Mobile must not send them.
 

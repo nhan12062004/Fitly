@@ -13,6 +13,7 @@ type IconName =
   | 'check'
   | 'target'
   | 'play'
+  | 'arrow-left'
   | 'arrow-right'
   | 'refresh'
   | 'bot'
@@ -21,7 +22,8 @@ type IconName =
   | 'image'
   | 'mic'
   | 'send'
-  | 'zap';
+  | 'zap'
+  | 'bell';
 
 type AppIconProps = {
   name: IconName;
@@ -46,6 +48,7 @@ export function AppIcon({ name, size = 24, color = '#EEF8F0', strokeWidth = 1.9,
       {name === 'check' ? <><Circle {...common} cx="12" cy="12" r="10" /><Path {...common} d="m9 12 2 2 4-4" /></> : null}
       {name === 'target' ? <><Circle {...common} cx="12" cy="12" r="10" /><Path {...common} d="M22 12h-4M6 12H2M12 6V2M12 22v-4" /></> : null}
       {name === 'play' ? <Path {...common} d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" /> : null}
+      {name === 'arrow-left' ? <><Path {...common} d="M19 12H5" /><Path {...common} d="m12 19-7-7 7-7" /></> : null}
       {name === 'arrow-right' ? <><Path {...common} d="M5 12h14" /><Path {...common} d="m12 5 7 7-7 7" /></> : null}
       {name === 'refresh' ? <><Path {...common} d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><Path {...common} d="M21 3v5h-5" /><Path {...common} d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><Path {...common} d="M8 16H3v5" /></> : null}
       {name === 'bot' ? <><Path {...common} d="M12 8V4H8" /><Rect {...common} x="4" y="8" width="16" height="12" rx="2" /><Path {...common} d="M2 14h2M20 14h2M15 13v2M9 13v2" /></> : null}
@@ -55,6 +58,7 @@ export function AppIcon({ name, size = 24, color = '#EEF8F0', strokeWidth = 1.9,
       {name === 'mic' ? <><Path {...common} d="M12 19v3M19 10v2a7 7 0 0 1-14 0v-2" /><Rect {...common} x="9" y="2" width="6" height="13" rx="3" /></> : null}
       {name === 'send' ? <><Path {...common} d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /><Path {...common} d="m21.854 2.147-10.94 10.939" /></> : null}
       {name === 'zap' ? <Path {...common} d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" /> : null}
+      {name === 'bell' ? <><Path {...common} d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><Path {...common} d="M13.73 21a2 2 0 0 1-3.46 0" /></> : null}
     </Svg>
   );
 }

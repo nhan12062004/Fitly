@@ -30,7 +30,6 @@ Fitly là web app hỗ trợ xây dựng thói quen tập luyện và dinh dư�
 | **Workout** | Lịch tập theo tuần, buổi tập hằng ngày, tracking sets/reps/weight/rest. |
 | **Diet Plan** | Thực đơn theo bữa, calories, protein, carbs, fat và food catalog bằng `food_id`. |
 | **Progress** | Theo dõi chỉ số cơ thể, nước uống, giấc ngủ, calories và lịch sử tập luyện. |
-| **Telegram Bot** | Liên kết Telegram để nhắc uống nước, nhắc ngủ và hỗ trợ tương tác nhanh. |
 | **Admin Panel** | Quản lý users, exercises và foods. |
 
 ## Tech Stack
@@ -41,14 +40,14 @@ Fitly là web app hỗ trợ xây dựng thói quen tập luyện và dinh dư�
 | Vite | Express | Supabase Auth |
 | TypeScript | TypeScript | SQL migrations |
 | Tailwind CSS | Groq / Gemini | Vercel / Render-ready |
-| React Router | Telegram Bot API | Cron jobs |
+| React Router | AI services | Cron jobs |
 
 ## Cấu Trúc
 
 ```text
 Fitly/
 |-- Frontend/              # React + Vite app
-|-- Backend/               # Express API, AI services, Telegram bot
+|-- Backend/               # Express API and AI services
 |-- docs/                  # Schema snapshot và tài liệu kỹ thuật
 |-- supabase/migrations/   # Database migrations
 `-- README.md
@@ -85,10 +84,6 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 GROQ_API_KEY=
 GROQ_MODEL=
-
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_BOT_USERNAME=
-TELEGRAM_LINK_SECRET=
 
 CRON_SECRET=
 AI_ACTION_FLOW_ENABLED=true

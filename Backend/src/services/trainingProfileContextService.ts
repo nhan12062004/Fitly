@@ -18,7 +18,7 @@ export type TrainingProfileContext = {
   trainingPrescription: TrainingPrescription;
 };
 
-/** Single normalized workout context for plan generation, chat and Telegram. */
+/** Single normalized workout context for plan generation and AI Coach. */
 export const synchronizeTrainingProfileContext = async ({
   userId,
   profile,

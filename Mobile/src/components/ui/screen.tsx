@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react';
-import { ScrollView, StyleProp, StyleSheet, ViewStyle } from 'react-native';
+import { RefreshControl, ScrollView, StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { tokens } from '@/theme/tokens';
@@ -7,13 +7,16 @@ import { tokens } from '@/theme/tokens';
 type ScreenProps = PropsWithChildren<{
   scroll?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }>;
 
-export function Screen({ children, scroll = true, contentStyle }: ScreenProps) {
+export function Screen({ children, scroll = true, contentStyle, refreshing = false, onRefresh }: ScreenProps) {
   const content = [styles.content, contentStyle];
+  const pullToRefresh = onRefresh ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[tokens.colors.lime]} tintColor={tokens.colors.lime} progressBackgroundColor="#151A16" /> : undefined;
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      {scroll ? <ScrollView contentContainerStyle={content}>{children}</ScrollView> : children}
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+      {scroll ? <ScrollView contentContainerStyle={content} refreshControl={pullToRefresh}>{children}</ScrollView> : children}
     </SafeAreaView>
   );
 }

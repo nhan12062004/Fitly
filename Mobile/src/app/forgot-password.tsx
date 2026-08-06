@@ -4,6 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { Link } from 'expo-router';
 
 import { Screen } from '@/components/ui/screen';
+import { getVietnameseAuthError } from '@/lib/auth-errors';
 import { supabaseConfigurationMessage } from '@/lib/runtime-config';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { tokens } from '@/theme/tokens';
@@ -30,7 +31,7 @@ export default function ForgotPasswordScreen() {
     setIsSubmitting(false);
 
     if (error) {
-      Alert.alert('Không thể gửi email', error.message);
+      Alert.alert('Không thể gửi email', getVietnameseAuthError(error, 'Chưa thể gửi email đặt lại mật khẩu. Vui lòng thử lại.'));
       return;
     }
     Alert.alert('Kiểm tra email', 'Nếu email tồn tại, Fitly đã gửi link đặt lại mật khẩu. Hãy mở link trên thiết bị này để tiếp tục.');
@@ -39,7 +40,7 @@ export default function ForgotPasswordScreen() {
   return (
     <Screen contentStyle={styles.content}>
       <View style={styles.brandBlock}>
-        <Text style={styles.eyebrow}>ACCOUNT RECOVERY</Text>
+        <Text style={styles.eyebrow}>KHÔI PHỤC TÀI KHOẢN</Text>
         <Text style={styles.title}>Khôi phục mật khẩu</Text>
         <Text style={styles.lead}>Chúng tôi sẽ gửi một link an toàn để bạn đặt lại mật khẩu.</Text>
       </View>

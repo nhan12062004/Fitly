@@ -16,7 +16,7 @@ type OperationalLogInput = Omit<OperationalLog, 'timestamp' | 'message'> & { mes
 
 const SECRET_PATTERNS = [
   /\bBearer\s+[A-Za-z0-9._-]+/gi,
-  /(?:telegram|supabase|service[_-]?role|api[_-]?key|token|jwt|password)\s*[=:]\s*[^\s,;]+/gi,
+  /(?:supabase|service[_-]?role|api[_-]?key|token|jwt|password)\s*[=:]\s*[^\s,;]+/gi,
   /https?:\/\/[^\s]+/gi,
 ];
 

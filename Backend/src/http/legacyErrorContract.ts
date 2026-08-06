@@ -6,7 +6,7 @@ const isConfigurationFailure = (body: unknown): boolean => {
   if (typeof body !== 'object' || body === null) return false;
   const value = (body as { error?: unknown; message?: unknown }).error ?? (body as { message?: unknown }).message;
   if (typeof value !== 'string') return false;
-  return /\b(missing|not configured|configuration)\b/i.test(value) && /(key|token|url|provider|service|groq|gemini|telegram|supabase)/i.test(value);
+  return /\b(missing|not configured|configuration)\b/i.test(value) && /(key|token|url|provider|service|groq|gemini|supabase)/i.test(value);
 };
 
 const byStatus = (status: number, body: unknown): Pick<ErrorPayload['error'], 'code' | 'message'> => {

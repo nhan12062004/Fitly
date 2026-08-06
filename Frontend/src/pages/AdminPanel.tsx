@@ -11,7 +11,6 @@ import {
   RefreshCcw,
   Save,
   Search,
-  Send,
   Shield,
   Trash2,
   Users,
@@ -51,7 +50,6 @@ type OverviewStats = {
   users: number;
   premiumUsers: number;
   newUsers7d: number;
-  telegramLinkedUsers: number;
   exercises: number;
   foods: number;
   aiAdjustments: {
@@ -70,7 +68,6 @@ type AdminUser = {
   role: string | null;
   membership_tier: string | null;
   membership_expires_at?: string | null;
-  telegram_chat_id: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -1022,7 +1019,6 @@ function AdminTabSkeleton({ activeTab }: { activeTab: AdminTab }) {
           { label: 'Người dùng', width: 'w-44', secondary: true },
           { label: 'Gói', width: 'w-16' },
           { label: 'Role', width: 'w-14' },
-          { label: 'Telegram', width: 'w-24' },
           { label: 'Ngày tạo', width: 'w-20' },
         ]}
       />
@@ -1066,7 +1062,6 @@ function OverviewTab({ overview }: { overview: OverviewStats | null }) {
     { label: 'Người dùng', value: overview?.users || 0, icon: Users, tone: 'text-info' },
     { label: 'Plus / Pro', value: overview?.premiumUsers || 0, icon: Crown, tone: 'text-warning' },
     { label: 'User mới 7 ngày', value: overview?.newUsers7d || 0, icon: Activity, tone: 'text-accent' },
-    { label: 'Telegram', value: overview?.telegramLinkedUsers || 0, icon: Send, tone: 'text-info' },
     { label: 'Bài tập', value: overview?.exercises || 0, icon: Dumbbell, tone: 'text-accent' },
     { label: 'Thực đơn', value: overview?.foods || 0, icon: Utensils, tone: 'text-warning' }
   ];
@@ -1118,7 +1113,6 @@ function UsersTab({ users }: { users: AdminUser[] }) {
               <th className="px-4 py-3">Gói</th>
               <th className="px-4 py-3">Hạn gói</th>
               <th className="px-4 py-3">Role</th>
-              <th className="px-4 py-3">Telegram</th>
               <th className="px-4 py-3">Ngày tạo</th>
             </tr>
           </thead>
@@ -1136,7 +1130,6 @@ function UsersTab({ users }: { users: AdminUser[] }) {
                 </td>
                 <td className="px-4 py-3 text-text-secondary">{formatDate(user.membership_expires_at)}</td>
                 <td className="px-4 py-3 text-text-secondary">{user.role || 'user'}</td>
-                <td className="px-4 py-3 text-text-secondary">{user.telegram_chat_id ? 'Đã kết nối' : 'Chưa kết nối'}</td>
                 <td className="px-4 py-3 text-text-secondary">{formatDate(user.created_at)}</td>
               </tr>
             ))}

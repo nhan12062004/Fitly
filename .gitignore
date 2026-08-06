@@ -13,6 +13,8 @@ dist/
 */dist/
 build/
 */build/
+Mobile/android/.gradle/
+Mobile/android/.cxx/
 out/
 .next/
 bin/
@@ -93,3 +95,6 @@ metadata.json
 dataset_scripts/
 exercises-dataset/
 dataforseo.json
+
+# Android build artifacts
+*.apk

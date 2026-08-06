@@ -18,7 +18,7 @@ Mobile will preserve the business capabilities already available on the web whil
 | Notifications | Profile → Notifications | Filtered list, actionable water/sleep/workout cards | Supabase/Realtime where available |
 | Challenges | Profile → Challenges | Vertical challenge cards, progress and join/leave actions | Add contract audit before implementation |
 | Reset password | Auth deep link | `fitly://reset-password` recovery route | Supabase Auth |
-| Admin, checkout, Telegram | Not in Android MVP | Keep web-only until separately approved | — |
+| Admin, checkout | Not in Android MVP | Keep web-only until separately approved | — |
 
 ## Delivery order
 
@@ -34,7 +34,7 @@ Mobile will preserve the business capabilities already available on the web whil
 
 - The web implementation is the behavior reference, not a component source.
 - Every new endpoint or direct Supabase query must be documented in `docs/mobile-api-contract.md` before coding.
-- Mobile never sends `user_id` as an ownership authority and never includes service-role/Groq/Telegram secrets.
+- Mobile never sends `user_id` as an ownership authority and never includes service-role or Groq secrets.
 - Non-idempotent workout and AI mutations remain locked while pending; uncertain results reconcile by refetching.
 - Health Connect and HealthKit remain outside this parity pass until Android core navigation and mutation QA are closed.
 

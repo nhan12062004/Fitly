@@ -1,11 +1,21 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
+import { AppIcon } from '@/components/ui/app-icon';
 import { FoundationCard } from '@/components/ui/foundation-card';
 import { Screen } from '@/components/ui/screen';
 import { supabase } from '@/lib/supabase';
 import { tokens } from '@/theme/tokens';
+
+type Period = 7 | 30 | 90;
+
+type DayRhythm = {
+  date: string;
+  active: boolean;
+  waterHit: boolean;
+  sleepHit: boolean;
+};
 
 type ProgressSnapshot = {
   currentWeight: number | null;
@@ -15,6 +25,11 @@ type ProgressSnapshot = {
   completedSets: number;
   caloriesBurned: number;
   activeDays: number;
+  waterGoalMl: number;
+  sleepGoalHours: number;
+  waterHitDays: number;
+  sleepHitDays: number;
+  rhythm: DayRhythm[];
 };
 
 const dateKey = (date: Date) => {
@@ -29,36 +44,69 @@ const daysAgo = (amount: number) => {
   return dateKey(date);
 };
 
+const weekLabel = (value: string) => {
+  const day = new Date(`${value}T12:00:00`);
+  return new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(day).replace('.', '').replace('Th ', 'T');
+};
+
+const number = (value: unknown) => Math.max(0, Number(value ?? 0));
+
 export default function ProgressScreen() {
+  const [period, setPeriod] = useState<Period>(7);
   const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (selectedPeriod: Period) => {
     setState('loading');
     setError(null);
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (!authData.user) throw new Error('Phiên đăng nhập đã hết hạn.');
       const userId = authData.user.id;
-      const startDate = daysAgo(6);
-      const [bodyResult, workoutsResult, dailyResult] = await Promise.all([
+      const today = dateKey(new Date());
+      const startDate = daysAgo(selectedPeriod - 1);
+      const [bodyResult, workoutsResult, dailyResult, lifestyleResult, healthResult] = await Promise.all([
         supabase.from('body_metrics').select('weight, target_weight, body_fat, body_fat_percentage, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('daily_exercise_sessions').select('log_date, is_completed, sets, actual_sets, completed_sets').eq('user_id', userId).gte('log_date', startDate).lte('log_date', dateKey(new Date())),
-        supabase.from('daily_progress_logs').select('log_date, calories_burned').eq('user_id', userId).gte('log_date', startDate).lte('log_date', dateKey(new Date())),
+        supabase.from('daily_exercise_sessions').select('log_date, is_completed, completed_sets').eq('user_id', userId).gte('log_date', startDate).lte('log_date', today),
+        supabase.from('daily_progress_logs').select('log_date, calories_burned, water_intake_ml, sleep_hours').eq('user_id', userId).gte('log_date', startDate).lte('log_date', today),
+        supabase.from('lifestyle_settings').select('daily_water_goal').eq('user_id', userId).maybeSingle(),
+        supabase.from('health_conditions').select('sleep_hours').eq('user_id', userId).maybeSingle(),
       ]);
-      const firstError = [bodyResult.error, workoutsResult.error, dailyResult.error].find(Boolean);
+      const firstError = [bodyResult.error, workoutsResult.error, dailyResult.error, lifestyleResult.error, healthResult.error].find(Boolean);
       if (firstError) throw firstError;
+
       const workouts = workoutsResult.data ?? [];
-      const activeDays = new Set(workouts.filter((item) => Number(item.completed_sets ?? 0) > 0 || item.is_completed).map((item) => item.log_date)).size;
+      const daily = dailyResult.data ?? [];
+      const completedDates = new Set(workouts.filter((item) => Boolean(item.is_completed) || number(item.completed_sets) > 0).map((item) => item.log_date));
+      const dailyByDate = new Map(daily.map((item) => [item.log_date, item]));
+      const storedWaterGoal = number(lifestyleResult.data?.daily_water_goal);
+      const waterGoalMl = storedWaterGoal > 0 && storedWaterGoal <= 20 ? storedWaterGoal * 1000 : storedWaterGoal || 2400;
+      const sleepGoalHours = number(healthResult.data?.sleep_hours) || 8;
+      const rhythm: DayRhythm[] = Array.from({ length: selectedPeriod }, (_, index) => {
+        const date = daysAgo(selectedPeriod - index - 1);
+        const log = dailyByDate.get(date);
+        return {
+          date,
+          active: completedDates.has(date),
+          waterHit: number(log?.water_intake_ml) >= waterGoalMl,
+          sleepHit: number(log?.sleep_hours) >= sleepGoalHours,
+        };
+      });
+
       setSnapshot({
         currentWeight: bodyResult.data?.weight ?? null,
         targetWeight: bodyResult.data?.target_weight ?? null,
         bodyFat: bodyResult.data?.body_fat_percentage ?? bodyResult.data?.body_fat ?? null,
         completedWorkouts: workouts.filter((item) => Boolean(item.is_completed)).length,
-        completedSets: workouts.reduce((total, item) => total + Math.max(0, Number(item.completed_sets ?? 0)), 0),
-        caloriesBurned: (dailyResult.data ?? []).reduce((total, item) => total + Math.max(0, Number(item.calories_burned ?? 0)), 0),
-        activeDays,
+        completedSets: workouts.reduce((total, item) => total + number(item.completed_sets), 0),
+        caloriesBurned: daily.reduce((total, item) => total + number(item.calories_burned), 0),
+        activeDays: completedDates.size,
+        waterGoalMl,
+        sleepGoalHours,
+        waterHitDays: rhythm.filter((item) => item.waterHit).length,
+        sleepHitDays: rhythm.filter((item) => item.sleepHit).length,
+        rhythm,
       });
       setState('ready');
     } catch (cause) {
@@ -68,45 +116,181 @@ export default function ProgressScreen() {
   }, []);
 
   useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
+    const task = setTimeout(() => { void load(period); }, 0);
     return () => clearTimeout(task);
-  }, [load]);
+  }, [load, period]);
+
+  const latestWeek = useMemo(() => snapshot?.rhythm.slice(-7) ?? [], [snapshot]);
 
   return (
-    <Screen>
-      <Pressable onPress={() => router.back()} style={styles.back}><Text style={styles.backText}>← Hồ sơ</Text></Pressable>
-      <Text style={styles.kicker}>7 NGÀY GẦN NHẤT</Text>
-      <Text style={styles.title}>Tiến độ của bạn</Text>
-      {state === 'loading' ? <View style={styles.center}><ActivityIndicator color={tokens.colors.lime} size="large" /></View> : null}
-      {state === 'error' ? <FoundationCard title="Chưa thể tải tiến độ" description={error ?? 'Kiểm tra lại kết nối.'}><Pressable onPress={() => void load()}><Text style={styles.retry}>Thử lại</Text></Pressable></FoundationCard> : null}
-      {state === 'ready' && snapshot ? <>
-        <View style={styles.grid}>
-          <Metric label="Cân nặng" value={snapshot.currentWeight ? `${snapshot.currentWeight} kg` : '—'} detail={snapshot.targetWeight ? `Mục tiêu ${snapshot.targetWeight} kg` : 'Chưa đặt mục tiêu'} />
-          <Metric label="Body fat" value={snapshot.bodyFat != null ? `${snapshot.bodyFat}%` : '—'} detail="Chỉ số mới nhất" />
-          <Metric label="Ngày hoạt động" value={`${snapshot.activeDays}/7`} detail="Có ít nhất một set" />
-          <Metric label="Calo tiêu hao" value={`${Math.round(snapshot.caloriesBurned)}`} detail="7 ngày gần nhất" />
+    <Screen refreshing={state === 'loading' && Boolean(snapshot)} onRefresh={() => void load(period)} contentStyle={styles.content}>
+      <Pressable onPress={() => router.back()} style={styles.back} accessibilityRole="button">
+        <AppIcon name="arrow-left" size={18} color={tokens.colors.lime} />
+        <Text style={styles.backText}>Hồ sơ</Text>
+      </Pressable>
+
+      <View style={styles.heading}>
+        <Text style={styles.kicker}>NHỊP CƠ THỂ</Text>
+        <Text style={styles.title}>Tiến độ đang{`\n`}đi lên.</Text>
+        <Text style={styles.subtitle}>Nhìn nhịp đều đặn để điều chỉnh vừa đủ mỗi ngày.</Text>
+      </View>
+
+      <View style={styles.periods}>
+        {([7, 30, 90] as Period[]).map((item) => (
+          <Pressable key={item} onPress={() => setPeriod(item)} style={[styles.period, period === item && styles.periodActive]} accessibilityRole="button">
+            <Text style={[styles.periodText, period === item && styles.periodTextActive]}>{item} ngày</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {state === 'loading' && !snapshot ? <View style={styles.center}><ActivityIndicator color={tokens.colors.lime} size="large" /></View> : null}
+      {state === 'error' ? <FoundationCard title="Chưa thể tải tiến độ" description={error ?? 'Kiểm tra lại kết nối.'}><Pressable onPress={() => void load(period)}><Text style={styles.retry}>Thử lại</Text></Pressable></FoundationCard> : null}
+
+      {snapshot ? <>
+        <View style={styles.rhythmCard}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionEyebrow}>NHỊP 7 NGÀY</Text>
+              <Text style={styles.sectionTitle}>Giữ nhịp của bạn</Text>
+            </View>
+            <View style={styles.activeBadge}><View style={styles.dot} /><Text style={styles.activeBadgeText}>{snapshot.activeDays}/{period} ngày tập</Text></View>
+          </View>
+          <View style={styles.bars}>
+            {latestWeek.map((day) => <View key={day.date} style={styles.barItem}>
+              <View style={[styles.barTrack, day.active && styles.barTrackActive]}>
+                {day.waterHit ? <View style={styles.waterMarker} /> : null}
+                {day.sleepHit ? <View style={styles.sleepMarker} /> : null}
+              </View>
+              <Text style={[styles.dayLabel, day.date === dateKey(new Date()) && styles.dayLabelToday]}>{weekLabel(day.date)}</Text>
+            </View>)}
+          </View>
+          <View style={styles.legend}>
+            <Legend color={tokens.colors.lime} label="Tập luyện" />
+            <Legend color="#4AC7FF" label="Đủ nước" />
+            <Legend color="#B28CFF" label="Ngủ đủ" />
+          </View>
         </View>
-        <FoundationCard eyebrow="Tập luyện" title={`${snapshot.completedSets} set đã hoàn thành`} description={`${snapshot.completedWorkouts} bài tập được hoàn tất trong 7 ngày gần đây.`} />
-        {snapshot.activeDays === 0 ? <FoundationCard title="Bắt đầu chuỗi mới" description="Khi bạn hoàn thành set đầu tiên, Fitly sẽ ghi nhận tiến độ theo ngày tại đây." /> : null}
+
+        <View style={styles.wellnessRow}>
+          <View style={[styles.wellnessCard, styles.waterCard]}>
+            <View style={styles.wellnessIcon}><Text style={styles.waterGlyph}>⌁</Text></View>
+            <Text style={styles.wellnessCaption}>NƯỚC</Text>
+            <Text style={styles.wellnessValue}>{snapshot.waterHitDays}<Text style={styles.wellnessUnit}>/{period}</Text></Text>
+            <Text style={styles.wellnessDetail}>ngày đạt {Math.round(snapshot.waterGoalMl / 100) / 10} L</Text>
+          </View>
+          <View style={[styles.wellnessCard, styles.sleepCard]}>
+            <View style={styles.wellnessIcon}><Text style={styles.sleepGlyph}>☾</Text></View>
+            <Text style={styles.wellnessCaption}>GIẤC NGỦ</Text>
+            <Text style={styles.wellnessValue}>{snapshot.sleepHitDays}<Text style={styles.wellnessUnit}>/{period}</Text></Text>
+            <Text style={styles.wellnessDetail}>đêm từ {snapshot.sleepGoalHours} giờ</Text>
+          </View>
+        </View>
+
+        <View style={styles.bodyCard}>
+          <View style={styles.bodyTop}>
+            <View>
+              <Text style={styles.sectionEyebrow}>CƠ THỂ</Text>
+              <Text style={styles.sectionTitle}>Dấu mốc gần nhất</Text>
+            </View>
+            <Pressable onPress={() => router.push('/profile')} hitSlop={8}><Text style={styles.updateLink}>Cập nhật</Text></Pressable>
+          </View>
+          <View style={styles.weightLine}>
+            <Text style={styles.weightValue}>{snapshot.currentWeight != null ? `${snapshot.currentWeight} kg` : '—'}</Text>
+            <Text style={styles.targetWeight}>{snapshot.targetWeight != null ? `Mục tiêu ${snapshot.targetWeight} kg` : 'Chưa đặt mục tiêu'}</Text>
+          </View>
+          <View style={styles.bodyFacts}>
+            <Text style={styles.bodyFact}>Mỡ cơ thể  <Text style={styles.bodyFactValue}>{snapshot.bodyFat != null ? `${snapshot.bodyFat}%` : '—'}</Text></Text>
+            <View style={styles.factDivider} />
+            <Text style={styles.bodyFact}>Cập nhật trong Hồ sơ</Text>
+          </View>
+        </View>
+
+        <View style={styles.achievementCard}>
+          <View style={styles.achievementTitle}><AppIcon name="flame" size={19} color={tokens.colors.lime} /><Text style={styles.achievementTitleText}>THÀNH TÍCH KỲ NÀY</Text></View>
+          <View style={styles.achievementStats}>
+            <Achievement value={`${snapshot.completedSets}`} label="set đã tập" />
+            <Achievement value={`${snapshot.completedWorkouts}`} label="buổi hoàn tất" />
+            <Achievement value={`${Math.round(snapshot.caloriesBurned)}`} label="kcal tiêu hao" />
+          </View>
+        </View>
+
+        {snapshot.activeDays === 0 ? <View style={styles.emptyHint}><Text style={styles.emptyHintTitle}>Bắt đầu một dấu mốc mới</Text><Text style={styles.emptyHintBody}>Hoàn thành set đầu tiên, uống đủ nước hoặc ghi giấc ngủ để nhịp sống của bạn xuất hiện tại đây.</Text></View> : null}
       </> : null}
     </Screen>
   );
 }
 
-function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <View style={styles.metric}><Text style={styles.metricLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricDetail}>{detail}</Text></View>;
+function Legend({ color, label }: { color: string; label: string }) {
+  return <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: color }]} /><Text style={styles.legendText}>{label}</Text></View>;
+}
+
+function Achievement({ value, label }: { value: string; label: string }) {
+  return <View style={styles.achievement}><Text style={styles.achievementValue}>{value}</Text><Text style={styles.achievementLabel}>{label}</Text></View>;
 }
 
 const styles = StyleSheet.create({
-  back: { alignSelf: 'flex-start', paddingVertical: tokens.spacing.sm },
-  backText: { color: tokens.colors.lime, fontWeight: '800' },
-  kicker: { color: tokens.colors.lime, fontSize: tokens.type.overline, fontWeight: '900', letterSpacing: 1.3 },
-  title: { color: tokens.colors.ink, fontSize: tokens.type.title, fontWeight: '900' },
-  center: { minHeight: 320, alignItems: 'center', justifyContent: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: tokens.spacing.sm },
-  metric: { width: '48%', flexGrow: 1, gap: 3, padding: tokens.spacing.md, borderRadius: tokens.radius.md, backgroundColor: tokens.colors.surface },
-  metricLabel: { color: tokens.colors.muted, fontSize: tokens.type.overline, fontWeight: '800' },
-  metricValue: { color: tokens.colors.ink, fontSize: 24, fontWeight: '900' },
-  metricDetail: { color: tokens.colors.muted, fontSize: 12 },
+  content: { paddingBottom: tokens.spacing.hero, gap: 18 },
+  back: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -2 },
+  backText: { color: tokens.colors.lime, fontSize: 14, fontWeight: '800' },
+  heading: { gap: 7 },
+  kicker: { color: tokens.colors.lime, fontSize: tokens.type.overline, fontWeight: '900', letterSpacing: 1.4 },
+  title: { color: tokens.colors.ink, fontSize: 36, lineHeight: 40, letterSpacing: -1.1, fontWeight: '900' },
+  subtitle: { color: tokens.colors.muted, fontSize: 15, lineHeight: 22, maxWidth: 310 },
+  periods: { flexDirection: 'row', alignSelf: 'flex-start', padding: 4, gap: 4, backgroundColor: '#121412', borderRadius: tokens.radius.pill },
+  period: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: tokens.radius.pill },
+  periodActive: { backgroundColor: tokens.colors.lime },
+  periodText: { color: tokens.colors.muted, fontSize: 13, fontWeight: '800' },
+  periodTextActive: { color: '#0A0D0A' },
+  center: { minHeight: 340, alignItems: 'center', justifyContent: 'center' },
   retry: { color: tokens.colors.lime, fontWeight: '900', marginTop: tokens.spacing.sm },
+  rhythmCard: { backgroundColor: '#111611', borderRadius: 26, padding: 18, gap: 18, overflow: 'hidden' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 },
+  sectionEyebrow: { color: '#9FAAA0', fontSize: 11, fontWeight: '900', letterSpacing: .8 },
+  sectionTitle: { color: tokens.colors.ink, marginTop: 4, fontSize: 20, fontWeight: '900', letterSpacing: -.3 },
+  activeBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 7, paddingHorizontal: 9, backgroundColor: '#1C311D', borderRadius: tokens.radius.pill },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.colors.lime },
+  activeBadgeText: { color: '#C7E8C9', fontSize: 11, fontWeight: '800' },
+  bars: { height: 104, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 },
+  barItem: { flex: 1, alignItems: 'center', gap: 8 },
+  barTrack: { width: '100%', minWidth: 22, height: 62, borderRadius: 11, backgroundColor: '#212621', overflow: 'hidden', justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 7, gap: 3 },
+  barTrackActive: { height: 92, backgroundColor: tokens.colors.lime },
+  waterMarker: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4AC7FF' },
+  sleepMarker: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#B28CFF' },
+  dayLabel: { color: '#7E8680', fontSize: 11, fontWeight: '800' },
+  dayLabelToday: { color: tokens.colors.lime },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 7, height: 7, borderRadius: 4 },
+  legendText: { color: '#A7AEA8', fontSize: 11, fontWeight: '700' },
+  wellnessRow: { flexDirection: 'row', gap: 12 },
+  wellnessCard: { flex: 1, minHeight: 180, borderRadius: 24, padding: 16, justifyContent: 'flex-end' },
+  waterCard: { backgroundColor: '#0C2029' },
+  sleepCard: { backgroundColor: '#1D1530' },
+  wellnessIcon: { position: 'absolute', top: 16, right: 16, width: 35, height: 35, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
+  waterGlyph: { color: '#4AC7FF', fontSize: 26, lineHeight: 29, fontWeight: '700' },
+  sleepGlyph: { color: '#C2A5FF', fontSize: 24, lineHeight: 28 },
+  wellnessCaption: { color: '#A3B6BB', fontSize: 11, fontWeight: '900', letterSpacing: .7 },
+  wellnessValue: { color: tokens.colors.white, fontSize: 34, lineHeight: 38, fontWeight: '900', marginTop: 5 },
+  wellnessUnit: { color: '#91A3A8', fontSize: 16 },
+  wellnessDetail: { color: '#B2BDC1', fontSize: 12, lineHeight: 17, marginTop: 5 },
+  bodyCard: { backgroundColor: '#171917', borderRadius: 24, padding: 18, gap: 16 },
+  bodyTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  updateLink: { color: tokens.colors.lime, fontSize: 13, fontWeight: '900', paddingTop: 6 },
+  weightLine: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
+  weightValue: { color: tokens.colors.white, fontSize: 32, fontWeight: '900', letterSpacing: -.7 },
+  targetWeight: { color: tokens.colors.muted, fontSize: 13, fontWeight: '700', textAlign: 'right' },
+  bodyFacts: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 9, paddingTop: 13, borderTopWidth: 1, borderTopColor: '#2E332E' },
+  bodyFact: { color: '#9AA39B', fontSize: 12, fontWeight: '700' },
+  bodyFactValue: { color: tokens.colors.ink, fontWeight: '900' },
+  factDivider: { width: 3, height: 3, borderRadius: 2, backgroundColor: '#687068' },
+  achievementCard: { padding: 18, borderRadius: 24, backgroundColor: '#121312', gap: 17 },
+  achievementTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  achievementTitleText: { color: '#D5E9B9', fontSize: 12, fontWeight: '900', letterSpacing: .9 },
+  achievementStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  achievement: { flex: 1, gap: 4 },
+  achievementValue: { color: tokens.colors.white, fontSize: 22, lineHeight: 26, fontWeight: '900' },
+  achievementLabel: { color: tokens.colors.muted, fontSize: 11, lineHeight: 15, fontWeight: '700' },
+  emptyHint: { padding: 16, borderRadius: tokens.radius.md, backgroundColor: '#101110', gap: 5 },
+  emptyHintTitle: { color: tokens.colors.ink, fontSize: 15, fontWeight: '900' },
+  emptyHintBody: { color: tokens.colors.muted, fontSize: 13, lineHeight: 19 },
 });

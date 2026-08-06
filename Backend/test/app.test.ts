@@ -90,7 +90,6 @@ describe('Express application bootstrap', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
     process.env.SUPABASE_ANON_KEY = 'test-anon-key';
     delete process.env.SUPABASE_PUBLISHABLE_KEY;
-    process.env.TELEGRAM_BOT_ENABLED = 'false';
     delete process.env.READY_TIMEOUT_MS;
     mocks.userGetUser.mockResolvedValue({
       data: { user: { id: 'authenticated-user', app_metadata: {}, user_metadata: {} } },
@@ -224,20 +223,6 @@ describe('Express application bootstrap', () => {
     } finally {
       process.off('unhandledRejection', onUnhandledRejection);
     }
-  });
-
-  it('uses the request-scoped client for the self-service Telegram link endpoint', async () => {
-    const { app } = await import('../src/app');
-
-    const response = await request(app)
-      .post('/api/telegram/link-token')
-      .set('Authorization', 'Bearer user-jwt');
-
-    expect(response.status).toBe(200);
-    expect(mocks.createUserScopedSupabaseClient).toHaveBeenCalledWith('user-jwt');
-    expect(mocks.userFrom).toHaveBeenCalledWith('profiles');
-    expect(mocks.userEq).toHaveBeenCalledWith('id', 'authenticated-user');
-    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it('requires a token to read the authenticated user profile', async () => {

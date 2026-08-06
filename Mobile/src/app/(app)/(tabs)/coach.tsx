@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { requestRecordingPermissionsAsync } from 'expo-audio';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { ApiClientError, apiRequest } from '@/lib/api-client';
@@ -90,12 +89,13 @@ export default function CoachScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [isLoadingQuota, setIsLoadingQuota] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [isAttachmentMenuOpen, setIsAttachmentMenuOpen] = useState(false);
   const [pendingAdjustments, setPendingAdjustments] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const applyKeysRef = useRef(new Map<string, string>());
   const pendingRef = useRef(new Set<string>());
+  const chatScrollRef = useRef<ScrollView>(null);
 
   const loadQuota = useCallback(async () => {
     setIsLoadingQuota(true);
@@ -107,6 +107,7 @@ export default function CoachScreen() {
       setError(nextError instanceof Error ? nextError.message : 'Không thể tải AI Coach.');
     } finally {
       setIsLoadingQuota(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -114,6 +115,12 @@ export default function CoachScreen() {
     const task = setTimeout(() => { void loadQuota(); }, 0);
     return () => clearTimeout(task);
   }, [loadQuota]);
+
+  const refresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void loadQuota();
+  }, [loadQuota, refreshing]);
 
   const sendMessage = async () => {
     const content = draft.trim();
@@ -219,7 +226,6 @@ export default function CoachScreen() {
   }, []);
 
   const takePhoto = useCallback(() => {
-    setIsAttachmentMenuOpen(false);
     Alert.alert(
       'Cần cấp quyền camera',
       'Fitly cần sử dụng camera để bạn chụp ảnh gửi cho AI Coach.',
@@ -240,7 +246,6 @@ export default function CoachScreen() {
   }, []);
 
   const pickFromDevice = useCallback(() => {
-    setIsAttachmentMenuOpen(false);
     Alert.alert(
       'Chọn ảnh từ thiết bị',
       'Fitly cần quyền truy cập thư viện ảnh để bạn chọn ảnh gửi cho AI Coach.',
@@ -251,24 +256,9 @@ export default function CoachScreen() {
     );
   }, [openImageLibrary]);
 
-  const requestMicrophonePermission = useCallback(() => {
-    Alert.alert(
-      'Cần cấp quyền micro',
-      'Fitly cần sử dụng micro để bạn ghi âm tin nhắn cho AI Coach.',
-      [
-        { text: 'Để sau', style: 'cancel' },
-        {
-          text: 'Cấp quyền',
-          onPress: () => void requestRecordingPermissionsAsync().then((permission) => {
-            if (!permission.granted) Alert.alert('Chưa có quyền micro', 'Hãy cấp quyền Micro trong cài đặt để sử dụng ghi âm.');
-          }),
-        },
-      ],
-    );
-  }, []);
-
   return (
-    <Screen contentStyle={styles.content}>
+    <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <Screen scroll={false}>
       <View style={styles.chatShell}>
         <View style={styles.chatHeader}>
           <View style={styles.brandRow}>
@@ -276,17 +266,24 @@ export default function CoachScreen() {
             <View style={styles.brandCopy}><Text style={styles.title}>AI Coach</Text></View>
           </View>
           <View style={styles.quotaPill}>
-            {isLoadingQuota ? <ActivityIndicator color={tokens.colors.lime} size="small" /> : <><AppIcon name="zap" color={tokens.colors.lime} size={15} /><Text style={styles.quotaValue}>{formatQuotaBadge(quota?.aiQuota ?? null)}</Text></>}
+            {isLoadingQuota && !quota ? <ActivityIndicator color={tokens.colors.lime} size="small" /> : <><AppIcon name="zap" color={tokens.colors.lime} size={15} /><Text style={styles.quotaValue}>{formatQuotaBadge(quota?.aiQuota ?? null)}</Text></>}
           </View>
         </View>
 
-        <View style={styles.conversation}>
-          {messages.length === 0 ? <View style={styles.messageWrap}>
+        <ScrollView ref={chatScrollRef} contentContainerStyle={styles.conversation} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[tokens.colors.lime]} tintColor={tokens.colors.lime} progressBackgroundColor="#151A16" />} onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: false })}>
+          <View style={styles.messageWrap}>
             <View style={[styles.message, styles.coachMessage]}>
               <Text style={styles.messageText}>Chào bạn, mình là huấn luyện viên AI của bạn. Bạn muốn mình tư vấn gì hôm nay: bài tập, dinh dưỡng hay điều chỉnh kế hoạch?</Text>
             </View>
             <Text style={styles.messageTime}>{greetingTime}</Text>
-          </View> : messages.map((message) => (
+          </View>
+          {messages.length === 0 ? <View style={styles.suggestions}>
+            <Text style={styles.suggestionLabel}>HỎI NHANH</Text>
+            <View style={styles.suggestionRow}>
+              {['Lên bài tập hôm nay', 'Gợi ý bữa ăn', 'Điều chỉnh kế hoạch'].map((suggestion) => <Pressable key={suggestion} onPress={() => setDraft(suggestion)} style={({ pressed }) => [styles.suggestionChip, pressed && styles.suggestionPressed]}><Text style={styles.suggestionText}>{suggestion}</Text></Pressable>)}
+            </View>
+          </View> : null}
+          {messages.map((message) => (
             <View key={message.id} style={[styles.messageWrap, message.role === 'user' && styles.userMessageWrap]}>
               <View style={[styles.message, message.role === 'user' ? styles.userMessage : styles.coachMessage]}>
           <Text style={styles.messageText}>{message.content}</Text>
@@ -320,40 +317,25 @@ export default function CoachScreen() {
               <Text style={[styles.messageTime, message.role === 'user' && styles.userMessageTime]}>{message.role === 'user' ? 'Bạn' : 'Fitly Coach'}</Text>
             </View>
           ))}
-        </View>
+        </ScrollView>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.composer}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Thêm ảnh" hitSlop={8} onPress={() => setIsAttachmentMenuOpen(true)}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Chọn ảnh từ thiết bị" hitSlop={8} onPress={pickFromDevice}>
             <AppIcon name="paperclip" color={tokens.colors.muted} size={20} />
           </Pressable>
-          <TextInput value={draft} onChangeText={setDraft} editable={!isSending && quota?.canChat !== false} multiline maxLength={1000} placeholder="Nhắn tin cho AI Coach hôm nay..." placeholderTextColor={tokens.colors.muted} style={styles.input} />
-          {draft.trim() ? <Pressable disabled={isSending || quota?.canChat === false} onPress={() => void sendMessage()} style={[styles.sendButton, (isSending || quota?.canChat === false) && styles.disabledButton]}>{isSending ? <ActivityIndicator color={tokens.colors.canvas} size="small" /> : <AppIcon name="send" color={tokens.colors.canvas} size={18} />}</Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Ghi âm" hitSlop={8} onPress={requestMicrophonePermission}><AppIcon name="mic" color={tokens.colors.muted} size={19} /></Pressable>}
+          <TextInput value={draft} onChangeText={setDraft} onFocus={() => setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 120)} editable={!isSending && quota?.canChat !== false} multiline maxLength={1000} placeholder="Nhắn tin cho AI Coach hôm nay..." placeholderTextColor={tokens.colors.muted} style={styles.input} />
+          {draft.trim() ? <Pressable disabled={isSending || quota?.canChat === false} onPress={() => void sendMessage()} style={[styles.sendButton, (isSending || quota?.canChat === false) && styles.disabledButton]}>{isSending ? <ActivityIndicator color={tokens.colors.canvas} size="small" /> : <AppIcon name="send" color={tokens.colors.canvas} size={18} />}</Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Chụp ảnh" hitSlop={8} onPress={takePhoto}><AppIcon name="camera" color={tokens.colors.muted} size={19} /></Pressable>}
         </View>
       </View>
-      <Modal visible={isAttachmentMenuOpen} transparent animationType="fade" onRequestClose={() => setIsAttachmentMenuOpen(false)}>
-        <View style={styles.attachmentOverlay}>
-          <Pressable style={styles.attachmentBackdrop} onPress={() => setIsAttachmentMenuOpen(false)} />
-          <View style={styles.attachmentSheet}>
-            <Text style={styles.attachmentTitle}>Thêm ảnh cho AI Coach</Text>
-            <Pressable accessibilityRole="button" onPress={takePhoto} style={styles.attachmentOption}>
-              <View style={styles.attachmentIcon}><AppIcon name="camera" color={tokens.colors.lime} size={20} /></View>
-              <View style={styles.attachmentCopy}><Text style={styles.attachmentOptionTitle}>Chụp ảnh</Text><Text style={styles.attachmentOptionHint}>Dùng camera của thiết bị</Text></View>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={pickFromDevice} style={styles.attachmentOption}>
-              <View style={styles.attachmentIcon}><AppIcon name="image" color={tokens.colors.lime} size={20} /></View>
-              <View style={styles.attachmentCopy}><Text style={styles.attachmentOptionTitle}>Chọn từ thiết bị</Text><Text style={styles.attachmentOptionHint}>Chọn ảnh trong thư viện</Text></View>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </Screen>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: tokens.spacing.sm, paddingBottom: 0 },
-  chatShell: { minHeight: 520, backgroundColor: tokens.colors.canvas },
+  keyboardView: { flex: 1, backgroundColor: tokens.colors.canvas },
+  chatShell: { flex: 1, padding: tokens.spacing.sm, backgroundColor: tokens.colors.canvas },
   chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.md, marginHorizontal: tokens.spacing.md, paddingVertical: tokens.spacing.md },
   brandRow: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm },
   botAvatar: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18, backgroundColor: tokens.colors.surfaceRaised, position: 'relative' },
@@ -362,14 +344,20 @@ const styles = StyleSheet.create({
   title: { color: tokens.colors.ink, fontSize: 18, fontWeight: '900' },
   quotaPill: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minWidth: 76, minHeight: 34, paddingHorizontal: tokens.spacing.sm, borderRadius: tokens.radius.pill, backgroundColor: '#0C2817', borderWidth: 1, borderColor: '#168C49' },
   quotaValue: { color: tokens.colors.lime, fontSize: 12, fontWeight: '900' },
-  conversation: { flex: 1, minHeight: 280, padding: tokens.spacing.md, justifyContent: 'flex-start' },
+  conversation: { flexGrow: 1, minHeight: 280, padding: tokens.spacing.md, justifyContent: 'flex-start' },
   messageWrap: { alignSelf: 'flex-start', maxWidth: '88%', gap: 5, marginBottom: tokens.spacing.md },
   userMessageWrap: { alignSelf: 'flex-end' },
   message: { padding: tokens.spacing.md, borderRadius: tokens.radius.md },
   userMessage: { backgroundColor: '#143723', borderBottomRightRadius: 4 },
-  coachMessage: { backgroundColor: '#111111', borderWidth: 1, borderColor: '#303330', borderBottomLeftRadius: 4 },
+  coachMessage: { backgroundColor: '#151516', borderBottomLeftRadius: 4 },
   messageText: { color: tokens.colors.ink, fontSize: 14, lineHeight: 22 },
   messageTime: { color: tokens.colors.muted, fontSize: 10, marginLeft: tokens.spacing.xs },
+  suggestions: { gap: 8, marginTop: tokens.spacing.sm },
+  suggestionLabel: { color: '#8F9992', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  suggestionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  suggestionChip: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: tokens.radius.pill, backgroundColor: '#1D1924' },
+  suggestionPressed: { opacity: 0.68 },
+  suggestionText: { color: '#D4B8F5', fontSize: 10, fontWeight: '800' },
   userMessageTime: { alignSelf: 'flex-end', marginRight: tokens.spacing.xs },
   proposal: { gap: tokens.spacing.sm, marginTop: tokens.spacing.sm, paddingTop: tokens.spacing.md, borderTopWidth: 1, borderColor: tokens.colors.border },
   proposalTitle: { color: tokens.colors.coral, fontWeight: '900', fontSize: tokens.type.label },
@@ -391,15 +379,6 @@ const styles = StyleSheet.create({
   composer: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, marginTop: tokens.spacing.md, marginHorizontal: tokens.spacing.md, marginBottom: tokens.spacing.xs, minHeight: 50, paddingLeft: tokens.spacing.md, paddingRight: tokens.spacing.sm, borderRadius: tokens.radius.pill, backgroundColor: '#0B0B0B', borderWidth: 1, borderColor: tokens.colors.border },
   input: { flex: 1, minHeight: 42, maxHeight: 96, color: tokens.colors.ink, fontSize: 13, textAlignVertical: 'center' },
   sendButton: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.colors.lime },
-  attachmentOverlay: { flex: 1, justifyContent: 'flex-end' },
-  attachmentBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.62)' },
-  attachmentSheet: { marginHorizontal: tokens.spacing.lg, marginBottom: tokens.spacing.xxl, padding: tokens.spacing.lg, gap: tokens.spacing.sm, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.surface, borderWidth: 1, borderColor: tokens.colors.border },
-  attachmentTitle: { color: tokens.colors.ink, fontSize: tokens.type.label, fontWeight: '900', marginBottom: tokens.spacing.xs },
-  attachmentOption: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md, minHeight: 62, paddingHorizontal: tokens.spacing.sm, borderRadius: tokens.radius.md, backgroundColor: tokens.colors.surfaceRaised },
-  attachmentIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: '#0C2817' },
-  attachmentCopy: { flex: 1, gap: 2 },
-  attachmentOptionTitle: { color: tokens.colors.ink, fontSize: tokens.type.body, fontWeight: '800' },
-  attachmentOptionHint: { color: tokens.colors.muted, fontSize: tokens.type.caption },
   disabledButton: { opacity: 0.48 },
   error: { color: tokens.colors.danger, fontSize: tokens.type.body, lineHeight: 22 },
 });

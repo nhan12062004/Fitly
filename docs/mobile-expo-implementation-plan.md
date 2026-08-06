@@ -20,7 +20,7 @@
 ### Ngoài phạm vi V1
 
 - Admin Panel.
-- Challenges, Premium checkout và Telegram bot.
+- Challenges và Premium checkout.
 - Thay đổi schema, migration hoặc thay thế Express Backend.
 - Đồng bộ offline có thể ghi dữ liệu; chỉ triển khai cache đọc ở V1.
 - Health Connect và Apple HealthKit; đây là phạm vi sau Android MVP.
@@ -31,7 +31,7 @@
 1. Mobile không sao chép component web. Chỉ tái sử dụng chức năng, API contract, model và language của Fitly.
 2. Supabase được gọi trực tiếp chỉ cho dữ liệu user-scoped đã có RLS phù hợp.
 3. Express API xử lý AI, logic nghiệp vụ, thao tác quyền cao và mutation đã có endpoint.
-4. Không đưa `SUPABASE_SERVICE_ROLE_KEY`, Groq key, Telegram token hoặc bất kỳ secret server nào vào ứng dụng.
+4. Không đưa `SUPABASE_SERVICE_ROLE_KEY`, Groq key hoặc bất kỳ secret server nào vào ứng dụng.
 5. Không tạo migration cho mobile V1 nếu không có yêu cầu dữ liệu mới.
 
 ## 2. Đánh giá hiện trạng
@@ -280,7 +280,7 @@ Chỉ khi năm mục này đạt, hoặc có waiver rõ ràng của chủ dự �
 - [ ] Có một test account không phải admin.
 - [ ] Xác nhận emulator Android mở được từ Android Studio.
 - [ ] Review `docs/mobile-api-contract.md` và bổ sung fixture test cần thiết trước khi gọi Express từ Mobile.
-- [ ] Không đưa service role/Groq/Telegram secrets vào Mobile.
+- [ ] Không đưa service role/Groq secrets vào Mobile.
 
 ## 9.1. Local Redmi QA (2026-07-31)
 

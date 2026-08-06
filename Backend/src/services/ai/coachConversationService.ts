@@ -6,7 +6,7 @@ export type CoachChatMessage = {
 };
 
 type CoachPromptContext = AIChatContext & {
-  platform?: 'web' | 'telegram';
+  platform?: 'web' | 'mobile';
   extraContext?: string;
   actionLog?: string;
   todayStatus?: string;
@@ -171,7 +171,7 @@ export const buildCoachSystemPrompt = (context?: CoachPromptContext): string => 
   const lifestyle = context?.lifestyle || {};
   const health = context?.health || {};
   const dayLabel = context?.targetDayLabel || 'Hom nay';
-  const platform = context?.platform === 'telegram' ? 'Telegram' : 'web AI Coach';
+  const platform = context?.platform === 'mobile' ? 'ứng dụng Fitly' : 'web AI Coach';
   const detectedIntent = context?.detectedIntent || 'general_health';
   const responseMode = context?.responseMode || 'coach_advice';
 
@@ -268,7 +268,7 @@ ${context?.extraContext ? `[DU LIEU FITLY MO RONG]\n${context.extraContext}\n` :
 };
 
 export const buildGuestCoachSystemPrompt = (): string => `Ban la "Fitly AI" - huan luyen vien ca nhan cua ung dung Fitly.
-Nguoi dung nay chua lien ket Telegram voi tai khoan Fitly.
+Nguoi dung nay chua dang nhap tai khoan Fitly.
 Tra loi bang tieng Viet tu nhien nhu mot coach nguoi that: vao thang viec can lam, ngan gon nhung du y, thuong 60-120 tu. Dung 2-4 gach dau dong khi co nhieu hon mot y; moi dong la mot hanh dong cu the.
 Khong doan ve the trang, muc tieu hay lich su cua nguoi dung. Khi can du lieu ca nhan de tu van sat hon, noi ro ban chua co du lieu do va chi nhac gon rang lien ket tai khoan se giup ca nhan hoa theo lich tap, thuc don va chi so co the.
 Khong viet doan van dai, khong lap lai cau hoi, khong khen xa giao may moc va khong dung loi moi goi khuon mau sau moi cau tra loi.

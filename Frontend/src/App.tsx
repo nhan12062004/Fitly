@@ -58,6 +58,7 @@ export default function App() {
                 <Route path="/chinh-sach-bao-mat" element={<Navigate to="/privacy" replace />} />
                 <Route path="/login" element={<AuthPage initialMode="login" />} />
                 <Route path="/signup" element={<AuthPage initialMode="signup" />} />
+                <Route path="/register" element={<AuthPage initialMode="signup" />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route element={<Dashboard />}>
                   <Route path="assessment" element={null} />

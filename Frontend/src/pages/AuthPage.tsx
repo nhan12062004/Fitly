@@ -32,7 +32,7 @@ type AuthPageProps = {
 const loginHighlights = [
   'Tiếp tục kế hoạch hôm nay',
   'Xem lại bài tập và thực đơn',
-  'Hỏi AI Coach để điều chỉnh nhanh',
+  'Hỏi Trợ lý AI để điều chỉnh nhanh',
 ];
 
 const signupHighlights = [
@@ -88,6 +88,12 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
   }, [error, toast]);
 
   const isVerifiedEmail = isLogin && searchParams.get('verified') === '1';
+
+  const switchMode = (nextIsLogin: boolean) => {
+    setIsLogin(nextIsLogin);
+    setError(null);
+    setIsEmailSent(false);
+  };
 
   if (isLoggedIn && !isVerifiedEmail) {
     return <Navigate to="/overview" replace />;
@@ -250,7 +256,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
         <section className="grid flex-1 grid-cols-1 items-start gap-8 md:items-center lg:grid-cols-[minmax(0,0.9fr)_minmax(360px,460px)] lg:gap-10">
           <ScrollReveal className="max-w-3xl lg:pr-4">
             <p className="text-xs font-black uppercase tracking-[0.22em] text-accent">
-              {isLogin ? 'Welcome Back' : 'Start Free'}
+              {isLogin ? 'TIẾP TỤC HÀNH TRÌNH' : 'BẮT ĐẦU HÀNH TRÌNH'}
             </p>
             <div className="hidden sm:block">
             <h1 className="mt-5 max-w-[calc(100vw-2rem)] text-3xl font-black leading-[1.08] tracking-normal text-text-primary sm:max-w-3xl sm:text-5xl md:text-6xl">
@@ -268,15 +274,15 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
             </h1>
             <p className="mt-5 max-w-2xl text-base font-semibold leading-8 text-text-secondary">
               {isLogin
-                ? 'Đăng nhập để xem bài tập hôm nay, thực đơn hôm nay và các gợi ý mới từ AI Coach.'
-                : 'Đăng ký, xác thực email, hoàn thành form đầu vào, rồi Fitly - Trợ lý cá nhân sẽ đưa bạn vào dashboard cá nhân hóa.'}
+                ? 'Đăng nhập để xem bài tập, thực đơn hôm nay và những gợi ý mới từ Trợ lý AI.'
+                : 'Đăng ký, xác thực email và hoàn thành thông tin ban đầu. Fitly sẽ tạo không gian theo dõi phù hợp với mục tiêu của bạn.'}
             </p>
 
             <div className="mt-8 grid max-w-xl gap-3 sm:grid-cols-3">
               {[
                 ['25 phút', 'bài tập mẫu'],
                 ['1.650 kcal', 'thực đơn mẫu'],
-                ['AI Coach', 'điều chỉnh hằng ngày'],
+                ['Trợ lý AI', 'điều chỉnh hằng ngày'],
               ].map(([value, label]) => (
                 <div key={value} className="landing-card landing-surface rounded-lg border border-border-primary p-4">
                   <p className="text-lg font-black text-text-primary">{value}</p>
@@ -483,16 +489,16 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
                 {isLogin ? (
                   <p className="text-xs font-semibold text-text-tertiary">
                     Chưa có tài khoản?{' '}
-                    <Link to="/signup" className="font-black text-text-secondary transition-colors hover:text-accent">
+                    <button type="button" onClick={() => switchMode(false)} className="font-black text-text-secondary transition-colors hover:text-accent">
                       Đăng ký miễn phí
-                    </Link>
+                    </button>
                   </p>
                 ) : (
                   <p className="text-xs font-semibold text-text-tertiary">
                     Đã có tài khoản?{' '}
-                    <Link to="/login" className="font-black text-text-secondary transition-colors hover:text-accent">
+                    <button type="button" onClick={() => switchMode(true)} className="font-black text-text-secondary transition-colors hover:text-accent">
                       Đăng nhập
-                    </Link>
+                    </button>
                   </p>
                 )}
               </div>

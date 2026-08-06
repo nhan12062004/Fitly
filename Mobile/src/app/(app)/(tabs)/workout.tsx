@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
-import { ApiClientError, apiRequest } from '@/lib/api-client';
-import { loadTodayWorkout, toWorkoutItem, type WorkoutItem } from '@/lib/fitness-read-model';
+import { apiRequest } from '@/lib/api-client';
+import { loadTodayWorkout, type WorkoutItem } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
 const weekLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -19,11 +20,26 @@ const buildMonthWeeks = (date: Date) => {
   return Array.from({ length: slots.length / 7 }, (_, index) => slots.slice(index * 7, index * 7 + 7));
 };
 
+function ExercisePreview({ source, name }: { source: string | null; name: string }) {
+  const player = useVideoPlayer(source, (nextPlayer) => {
+    nextPlayer.muted = true;
+    nextPlayer.loop = false;
+  });
+
+  return (
+    <View style={styles.exercisePreview}>
+      {source ? <VideoView player={player} style={styles.exerciseVideo} nativeControls={false} contentFit="cover" surfaceType="textureView" /> : <View style={styles.exercisePreviewFallback}><AppIcon name="workout" color={tokens.colors.lime} size={23} /></View>}
+      <View pointerEvents="none" style={styles.exercisePreviewPlay}><AppIcon name="play" color={tokens.colors.ink} size={12} strokeWidth={2.6} /></View>
+      <Text accessibilityElementsHidden style={styles.hiddenPreviewLabel}>{name}</Text>
+    </View>
+  );
+}
+
 export default function WorkoutScreen() {
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<WorkoutItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pendingSetKeys, setPendingSetKeys] = useState<Set<string>>(() => new Set());
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [isPlanModalVisible, setIsPlanModalVisible] = useState(false);
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
@@ -31,7 +47,6 @@ export default function WorkoutScreen() {
   const [goal, setGoal] = useState('Giảm mỡ');
   const [duration, setDuration] = useState('30 phút');
   const [location, setLocation] = useState('Tại nhà');
-  const pendingSetKeysRef = useRef<Set<string>>(new Set());
   const today = new Date();
   const mondayOffset = (today.getDay() + 6) % 7;
   const weekDates = Array.from({ length: 7 }, (_, index) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset + index));
@@ -41,6 +56,11 @@ export default function WorkoutScreen() {
   const totalSets = items.reduce((total, item) => total + item.totalSets, 0);
   const remainingSets = Math.max(totalSets - completedSets, 0);
   const monthLabel = `Tháng ${today.getMonth() + 1}, ${today.getFullYear()}`;
+  const isWorkoutComplete = hasWorkout && totalSets > 0 && remainingSets === 0;
+  const workoutStatus = isWorkoutComplete ? 'Đã hoàn thành hôm nay' : hasWorkout ? 'Sẵn sàng bắt đầu' : 'Ngày tập linh hoạt';
+  const workoutHeadline = isWorkoutComplete ? 'Bạn đã hoàn thành\nrất tốt.' : hasWorkout ? 'Tập trung vào\nmục tiêu hôm nay.' : 'Tập theo cách\nbạn muốn.';
+  const workoutStateLabel = isWorkoutComplete ? 'Hoàn thành' : completedSets > 0 ? 'Đang tập' : hasWorkout ? 'Sẵn sàng' : 'Tự do';
+  const workoutSupportingText = isWorkoutComplete ? 'Toàn bộ bài tập hôm nay đã được đánh dấu hoàn thành.' : hasWorkout ? `Còn ${remainingSets} set để hoàn thành mục tiêu hôm nay.` : 'Tạo một lịch tập phù hợp với mục tiêu và thời gian của bạn.';
 
   const load = useCallback(async () => {
     setState('loading');
@@ -51,6 +71,8 @@ export default function WorkoutScreen() {
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : 'Không thể tải buổi tập.');
       setState('error');
+    } finally {
+      setRefreshing(false);
     }
   }, []);
 
@@ -59,40 +81,11 @@ export default function WorkoutScreen() {
     return () => clearTimeout(task);
   }, [load]);
 
-  const reconcileWorkout = useCallback(async () => {
-    try {
-      setItems(await loadTodayWorkout());
-      setState('ready');
-    } catch {
-      setError('Không thể tải lại trạng thái buổi tập. Hãy làm mới trước khi thao tác tiếp.');
-    }
-  }, []);
-
-  const completeSet = useCallback(async (item: WorkoutItem, setNumber: number) => {
-    const setKey = `${item.id}:${setNumber}`;
-    if (pendingSetKeysRef.current.has(setKey) || setNumber !== item.completedSets + 1) return;
-
-    pendingSetKeysRef.current.add(setKey);
-    setPendingSetKeys(new Set(pendingSetKeysRef.current));
-    setError(null);
-    try {
-      const response = await apiRequest<{ exercise: unknown }>(`/api/workout/daily-exercises/${item.id}/complete-set`, {
-        method: 'POST', body: { restSeconds: item.restSeconds ?? 0 }, timeoutMs: 15_000,
-      });
-      const serverItem = toWorkoutItem(response.exercise);
-      setItems((current) => current.map((currentItem) => currentItem.id === serverItem.id ? serverItem : currentItem));
-    } catch (nextError) {
-      if (nextError instanceof ApiClientError) {
-        setError(nextError.message);
-      } else {
-        setError('Kết nối bị gián đoạn. App đã tải lại trạng thái và không gửi lại set.');
-        await reconcileWorkout();
-      }
-    } finally {
-      pendingSetKeysRef.current.delete(setKey);
-      setPendingSetKeys(new Set(pendingSetKeysRef.current));
-    }
-  }, [reconcileWorkout]);
+  const refresh = useCallback(() => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void load();
+  }, [load, refreshing]);
 
   const closePlanModal = () => {
     if (isCreatingPlan) return;
@@ -120,22 +113,19 @@ export default function WorkoutScreen() {
   };
 
   return (
-    <Screen contentStyle={styles.content}>
+    <Screen contentStyle={styles.content} refreshing={refreshing} onRefresh={refresh}>
       <View style={styles.header}>
-        <View><Text style={styles.headerKicker}>FITLY / WORKOUT</Text><Text style={styles.headerTitle}>Tập luyện</Text><Text style={styles.headerDate}>{weekDayNames[today.getDay()]}, {today.getDate()} tháng {today.getMonth() + 1}</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Làm mới buổi tập" onPress={() => void load()} style={styles.refreshButton}>{state === 'loading' ? <ActivityIndicator color={tokens.colors.lime} size="small" /> : <AppIcon name="refresh" color={tokens.colors.lime} size={19} />}</Pressable>
+        <View><Text style={styles.headerTitle}>Tập luyện</Text><Text style={styles.headerDate}>{weekDayNames[today.getDay()]}, {today.getDate()} tháng {today.getMonth() + 1}</Text></View>
       </View>
 
       <View style={styles.hero}>
-        <View style={styles.heroTop}><View style={styles.heroStatus}><View style={styles.heroPulse} /><Text style={styles.heroStatusText}>{hasWorkout ? 'BUỔI TẬP ĐANG SẴN SÀNG' : 'HÔM NAY LÀ NGÀY TỰ DO'}</Text></View><AppIcon name={hasWorkout ? 'workout' : 'target'} color={tokens.colors.lime} size={25} /></View>
-        <Text style={styles.heroTitle}>{hasWorkout ? 'Tập trung và\ntiến lên.' : 'Chọn cách\nbạn muốn tập.'}</Text>
-        <Text style={styles.heroCopy}>{hasWorkout ? `Còn ${remainingSets} set để hoàn thành mục tiêu hôm nay.` : 'Tạo một lịch tập phù hợp với mục tiêu và thời gian của bạn.'}</Text>
+        <View style={styles.heroTop}><View style={styles.heroStatus}><View style={[styles.heroPulse, isWorkoutComplete && styles.heroPulseComplete]} /><Text style={styles.heroStatusText}>{workoutStatus}</Text></View><View style={styles.heroIcon}><AppIcon name={hasWorkout ? 'workout' : 'target'} color={tokens.colors.lime} size={22} /></View></View>
+        <Text style={styles.heroTitle}>{workoutHeadline}</Text>
+        <Text style={styles.heroCopy}>{workoutSupportingText}</Text>
         <View style={styles.heroStats}>
-          <View style={styles.heroStat}><Text style={styles.heroStatValue}>{hasWorkout ? items.length : '—'}</Text><Text style={styles.heroStatLabel}>BÀI TẬP</Text></View>
-          <View style={styles.statDivider} />
-          <View style={styles.heroStat}><Text style={styles.heroStatValue}>{totalSets ? `${completedSets}/${totalSets}` : '0/0'}</Text><Text style={styles.heroStatLabel}>SETS</Text></View>
-          <View style={styles.statDivider} />
-          <View style={styles.heroStat}><Text style={styles.heroStatValue}>{hasWorkout && remainingSets === 0 ? 'Xong' : 'Mới'}</Text><Text style={styles.heroStatLabel}>TRẠNG THÁI</Text></View>
+          <View style={styles.heroStat}><Text style={styles.heroStatLabel}>Bài tập</Text><Text style={styles.heroStatValue}>{hasWorkout ? items.length : '—'}</Text></View>
+          <View style={styles.heroStat}><Text style={styles.heroStatLabel}>Tiến độ</Text><Text style={styles.heroStatValue}>{totalSets ? `${completedSets}/${totalSets} set` : '0/0 set'}</Text></View>
+          <View style={styles.heroStat}><Text style={styles.heroStatLabel}>Trạng thái</Text><Text numberOfLines={1} style={styles.heroStatValue}>{workoutStateLabel}</Text></View>
         </View>
         <Pressable onPress={() => hasWorkout ? router.push({ pathname: '/workout/[id]', params: { id: items[0]?.id } }) : (setPlanError(null), setIsPlanModalVisible(true))} style={styles.heroAction}>
           <Text style={styles.heroActionText}>{hasWorkout ? 'Bắt đầu buổi tập' : 'Tạo lịch với AI Coach'}</Text><AppIcon name="arrow-right" color={tokens.colors.canvas} size={18} />
@@ -154,21 +144,19 @@ export default function WorkoutScreen() {
 
       <View style={styles.workoutSection}>
         <View style={styles.sectionHeading}><View><Text style={styles.sectionKicker}>LỘ TRÌNH HÔM NAY</Text><Text style={styles.sectionTitle}>Buổi tập của bạn</Text></View><View style={styles.remainingChip}><Text style={styles.remainingChipText}>{totalSets ? `${remainingSets} set còn lại` : 'Chưa có lịch'}</Text></View></View>
-        {state === 'loading' ? <View style={styles.loadingPanel}><ActivityIndicator color={tokens.colors.lime} /></View> : null}
+        {state === 'loading' && !refreshing ? <View style={styles.loadingPanel}><ActivityIndicator color={tokens.colors.lime} /></View> : null}
         {state !== 'loading' && !hasWorkout ? <View style={styles.noWorkoutPanel}><View style={styles.noWorkoutIcon}><AppIcon name="coach" color={tokens.colors.lime} size={22} /></View><View style={styles.noWorkoutCopy}><Text style={styles.noWorkoutTitle}>Lịch tập vẫn đang trống</Text><Text style={styles.noWorkoutText}>AI Coach sẽ tạo bài tập và số set phù hợp cho hôm nay.</Text></View><Pressable onPress={() => { setPlanError(null); setIsPlanModalVisible(true); }} style={styles.noWorkoutButton}><AppIcon name="arrow-right" color={tokens.colors.canvas} size={17} /></Pressable></View> : null}
         {items.map((item, index) => (
-          <View key={item.id} style={styles.exerciseCard}>
-            <View style={styles.exerciseNumber}><Text style={styles.exerciseNumberText}>{String(index + 1).padStart(2, '0')}</Text></View>
-            <View style={styles.exerciseMain}><Text style={styles.exerciseName}>{item.name}</Text><Text style={styles.exerciseMeta}>{item.reps ?? '—'} reps · {item.weightKg ?? '—'} kg · {item.totalSets} sets</Text><View style={styles.setRow}>{Array.from({ length: item.totalSets }, (_, setIndex) => {
-              const setNumber = setIndex + 1;
-              const key = `${item.id}:${setNumber}`;
-              const complete = setNumber <= item.completedSets;
-              const pending = pendingSetKeys.has(key);
-              const canComplete = setNumber === item.completedSets + 1 && !pending;
-              return <Pressable key={key} disabled={!canComplete} onPress={() => void completeSet(item, setNumber)} style={[styles.setButton, complete && styles.setButtonDone, !canComplete && !complete && styles.setButtonLocked]}>{pending ? <ActivityIndicator size="small" color={tokens.colors.canvas} /> : <Text style={[styles.setButtonText, complete && styles.setButtonTextDone]}>{complete ? '✓' : setNumber}</Text>}</Pressable>;
-            })}</View></View>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Mở ${item.name}`} onPress={() => router.push({ pathname: '/workout/[id]', params: { id: item.id } })} style={styles.openExercise}><AppIcon name="arrow-right" color={tokens.colors.ink} size={18} /></Pressable>
-          </View>
+          <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Xem chi tiết ${item.name}`} onPress={() => router.push(`/workout/detail/${item.id}` as never)} style={({ pressed }) => [styles.exerciseCard, pressed && styles.exerciseCardPressed]}>
+            <ExercisePreview source={item.videoUrl} name={item.name} />
+            <View style={styles.exerciseMain}>
+              <View style={styles.exerciseTitleRow}><Text style={styles.exerciseOrder}>{String(index + 1).padStart(2, '0')}</Text><Text numberOfLines={2} style={styles.exerciseName}>{item.name}</Text></View>
+              <Text style={styles.exerciseMeta}>{item.reps ?? '—'} reps · {item.weightKg ?? '—'} kg · {item.totalSets} set</Text>
+              <View style={styles.exerciseProgress}><View style={[styles.exerciseProgressFill, { width: `${item.totalSets ? (item.completedSets / item.totalSets) * 100 : 0}%` }]} /></View>
+              <Text style={styles.exerciseProgressText}>{item.completedSets}/{item.totalSets} set hoàn thành</Text>
+            </View>
+            <View style={styles.openExercise}><AppIcon name="arrow-right" color={tokens.colors.ink} size={18} /></View>
+          </Pressable>
         ))}
       </View>
 
@@ -205,36 +193,35 @@ export default function WorkoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: tokens.spacing.md, paddingBottom: tokens.spacing.xl, gap: tokens.spacing.md },
+  content: { padding: tokens.spacing.md, paddingBottom: 112, gap: 10 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: tokens.spacing.xs },
-  headerKicker: { color: tokens.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.3 },
-  headerTitle: { marginTop: 2, color: tokens.colors.ink, fontSize: 29, fontWeight: '900' },
-  headerDate: { marginTop: 2, color: tokens.colors.muted, fontSize: 12, fontWeight: '700' },
-  refreshButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: '#121513', borderWidth: 1, borderColor: '#2D3932' },
-  hero: { overflow: 'hidden', padding: tokens.spacing.lg, borderRadius: tokens.radius.lg, backgroundColor: '#122419', borderWidth: 1, borderColor: '#326B48' },
+  headerTitle: { color: tokens.colors.ink, fontSize: 30, fontWeight: '900', letterSpacing: -0.5 },
+  headerDate: { marginTop: 3, color: tokens.colors.muted, fontSize: 12, fontWeight: '700' },
+  hero: { overflow: 'hidden', padding: 14, borderRadius: 24, backgroundColor: '#122419' },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  heroStatus: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  heroStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: tokens.radius.pill, backgroundColor: '#1C3926' },
   heroPulse: { width: 7, height: 7, borderRadius: 4, backgroundColor: tokens.colors.lime },
-  heroStatusText: { color: '#A4E8B7', fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
-  heroTitle: { marginTop: tokens.spacing.md, color: tokens.colors.ink, fontSize: 30, lineHeight: 35, fontWeight: '900' },
-  heroCopy: { maxWidth: 300, marginTop: tokens.spacing.sm, color: '#B3C2B8', fontSize: 13, lineHeight: 19 },
-  heroStats: { flexDirection: 'row', alignItems: 'center', marginTop: tokens.spacing.lg, paddingVertical: tokens.spacing.sm, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#31553D' },
-  heroStat: { flex: 1, gap: 2 },
-  heroStatValue: { color: tokens.colors.ink, fontSize: 15, fontWeight: '900' },
-  heroStatLabel: { color: '#8FAA98', fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
-  statDivider: { width: 1, height: 27, backgroundColor: '#31553D' },
-  heroAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: tokens.spacing.md, minHeight: 46, paddingHorizontal: tokens.spacing.md, borderRadius: tokens.radius.md, backgroundColor: tokens.colors.lime },
+  heroPulseComplete: { backgroundColor: '#5DE38C' },
+  heroStatusText: { color: '#B5EFC6', fontSize: 10, fontWeight: '900' },
+  heroIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: '#1B3925' },
+  heroTitle: { marginTop: 14, color: tokens.colors.ink, fontSize: 27, lineHeight: 32, fontWeight: '900', letterSpacing: -0.4 },
+  heroCopy: { maxWidth: 300, marginTop: 6, color: '#B3C2B8', fontSize: 12, lineHeight: 17 },
+  heroStats: { flexDirection: 'row', gap: 7, marginTop: 14 },
+  heroStat: { flex: 1, minHeight: 55, justifyContent: 'space-between', paddingHorizontal: 9, paddingVertical: 8, borderRadius: 13, backgroundColor: '#193022' },
+  heroStatValue: { color: tokens.colors.ink, fontSize: 13, fontWeight: '900' },
+  heroStatLabel: { color: '#8FAA98', fontSize: 9, fontWeight: '800' },
+  heroAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, minHeight: 44, paddingHorizontal: tokens.spacing.md, borderRadius: tokens.radius.md, backgroundColor: tokens.colors.lime },
   heroActionText: { color: tokens.colors.canvas, fontSize: 14, fontWeight: '900' },
-  weekSection: { padding: tokens.spacing.md, borderRadius: tokens.radius.md, backgroundColor: '#111211', borderWidth: 1, borderColor: '#292D2A' },
+  weekSection: { padding: 10, borderRadius: tokens.radius.md, backgroundColor: '#111211', borderWidth: 1, borderColor: '#292D2A' },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: tokens.spacing.sm },
   sectionKicker: { color: '#7A9B86', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
   sectionTitle: { marginTop: 2, color: tokens.colors.ink, fontSize: 17, fontWeight: '900' },
   weekSummary: { color: tokens.colors.muted, fontSize: 10, fontWeight: '700' },
-  weekTrack: { flexDirection: 'row', justifyContent: 'space-between', marginTop: tokens.spacing.md },
+  weekTrack: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 9 },
   weekDayItem: { flex: 1, alignItems: 'center', gap: 6 },
   weekLabel: { color: '#858B87', fontSize: 10, fontWeight: '900' },
   weekLabelActive: { color: tokens.colors.lime },
-  weekDate: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#202320' },
+  weekDate: { width: 29, height: 29, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: '#202320' },
   weekDateActive: { backgroundColor: tokens.colors.lime },
   weekDateText: { color: '#CFD3CF', fontSize: 12, fontWeight: '900' },
   weekDateTextActive: { color: tokens.colors.canvas },
@@ -250,18 +237,21 @@ const styles = StyleSheet.create({
   noWorkoutTitle: { color: tokens.colors.ink, fontSize: 14, fontWeight: '900' },
   noWorkoutText: { color: tokens.colors.muted, fontSize: 11, lineHeight: 16 },
   noWorkoutButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: tokens.colors.lime },
-  exerciseCard: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, padding: tokens.spacing.md, borderRadius: tokens.radius.md, backgroundColor: '#151816', borderWidth: 1, borderColor: '#2A322C' },
-  exerciseNumber: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: '#26372B' },
-  exerciseNumberText: { color: tokens.colors.lime, fontSize: 11, fontWeight: '900' },
-  exerciseMain: { flex: 1, gap: 4 },
-  exerciseName: { color: tokens.colors.ink, fontSize: 14, fontWeight: '900' },
+  exerciseCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 19, backgroundColor: '#151816' },
+  exerciseCardPressed: { opacity: 0.74 },
+  exercisePreview: { width: 78, height: 78, overflow: 'hidden', justifyContent: 'center', borderRadius: 14, backgroundColor: '#213627' },
+  exerciseVideo: { width: '100%', height: '100%' },
+  exercisePreviewFallback: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1C3022' },
+  exercisePreviewPlay: { position: 'absolute', right: 6, bottom: 6, alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(5, 9, 6, 0.78)' },
+  hiddenPreviewLabel: { position: 'absolute', width: 1, height: 1, opacity: 0 },
+  exerciseMain: { flex: 1, minWidth: 0, gap: 5 },
+  exerciseTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  exerciseOrder: { paddingTop: 1, color: tokens.colors.lime, fontSize: 10, fontWeight: '900' },
+  exerciseName: { flex: 1, color: tokens.colors.ink, fontSize: 14, lineHeight: 18, fontWeight: '900' },
   exerciseMeta: { color: tokens.colors.muted, fontSize: 11 },
-  setRow: { flexDirection: 'row', gap: 5, marginTop: 3 },
-  setButton: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: tokens.colors.lime },
-  setButtonDone: { backgroundColor: '#1E3325', borderWidth: 1, borderColor: tokens.colors.lime },
-  setButtonLocked: { opacity: 0.32 },
-  setButtonText: { color: tokens.colors.canvas, fontSize: 10, fontWeight: '900' },
-  setButtonTextDone: { color: tokens.colors.lime },
+  exerciseProgress: { height: 4, overflow: 'hidden', marginTop: 2, borderRadius: tokens.radius.pill, backgroundColor: '#29302B' },
+  exerciseProgressFill: { height: '100%', minWidth: 0, borderRadius: tokens.radius.pill, backgroundColor: tokens.colors.lime },
+  exerciseProgressText: { color: '#91A297', fontSize: 9, fontWeight: '700' },
   openExercise: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#292D2B' },
   error: { color: tokens.colors.danger, fontSize: 12, lineHeight: 18 },
   recoveryCard: { flexDirection: 'row', gap: tokens.spacing.sm, padding: tokens.spacing.md, borderRadius: tokens.radius.md, borderWidth: 1, borderColor: '#613D20', backgroundColor: '#1B1815' },

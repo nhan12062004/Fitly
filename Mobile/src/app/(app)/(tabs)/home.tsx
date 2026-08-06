@@ -1,101 +1,139 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 
 import { AppIcon } from '@/components/ui/app-icon';
-import { FoundationCard } from '@/components/ui/foundation-card';
 import { Screen } from '@/components/ui/screen';
 import { apiRequest } from '@/lib/api-client';
 import { loadHomeSnapshot, type HomeSnapshot } from '@/lib/fitness-read-model';
+import { loadUnreadNotificationCount } from '@/lib/wellness-read-model';
 import { tokens } from '@/theme/tokens';
 
 type ProfileResponse = { data?: { full_name?: string | null } };
 
+const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+const firstName = (value: string | null) => value?.trim().split(/\s+/).at(-1) || 'bạn';
+
 export default function HomeScreen() {
-  const [profileState, setProfileState] = useState<'loading' | 'connected' | 'error'>('loading');
-  const [profileName, setProfileName] = useState<string | null>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [name, setName] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<HomeSnapshot | null>(null);
-  const [reloadCount, setReloadCount] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const today = useMemo(() => new Date(), []);
 
   useEffect(() => {
-    let isActive = true;
-    const verifyProtectedApi = async () => {
+    let active = true;
+    const load = async () => {
+      setState('loading');
       try {
-        const response = await apiRequest<ProfileResponse>('/api/profile');
-        if (!isActive) return;
-        setProfileName(response.data?.full_name ?? null);
-        const nextSnapshot = await loadHomeSnapshot();
-        if (!isActive) return;
-        setSnapshot(nextSnapshot);
-        setProfileState('connected');
+        const [profile, home, unreadCount] = await Promise.all([apiRequest<ProfileResponse>('/api/profile'), loadHomeSnapshot(), loadUnreadNotificationCount()]);
+        if (!active) return;
+        setName(profile.data?.full_name ?? null);
+        setSnapshot(home);
+        setUnreadNotifications(unreadCount);
+        setState('ready');
       } catch {
-        if (isActive) setProfileState('error');
+        if (active) setState('error');
+      } finally {
+        if (active) setRefreshing(false);
       }
     };
-    void verifyProtectedApi();
-    return () => { isActive = false; };
-  }, [reloadCount]);
+    void load();
+    return () => { active = false; };
+  }, [reloadKey]);
+
+  const planned = snapshot?.plannedExercises ?? 0;
+  const completed = snapshot?.completedExercises ?? 0;
+  const calories = Math.round(snapshot?.caloriesConsumed ?? 0);
+  const targetCalories = Math.round(snapshot?.targetCalories ?? 0);
+  const remainingCalories = targetCalories ? Math.max(targetCalories - calories, 0) : 0;
+  const dateText = `${dayNames[today.getDay()]}, ${today.getDate()} tháng ${today.getMonth() + 1}`;
+  const refresh = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setReloadKey((value) => value + 1);
+  };
 
   return (
-    <Screen>
-      <View style={styles.heroHeader}>
-        <View style={styles.heroCopy}>
-          <Text style={styles.kicker}>HÔM NAY · PERFORMANCE DAY</Text>
-          <Text style={styles.title}>Move with purpose.</Text>
-        </View>
-        <View style={styles.calendarBadge}>
-          <AppIcon name="calendar" color={tokens.colors.lime} size={26} accessibilityLabel="Lịch hôm nay" />
-        </View>
+    <Screen contentStyle={styles.content} refreshing={refreshing} onRefresh={refresh}>
+      <View style={styles.header}>
+        <View><Text style={styles.date}>{dateText}</Text><Text style={styles.greeting}>Chào {firstName(name)}</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Mở thông báo" onPress={() => router.push('/notifications')} hitSlop={8} style={({ pressed }) => [styles.notificationButton, pressed && styles.pressed]}>
+          <AppIcon name="bell" color={tokens.colors.ink} size={20} />
+          {unreadNotifications > 0 ? <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadNotifications > 9 ? '9+' : unreadNotifications}</Text></View> : null}
+        </Pressable>
       </View>
-      <FoundationCard
-        eyebrow={profileState === 'connected' ? 'API connected' : profileState === 'error' ? 'API needs attention' : 'Checking session'}
-        title={profileState === 'connected' ? `Chào ${profileName || 'bạn'}` : 'Sẵn sàng cho buổi tập'}
-        description={profileState === 'connected'
-          ? 'Bearer token đã gọi thành công endpoint protected /api/profile.'
-          : profileState === 'error'
-            ? 'Không thể xác thực API profile. Kiểm tra lại Backend API URL hoặc session.'
-            : 'Đang kiểm tra session và kết nối profile.'}
-      />
-      <View style={styles.metrics}>
-        <View style={styles.metricCard}>
-          <View style={styles.metricIcon}><AppIcon name="check" color={tokens.colors.lime} size={20} /></View>
-          <Text style={styles.metricValue}>{snapshot ? `${snapshot.completedExercises}/${snapshot.plannedExercises}` : '—'}</Text>
-          <Text style={styles.metricLabel}>bài tập hoàn thành</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <View style={[styles.metricIcon, styles.metricIconCoral]}><AppIcon name="flame" color={tokens.colors.coral} size={20} /></View>
-          <Text style={styles.metricValue}>{snapshot ? `${Math.round(snapshot.caloriesConsumed)}` : '—'}</Text>
-          <Text style={styles.metricLabel}>{snapshot?.targetCalories ? `/ ${Math.round(snapshot.targetCalories)} kcal` : 'kcal hôm nay'}</Text>
-        </View>
+
+      <View style={styles.dailyStage}>
+        <View style={styles.dailyCopy}><Text style={styles.stageKicker}>BẢN ĐỒ NGÀY</Text><Text style={styles.stageTitle}>Đi theo nhịp{`\n`}của chính bạn.</Text><Text style={styles.stageText}>{planned ? completed === planned ? 'Bạn đã hoàn tất phần tập luyện hôm nay.' : 'Chọn một việc nhỏ và bắt đầu ngay.' : 'Hôm nay vẫn hoàn toàn thuộc về bạn.'}</Text></View>
+        <View style={styles.progressOrb}><Text style={styles.orbValue}>{planned ? `${completed}/${planned}` : '—'}</Text><Text style={styles.orbLabel}>BÀI TẬP</Text></View>
       </View>
-      <View style={styles.focusCard}>
-        <View style={styles.focusIcon}><AppIcon name="target" color={tokens.colors.canvas} size={22} /></View>
-        <View style={styles.focusCopy}>
-          <Text style={styles.focusTitle}>Tập trung vào nhịp độ của bạn</Text>
-          <Text style={styles.focusText}>Hoàn thành từng set nhỏ để giữ vững đà hôm nay.</Text>
-        </View>
+
+      <Pressable onPress={() => router.push('/workout')} style={({ pressed }) => [styles.nextMove, pressed && styles.pressed]}>
+        <View style={styles.nextMoveIcon}><AppIcon name="workout" color={tokens.colors.canvas} size={23} /></View><View style={styles.nextMoveCopy}><Text style={styles.nextMoveKicker}>VIỆC TIẾP THEO</Text><Text style={styles.nextMoveTitle}>{planned ? completed === planned ? 'Ghi nhận một ngày tốt' : 'Tiếp tục buổi tập' : 'Tạo bài tập hôm nay'}</Text></View><AppIcon name="arrow-right" color={tokens.colors.canvas} size={20} />
+      </Pressable>
+
+      <View style={styles.sectionHeading}><Text style={styles.sectionKicker}>LỐI TẮT</Text><Text style={styles.sectionTitle}>Khám phá ngày</Text></View>
+      <View style={styles.tileGrid}>
+        <Pressable onPress={() => router.push('/workout')} style={({ pressed }) => [styles.routeTile, styles.workoutTile, pressed && styles.pressed]}><AppIcon name="workout" color={tokens.colors.lime} size={25} /><Text style={styles.routeTitle}>Tập luyện</Text><Text style={styles.routeText}>{planned ? `${planned - completed} bài còn lại` : 'Tạo lịch mới'}</Text></Pressable>
+        <Pressable onPress={() => router.push('/meals')} style={({ pressed }) => [styles.routeTile, styles.mealsTile, pressed && styles.pressed]}><AppIcon name="meals" color="#A4C7FF" size={25} /><Text style={styles.routeTitle}>Bữa ăn</Text><Text style={styles.routeText}>{targetCalories ? `${remainingCalories} kcal còn lại` : 'Mở nhật ký'}</Text></Pressable>
+        <Pressable onPress={() => router.push('/coach')} style={({ pressed }) => [styles.routeTile, styles.coachTile, pressed && styles.pressed]}><AppIcon name="coach" color="#D7A4FF" size={25} /><Text style={styles.routeTitle}>AI Coach</Text><Text style={styles.routeText}>Hỏi một điều</Text></Pressable>
       </View>
-      {profileState === 'error' ? <Pressable style={styles.retry} onPress={() => setReloadCount((value) => value + 1)}><Text style={styles.retryText}>Thử lại</Text></Pressable> : null}
+
+      <Pressable onPress={() => router.push('/meals')} style={({ pressed }) => [styles.nutritionNote, pressed && styles.pressed]}><View style={styles.noteGlow} /><View style={styles.noteContent}><Text style={styles.noteKicker}>NĂNG LƯỢNG HÔM NAY</Text><Text style={styles.noteValue}>{targetCalories ? `${calories} / ${targetCalories} kcal` : 'Bắt đầu ghi bữa ăn'}</Text><Text style={styles.noteText}>{targetCalories ? `Còn ${remainingCalories} kcal để bạn linh hoạt lựa chọn.` : 'Đặt mục tiêu calorie trong Hồ sơ.'}</Text></View><AppIcon name="arrow-right" color={tokens.colors.lime} size={19} /></Pressable>
+
+      {state === 'error' ? <Pressable onPress={() => setReloadKey((value) => value + 1)} style={styles.errorPill}><Text style={styles.errorText}>Không tải được dữ liệu · Chạm để thử lại</Text></Pressable> : null}
+      <Pressable onPress={() => router.push('/tracking')} style={({ pressed }) => [styles.wellnessLink, pressed && styles.pressed]}><View style={styles.wellnessLinkMark}><Text style={styles.wellnessLinkMarkText}>H₂O</Text></View><View style={styles.wellnessLinkCopy}><Text style={styles.wellnessLinkKicker}>NHỊP SỐNG</Text><Text style={styles.wellnessLinkTitle}>Theo dõi nước và giấc ngủ</Text></View><AppIcon name="arrow-right" color="#72C7FF" size={18} /></Pressable>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  heroHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: tokens.spacing.md },
-  heroCopy: { flex: 1, gap: tokens.spacing.xs },
-  kicker: { color: tokens.colors.lime, fontSize: tokens.type.overline, fontWeight: '800', letterSpacing: 1.3 },
-  title: { color: tokens.colors.ink, fontSize: tokens.type.display, fontWeight: '900', letterSpacing: -1.2 },
-  calendarBadge: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radius.md, backgroundColor: tokens.colors.surfaceRaised, borderWidth: 1, borderColor: tokens.colors.border },
-  metrics: { flexDirection: 'row', gap: tokens.spacing.md },
-  metricCard: { flex: 1, minHeight: 148, padding: tokens.spacing.md, gap: tokens.spacing.sm, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.surface, borderWidth: 1, borderColor: tokens.colors.border },
-  metricIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: tokens.radius.sm, backgroundColor: tokens.colors.surfaceRaised },
-  metricIconCoral: { backgroundColor: '#2C1D1A' },
-  metricValue: { color: tokens.colors.ink, fontSize: 25, fontWeight: '900', letterSpacing: -0.6 },
-  metricLabel: { color: tokens.colors.muted, fontSize: 13, fontWeight: '700', lineHeight: 18 },
-  focusCard: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.md, padding: tokens.spacing.lg, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.white, borderLeftWidth: 5, borderLeftColor: tokens.colors.lime },
-  focusIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: tokens.colors.canvas },
-  focusCopy: { flex: 1, gap: 2 },
-  focusTitle: { color: tokens.colors.canvas, fontSize: tokens.type.label, fontWeight: '900' },
-  focusText: { color: '#4B4F4C', fontSize: 13, lineHeight: 18, fontWeight: '600' },
-  retry: { alignSelf: 'flex-start', paddingVertical: tokens.spacing.md, paddingHorizontal: tokens.spacing.lg, borderWidth: 1, borderColor: tokens.colors.lime, borderRadius: tokens.radius.pill },
-  retryText: { color: tokens.colors.lime, fontWeight: '800' },
+  content: { paddingHorizontal: tokens.spacing.lg, paddingTop: tokens.spacing.md, paddingBottom: 112, gap: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  notificationButton: { position: 'relative', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, borderRadius: 21, backgroundColor: '#151A16' },
+  notificationBadge: { position: 'absolute', top: 3, right: 3, alignItems: 'center', justifyContent: 'center', minWidth: 16, height: 16, paddingHorizontal: 3, borderRadius: 8, backgroundColor: tokens.colors.lime },
+  notificationBadgeText: { color: tokens.colors.canvas, fontSize: 8, fontWeight: '900' },
+  date: { color: '#9AA49D', fontSize: 12, fontWeight: '700' },
+  greeting: { marginTop: 2, color: tokens.colors.ink, fontSize: 29, fontWeight: '900', letterSpacing: -0.6 },
+  dailyStage: { flexDirection: 'row', alignItems: 'flex-end', gap: tokens.spacing.md, paddingTop: tokens.spacing.sm },
+  dailyCopy: { flex: 1, gap: 7 },
+  stageKicker: { color: tokens.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  stageTitle: { color: tokens.colors.ink, fontSize: 30, lineHeight: 35, fontWeight: '900', letterSpacing: -0.8 },
+  stageText: { color: tokens.colors.muted, fontSize: 12, lineHeight: 18 },
+  progressOrb: { width: 94, height: 94, alignItems: 'center', justifyContent: 'center', borderRadius: 47, backgroundColor: tokens.colors.lime },
+  orbValue: { color: tokens.colors.canvas, fontSize: 24, fontWeight: '900', letterSpacing: -1 },
+  orbLabel: { color: '#3E5907', fontSize: 8, fontWeight: '900', letterSpacing: 0.7 },
+  nextMove: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, minHeight: 72, paddingHorizontal: tokens.spacing.md, borderRadius: 20, backgroundColor: tokens.colors.white },
+  nextMoveIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: tokens.colors.lime },
+  nextMoveCopy: { flex: 1, gap: 2 },
+  nextMoveKicker: { color: '#697069', fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  nextMoveTitle: { color: tokens.colors.canvas, fontSize: 16, fontWeight: '900' },
+  sectionHeading: { marginTop: 2 },
+  sectionKicker: { color: '#92A099', fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  sectionTitle: { marginTop: 2, color: tokens.colors.ink, fontSize: 24, fontWeight: '900' },
+  tileGrid: { flexDirection: 'row', gap: 8 },
+  routeTile: { flex: 1, minHeight: 112, justifyContent: 'space-between', padding: tokens.spacing.md, borderRadius: 20 },
+  workoutTile: { backgroundColor: '#18261B' },
+  mealsTile: { backgroundColor: '#19242D' },
+  coachTile: { backgroundColor: '#271E2F' },
+  routeTitle: { marginTop: tokens.spacing.md, color: tokens.colors.ink, fontSize: 13, fontWeight: '900' },
+  routeText: { color: '#ABB5AD', fontSize: 10, lineHeight: 14 },
+  nutritionNote: { position: 'relative', flexDirection: 'row', alignItems: 'center', overflow: 'hidden', padding: tokens.spacing.lg, borderRadius: 26, backgroundColor: '#121713' },
+  noteGlow: { position: 'absolute', right: -27, top: -36, width: 126, height: 126, borderRadius: 63, backgroundColor: '#203920' },
+  noteContent: { flex: 1, gap: 3 },
+  noteKicker: { color: tokens.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  noteValue: { color: tokens.colors.ink, fontSize: 19, fontWeight: '900' },
+  noteText: { color: tokens.colors.muted, fontSize: 11, lineHeight: 16 },
+  wellnessLink: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 68, paddingHorizontal: tokens.spacing.md, borderRadius: 20, backgroundColor: '#14232B' },
+  wellnessLinkMark: { alignItems: 'center', justifyContent: 'center', width: 38, height: 38, borderRadius: 13, backgroundColor: '#1B4F61' },
+  wellnessLinkMarkText: { color: '#72C7FF', fontSize: 11, fontWeight: '900' },
+  wellnessLinkCopy: { flex: 1, gap: 2 },
+  wellnessLinkKicker: { color: '#75B9D4', fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  wellnessLinkTitle: { color: tokens.colors.ink, fontSize: 14, fontWeight: '900' },
+  errorPill: { alignSelf: 'center', paddingHorizontal: tokens.spacing.md, paddingVertical: 10, borderRadius: tokens.radius.pill, backgroundColor: '#34201D' },
+  errorText: { color: tokens.colors.coral, fontSize: 11, fontWeight: '800' },
+  pressed: { opacity: 0.72 },
 });
