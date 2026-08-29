@@ -18,6 +18,8 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (session) return <Redirect href="/(app)/(tabs)/home" />;
@@ -73,19 +75,24 @@ export default function SignInScreen() {
   };
 
   return (
-    <Screen contentStyle={styles.content}>
+    <Screen keyboardAware backgroundColor={tokens.colors.authCanvas} contentStyle={styles.content}>
       <View style={styles.brandBlock}>
+        <View style={styles.brandRow}>
+          <View style={styles.logo}><Text style={styles.logoText}>F</Text></View>
+          <Text style={styles.brand}>fitly</Text>
+        </View>
         <Text style={styles.eyebrow}>{isSignUp ? 'BẮT ĐẦU HÀNH TRÌNH' : 'TẬP LUYỆN · PHỤC HỒI · TIẾN BỘ'}</Text>
-        <Text style={[styles.brand, isSignUp && styles.brandSignUp]}>{isSignUp ? 'Tạo tài khoản Fitly' : 'Fitly'}</Text>
+        <Text style={styles.title}>{isSignUp ? 'Tạo tài khoản' : 'Chào mừng trở lại'}</Text>
         <Text style={styles.lead}>{isSignUp ? 'Kế hoạch tập luyện và dinh dưỡng dành cho bạn.' : 'Kế hoạch khỏe mạnh dành cho bạn.'}</Text>
       </View>
 
       <View style={styles.form}>
-        <Text style={styles.formTitle}>{isSignUp ? 'Tạo tài khoản miễn phí' : 'Chào mừng trở lại'}</Text>
-        {isSignUp && <TextInput accessibilityLabel="Họ và tên" autoComplete="name" placeholder="Họ và tên" placeholderTextColor={tokens.colors.muted} style={styles.input} value={fullName} onChangeText={setFullName} />}
-        <TextInput accessibilityLabel="Địa chỉ email" autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="Địa chỉ email" placeholderTextColor={tokens.colors.muted} style={styles.input} value={email} onChangeText={setEmail} />
-        <TextInput autoComplete={isSignUp ? "new-password" : "current-password"} placeholder="Mật khẩu" placeholderTextColor={tokens.colors.muted} secureTextEntry style={styles.input} value={password} onChangeText={setPassword} />
-        {isSignUp && <TextInput accessibilityLabel="Xác nhận mật khẩu" autoComplete="new-password" placeholder="Xác nhận mật khẩu" placeholderTextColor={tokens.colors.muted} secureTextEntry style={styles.input} value={confirmation} onChangeText={setConfirmation} />}
+        <Text style={styles.formTitle}>{isSignUp ? 'Thông tin của bạn' : 'Đăng nhập tài khoản'}</Text>
+        <Text style={styles.formSubtitle}>{isSignUp ? 'Chỉ mất khoảng một phút để bắt đầu.' : 'Tiếp tục hành trình hôm nay.'}</Text>
+        {isSignUp && <View style={styles.field}><Text style={styles.fieldLabel}>HỌ VÀ TÊN</Text><TextInput accessibilityLabel="Họ và tên" autoComplete="name" returnKeyType="next" placeholder="Nguyễn Văn A" placeholderTextColor={tokens.colors.muted} style={styles.input} value={fullName} onChangeText={setFullName} /></View>}
+        <View style={styles.field}><Text style={styles.fieldLabel}>EMAIL</Text><TextInput accessibilityLabel="Địa chỉ email" autoCapitalize="none" autoComplete="email" keyboardType="email-address" returnKeyType="next" placeholder="ban@example.com" placeholderTextColor={tokens.colors.muted} style={styles.input} value={email} onChangeText={setEmail} /></View>
+        <View style={styles.field}><Text style={styles.fieldLabel}>MẬT KHẨU</Text><View style={styles.passwordField}><TextInput autoComplete={isSignUp ? 'new-password' : 'current-password'} returnKeyType={isSignUp ? 'next' : 'done'} placeholder="Nhập mật khẩu" placeholderTextColor={tokens.colors.muted} secureTextEntry={!showPassword} style={[styles.input, styles.passwordInput]} value={password} onChangeText={setPassword} /><Pressable accessibilityRole="button" accessibilityLabel={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} onPress={() => setShowPassword((value) => !value)} hitSlop={8} style={styles.passwordToggle}><Text style={styles.passwordToggleText}>{showPassword ? 'Ẩn' : 'Hiện'}</Text></Pressable></View></View>
+        {isSignUp && <View style={styles.field}><Text style={styles.fieldLabel}>XÁC NHẬN MẬT KHẨU</Text><View style={styles.passwordField}><TextInput accessibilityLabel="Xác nhận mật khẩu" autoComplete="new-password" returnKeyType="done" placeholder="Nhập lại mật khẩu" placeholderTextColor={tokens.colors.muted} secureTextEntry={!showConfirmation} style={[styles.input, styles.passwordInput]} value={confirmation} onChangeText={setConfirmation} /><Pressable accessibilityRole="button" accessibilityLabel={showConfirmation ? 'Ẩn mật khẩu xác nhận' : 'Hiện mật khẩu xác nhận'} onPress={() => setShowConfirmation((value) => !value)} hitSlop={8} style={styles.passwordToggle}><Text style={styles.passwordToggleText}>{showConfirmation ? 'Ẩn' : 'Hiện'}</Text></Pressable></View></View>}
         {isSignUp && <Text style={styles.requirements}>Ít nhất 8 ký tự, gồm chữ hoa, chữ thường và số.</Text>}
         <Pressable disabled={isSubmitting} onPress={() => void submit()} style={({ pressed }) => [styles.button, (pressed || isSubmitting) && styles.buttonPressed]}>
           <Text style={styles.buttonText}>{isSubmitting ? 'Đang xử lý…' : isSignUp ? 'Tạo tài khoản' : 'Đăng nhập'}</Text>
@@ -101,15 +108,25 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { justifyContent: 'space-between', paddingTop: tokens.spacing.xl, paddingBottom: tokens.spacing.lg },
-  brandBlock: { gap: 6, paddingTop: 0 },
+  content: { paddingTop: tokens.spacing.lg, paddingBottom: tokens.spacing.xxl, gap: tokens.spacing.xxl },
+  brandBlock: { gap: 8, paddingTop: tokens.spacing.sm },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  logo: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: tokens.colors.lime },
+  logoText: { color: tokens.colors.canvas, fontSize: 22, fontWeight: '900', letterSpacing: -1 },
   eyebrow: { color: tokens.colors.lime, fontSize: tokens.type.overline, fontWeight: '800', letterSpacing: 1.8 },
-  brand: { color: tokens.colors.ink, fontSize: 50, fontWeight: '900', letterSpacing: -2 },
-  brandSignUp: { fontSize: 31, letterSpacing: -1 },
+  brand: { color: tokens.colors.ink, fontSize: 28, fontWeight: '900', letterSpacing: -1 },
+  title: { color: tokens.colors.ink, fontSize: 34, lineHeight: 40, fontWeight: '900', letterSpacing: -1 },
   lead: { maxWidth: 310, color: tokens.colors.muted, fontSize: 15, lineHeight: 21 },
-  form: { gap: 10, padding: 20, borderRadius: 22, backgroundColor: tokens.colors.surface, borderWidth: 1, borderColor: tokens.colors.border },
-  formTitle: { color: tokens.colors.ink, fontSize: 21, fontWeight: '800', marginBottom: 2 },
-  input: { minHeight: 48, borderRadius: 14, paddingHorizontal: tokens.spacing.lg, backgroundColor: tokens.colors.canvas, color: tokens.colors.ink, fontSize: 15, borderWidth: 1, borderColor: tokens.colors.border },
+  form: { gap: 14, padding: 20, borderRadius: 24, backgroundColor: tokens.colors.surfaceRaised, borderWidth: 1, borderColor: '#39433B' },
+  formTitle: { color: tokens.colors.ink, fontSize: 21, fontWeight: '800' },
+  formSubtitle: { color: tokens.colors.muted, fontSize: 13, marginTop: -8, marginBottom: 2 },
+  field: { gap: 7 },
+  fieldLabel: { color: '#C5CDC7', fontSize: 11, fontWeight: '800', letterSpacing: 1.1 },
+  passwordField: { position: 'relative', justifyContent: 'center' },
+  input: { minHeight: 52, borderRadius: 14, paddingHorizontal: tokens.spacing.lg, backgroundColor: '#111711', color: tokens.colors.ink, fontSize: 15, borderWidth: 1, borderColor: '#3A463C' },
+  passwordInput: { paddingRight: 62 },
+  passwordToggle: { position: 'absolute', right: 16, paddingVertical: 8 },
+  passwordToggleText: { color: tokens.colors.lime, fontSize: 12, fontWeight: '900' },
   button: { minHeight: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: tokens.colors.lime, marginTop: 2 },
   buttonPressed: { opacity: 0.7 },
   buttonText: { color: tokens.colors.canvas, fontSize: tokens.type.label, fontWeight: '900' },

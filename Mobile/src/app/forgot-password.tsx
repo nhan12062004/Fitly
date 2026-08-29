@@ -38,7 +38,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <Screen contentStyle={styles.content}>
+    <Screen keyboardAware backgroundColor={tokens.colors.authCanvas} contentStyle={styles.content}>
       <View style={styles.brandBlock}>
         <Text style={styles.eyebrow}>KHÔI PHỤC TÀI KHOẢN</Text>
         <Text style={styles.title}>Khôi phục mật khẩu</Text>
@@ -56,13 +56,13 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { justifyContent: 'space-between', paddingTop: tokens.spacing.hero, paddingBottom: tokens.spacing.xxl },
+  content: { paddingTop: tokens.spacing.xl, paddingBottom: tokens.spacing.xxl },
   brandBlock: { gap: tokens.spacing.sm },
   eyebrow: { color: tokens.colors.lime, fontSize: tokens.type.overline, fontWeight: '800', letterSpacing: 1.8 },
   title: { color: tokens.colors.ink, fontSize: 34, fontWeight: '900', letterSpacing: -1 },
   lead: { color: tokens.colors.muted, fontSize: 16, lineHeight: 24 },
-  form: { gap: tokens.spacing.md, padding: tokens.spacing.xl, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.surface, borderWidth: 1, borderColor: tokens.colors.border },
-  input: { minHeight: 52, borderRadius: tokens.radius.md, paddingHorizontal: tokens.spacing.lg, backgroundColor: tokens.colors.canvas, color: tokens.colors.ink, fontSize: tokens.type.label, borderWidth: 1, borderColor: tokens.colors.border },
+  form: { gap: tokens.spacing.md, padding: tokens.spacing.xl, borderRadius: tokens.radius.lg, backgroundColor: tokens.colors.surfaceRaised, borderWidth: 1, borderColor: '#39433B' },
+  input: { minHeight: 52, borderRadius: tokens.radius.md, paddingHorizontal: tokens.spacing.lg, backgroundColor: '#111711', color: tokens.colors.ink, fontSize: tokens.type.label, borderWidth: 1, borderColor: '#3A463C' },
   button: { minHeight: 52, borderRadius: tokens.radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: tokens.colors.lime, marginTop: tokens.spacing.sm },
   buttonPressed: { opacity: 0.7 },
   buttonText: { color: tokens.colors.canvas, fontSize: tokens.type.label, fontWeight: '900' },

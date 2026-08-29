@@ -3,6 +3,7 @@ export const tokens = {
     ink: '#F8F8F6',
     muted: '#A5AAA6',
     canvas: '#050505',
+    authCanvas: '#0D120F',
     surface: '#101110',
     surfaceRaised: '#191A19',
     border: '#303330',
