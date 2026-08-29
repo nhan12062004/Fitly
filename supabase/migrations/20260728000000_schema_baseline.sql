@@ -2387,8 +2387,10 @@ $$;
 
 
 
-ALTER TABLE ONLY "public"."challenge_participants"
-    ADD CONSTRAINT "challenge_participants_challenge_id_user_id_key" UNIQUE ("challenge_id", "user_id");
+DO $$ BEGIN
+    ALTER TABLE ONLY "public"."challenge_participants"
+        ADD CONSTRAINT "challenge_participants_challenge_id_user_id_key" UNIQUE ("challenge_id", "user_id");
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 
 
@@ -2398,13 +2400,17 @@ ALTER TABLE ONLY "public"."challenge_participants"
 
 
 
-ALTER TABLE ONLY "public"."challenge_templates"
-    ADD CONSTRAINT "challenge_templates_slug_key" UNIQUE ("slug");
+DO $$ BEGIN
+    ALTER TABLE ONLY "public"."challenge_templates"
+        ADD CONSTRAINT "challenge_templates_slug_key" UNIQUE ("slug");
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 
 
-ALTER TABLE ONLY "public"."challenges"
-    ADD CONSTRAINT "challenges_invite_code_key" UNIQUE ("invite_code");
+DO $$ BEGIN
+    ALTER TABLE ONLY "public"."challenges"
+        ADD CONSTRAINT "challenges_invite_code_key" UNIQUE ("invite_code");
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 
 
@@ -2423,8 +2429,10 @@ ALTER TABLE ONLY "public"."challenges"
 
 
 
-ALTER TABLE ONLY "public"."daily_progress_logs"
-    ADD CONSTRAINT "daily_progress_logs_user_id_log_date_key" UNIQUE ("user_id", "log_date");
+DO $$ BEGIN
+    ALTER TABLE ONLY "public"."daily_progress_logs"
+        ADD CONSTRAINT "daily_progress_logs_user_id_log_date_key" UNIQUE ("user_id", "log_date");
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 
 
@@ -2449,13 +2457,17 @@ ALTER TABLE ONLY "public"."daily_progress_logs"
 
 
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_ref_code_key" UNIQUE ("ref_code");
+DO $$ BEGIN
+    ALTER TABLE ONLY "public"."profiles"
+        ADD CONSTRAINT "profiles_ref_code_key" UNIQUE ("ref_code");
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_telegram_chat_id_key" UNIQUE ("telegram_chat_id");
+DO $$ BEGIN
+    ALTER TABLE ONLY "public"."profiles"
+        ADD CONSTRAINT "profiles_telegram_chat_id_key" UNIQUE ("telegram_chat_id");
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 
 
@@ -2474,8 +2486,10 @@ ALTER TABLE ONLY "public"."profiles"
 
 
 
-ALTER TABLE ONLY "public"."user_notifications"
-    ADD CONSTRAINT "user_notifications_user_id_dedupe_key_key" UNIQUE ("user_id", "dedupe_key");
+DO $$ BEGIN
+    ALTER TABLE ONLY "public"."user_notifications"
+        ADD CONSTRAINT "user_notifications_user_id_dedupe_key_key" UNIQUE ("user_id", "dedupe_key");
+EXCEPTION WHEN duplicate_object OR duplicate_table THEN NULL; END $$;
 
 
 
