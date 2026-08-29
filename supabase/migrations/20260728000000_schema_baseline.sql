@@ -2364,8 +2364,23 @@ $$;
 
 
 
-ALTER TABLE ONLY "public"."challenge_checkins"
-    ADD CONSTRAINT "challenge_checkins_challenge_id_user_id_checkin_date_key" UNIQUE ("challenge_id", "user_id", "checkin_date");
+-- A Supabase preview can preserve this constraint from an earlier partial
+-- baseline run. PostgreSQL does not support ADD CONSTRAINT IF NOT EXISTS, so
+-- guard it explicitly to keep the baseline replayable.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'public.challenge_checkins'::regclass
+          AND conname = 'challenge_checkins_challenge_id_user_id_checkin_date_key'
+    ) THEN
+        ALTER TABLE ONLY "public"."challenge_checkins"
+            ADD CONSTRAINT "challenge_checkins_challenge_id_user_id_checkin_date_key"
+            UNIQUE ("challenge_id", "user_id", "checkin_date");
+    END IF;
+END
+$$;
 
 
 
