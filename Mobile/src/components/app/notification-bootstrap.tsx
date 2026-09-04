@@ -1,14 +1,18 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 
-import { hasNativeNotifications, initializeNativeNotifications, registerCurrentDeviceForPush } from '@/lib/mobile-notifications';
+import { hasNativeNotifications, initializeNativeNotifications, loadReminderSettings, registerCurrentDeviceForPush, rescheduleLocalReminders } from '@/lib/mobile-notifications';
 
 const validDestinations = new Set(['/tracking', '/workout', '/meals', '/coach', '/progress', '/notifications']);
 
 export function NotificationBootstrap() {
   useEffect(() => {
     if (!hasNativeNotifications()) return undefined;
-    void initializeNativeNotifications().then(() => registerCurrentDeviceForPush()).catch(() => undefined);
+    void initializeNativeNotifications().then(async () => {
+      const settings = await loadReminderSettings();
+      await rescheduleLocalReminders(settings);
+      await registerCurrentDeviceForPush();
+    }).catch(() => undefined);
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const Notifications = require('expo-notifications') as typeof import('expo-notifications');

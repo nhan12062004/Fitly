@@ -88,6 +88,7 @@ export default function CoachScreen() {
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [draftHeight, setDraftHeight] = useState(34);
   const [isLoadingQuota, setIsLoadingQuota] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -122,13 +123,14 @@ export default function CoachScreen() {
     void loadQuota();
   }, [loadQuota, refreshing]);
 
-  const sendMessage = async () => {
-    const content = draft.trim();
+  const sendMessage = async (messageOverride?: string) => {
+    const content = (messageOverride ?? draft).trim();
     if (!content || isSending) return;
     const userMessage: ChatMessage = { id: makeClientId(), role: 'user', content };
     const history = messages.slice(-10).map(({ role, content: historyContent }) => ({ role, content: historyContent }));
     setMessages((current) => [...current, userMessage]);
     setDraft('');
+    setDraftHeight(34);
     setError(null);
     setIsSending(true);
     try {
@@ -280,7 +282,7 @@ export default function CoachScreen() {
           {messages.length === 0 ? <View style={styles.suggestions}>
             <Text style={styles.suggestionLabel}>HỎI NHANH</Text>
             <View style={styles.suggestionRow}>
-              {['Lên bài tập hôm nay', 'Gợi ý bữa ăn', 'Điều chỉnh kế hoạch'].map((suggestion) => <Pressable key={suggestion} onPress={() => setDraft(suggestion)} style={({ pressed }) => [styles.suggestionChip, pressed && styles.suggestionPressed]}><Text style={styles.suggestionText}>{suggestion}</Text></Pressable>)}
+              {['Lên bài tập hôm nay', 'Gợi ý bữa ăn', 'Điều chỉnh kế hoạch'].map((suggestion) => <Pressable key={suggestion} disabled={isSending || quota?.canChat === false} onPress={() => void sendMessage(suggestion)} style={({ pressed }) => [styles.suggestionChip, pressed && styles.suggestionPressed, (isSending || quota?.canChat === false) && styles.disabledButton]}><Text style={styles.suggestionText}>{suggestion}</Text></Pressable>)}
             </View>
           </View> : null}
           {messages.map((message) => (
@@ -317,6 +319,7 @@ export default function CoachScreen() {
               <Text style={[styles.messageTime, message.role === 'user' && styles.userMessageTime]}>{message.role === 'user' ? 'Bạn' : 'Fitly Coach'}</Text>
             </View>
           ))}
+          {isSending ? <View style={[styles.messageWrap, styles.thinkingWrap]}><View style={[styles.message, styles.coachMessage, styles.thinkingMessage]}><ActivityIndicator color={tokens.colors.lime} size="small" /><Text style={styles.thinkingText}>AI Coach đang suy nghĩ...</Text></View></View> : null}
         </ScrollView>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -324,7 +327,10 @@ export default function CoachScreen() {
           <Pressable accessibilityRole="button" accessibilityLabel="Chọn ảnh từ thiết bị" hitSlop={8} onPress={pickFromDevice}>
             <AppIcon name="paperclip" color={tokens.colors.muted} size={20} />
           </Pressable>
-          <TextInput value={draft} onChangeText={setDraft} onFocus={() => setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 120)} editable={!isSending && quota?.canChat !== false} multiline maxLength={1000} placeholder="Nhắn tin cho AI Coach hôm nay..." placeholderTextColor={tokens.colors.muted} style={styles.input} />
+          <View style={styles.inputWrap}>
+            {!draft ? <View pointerEvents="none" style={styles.inputPlaceholderWrap}><Text style={styles.inputPlaceholder}>Nhắn tin cho AI Coach hôm nay...</Text></View> : null}
+            <TextInput value={draft} onChangeText={setDraft} onContentSizeChange={(event) => setDraftHeight(Math.min(96, Math.max(34, event.nativeEvent.contentSize.height)))} onFocus={() => setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 120)} editable={!isSending && quota?.canChat !== false} multiline maxLength={1000} style={[styles.input, { height: draftHeight }]} />
+          </View>
           {draft.trim() ? <Pressable disabled={isSending || quota?.canChat === false} onPress={() => void sendMessage()} style={[styles.sendButton, (isSending || quota?.canChat === false) && styles.disabledButton]}>{isSending ? <ActivityIndicator color={tokens.colors.canvas} size="small" /> : <AppIcon name="send" color={tokens.colors.canvas} size={18} />}</Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Chụp ảnh" hitSlop={8} onPress={takePhoto}><AppIcon name="camera" color={tokens.colors.muted} size={19} /></Pressable>}
         </View>
       </View>
@@ -352,6 +358,9 @@ const styles = StyleSheet.create({
   coachMessage: { backgroundColor: '#151516', borderBottomLeftRadius: 4 },
   messageText: { color: tokens.colors.ink, fontSize: 14, lineHeight: 22 },
   messageTime: { color: tokens.colors.muted, fontSize: 10, marginLeft: tokens.spacing.xs },
+  thinkingWrap: { marginBottom: 0 },
+  thinkingMessage: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, paddingVertical: tokens.spacing.sm },
+  thinkingText: { color: tokens.colors.muted, fontSize: 12, fontStyle: 'italic' },
   suggestions: { gap: 8, marginTop: tokens.spacing.sm },
   suggestionLabel: { color: '#8F9992', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
   suggestionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
@@ -377,7 +386,10 @@ const styles = StyleSheet.create({
   rejectButton: { flex: 1, minHeight: 48, borderRadius: tokens.radius.md, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: tokens.colors.coral },
   rejectText: { color: tokens.colors.coral, fontWeight: '900' },
   composer: { flexDirection: 'row', alignItems: 'center', gap: tokens.spacing.sm, marginTop: tokens.spacing.md, marginHorizontal: tokens.spacing.md, marginBottom: tokens.spacing.xs, minHeight: 50, paddingLeft: tokens.spacing.md, paddingRight: tokens.spacing.sm, borderRadius: tokens.radius.pill, backgroundColor: '#0B0B0B', borderWidth: 1, borderColor: tokens.colors.border },
-  input: { flex: 1, minHeight: 42, maxHeight: 96, color: tokens.colors.ink, fontSize: 13, textAlignVertical: 'center' },
+  inputWrap: { flex: 1, minHeight: 34, maxHeight: 96, justifyContent: 'flex-end' },
+  inputPlaceholderWrap: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, justifyContent: 'center' },
+  inputPlaceholder: { color: tokens.colors.muted, fontSize: 13 },
+  input: { width: '100%', minHeight: 34, maxHeight: 96, paddingTop: 9, paddingBottom: 0, color: tokens.colors.ink, fontSize: 13, textAlignVertical: 'top' },
   sendButton: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.colors.lime },
   disabledButton: { opacity: 0.48 },
   error: { color: tokens.colors.danger, fontSize: tokens.type.body, lineHeight: 22 },

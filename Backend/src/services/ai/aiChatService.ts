@@ -6,11 +6,11 @@ import { fetchRealtimeMarketPrices, isMarketPriceQuery } from './marketPriceServ
 
 const getMealTypeLabel = (mealType?: string | null): string => {
   const key = String(mealType || '').toLowerCase();
-  if (key === 'breakfast') return 'Bua sang';
-  if (key === 'lunch') return 'Bua trua';
-  if (key === 'dinner') return 'Bua toi';
-  if (key === 'snack') return 'Bua phu';
-  return 'Bua an';
+  if (key === 'breakfast') return 'Bữa sáng';
+  if (key === 'lunch') return 'Bữa trưa';
+  if (key === 'dinner') return 'Bữa tối';
+  if (key === 'snack') return 'Bữa phụ';
+  return 'Bữa ăn';
 };
 
 const formatMealCalories = (meal: AIChatMealSummary): number => {

@@ -93,7 +93,7 @@ export async function initializeNativeNotifications() {
     });
   }
 
-  await Promise.all([
+  await Promise.allSettled([
     notifications.setNotificationCategoryAsync('fitly-water', [{ identifier: 'open-water', buttonTitle: 'Ghi nước' }]),
     notifications.setNotificationCategoryAsync('fitly-sleep', [{ identifier: 'open-sleep', buttonTitle: 'Ghi giấc ngủ' }]),
   ]);
