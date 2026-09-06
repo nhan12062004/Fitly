@@ -1,9 +1,8 @@
-const readPublicEnvironment = (name: string) => process.env[name]?.trim() || null;
 const isHttpUrl = (value: string | null) => Boolean(value && /^https?:\/\/[^\s/]+(?:\/|$)/i.test(value));
 
-const supabaseUrl = readPublicEnvironment('EXPO_PUBLIC_SUPABASE_URL');
-const supabasePublishableKey = readPublicEnvironment('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY');
-const apiUrl = readPublicEnvironment('EXPO_PUBLIC_API_URL')?.replace(/\/+$/, '') || null;
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || null;
+const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || null;
+const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim().replace(/\/+$/, '') || null;
 
 export const runtimeConfig = {
   supabaseUrl: isHttpUrl(supabaseUrl) ? supabaseUrl : null,
