@@ -10,6 +10,13 @@ type NotificationsModule = typeof import('expo-notifications');
 const SETTINGS_KEY = 'fitly-reminder-settings-v1';
 const SCHEDULED_IDS_KEY = 'fitly-reminder-schedule-ids-v1';
 const CHANNEL_ID = 'fitly-reminders';
+const PUSH_TOKEN_KEY = 'fitly-registered-push-token';
+const readSetting = (key: string) => Platform.OS === 'web' ? Promise.resolve(typeof window === 'undefined' ? null : window.sessionStorage.getItem(key)) : SecureStore.getItemAsync(key);
+const writeSetting = async (key: string, value: string) => { if (Platform.OS === 'web') window.sessionStorage.setItem(key, value); else await SecureStore.setItemAsync(key, value); };
+const accountSettingsKey = async () => {
+  const { data } = await supabase.auth.getSession();
+  return `${SETTINGS_KEY}-${data.session?.user.id ?? 'signed-out'}`;
+};
 
 export type ReminderSettings = {
   waterEnabled: boolean;
@@ -25,9 +32,9 @@ export type ReminderSettings = {
 };
 
 export const defaultReminderSettings: ReminderSettings = {
-  waterEnabled: true,
+  waterEnabled: false,
   waterTimes: ['09:00', '11:00', '14:00', '16:00', '20:00'],
-  sleepEnabled: true,
+  sleepEnabled: false,
   sleepTime: '09:30',
   workoutEnabled: false,
   workoutTime: '07:00',
@@ -101,7 +108,7 @@ export async function initializeNativeNotifications() {
 }
 
 export async function loadReminderSettings(): Promise<ReminderSettings> {
-  const raw = await SecureStore.getItemAsync(SETTINGS_KEY);
+  const raw = await readSetting(await accountSettingsKey());
   if (!raw) return defaultReminderSettings;
   try {
     const parsed = JSON.parse(raw) as Partial<ReminderSettings>;
@@ -112,7 +119,7 @@ export async function loadReminderSettings(): Promise<ReminderSettings> {
 }
 
 export async function saveReminderSettings(settings: ReminderSettings) {
-  await SecureStore.setItemAsync(SETTINGS_KEY, JSON.stringify(settings));
+  await writeSetting(await accountSettingsKey(), JSON.stringify(settings));
 }
 
 export async function requestNotificationPermission() {
@@ -126,27 +133,47 @@ export async function requestNotificationPermission() {
 
 /** Registers an Expo token after permission is granted. Safe to call at app start. */
 export async function registerCurrentDeviceForPush() {
+  const ownerId = (await supabase.auth.getSession()).data.session?.user.id;
+  if (!ownerId) return null;
   const notifications = getNotifications();
   if (!notifications || (Platform.OS !== 'ios' && Platform.OS !== 'android')) return null;
-  const allowed = await requestNotificationPermission();
+  const permissions = await notifications.getPermissionsAsync();
+  const allowed = permissions.granted || permissions.ios?.status === notifications.IosAuthorizationStatus.PROVISIONAL;
   if (!allowed) return null;
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId;
   if (typeof projectId !== 'string' || !projectId) return null;
   const token = (await notifications.getExpoPushTokenAsync({ projectId })).data;
+  if ((await supabase.auth.getSession()).data.session?.user.id !== ownerId) return null;
   const { error } = await supabase.rpc('register_mobile_push_device', {
     p_expo_push_token: token,
     p_platform: Platform.OS,
   });
   if (error) throw error;
+  await SecureStore.setItemAsync(PUSH_TOKEN_KEY, token);
   return token;
 }
 
-async function clearScheduledReminders() {
+/** Best-effort server cleanup before dropping the auth session; never stall logout. */
+export async function unregisterCurrentDeviceForPush() {
+  if (Platform.OS === 'web') return;
+  const token = await SecureStore.getItemAsync(PUSH_TOKEN_KEY);
+  if (!token) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2000);
+  try {
+    const { error } = await supabase.rpc('unregister_mobile_push_device', { p_expo_push_token: token }).abortSignal(controller.signal);
+    if (error) throw error;
+    await SecureStore.deleteItemAsync(PUSH_TOKEN_KEY);
+  } finally { clearTimeout(timer); }
+}
+
+export async function clearScheduledReminders() {
   const notifications = getNotifications();
   if (!notifications) return;
   const raw = await SecureStore.getItemAsync(SCHEDULED_IDS_KEY);
-  const identifiers = raw ? JSON.parse(raw) as unknown : [];
+  let identifiers: unknown = [];
+  try { identifiers = raw ? JSON.parse(raw) : []; } catch { /* Recover corrupt local schedule metadata. */ }
   if (Array.isArray(identifiers)) await Promise.all(identifiers.filter((value): value is string => typeof value === 'string').map((identifier) => notifications.cancelScheduledNotificationAsync(identifier).catch(() => undefined)));
   await SecureStore.deleteItemAsync(SCHEDULED_IDS_KEY);
 }
@@ -157,9 +184,12 @@ async function scheduleReminder(time: string, title: string, body: string, desti
   return notifications.scheduleNotificationAsync({ content: { title, body, sound: 'default', categoryIdentifier, data: { destination } }, trigger: dailyTrigger(notifications, time) });
 }
 
-export async function rescheduleLocalReminders(settings: ReminderSettings) {
+export async function rescheduleLocalReminders(settings: ReminderSettings, askPermission = true) {
   await clearScheduledReminders();
-  const allowed = await requestNotificationPermission();
+  const notifications = getNotifications();
+  if (!notifications) return false;
+  const permissions = await notifications.getPermissionsAsync();
+  const allowed = askPermission ? await requestNotificationPermission() : permissions.granted || permissions.ios?.status === notifications.IosAuthorizationStatus.PROVISIONAL;
   if (!allowed) return false;
 
   const scheduled: Promise<string>[] = [];

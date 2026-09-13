@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useResource } from '@/hooks/use-resource';
+import { useTodayKey } from '@/providers/data-provider';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { VideoView, useVideoPlayer } from 'expo-video';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
-import { apiRequest } from '@/lib/api-client';
-import { loadTodayWorkout, type WorkoutItem } from '@/lib/fitness-read-model';
+import { ApiClientError, apiRequest } from '@/lib/api-client';
+import { loadTodayWorkout } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
 const weekLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -21,14 +22,9 @@ const buildMonthWeeks = (date: Date) => {
 };
 
 function ExercisePreview({ source, name }: { source: string | null; name: string }) {
-  const player = useVideoPlayer(source, (nextPlayer) => {
-    nextPlayer.muted = true;
-    nextPlayer.loop = false;
-  });
-
   return (
     <View style={styles.exercisePreview}>
-      {source ? <VideoView player={player} style={styles.exerciseVideo} nativeControls={false} contentFit="cover" surfaceType="textureView" /> : <View style={styles.exercisePreviewFallback}><AppIcon name="workout" color={tokens.colors.lime} size={23} /></View>}
+      <View style={styles.exercisePreviewFallback}><AppIcon name={source ? "play" : "workout"} color={tokens.colors.lime} size={23} /></View>
       <View pointerEvents="none" style={styles.exercisePreviewPlay}><AppIcon name="play" color={tokens.colors.ink} size={12} strokeWidth={2.6} /></View>
       <Text accessibilityElementsHidden style={styles.hiddenPreviewLabel}>{name}</Text>
     </View>
@@ -36,10 +32,11 @@ function ExercisePreview({ source, name }: { source: string | null; name: string
 }
 
 export default function WorkoutScreen() {
-  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-  const [refreshing, setRefreshing] = useState(false);
-  const [items, setItems] = useState<WorkoutItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const todayKey = useTodayKey();
+  const creatingRef = useRef(false);
+  const resource = useResource('workout', loadTodayWorkout);
+  const { state, refreshing, refresh, load, errorMessage: error } = resource;
+  const items = resource.data ?? [];
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [isPlanModalVisible, setIsPlanModalVisible] = useState(false);
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
@@ -47,7 +44,7 @@ export default function WorkoutScreen() {
   const [goal, setGoal] = useState('Giảm mỡ');
   const [duration, setDuration] = useState('30 phút');
   const [location, setLocation] = useState('Tại nhà');
-  const today = new Date();
+  const today = new Date(`${todayKey}T12:00:00`);
   const mondayOffset = (today.getDay() + 6) % 7;
   const weekDates = Array.from({ length: 7 }, (_, index) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset + index));
   const calendarWeeks = buildMonthWeeks(today);
@@ -62,31 +59,6 @@ export default function WorkoutScreen() {
   const workoutStateLabel = isWorkoutComplete ? 'Hoàn thành' : completedSets > 0 ? 'Đang tập' : hasWorkout ? 'Sẵn sàng' : 'Tự do';
   const workoutSupportingText = isWorkoutComplete ? 'Toàn bộ bài tập hôm nay đã được đánh dấu hoàn thành.' : hasWorkout ? `Còn ${remainingSets} set để hoàn thành mục tiêu hôm nay.` : 'Tạo một lịch tập phù hợp với mục tiêu và thời gian của bạn.';
 
-  const load = useCallback(async () => {
-    setState('loading');
-    setError(null);
-    try {
-      setItems(await loadTodayWorkout());
-      setState('ready');
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Không thể tải buổi tập.');
-      setState('error');
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
-
-  const refresh = useCallback(() => {
-    if (refreshing) return;
-    setRefreshing(true);
-    void load();
-  }, [load, refreshing]);
-
   const closePlanModal = () => {
     if (isCreatingPlan) return;
     setIsPlanModalVisible(false);
@@ -94,20 +66,27 @@ export default function WorkoutScreen() {
   };
 
   const createPlan = async () => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
     setIsCreatingPlan(true);
     setPlanError(null);
     try {
-      const logDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      const logDate = todayKey;
       await apiRequest('/api/ai-coach/generate-daily-workout', {
         method: 'POST',
-        body: { logDate },
+        body: { logDate, goal, durationMinutes: Number.parseInt(duration, 10), location },
         timeoutMs: 45_000,
       });
       setIsPlanModalVisible(false);
       await load();
     } catch (nextError) {
-      setPlanError(nextError instanceof Error ? nextError.message : 'Không thể tạo lịch tập. Vui lòng thử lại.');
+      setPlanError(nextError instanceof ApiClientError && nextError.code === 'EXTERNAL_PROVIDER_ERROR'
+        ? 'Dịch vụ tạo lịch tập tạm thời không khả dụng. Vui lòng thử lại sau ít phút.'
+        : nextError instanceof Error && nextError.name === 'AbortError'
+          ? 'Tạo lịch tập mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.'
+          : nextError instanceof Error ? nextError.message : 'Không thể tạo lịch tập. Vui lòng thử lại.');
     } finally {
+      creatingRef.current = false;
       setIsCreatingPlan(false);
     }
   };

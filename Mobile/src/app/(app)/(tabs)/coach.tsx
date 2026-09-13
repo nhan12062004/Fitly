@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
+import { useResource } from '@/hooks/use-resource';
+import { requireSessionUser } from '@/lib/account-read-model';
+import { supabase } from '@/lib/supabase';
+import { ensureAiConsent } from '@/lib/ai-consent';
 
 import { ApiClientError, apiRequest } from '@/lib/api-client';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -8,7 +12,9 @@ import { Screen } from '@/components/ui/screen';
 import { tokens } from '@/theme/tokens';
 
 type AiQuota = {
-  chatMessages?: { used?: number; limit?: number };
+  limits?: { chatMessages?: number };
+  usage?: { chatMessages?: number };
+  remaining?: { chatMessages?: number };
   [key: string]: unknown;
 };
 
@@ -77,63 +83,61 @@ const actionTitle = (actionType: string | null | undefined) => actionType === 'r
   ? 'Đề xuất buổi tập mới'
   : 'Đề xuất điều chỉnh kế hoạch';
 
-const formatQuotaBadge = (quota: AiQuota | null) => {
-  const messages = quota?.chatMessages;
-  if (typeof messages?.used === 'number' && typeof messages.limit === 'number') return `${Math.max(0, messages.limit - messages.used)} lượt`;
-  return '— lượt';
-};
+const formatQuotaBadge = (quota: AiQuota | null) => typeof quota?.remaining?.chatMessages === 'number' ? `${quota.remaining.chatMessages} lượt` : '— lượt';
+
+async function loadChatHistory(): Promise<ChatMessage[]> {
+  const user = await requireSessionUser();
+  const [messages, proposals] = await Promise.all([
+    supabase.from('ai_chat_messages').select('id, role, content, action_type, action_payload').eq('user_id', user.id).order('created_at', { ascending: false }).limit(40),
+    supabase.from('ai_plan_adjustments').select('id, chat_message_id, status').eq('user_id', user.id).eq('source_type', 'chat').order('created_at', { ascending: false }).limit(40),
+  ]);
+  if (messages.error) throw messages.error;
+  if (proposals.error) throw proposals.error;
+  const byMessage = new Map((proposals.data ?? []).map((item) => [item.chat_message_id, item]));
+  return (messages.data ?? []).reverse().map((item) => ({
+    id: item.id, role: item.role === 'user' ? 'user' : 'assistant', content: item.content,
+    actionType: item.action_type, actionPayload: item.action_payload,
+    adjustmentId: byMessage.get(item.id)?.id ?? null,
+    actionRequired: byMessage.get(item.id)?.status === 'proposed',
+  }));
+}
 
 export default function CoachScreen() {
   const [greetingTime] = useState(() => new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false }));
-  const [quota, setQuota] = useState<QuotaResponse | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const quotaResource = useResource('quota', () => apiRequest<QuotaResponse>('/api/ai/quota'));
+  const historyResource = useResource('chat-history', loadChatHistory, [], Infinity);
+  const quota = quotaResource.data;
+  const messages = useMemo(() => historyResource.data ?? [], [historyResource.data]);
+  const { setData: setQuotaData } = quotaResource;
+  const { setData: setHistoryData } = historyResource;
+  const setQuota = useCallback((updater: (current: QuotaResponse | undefined) => QuotaResponse | undefined) => setQuotaData(updater), [setQuotaData]);
+  const setMessages = useCallback((updater: (current: ChatMessage[]) => ChatMessage[]) => setHistoryData((current) => updater(current ?? []).slice(-200)), [setHistoryData]);
+  const isLoadingQuota = quotaResource.isPending;
+  const { refreshing, refresh } = quotaResource;
   const [draft, setDraft] = useState('');
   const [draftHeight, setDraftHeight] = useState(34);
-  const [isLoadingQuota, setIsLoadingQuota] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [pendingAdjustments, setPendingAdjustments] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState<string | null>(null);
   const applyKeysRef = useRef(new Map<string, string>());
   const pendingRef = useRef(new Set<string>());
   const chatScrollRef = useRef<ScrollView>(null);
-
-  const loadQuota = useCallback(async () => {
-    setIsLoadingQuota(true);
-    try {
-      const response = await apiRequest<QuotaResponse>('/api/ai/quota', { timeoutMs: 15_000 });
-      setQuota(response);
-      setError(null);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Không thể tải AI Coach.');
-    } finally {
-      setIsLoadingQuota(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void loadQuota(); }, 0);
-    return () => clearTimeout(task);
-  }, [loadQuota]);
-
-  const refresh = useCallback(() => {
-    if (refreshing) return;
-    setRefreshing(true);
-    void loadQuota();
-  }, [loadQuota, refreshing]);
+  const sendingRef = useRef(false);
 
   const sendMessage = async (messageOverride?: string) => {
     const content = (messageOverride ?? draft).trim();
-    if (!content || isSending) return;
+    if (!content || sendingRef.current || historyResource.isPending) return;
+    sendingRef.current = true;
+    setIsSending(true);
+    setError(null);
+    try {
+      const user = await requireSessionUser();
+      if (!await ensureAiConsent(user.id)) return;
     const userMessage: ChatMessage = { id: makeClientId(), role: 'user', content };
-    const history = messages.slice(-10).map(({ role, content: historyContent }) => ({ role, content: historyContent }));
+    const history = messages.slice(-10).map(({ role, content: historyContent }) => ({ role, content: historyContent.slice(0, 1200) }));
     setMessages((current) => [...current, userMessage]);
     setDraft('');
     setDraftHeight(34);
-    setError(null);
-    setIsSending(true);
-    try {
       const response = await apiRequest<ChatResponse>('/api/ai/chat', {
         method: 'POST',
         body: { message: content, clientHistory: history },
@@ -154,6 +158,7 @@ export default function CoachScreen() {
         ? nextError.message
         : 'Kết quả chat chưa chắc chắn. Không gửi lại tự động; hãy gửi yêu cầu mới khi sẵn sàng.');
     } finally {
+      sendingRef.current = false;
       setIsSending(false);
     }
   };
@@ -218,46 +223,6 @@ export default function CoachScreen() {
     }
   };
 
-  const launchCamera = useCallback(async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Chưa có quyền camera', 'Hãy cấp quyền Camera trong cài đặt để chụp ảnh gửi cho AI Coach.');
-      return;
-    }
-    await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
-  }, []);
-
-  const takePhoto = useCallback(() => {
-    Alert.alert(
-      'Cần cấp quyền camera',
-      'Fitly cần sử dụng camera để bạn chụp ảnh gửi cho AI Coach.',
-      [
-        { text: 'Để sau', style: 'cancel' },
-        { text: 'Cấp quyền', onPress: () => void launchCamera() },
-      ],
-    );
-  }, [launchCamera]);
-
-  const openImageLibrary = useCallback(async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Chưa có quyền thư viện ảnh', 'Hãy cấp quyền Ảnh trong cài đặt để chọn ảnh từ thiết bị.');
-      return;
-    }
-    await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-  }, []);
-
-  const pickFromDevice = useCallback(() => {
-    Alert.alert(
-      'Chọn ảnh từ thiết bị',
-      'Fitly cần quyền truy cập thư viện ảnh để bạn chọn ảnh gửi cho AI Coach.',
-      [
-        { text: 'Để sau', style: 'cancel' },
-        { text: 'Cấp quyền', onPress: () => void openImageLibrary() },
-      ],
-    );
-  }, [openImageLibrary]);
-
   return (
     <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <Screen scroll={false}>
@@ -288,7 +253,8 @@ export default function CoachScreen() {
           {messages.map((message) => (
             <View key={message.id} style={[styles.messageWrap, message.role === 'user' && styles.userMessageWrap]}>
               <View style={[styles.message, message.role === 'user' ? styles.userMessage : styles.coachMessage]}>
-          <Text style={styles.messageText}>{message.content}</Text>
+          <Text selectable style={styles.messageText}>{message.content}</Text>
+          {message.role === 'assistant' && <Pressable accessibilityRole="button" accessibilityLabel="Báo cáo câu trả lời AI" hitSlop={8} onPress={() => router.push({ pathname: '/(app)/support', params: { category: 'ai_report', context: message.content.slice(0, 5000) } })}><Text style={styles.messageTime}>Báo cáo nội dung</Text></Pressable>}
           {message.actionRequired && message.adjustmentId ? <View style={styles.proposal}>
             <Text style={styles.proposalTitle}>Cần xác nhận</Text>
             <Text style={styles.proposalCopy}>{actionTitle(message.actionType)}</Text>
@@ -322,16 +288,17 @@ export default function CoachScreen() {
           {isSending ? <View style={[styles.messageWrap, styles.thinkingWrap]}><View style={[styles.message, styles.coachMessage, styles.thinkingMessage]}><ActivityIndicator color={tokens.colors.lime} size="small" /><Text style={styles.thinkingText}>AI Coach đang suy nghĩ...</Text></View></View> : null}
         </ScrollView>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {(error || quotaResource.errorMessage || historyResource.errorMessage) ? <Text style={styles.error}>{error || quotaResource.errorMessage || historyResource.errorMessage}</Text> : null}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 }}>
+          <Text style={styles.messageTime}>AI có thể sai · Không thay thế tư vấn y tế</Text>
+          <Pressable accessibilityRole="button" disabled={isSending || historyResource.isPending} onPress={() => Alert.alert('Xóa hội thoại?', 'Lịch sử trò chuyện sẽ bị xóa. Hạn mức AI không thay đổi.', [{ text: 'Hủy', style: 'cancel' }, { text: 'Xóa', style: 'destructive', onPress: () => { void apiRequest('/api/ai/chat/clear', { method: 'POST', body: {} }).then(() => setHistoryData([])).catch(() => Alert.alert('Chưa xóa được', 'Vui lòng thử lại.')); } }])}><Text style={styles.messageTime}>Xóa lịch sử</Text></Pressable>
+        </View>
         <View style={styles.composer}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Chọn ảnh từ thiết bị" hitSlop={8} onPress={pickFromDevice}>
-            <AppIcon name="paperclip" color={tokens.colors.muted} size={20} />
-          </Pressable>
           <View style={styles.inputWrap}>
             {!draft ? <View pointerEvents="none" style={styles.inputPlaceholderWrap}><Text style={styles.inputPlaceholder}>Nhắn tin cho AI Coach hôm nay...</Text></View> : null}
             <TextInput value={draft} onChangeText={setDraft} onContentSizeChange={(event) => setDraftHeight(Math.min(96, Math.max(34, event.nativeEvent.contentSize.height)))} onFocus={() => setTimeout(() => chatScrollRef.current?.scrollToEnd({ animated: true }), 120)} editable={!isSending && quota?.canChat !== false} multiline maxLength={1000} style={[styles.input, { height: draftHeight }]} />
           </View>
-          {draft.trim() ? <Pressable disabled={isSending || quota?.canChat === false} onPress={() => void sendMessage()} style={[styles.sendButton, (isSending || quota?.canChat === false) && styles.disabledButton]}>{isSending ? <ActivityIndicator color={tokens.colors.canvas} size="small" /> : <AppIcon name="send" color={tokens.colors.canvas} size={18} />}</Pressable> : <Pressable accessibilityRole="button" accessibilityLabel="Chụp ảnh" hitSlop={8} onPress={takePhoto}><AppIcon name="camera" color={tokens.colors.muted} size={19} /></Pressable>}
+          {draft.trim() ? <Pressable disabled={isSending || quota?.canChat === false} onPress={() => void sendMessage()} style={[styles.sendButton, (isSending || quota?.canChat === false) && styles.disabledButton]}>{isSending ? <ActivityIndicator color={tokens.colors.canvas} size="small" /> : <AppIcon name="send" color={tokens.colors.canvas} size={18} />}</Pressable> : null}
         </View>
       </View>
     </Screen>

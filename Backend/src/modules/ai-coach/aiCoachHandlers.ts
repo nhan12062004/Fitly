@@ -1,4 +1,14 @@
 import type { RequestHandler } from 'express';
+import { z } from 'zod';
+import { AppError, ValidationError } from '../../http/errors';
+import { callGroqJson } from '../../services/ai/groqJsonService';
+import { normalizeTrainingLocation } from '../../../../shared/exerciseCatalog';
+
+const dailyWorkoutOptionsSchema = z.object({
+  goal: z.enum(['Giảm mỡ', 'Tăng cơ', 'Sức khỏe']).optional(),
+  durationMinutes: z.union([z.literal(20), z.literal(30), z.literal(45)]).optional(),
+  location: z.enum(['Tại nhà', 'Phòng gym']).optional(),
+});
 type AIChatResponse = any;
 type AiQuotaKey = any;
 type RecipeCandidate = any;
@@ -1109,9 +1119,9 @@ const generateAiDailyWorkout: RequestHandler = async (req, res, next) => {
     if (!DATE_KEY_REGEX.test(logDate)) {
       return res.status(400).json({ error: 'logDate must be YYYY-MM-DD' });
     }
-    if (!process.env.GROQ_API_KEY) {
-      return next(new InternalConfigurationError());
-    }
+    const optionsResult = dailyWorkoutOptionsSchema.safeParse(req.body || {});
+    if (!optionsResult.success) return next(new ValidationError('Thông tin buổi tập không hợp lệ.'));
+    const options = optionsResult.data;
 
     const existingRes = await supabase
       .from('daily_exercise_sessions')
@@ -1123,6 +1133,7 @@ const generateAiDailyWorkout: RequestHandler = async (req, res, next) => {
     if ((existingRes.data || []).length > 0) {
       return res.json({ success: true, data: { exercises: existingRes.data, logDate, source: 'existing' } });
     }
+    if (!process.env.GROQ_API_KEY) return next(new InternalConfigurationError());
 
     const [profileRes, bodyMetricsRes, lifestyleRes, healthRes, catalogRes, recentRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle(),
@@ -1145,6 +1156,20 @@ const generateAiDailyWorkout: RequestHandler = async (req, res, next) => {
     profile = trainingContext.profile;
     lifestyle = trainingContext.lifestyle;
     health = trainingContext.health;
+    // Quick setup applies only to this session; retain health and experience safeguards.
+    const durationMinutes = Math.min(options.durationMinutes ?? trainingContext.trainingPrescription.durationMinutes,
+      trainingContext.trainingPrescription.durationMinutes);
+    lifestyle = {
+      ...lifestyle,
+      ...(options.goal ? { fitness_goal: options.goal } : {}),
+      ...(options.location ? {
+        workout_location: options.location,
+        equipment_available: normalizeTrainingLocation(options.location) === normalizeTrainingLocation(lifestyle.workout_location)
+          ? lifestyle.equipment_available : 'bodyweight',
+      } : {}),
+      workout_duration: durationMinutes,
+    };
+    trainingContext.safetyContext = { profile, lifestyle, health };
     const accessState = await getAiCoachAccessState(profile, authUserId);
     if (!accessState.canGenerate) {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'planGenerations'));
@@ -1162,7 +1187,6 @@ const generateAiDailyWorkout: RequestHandler = async (req, res, next) => {
     }
 
     const { text: exerciseCatalog, referenceIds: exerciseReferenceIds } = buildAiExerciseCatalog(exercises);
-    const durationMinutes = trainingContext.trainingPrescription.durationMinutes;
     const prompt = `
 Generate exactly one personalized workout session for ${logDate}. Return valid JSON only.
 
@@ -1207,24 +1231,14 @@ JSON schema:
   }
 }`;
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.35,
-        max_tokens: 1400,
-        response_format: { type: 'json_object' },
-      }),
+    const groqResult = await callGroqJson({
+      messages: [
+        { role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.35,
+      max_tokens: 1400,
     });
-    const groqResult: any = await groqResponse.json();
-    if (!groqResponse.ok || groqResult.error) {
-      throw toAiProviderRequestError(groqResult?.error?.message || 'Groq AI request failed');
-    }
 
     const parsed = resolveAiExerciseReferences(
       parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || ''),
@@ -1335,7 +1349,7 @@ JSON schema:
         workoutSessionId: createdWorkoutSessionId,
         logDate,
         source: 'ai_daily_workout',
-        aiQuota: buildAiQuotaSnapshot(nextAccessState, 'planGenerations'),
+        aiQuota: buildAiQuotaSnapshot(nextAccessState),
       },
     });
   } catch (error: any) {
@@ -1349,64 +1363,14 @@ JSON schema:
       await supabase.from('daily_workout_sessions').delete().eq('id', createdWorkoutSessionId);
     }
     console.error('[ai-coach-generate-daily-workout] failed:', error?.message || 'unknown_error');
+    if (error instanceof AppError) return next(error);
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     if (isDatabaseMigrationRequiredError(error)) return res.status(503).json(databaseMigrationRequiredResponse);
     return res.status(500).json({ code: 'AI_GENERATION_FAILED', error: 'Khong the tao lich tap hom nay. Vui long thu lai sau.' });
   }
 };
 
-const callGroqWithRetry = async (payload: {
-  messages: Array<{ role: string; content: string }>;
-  temperature?: number;
-  max_tokens?: number;
-}) => {
-  const primaryModel = process.env.GROQ_MODEL || 'llama-3.1-8b-instant';
-  const candidateModels = [
-    primaryModel,
-    'llama-3.1-8b-instant',
-    'gemma2-9b-it',
-    'llama3-70b-8192',
-    'llama-3.3-70b-versatile',
-  ];
-  const models = Array.from(new Set(candidateModels));
-
-  let lastErrorMsg = 'Groq AI request failed';
-  for (let attempt = 0; attempt < models.length; attempt++) {
-    const model = models[attempt];
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: payload.messages,
-          temperature: payload.temperature ?? 0.35,
-          max_tokens: payload.max_tokens ?? 1000,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      const result: any = await response.json();
-      if (response.ok && !result?.error) {
-        return result;
-      }
-      lastErrorMsg = result?.error?.message || `Groq model ${model} failed with HTTP ${response.status}`;
-      console.warn(`[GroqAPI] Attempt ${attempt + 1} (${model}) failed:`, lastErrorMsg);
-    } catch (err: any) {
-      lastErrorMsg = err?.message || `Groq model ${model} encountered network error`;
-      console.warn(`[GroqAPI] Attempt ${attempt + 1} (${model}) network error:`, lastErrorMsg);
-    }
-    if (attempt < models.length - 1) {
-      const isRateLimit = lastErrorMsg.toLowerCase().includes('rate limit');
-      const waitMs = isRateLimit ? 1800 : 400;
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-    }
-  }
-  throw toAiProviderRequestError(lastErrorMsg);
-};
+const callGroqWithRetry = callGroqJson;
 
 const generateAiWeeklyPlan: RequestHandler = async (req, res, next) => {
   try {

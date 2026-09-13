@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { getSessionUser } from '@/lib/account-read-model';
+import { useResource } from '@/hooks/use-resource';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
@@ -53,15 +55,9 @@ const number = (value: unknown) => Math.max(0, Number(value ?? 0));
 
 export default function ProgressScreen() {
   const [period, setPeriod] = useState<Period>(7);
-  const [snapshot, setSnapshot] = useState<ProgressSnapshot | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async (selectedPeriod: Period) => {
-    setState('loading');
-    setError(null);
-    try {
-      const { data: authData } = await supabase.auth.getUser();
+  const resource = useResource('progress', async (): Promise<ProgressSnapshot> => {
+      const selectedPeriod = period;
+      const { data: authData } = await getSessionUser();
       if (!authData.user) throw new Error('Phiên đăng nhập đã hết hạn.');
       const userId = authData.user.id;
       const today = dateKey(new Date());
@@ -94,7 +90,7 @@ export default function ProgressScreen() {
         };
       });
 
-      setSnapshot({
+      return {
         currentWeight: bodyResult.data?.weight ?? null,
         targetWeight: bodyResult.data?.target_weight ?? null,
         bodyFat: bodyResult.data?.body_fat_percentage ?? bodyResult.data?.body_fat ?? null,
@@ -107,23 +103,15 @@ export default function ProgressScreen() {
         waterHitDays: rhythm.filter((item) => item.waterHit).length,
         sleepHitDays: rhythm.filter((item) => item.sleepHit).length,
         rhythm,
-      });
-      setState('ready');
-    } catch (cause) {
-      setState('error');
-      setError(cause instanceof Error ? cause.message : 'Không thể tải tiến độ.');
-    }
-  }, []);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(period); }, 0);
-    return () => clearTimeout(task);
-  }, [load, period]);
+      };
+  }, [period]);
+  const { data: snapshot, state, errorMessage: error, refreshing, refresh } = resource;
+  const load = (_period: Period) => resource.load();
 
   const latestWeek = useMemo(() => snapshot?.rhythm.slice(-7) ?? [], [snapshot]);
 
   return (
-    <Screen refreshing={state === 'loading' && Boolean(snapshot)} onRefresh={() => void load(period)} contentStyle={styles.content}>
+    <Screen refreshing={refreshing} onRefresh={refresh} contentStyle={styles.content}>
       <Pressable onPress={() => router.back()} style={styles.back} accessibilityRole="button">
         <AppIcon name="arrow-left" size={18} color={tokens.colors.lime} />
         <Text style={styles.backText}>Hồ sơ</Text>

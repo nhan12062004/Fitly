@@ -20,6 +20,7 @@ jobs:
           cache-dependency-path: |
             Backend/package-lock.json
             Frontend/package-lock.json
+            Mobile/package-lock.json
 
       - name: Install backend dependencies
         working-directory: Backend
@@ -32,6 +33,26 @@ jobs:
       - name: Typecheck backend
         working-directory: Backend
         run: npm run typecheck
+
+      - name: Install mobile dependencies
+        working-directory: Mobile
+        run: npm ci
+
+      - name: Verify mobile code and cache behavior
+        working-directory: Mobile
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+          npm run check:release
+
+      - name: Export mobile bundles
+        working-directory: Mobile
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: test-publishable-key
+          EXPO_PUBLIC_API_URL: https://example.com
+        run: npx expo export --platform all
 
       - name: Typecheck frontend
         working-directory: Frontend

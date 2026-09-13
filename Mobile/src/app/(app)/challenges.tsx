@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useResource } from '@/hooks/use-resource';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
@@ -19,9 +20,10 @@ const goals: { id: ChallengeGoal; label: string; hint: string; icon: 'workout' |
 ];
 
 export default function ChallengesScreen() {
-  const [items, setItems] = useState<ChallengeSummary[]>([]);
+  const resource = useResource('challenges', loadChallenges);
+  const items = useMemo(() => resource.data ?? [], [resource.data]);
+  const { state, load, refresh, refreshing } = resource;
   const [tab, setTab] = useState<Tab>('active');
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
@@ -31,21 +33,6 @@ export default function ChallengesScreen() {
   const [goal, setGoal] = useState<ChallengeGoal>('any');
   const [mode, setMode] = useState<ChallengeMode>('solo');
   const [duration, setDuration] = useState(7);
-
-  const load = useCallback(async () => {
-    setState('loading');
-    try {
-      setItems(await loadChallenges());
-      setState('ready');
-    } catch {
-      setState('error');
-    }
-  }, []);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
 
   const active = useMemo(() => items.filter((item) => item.status === 'active'), [items]);
   const completed = useMemo(() => items.filter((item) => item.status !== 'active'), [items]);
@@ -82,7 +69,7 @@ export default function ChallengesScreen() {
     }
   };
 
-  return <Screen refreshing={state === 'loading' && items.length > 0} onRefresh={() => void load()} contentStyle={styles.content}>
+  return <Screen refreshing={refreshing} onRefresh={refresh} contentStyle={styles.content}>
     <View style={styles.topRow}>
       <Pressable onPress={() => router.back()} style={styles.back}><AppIcon name="arrow-left" size={18} color={tokens.colors.lime} /><Text style={styles.backText}>Hôm nay</Text></Pressable>
       <Pressable onPress={() => setShowCreate(true)} style={styles.addButton} accessibilityRole="button"><Text style={styles.addText}>＋</Text></Pressable>

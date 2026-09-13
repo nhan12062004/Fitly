@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useResource } from '@/hooks/use-resource';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
@@ -53,28 +54,13 @@ const targetFor = (item: UserNotification) => {
 };
 
 export default function NotificationsScreen() {
-  const [items, setItems] = useState<UserNotification[]>([]);
+  const resource = useResource('notifications', loadUserNotifications);
+  const items = useMemo(() => resource.data ?? [], [resource.data]);
+  const setItems = (updater: (current: UserNotification[]) => UserNotification[]) => resource.setData((current) => updater(current ?? []));
+  const { state, refreshing, load, refresh } = resource;
   const [filter, setFilter] = useState<Filter>('all');
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [refreshing, setRefreshing] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [sleepItem, setSleepItem] = useState<UserNotification | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setItems(await loadUserNotifications());
-      setState('ready');
-    } catch {
-      setState('error');
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
 
   const visibleItems = useMemo(() => items.filter((item) => filter === 'all' || (filter === 'unread' ? !item.readAt : item.tone === filter)), [filter, items]);
   const unreadCount = useMemo(() => items.filter((item) => !item.readAt).length, [items]);
@@ -92,7 +78,7 @@ export default function NotificationsScreen() {
   };
 
   const openItem = async (item: UserNotification) => {
-    await markRead(item);
+    void markRead(item);
     router.push(targetFor(item) as never);
   };
 
@@ -136,7 +122,7 @@ export default function NotificationsScreen() {
 
         {state === 'loading' ? <View style={styles.center}><ActivityIndicator color={tokens.colors.lime} size="large" /></View> : null}
         {state === 'error' ? <View style={styles.center}><Text style={styles.emptyTitle}>Chưa tải được thông báo</Text><Pressable onPress={() => void load()}><Text style={styles.retry}>Thử lại</Text></Pressable></View> : null}
-        {state === 'ready' ? <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} colors={[tokens.colors.lime]} tintColor={tokens.colors.lime} />} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+        {state === 'ready' ? <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[tokens.colors.lime]} tintColor={tokens.colors.lime} />} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
           {visibleItems.length === 0 ? <View style={styles.empty}><View style={styles.emptyIcon}><AppIcon name="bell" color={tokens.colors.lime} size={23} /></View><Text style={styles.emptyTitle}>Chưa có thông báo phù hợp</Text><Text style={styles.emptyText}>Khi có lịch tập, nhắc nước, gợi ý Coach hoặc thử thách mới, Fitly sẽ lưu lại tại đây.</Text><Pressable onPress={() => router.push('/tracking')} style={styles.emptyButton}><Text style={styles.emptyButtonText}>Theo dõi hôm nay</Text></Pressable></View> : Object.entries(groupedItems).map(([label, group]) => <View key={label} style={styles.group}><Text style={styles.groupLabel}>{label}</Text>{group.map((item) => <NotificationCard key={item.id} item={item} savingId={savingId} onOpen={() => void openItem(item)} onWater={(amount) => void saveWater(item, amount)} onSleep={() => setSleepItem(item)} />)}</View>)}
         </ScrollView> : null}
       </View>

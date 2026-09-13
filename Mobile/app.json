@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fitly",
     "slug": "fitly",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "fitly",
@@ -11,7 +11,14 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "io.github.nhan12062004.fitly",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "privacyManifests": {
+        "NSPrivacyTracking": false
+      }
     },
     "android": {
       "package": "io.github.nhan12062004.fitly",
@@ -22,7 +29,22 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "edgeToEdgeEnabled": true
+      "versionCode": 1,
+      "allowBackup": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "output": "static",
@@ -38,28 +60,46 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store",
       [
-        "expo-audio",
+        "expo-secure-store",
         {
-          "microphonePermission": "Cho phép Fitly sử dụng micro để ghi âm tin nhắn cho AI Coach."
+          "faceIDPermission": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Cho phép Fitly dùng camera để chụp ảnh gửi cho AI Coach.",
-          "photosPermission": "Cho phép Fitly truy cập ảnh để gửi cho AI Coach."
+          "cameraPermission": "Cho phép Fitly dùng camera để chụp ảnh đại diện.",
+          "photosPermission": "Cho phép Fitly chọn ảnh đại diện từ thiết bị.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-notifications",
         {
           "defaultChannel": "fitly-reminders",
-          "enableBackgroundRemoteNotifications": true
+          "enableBackgroundRemoteNotifications": false
         }
       ],
-      "expo-video"
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
+      "./plugins/with-store-config.js"
     ],
     "experiments": {
       "typedRoutes": true,

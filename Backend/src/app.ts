@@ -1,3 +1,4 @@
+import { callGroqJson } from './services/ai/groqJsonService';
 import express, { type RequestHandler } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -19,6 +20,10 @@ import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservab
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
 import { accountRouter } from './modules/account/accountRouter';
+import { storeRouter } from './modules/account/storeRouter';
+import { feedbackRouter } from './modules/account/feedbackRouter';
+import { getEffectiveMembershipTier } from './services/storeSubscriptionService';
+import { hasAiDataConsent } from './services/ai/aiConsentService';
 import { registerAdminRoutes } from './modules/admin/adminRoutes';
 import { createAdminHandlers } from './modules/admin/adminHandlers';
 import { registerAiCoachRoutes } from './modules/ai-coach/aiCoachRoutes';
@@ -393,7 +398,7 @@ const recordAiQuotaUsage = async (userId: string, quotaKey: AiQuotaKey) => {
 };
 
 const getAiCoachAccessState = async (profile: any, userId: string) => {
-  const membershipTier = normalizeMembershipTier(profile?.membership_tier);
+  const membershipTier = await getEffectiveMembershipTier(profile, userId);
   const quotaLimits = AI_QUOTAS_BY_TIER[membershipTier];
   const quotaWindow = getAiQuotaWindow(profile, membershipTier);
   const trialExpired = membershipTier === 'free' && !!quotaWindow.endsAt && new Date() >= quotaWindow.endsAt;
@@ -1754,33 +1759,10 @@ JSON schema (fixed):
 }
 `;
 
-  const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.'
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.35,
-      max_tokens: 2800,
-      response_format: { type: 'json_object' }
-    })
+  const groqResult = await callGroqJson({
+    messages: [{ role: 'system', content: 'You are Fitly AI Coach. Return valid JSON only, with no markdown or commentary.' }, { role: 'user', content: prompt }],
+    temperature: 0.35, max_tokens: 2800,
   });
-
-  const groqResult: any = await groqResponse.json();
-  if (!groqResponse.ok || groqResult.error) {
-    const groqMessage = groqResult?.error?.message || 'Groq AI request failed';
-    console.warn('[ai-coach-generate] Groq provider error:', groqMessage);
-    throw toAiProviderRequestError(groqMessage);
-  }
 
   const parsed = resolveAiExerciseReferences(
     parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || ''),
@@ -2105,6 +2087,18 @@ export async function runPremiumMondayAutoPlanner() {
   if (premiumProfilesRes.error) throw premiumProfilesRes.error;
 
   const premiumProfiles = premiumProfilesRes.data || [];
+  if (process.env.REVENUECAT_SECRET_API_KEY) {
+    const storeMembers = await supabase.from('store_entitlements').select('user_id')
+      .in('tier', ['plus', 'pro']).gt('expires_at', new Date().toISOString());
+    if (storeMembers.error) throw storeMembers.error;
+    const knownIds = new Set(premiumProfiles.map((profile) => profile.id));
+    for (const row of storeMembers.data || []) {
+      if (!knownIds.has(row.user_id)) {
+        premiumProfiles.push({ id: row.user_id, full_name: null });
+        knownIds.add(row.user_id);
+      }
+    }
+  }
   const result = {
     trigger: 'cron',
     weekStartDate: weekStartKey,
@@ -2114,6 +2108,7 @@ export async function runPremiumMondayAutoPlanner() {
     skippedNotDue: 0,
     skippedWithoutPriorPlan: 0,
     skippedProfile: 0,
+    skippedWithoutConsent: 0,
     failed: 0,
     failures: [] as Array<{ userId: string; error: string }>,
   };
@@ -2123,6 +2118,7 @@ export async function runPremiumMondayAutoPlanner() {
     if (!userId) continue;
 
     try {
+      if (!await hasAiDataConsent(userId)) { result.skippedWithoutConsent += 1; continue; }
       const alreadyHasPlan = await hasExistingWeeklyCoachPlan(userId, weekStartKey);
       if (alreadyHasPlan) {
         result.skippedExisting += 1;
@@ -2229,6 +2225,8 @@ app.use(cors({
 app.use(generalLimiter);
 app.use(express.json({ limit: '1mb' }));
 app.use('/api', accountRouter);
+app.use('/api', storeRouter);
+app.use('/api', feedbackRouter);
 
 app.get('/', (_req, res) => {
   res.json({
@@ -2820,4 +2818,3 @@ registerAiCoachRoutes(app, {
 
 app.use(notFoundHandler);
 app.use(errorHandler);
-

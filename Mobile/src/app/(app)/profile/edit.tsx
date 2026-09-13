@@ -1,3 +1,5 @@
+import { invalidateResources } from '@/lib/query-cache';
+import { getSessionUser } from '@/lib/account-read-model';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
@@ -35,7 +37,7 @@ export default function EditProfileScreen() {
     setState('loading');
     setError(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser();
       if (!user) throw new Error('Phiên đăng nhập đã hết hạn.');
       const [bodyResult, lifestyleResult] = await Promise.all([
         supabase.from('body_metrics').select('height, weight, target_weight').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
@@ -72,7 +74,7 @@ export default function EditProfileScreen() {
     setState('saving');
     setError(null);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await getSessionUser();
       if (!user) throw new Error('Phiên đăng nhập đã hết hạn.');
       await apiRequest('/api/profile', { method: 'PATCH', body: { full_name: form.fullName.trim() || null }, timeoutMs: 15_000 });
       const [bodyResult, lifestyleResult] = await Promise.all([
@@ -81,6 +83,7 @@ export default function EditProfileScreen() {
       ]);
       if (bodyResult.error) throw bodyResult.error;
       if (lifestyleResult.error) throw lifestyleResult.error;
+      void invalidateResources('account', 'profile', 'progress', 'home', 'wellness');
       router.back();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể lưu hồ sơ.');

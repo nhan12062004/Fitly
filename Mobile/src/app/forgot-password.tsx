@@ -5,7 +5,6 @@ import { Link } from 'expo-router';
 
 import { Screen } from '@/components/ui/screen';
 import { getVietnameseAuthError } from '@/lib/auth-errors';
-import { supabaseConfigurationMessage } from '@/lib/runtime-config';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { tokens } from '@/theme/tokens';
 
@@ -16,7 +15,7 @@ export default function ForgotPasswordScreen() {
   const requestReset = async () => {
     const normalizedEmail = email.trim();
     if (!isSupabaseConfigured) {
-      Alert.alert('Cần cấu hình', supabaseConfigurationMessage ?? 'Cấu hình Supabase chưa hợp lệ.');
+      Alert.alert('Dịch vụ chưa sẵn sàng', 'Vui lòng thử lại sau hoặc liên hệ hỗ trợ Fitly.');
       return;
     }
     if (!normalizedEmail) {
@@ -24,7 +23,9 @@ export default function ForgotPasswordScreen() {
       return;
     }
 
+    if (isSubmitting) return;
     setIsSubmitting(true);
+    try {
     const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo: Linking.createURL('reset-password'),
     });
@@ -35,6 +36,9 @@ export default function ForgotPasswordScreen() {
       return;
     }
     Alert.alert('Kiểm tra email', 'Nếu email tồn tại, Fitly đã gửi link đặt lại mật khẩu. Hãy mở link trên thiết bị này để tiếp tục.');
+    } catch (error) {
+      Alert.alert('Chưa gửi được email', getVietnameseAuthError(error, 'Kiểm tra kết nối rồi thử lại.'));
+    } finally { setIsSubmitting(false); }
   };
 
   return (

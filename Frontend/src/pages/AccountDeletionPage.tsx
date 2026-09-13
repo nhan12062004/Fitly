@@ -31,6 +31,8 @@ export default function AccountDeletionPage() {
             <li>3. Chọn “Xóa tài khoản và dữ liệu”.</li>
             <li>4. Nhập mật khẩu và từ XÓA để xác nhận.</li>
           </ol>
+          <p className="mt-4 text-sm leading-6 text-text-secondary">Trên ứng dụng Android/iOS: Hồ sơ → Quyền riêng tư và tài khoản → Xóa tài khoản. Đăng ký App Store/Google Play không tự hủy khi xóa tài khoản; hãy hủy gia hạn trong cửa hàng nếu bạn muốn dừng thanh toán.</p>
+          <Link to="/support" className="mt-4 inline-block text-accent">Cần hỗ trợ xóa dữ liệu?</Link>
 
           <div className="mt-6 rounded-xl border border-danger/20 bg-danger/5 p-4">
             <div className="flex items-start gap-3">

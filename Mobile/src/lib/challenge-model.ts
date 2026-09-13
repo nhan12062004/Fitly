@@ -1,4 +1,6 @@
+import { invalidateResources } from '@/lib/query-cache';
 import { supabase } from '@/lib/supabase';
+import { requireSessionUser } from '@/lib/account-read-model';
 
 export type ChallengeMode = 'solo' | 'crew';
 export type ChallengeStatus = 'active' | 'completed' | 'cancelled';
@@ -88,6 +90,7 @@ export async function createChallenge(input: { title: string; description?: stri
     p_max_members: input.mode === 'crew' ? input.maxMembers : 1,
   });
   if (error) throw error;
+  void invalidateResources('challenges', 'challenge');
   return String(data);
 }
 
@@ -96,6 +99,7 @@ export async function joinChallengeByInviteCode(inviteCode: string) {
   if (!code) throw new Error('Nhập mã mời để tham gia thử thách.');
   const { data, error } = await supabase.rpc('join_challenge_by_invite_code', { p_invite_code: code });
   if (error) throw error;
+  void invalidateResources('challenges', 'challenge');
   return String(data);
 }
 
@@ -112,5 +116,26 @@ export async function loadChallengeDetail(id: string) {
 export async function manualChallengeCheckin(id: string) {
   const { data, error } = await supabase.rpc('manual_challenge_checkin', { p_challenge_id: id });
   if (error) throw error;
+  void invalidateResources('challenges', 'challenge');
   return Boolean(data);
+}
+
+export async function blockChallengeMember(blockedId: string) {
+  const user = await requireSessionUser();
+  const { error } = await supabase.from('user_blocks').upsert({ blocker_id: user.id, blocked_id: blockedId }, { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true });
+  if (error) throw error;
+  await invalidateResources('challenges', 'challenge', 'blocked-users');
+}
+
+export async function loadBlockedUsers(): Promise<{ user_id: string; display_name: string }[]> {
+  const { data, error } = await supabase.rpc('get_blocked_users');
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function unblockChallengeMember(blockedId: string) {
+  const user = await requireSessionUser();
+  const { error } = await supabase.from('user_blocks').delete().eq('blocker_id', user.id).eq('blocked_id', blockedId);
+  if (error) throw error;
+  await invalidateResources('blocked-users');
 }

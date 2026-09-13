@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useResource } from '@/hooks/use-resource';
+import { useTodayKey } from '@/providers/data-provider';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
 import { apiRequest } from '@/lib/api-client';
-import { getVietnamDayIndex, getVietnamWeekStartKey, loadProfileSnapshot, loadTodayMeals, saveGeneratedMealPlan, type GeneratedMealPlanItem, type MealItem } from '@/lib/fitness-read-model';
+import { getVietnamDayIndex, getVietnamWeekStartKey, loadProfileSnapshot, loadTodayMeals, saveGeneratedMealPlan, type GeneratedMealPlanItem } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
 const weekdayLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -33,45 +35,19 @@ function MacroPill({ label, value, color }: { label: string; value: number; colo
 }
 
 export default function MealsScreen() {
-  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
-  const [refreshing, setRefreshing] = useState(false);
-  const [items, setItems] = useState<MealItem[]>([]);
-  const [targetCalories, setTargetCalories] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const todayKey = useTodayKey();
+  const resource = useResource('meals', loadTodayMeals);
+  const profile = useResource('profile', loadProfileSnapshot);
+  const { state, refreshing, refresh, load, errorMessage: error } = resource;
+  const items = useMemo(() => resource.data ?? [], [resource.data]);
+  const targetCalories = profile.data?.targetCalories ?? null;
   const [isMealPlanModalVisible, setIsMealPlanModalVisible] = useState(false);
   const [isGeneratingMealPlan, setIsGeneratingMealPlan] = useState(false);
   const [mealPlanError, setMealPlanError] = useState<string | null>(null);
   const [mealPlanScope, setMealPlanScope] = useState<'day' | 'week'>('day');
-  const weekDates = useMemo(() => getWeekDates(), []);
-  const today = new Date();
+  const weekDates = getWeekDates();
+  const today = new Date(`${todayKey}T12:00:00`);
   const activeDay = getVietnamDayIndex();
-
-  const load = useCallback(async () => {
-    setState('loading');
-    setError(null);
-    try {
-      const [meals, profile] = await Promise.all([loadTodayMeals(), loadProfileSnapshot()]);
-      setItems(meals);
-      setTargetCalories(profile.targetCalories);
-      setState('ready');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không thể tải nhật ký dinh dưỡng.');
-      setState('error');
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
-
-  const refresh = useCallback(() => {
-    if (refreshing) return;
-    setRefreshing(true);
-    void load();
-  }, [load, refreshing]);
 
   const totals = useMemo(() => items.reduce((sum, item) => ({
     calories: sum.calories + Number(item.calories ?? 0),

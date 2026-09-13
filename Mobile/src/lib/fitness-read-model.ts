@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import { requireSessionUser } from '@/lib/account-read-model';
+import { invalidateResources } from '@/lib/query-cache';
 
 type ExerciseRelation = {
   name?: string | null;
@@ -187,9 +189,7 @@ export const getVietnamWeekStartKey = () => {
 };
 
 const requireUserId = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-  return user.id;
+  return (await requireSessionUser()).id;
 };
 
 export const toWorkoutItem = (row: any): WorkoutItem => {
@@ -356,6 +356,7 @@ export const saveGeneratedMealPlan = async ({
     .neq('id', newPlan.id);
   if (retireOldPlans.error) throw retireOldPlans.error;
 
+  void invalidateResources('meals', 'home', 'quota');
   return newPlan.id as string;
 };
 

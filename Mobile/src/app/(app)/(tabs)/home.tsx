@@ -1,48 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useResource } from '@/hooks/use-resource';
+import { useState } from 'react';
+import { useAuth } from '@/providers/auth-provider';
+import { loadAccountProfile } from '@/lib/account-read-model';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
-import { apiRequest } from '@/lib/api-client';
-import { loadHomeSnapshot, type HomeSnapshot } from '@/lib/fitness-read-model';
+import { loadHomeSnapshot } from '@/lib/fitness-read-model';
 import { loadUnreadNotificationCount } from '@/lib/wellness-read-model';
 import { tokens } from '@/theme/tokens';
 
-type ProfileResponse = { data?: { full_name?: string | null } };
 
 const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const firstName = (value: string | null) => value?.trim().split(/\s+/).at(-1) || 'bạn';
 
 export default function HomeScreen() {
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [name, setName] = useState<string | null>(null);
-  const [snapshot, setSnapshot] = useState<HomeSnapshot | null>(null);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
-  const [reloadKey, setReloadKey] = useState(0);
+  const { session } = useAuth();
+  const home = useResource('home', loadHomeSnapshot);
+  const account = useResource('account', loadAccountProfile);
+  const notifications = useResource('notification-count', loadUnreadNotificationCount);
+  const snapshot = home.data;
+  const name = account.data?.full_name ?? session?.user.user_metadata?.full_name ?? null;
+  const unreadNotifications = notifications.data ?? 0;
+  const state = home.state;
   const [refreshing, setRefreshing] = useState(false);
-  const today = useMemo(() => new Date(), []);
-
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setState('loading');
-      try {
-        const [profile, home, unreadCount] = await Promise.all([apiRequest<ProfileResponse>('/api/profile'), loadHomeSnapshot(), loadUnreadNotificationCount()]);
-        if (!active) return;
-        setName(profile.data?.full_name ?? null);
-        setSnapshot(home);
-        setUnreadNotifications(unreadCount);
-        setState('ready');
-      } catch {
-        if (active) setState('error');
-      } finally {
-        if (active) setRefreshing(false);
-      }
-    };
-    void load();
-    return () => { active = false; };
-  }, [reloadKey]);
+  const today = new Date();
 
   const planned = snapshot?.plannedExercises ?? 0;
   const completed = snapshot?.completedExercises ?? 0;
@@ -53,7 +36,7 @@ export default function HomeScreen() {
   const refresh = () => {
     if (refreshing) return;
     setRefreshing(true);
-    setReloadKey((value) => value + 1);
+    void Promise.all([home.load(), account.load(), notifications.load()]).finally(() => setRefreshing(false));
   };
 
   return (
@@ -84,7 +67,7 @@ export default function HomeScreen() {
 
       <Pressable onPress={() => router.push('/meals')} style={({ pressed }) => [styles.nutritionNote, pressed && styles.pressed]}><View style={styles.noteGlow} /><View style={styles.noteContent}><Text style={styles.noteKicker}>NĂNG LƯỢNG HÔM NAY</Text><Text style={styles.noteValue}>{targetCalories ? `${calories} / ${targetCalories} kcal` : 'Bắt đầu ghi bữa ăn'}</Text><Text style={styles.noteText}>{targetCalories ? `Còn ${remainingCalories} kcal để bạn linh hoạt lựa chọn.` : 'Đặt mục tiêu calorie trong Hồ sơ.'}</Text></View><AppIcon name="arrow-right" color={tokens.colors.lime} size={19} /></Pressable>
 
-      {state === 'error' ? <Pressable onPress={() => setReloadKey((value) => value + 1)} style={styles.errorPill}><Text style={styles.errorText}>Không tải được dữ liệu · Chạm để thử lại</Text></Pressable> : null}
+      {state === 'error' ? <Pressable onPress={refresh} style={styles.errorPill}><Text style={styles.errorText}>Không tải được dữ liệu · Chạm để thử lại</Text></Pressable> : null}
       <Pressable onPress={() => router.push('/tracking')} style={({ pressed }) => [styles.wellnessLink, pressed && styles.pressed]}><View style={styles.wellnessLinkMark}><Text style={styles.wellnessLinkMarkText}>H₂O</Text></View><View style={styles.wellnessLinkCopy}><Text style={styles.wellnessLinkKicker}>NHỊP SỐNG</Text><Text style={styles.wellnessLinkTitle}>Theo dõi nước và giấc ngủ</Text></View><AppIcon name="arrow-right" color="#72C7FF" size={18} /></Pressable>
     </Screen>
   );

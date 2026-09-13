@@ -1,10 +1,10 @@
+import { useResource } from '@/hooks/use-resource';
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/ui/screen';
-import { ApiClientError, apiRequest } from '@/lib/api-client';
+import { apiRequest } from '@/lib/api-client';
 import { tokens } from '@/theme/tokens';
 
 type Ingredient = {
@@ -38,28 +38,12 @@ const formatNumber = (value: number | null | undefined) => Math.round(Number(val
 
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    if (!id) return;
-    setState('loading');
-    setError(null);
-    try {
-      const response = await apiRequest<RecipeResponse>(`/api/recipes/${encodeURIComponent(id)}`, { timeoutMs: 15_000 });
-      setRecipe(response.data);
-      setState('ready');
-    } catch (cause) {
-      setState('error');
-      setError(cause instanceof ApiClientError ? cause.message : 'Không thể tải công thức.');
-    }
-  }, [id]);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
+  const resource = useResource('recipe', async () => {
+    if (!id) throw new Error('Không tìm thấy công thức.');
+    const response = await apiRequest<RecipeResponse>(`/api/recipes/${encodeURIComponent(id)}`);
+    return response.data;
+  }, [id], 30 * 60_000);
+  const { data: recipe, state, load, errorMessage: error } = resource;
 
   return (
     <Screen>

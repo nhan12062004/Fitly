@@ -1,12 +1,13 @@
+import { useResource } from '@/hooks/use-resource';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
 import { ApiClientError, apiRequest } from '@/lib/api-client';
-import { formatWorkoutExerciseMeta, loadTodayWorkout, toWorkoutItem, type WorkoutItem } from '@/lib/fitness-read-model';
+import { formatWorkoutExerciseMeta, loadTodayWorkout, toWorkoutItem } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
 const toClock = (totalSeconds: number) => {
@@ -44,46 +45,32 @@ function ExerciseVideo({ source, title }: { source: string | null; title: string
 
 export default function ActiveWorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [item, setItem] = useState<WorkoutItem | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const resource = useResource('workout', loadTodayWorkout);
+  const { state, load } = resource;
+  const item = resource.data?.find((value) => value.id === id);
   const [error, setError] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
   const [restRemaining, setRestRemaining] = useState(0);
+  const [restDeadline, setRestDeadline] = useState(0);
   const pendingRef = useRef(false);
 
-  const load = useCallback(async () => {
-    setState('loading');
-    setError(null);
-    try {
-      const nextItem = (await loadTodayWorkout()).find((value) => value.id === id);
-      if (!nextItem) throw new Error('Bài tập này không còn trong lịch hôm nay.');
-      setItem(nextItem);
-      setState('ready');
-    } catch (cause) {
-      setState('error');
-      setError(cause instanceof Error ? cause.message : 'Không thể tải phiên tập.');
-    }
-  }, [id]);
-
   useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
-
-  useEffect(() => {
-    if (restRemaining <= 0) return;
-    const timer = setInterval(() => setRestRemaining((value) => Math.max(0, value - 1)), 1000);
-    return () => clearInterval(timer);
-  }, [restRemaining]);
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((restDeadline - Date.now()) / 1000));
+      setRestRemaining(remaining);
+      if (!remaining) setRestDeadline(0);
+    };
+    update();
+    if (!restDeadline) return;
+    const timer = setInterval(update, 1000);
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') update(); });
+    return () => { clearInterval(timer); subscription.remove(); };
+  }, [restDeadline]);
 
   const reconcile = useCallback(async () => {
-    try {
-      const nextItem = (await loadTodayWorkout()).find((value) => value.id === id);
-      if (nextItem) setItem(nextItem);
-    } catch {
-      setError('Không thể tải lại trạng thái. Hãy quay lại danh sách bài tập rồi làm mới.');
-    }
-  }, [id]);
+    const result = await load();
+    if (result.error) setError('Không thể tải lại trạng thái. Hãy kiểm tra kết nối rồi thử lại.');
+  }, [load]);
 
   const completeNextSet = useCallback(async () => {
     if (!item || pendingRef.current || item.isCompleted || item.completedSets >= item.totalSets) return;
@@ -95,8 +82,8 @@ export default function ActiveWorkoutScreen() {
         method: 'POST', body: { restSeconds: item.restSeconds ?? 0 }, timeoutMs: 15_000,
       });
       const serverItem = toWorkoutItem(response.exercise);
-      setItem(serverItem);
-      setRestRemaining(serverItem.isCompleted ? 0 : Math.max(0, Number(serverItem.restSeconds ?? 0)));
+      resource.setData((items) => items?.map((entry) => entry.id === serverItem.id ? serverItem : entry));
+      setRestDeadline(serverItem.isCompleted ? 0 : Date.now() + Math.max(0, Number(serverItem.restSeconds ?? 0)) * 1000);
     } catch (cause) {
       if (cause instanceof ApiClientError) setError(cause.message);
       else {
@@ -107,7 +94,7 @@ export default function ActiveWorkoutScreen() {
       pendingRef.current = false;
       setIsCompleting(false);
     }
-  }, [item, reconcile]);
+  }, [item, reconcile, resource]);
 
   if (state === 'loading') {
     return <Screen scroll={false} contentStyle={styles.loadingScreen}><ActivityIndicator color={tokens.colors.lime} size="large" /></Screen>;
@@ -168,7 +155,7 @@ export default function ActiveWorkoutScreen() {
             <Text style={styles.restKicker}>THỜI GIAN NGHỈ</Text>
             <Text style={styles.restTime}>{toClock(restRemaining)}</Text>
           </View>
-          <Pressable onPress={() => setRestRemaining(0)} style={styles.skipButton}><Text style={styles.skipText}>Bỏ qua</Text></Pressable>
+          <Pressable onPress={() => setRestDeadline(0)} style={styles.skipButton}><Text style={styles.skipText}>Bỏ qua</Text></Pressable>
         </View>
       ) : null}
 

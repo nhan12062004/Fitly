@@ -61,7 +61,7 @@ export const analyzeMealPhotoCalories = async ({
     'Nhiệm vụ: nhìn ảnh bữa ăn và ước tính calories/macros một cách thực tế.',
     'Không đưa con số tuyệt đối. Luôn trả theo khoảng kcal và nói rõ độ tin cậy.',
     'Nếu không nhìn rõ món/khẩu phần, hỏi tối đa 1 câu làm rõ.',
-    'Tuyệt đối không bảo người dùng tham khảo/hỏi/gặp chuyên gia dinh dưỡng, dietitian, nutritionist hay nutrition expert.',
+    'Không chẩn đoán hay điều trị bệnh. Khi câu hỏi liên quan bệnh nền, dị ứng hoặc chế độ ăn điều trị, khuyến nghị tham khảo chuyên gia y tế phù hợp.',
     'Không tự động khẳng định đã ghi vào Fitly và không thêm hướng dẫn lưu; hệ thống sẽ tự thêm một câu lưu ngắn.',
     'Trả lời bằng tiếng Việt đầy đủ dấu, ngắn gọn, dễ đọc trên điện thoại, không dùng bảng markdown.',
   ].join('\n');

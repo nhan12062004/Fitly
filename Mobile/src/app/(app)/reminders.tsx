@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
-import { hasNativeNotifications, loadReminderSettings, rescheduleLocalReminders, saveReminderSettings, type ReminderSettings } from '@/lib/mobile-notifications';
+import { defaultReminderSettings, hasNativeNotifications, loadReminderSettings, rescheduleLocalReminders, saveReminderSettings, type ReminderSettings } from '@/lib/mobile-notifications';
 import { tokens } from '@/theme/tokens';
 
 type ReminderKey = 'waterEnabled' | 'sleepEnabled' | 'workoutEnabled' | 'mealEnabled';
@@ -17,7 +17,10 @@ export default function RemindersScreen() {
   const [settings, setSettings] = useState<ReminderSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const load = useCallback(async () => setSettings(await loadReminderSettings()), []);
+  const load = useCallback(async () => {
+    try { setSettings(await loadReminderSettings()); }
+    catch { setSettings(defaultReminderSettings); Alert.alert('Chưa đọc được lịch nhắc', 'Hãy kiểm tra và lưu lại lựa chọn của bạn.'); }
+  }, []);
   useEffect(() => {
     const task = setTimeout(() => { void load(); }, 0);
     return () => clearTimeout(task);
@@ -29,7 +32,7 @@ export default function RemindersScreen() {
     try {
       await saveReminderSettings(next);
       const allowed = await rescheduleLocalReminders(next);
-      if (!allowed) Alert.alert(hasNativeNotifications() ? 'Chưa bật thông báo' : 'Cần development build mới', hasNativeNotifications() ? 'Bạn có thể cấp quyền thông báo cho Fitly trong Cài đặt hệ thống bất cứ lúc nào.' : 'Bản đang cài chưa có module thông báo native. Các lựa chọn đã được lưu, và sẽ lập lịch sau khi cài development build mới.');
+      if (!allowed) Alert.alert('Chưa bật thông báo', hasNativeNotifications() ? 'Bạn có thể cấp quyền thông báo cho Fitly trong Cài đặt hệ thống bất cứ lúc nào.' : 'Thiết bị hoặc phiên bản này chưa hỗ trợ thông báo. Lựa chọn của bạn đã được lưu.');
     } catch (error) {
       Alert.alert('Chưa cập nhật được nhắc nhở', error instanceof Error ? error.message : 'Hãy thử lại sau.');
       await load();

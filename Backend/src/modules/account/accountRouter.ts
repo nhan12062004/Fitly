@@ -5,6 +5,7 @@ import { requireAuth } from '../../auth/middleware';
 import { adminSupabase } from '../../config/Supabase';
 import { ExternalProviderError, NotFoundError, UnauthorizedError, ValidationError } from '../../http/errors';
 import { validateBody } from '../../http/validation';
+import { deleteStoreCustomer } from '../../services/storeSubscriptionService';
 
 const accountDeletionSchema = z.object({ confirmation: z.literal('DELETE') }).strict();
 const SELF_SERVICE_PROFILE_COLUMNS = 'id, full_name, email, gender, birthday, avatar_url, membership_tier, membership_expires_at, exp, level, ref_code, referral_count, created_at, updated_at';
@@ -17,7 +18,7 @@ const SELF_SERVICE_PROFILE_FIELDS = [
 const profileUpdateSchema = z.object({
   full_name: z.string().trim().max(120).nullable().optional(),
   email: z.string().trim().email().max(254).nullable().optional(),
-  gender: z.enum(['Nam', 'Ná»¯', 'KhÃ¡c']).nullable().optional(),
+  gender: z.enum(['Nam', 'Nữ', 'Khác']).nullable().optional(),
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 }).strict().refine((body) => Object.keys(body).length > 0);
 const AVATAR_CONTENT_TYPES = new Map([
@@ -168,6 +169,7 @@ export const createAccountRouter = ({ serviceRoleClient = adminSupabase }: Accou
         if (avatarDelete.error) throw avatarDelete.error;
       }
 
+      await deleteStoreCustomer(userId);
       const deleteUser = await serviceRoleClient.auth.admin.deleteUser(userId);
       if (deleteUser.error) throw deleteUser.error;
 

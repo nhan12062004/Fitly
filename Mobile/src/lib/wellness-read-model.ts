@@ -1,3 +1,5 @@
+import { invalidateResources } from '@/lib/query-cache';
+import { getSessionUser } from '@/lib/account-read-model';
 import { supabase } from '@/lib/supabase';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
@@ -48,7 +50,7 @@ export const vietnamDateKey = (date = new Date()) => {
 };
 
 export async function loadWellnessSnapshot(dateKey = vietnamDateKey()): Promise<WellnessSnapshot> {
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await getSessionUser();
   if (authError) throw authError;
   if (!authData.user) throw new Error('Phiên đăng nhập đã hết hạn.');
 
@@ -74,7 +76,7 @@ export async function loadWellnessSnapshot(dateKey = vietnamDateKey()): Promise<
 }
 
 async function requireUserId() {
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await getSessionUser();
   if (error) throw error;
   if (!data.user) throw new Error('Phiên đăng nhập đã hết hạn.');
   return data.user.id;
@@ -96,6 +98,7 @@ export async function addWaterIntake(amountMl: number, dateKey = vietnamDateKey(
   const waterIntakeMl = Math.max(0, Number(current?.water_intake_ml) || 0) + amount;
   const { error } = await supabase.from('daily_progress_logs').upsert({ user_id: userId, log_date: dateKey, water_intake_ml: waterIntakeMl }, { onConflict: 'user_id,log_date' });
   if (error) throw error;
+  void invalidateResources('wellness', 'progress', 'home', 'challenges', 'challenge');
   return waterIntakeMl;
 }
 
@@ -106,11 +109,12 @@ export async function recordSleepHours(hours: number, dateKey = vietnamDateKey()
   const userId = await requireUserId();
   const { error } = await supabase.from('daily_progress_logs').upsert({ user_id: userId, log_date: dateKey, sleep_hours: sleepHours }, { onConflict: 'user_id,log_date' });
   if (error) throw error;
+  void invalidateResources('wellness', 'progress', 'home', 'challenges', 'challenge');
   return sleepHours;
 }
 
 export async function loadUnreadNotificationCount(): Promise<number> {
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await getSessionUser();
   if (authError || !authData.user) return 0;
 
   const { count, error } = await supabase
@@ -154,6 +158,7 @@ export async function markUserNotificationRead(notificationId: string) {
   const now = new Date().toISOString();
   const { error } = await supabase.from('user_notifications').update({ read_at: now, updated_at: now }).eq('id', notificationId).eq('user_id', userId);
   if (error) throw error;
+  void invalidateResources('notifications', 'notification-count');
 }
 
 export async function markAllUserNotificationsRead() {
@@ -161,4 +166,5 @@ export async function markAllUserNotificationsRead() {
   const now = new Date().toISOString();
   const { error } = await supabase.from('user_notifications').update({ read_at: now, updated_at: now }).eq('user_id', userId).is('read_at', null);
   if (error) throw error;
+  void invalidateResources('notifications', 'notification-count');
 }

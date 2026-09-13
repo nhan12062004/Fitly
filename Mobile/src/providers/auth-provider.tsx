@@ -5,6 +5,7 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 import { AppState } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
+import { queryClient } from '@/lib/query-cache';
 
 type AuthContextValue = {
   isLoading: boolean;
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     let mounted = true;
+    let currentUserId: string | undefined;
     const consumeRecoveryLink = async (url: string | null) => {
       if (!url?.startsWith('fitly:')) return;
 
@@ -40,8 +42,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const refreshToken = params.get('refresh_token');
       const code = params.get('code');
       const redirectError = params.get('error_description') ?? params.get('error');
-      const isRecoveryLink = params.get('type') === 'recovery' || Boolean(code) || Boolean(accessToken) || Boolean(redirectError);
-      if (!isRecoveryLink) return;
+      const isRecoveryLink = params.get('type') === 'recovery' || /(?:\/|:)reset-password(?:[?#/]|$)/.test(url);
+      if (!code && !accessToken && !redirectError) return;
 
       if (mounted) {
         setRecoveryStatus('processing');
@@ -58,8 +60,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
         if (mounted) {
           setSession(result.data.session);
-          setIsPasswordRecovery(true);
-          setRecoveryStatus('ready');
+          setIsPasswordRecovery(isRecoveryLink);
+          setRecoveryStatus(isRecoveryLink ? 'ready' : 'idle');
         }
       } catch (error) {
         if (mounted) {
@@ -70,7 +72,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     };
     const initialize = async () => {
-      await consumeRecoveryLink(await Linking.getInitialURL());
+      await consumeRecoveryLink(await Linking.getInitialURL().catch(() => null));
       let nextSession: Session | null = null;
       try {
         const { data } = await Promise.race([
@@ -93,6 +95,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     void initialize();
 
     const { data: authSubscription } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (currentUserId !== nextSession?.user.id) {
+        queryClient.clear();
+        currentUserId = nextSession?.user.id;
+      }
+      if (event === 'SIGNED_OUT') {
+        setIsPasswordRecovery(false);
+        setRecoveryStatus('idle');
+      }
       setSession(nextSession);
       setIsLoading(false);
       if (event === 'PASSWORD_RECOVERY') {

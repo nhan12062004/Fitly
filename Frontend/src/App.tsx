@@ -24,6 +24,8 @@ const Profile = lazy(() => import('./pages/Profile'));
 const Progress = lazy(() => import('./pages/Progress'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const TermsOfServicePage = lazy(() => import('./pages/TermsOfServicePage'));
+const SupportPage = lazy(() => import('./pages/SupportPage'));
+const FeedbackInbox = lazy(() => import('./pages/FeedbackInbox'));
 const WorkoutSession = lazy(() => import('./pages/WorkoutSession'));
 
 function ScrollToTop() {
@@ -54,6 +56,7 @@ export default function App() {
                 <Route path="/terms" element={<TermsOfServicePage />} />
                 <Route path="/privacy" element={<PrivacyPolicyPage />} />
                 <Route path="/account-deletion" element={<AccountDeletionPage />} />
+                <Route path="/support" element={<SupportPage />} />
                 <Route path="/dieu-khoan" element={<Navigate to="/terms" replace />} />
                 <Route path="/chinh-sach-bao-mat" element={<Navigate to="/privacy" replace />} />
                 <Route path="/login" element={<AuthPage initialMode="login" />} />
@@ -81,6 +84,7 @@ export default function App() {
                   <Route path="challenges/:id" element={<ChallengeDetails />} />
                   <Route path="workout-builder" element={<Navigate to="/exercises" replace />} />
                   <Route path="admin-panel" element={<AdminPanel />} />
+                  <Route path="admin-feedback" element={<FeedbackInbox />} />
                 </Route>
               </Routes>
             </Suspense>

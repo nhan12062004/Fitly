@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAuth } from '@/providers/auth-provider';
+import { loadAccountProfile } from '@/lib/account-read-model';
+import { useResource } from '@/hooks/use-resource';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
-import { loadProfileSnapshot, type ProfileSnapshot } from '@/lib/fitness-read-model';
+import { loadProfileSnapshot } from '@/lib/fitness-read-model';
 import { apiRequest } from '@/lib/api-client';
 import { runtimeConfig } from '@/lib/runtime-config';
+import { fetchWithTimeout } from '@/lib/network';
 import { supabase } from '@/lib/supabase';
+import { clearScheduledReminders, unregisterCurrentDeviceForPush } from '@/lib/mobile-notifications';
 import { tokens } from '@/theme/tokens';
 
 const getDisplayName = (metadata: Record<string, unknown> | undefined, email: string | undefined) => {
@@ -28,14 +33,6 @@ type AiQuotaResponse = {
   trialExpired?: boolean;
   aiQuota?: { limits?: QuotaCounters; usage?: QuotaCounters; remaining?: QuotaCounters; trialEndsAt?: string | null };
 };
-type ApiProfileResponse = { data?: {
-  avatar_url?: string | null;
-  membership_tier?: string | null;
-  membership_expires_at?: string | null;
-  ref_code?: string | null;
-  referral_count?: number | null;
-  updated_at?: string | null;
-} };
 type MembershipSnapshot = {
   tier: MembershipTier;
   expiresAt: string | null;
@@ -62,67 +59,39 @@ const formatMembershipDate = (value: string | null) => {
 };
 
 export default function ProfileScreen() {
-  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const { session } = useAuth();
+  const resource = useResource('profile', loadProfileSnapshot);
+  const account = useResource('account', loadAccountProfile);
+  const quotaResource = useResource('quota', () => apiRequest<AiQuotaResponse>('/api/ai/quota'));
+  const { state, errorMessage: error } = resource;
+  const profile = resource.data;
+  const user = session?.user;
+  const displayName = account.data?.full_name || getDisplayName(user?.user_metadata, user?.email);
+  const email = user?.email ?? null;
+  const storedAvatar = account.data?.avatar_url;
+  const avatarUrl = storedAvatar ? `${storedAvatar}${storedAvatar.includes('?') ? '&' : '?'}updated=${encodeURIComponent(account.data?.updated_at ?? '')}` : null;
+  const setAvatarUrl = (value: string | null) => account.setData((current) => current ? { ...current, avatar_url: value, updated_at: new Date().toISOString() } : current);
+  const quota = quotaResource.data;
+  const membership: MembershipSnapshot = {
+    tier: normalizeMembershipTier(quota?.membershipTier ?? account.data?.membership_tier),
+    expiresAt: account.data?.membership_expires_at ?? null,
+    trialEndsAt: quota?.aiQuota?.trialEndsAt ?? null,
+    trialExpired: Boolean(quota?.trialExpired),
+    limits: quota?.aiQuota?.limits ?? {}, usage: quota?.aiQuota?.usage ?? {}, remaining: quota?.aiQuota?.remaining ?? {},
+    refCode: account.data?.ref_code ?? null, referralCount: Math.max(0, Number(account.data?.referral_count) || 0),
+  };
   const [refreshing, setRefreshing] = useState(false);
-  const [profile, setProfile] = useState<ProfileSnapshot | null>(null);
-  const [displayName, setDisplayName] = useState('Thành viên Fitly');
-  const [email, setEmail] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
-  const [membership, setMembership] = useState<MembershipSnapshot | null>(null);
-
-  const load = useCallback(async () => {
-    setState('loading');
-    setError(null);
-    try {
-      const [snapshot, userResult, apiProfile, quota] = await Promise.all([
-        loadProfileSnapshot(),
-        supabase.auth.getUser(),
-        apiRequest<ApiProfileResponse>('/api/profile'),
-        apiRequest<AiQuotaResponse>('/api/ai/quota').catch(() => null),
-      ]);
-      if (userResult.error) throw userResult.error;
-      const user = userResult.data.user;
-      setProfile(snapshot);
-      setDisplayName(getDisplayName(user?.user_metadata, user?.email));
-      setEmail(user?.email ?? null);
-      const storedAvatar = apiProfile.data?.avatar_url;
-      setAvatarUrl(storedAvatar ? `${storedAvatar}${storedAvatar.includes('?') ? '&' : '?'}updated=${encodeURIComponent(apiProfile.data?.updated_at ?? '')}` : null);
-      setMembership({
-        tier: normalizeMembershipTier(quota?.membershipTier ?? apiProfile.data?.membership_tier),
-        expiresAt: apiProfile.data?.membership_expires_at ?? null,
-        trialEndsAt: quota?.aiQuota?.trialEndsAt ?? null,
-        trialExpired: Boolean(quota?.trialExpired),
-        limits: quota?.aiQuota?.limits ?? {},
-        usage: quota?.aiQuota?.usage ?? {},
-        remaining: quota?.aiQuota?.remaining ?? {},
-        refCode: apiProfile.data?.ref_code ?? null,
-        referralCount: Math.max(0, Number(apiProfile.data?.referral_count) || 0),
-      });
-      setState('ready');
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Không thể tải hồ sơ.');
-      setState('error');
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
-
-  const refresh = useCallback(() => {
-    if (refreshing) return;
+  const load = () => Promise.all([resource.load(), account.load(), quotaResource.load()]);
+  const refresh = () => {
     setRefreshing(true);
-    void load();
-  }, [load, refreshing]);
+    void load().finally(() => setRefreshing(false));
+  };
 
   const signOut = async () => {
-    const { error: signOutError } = await supabase.auth.signOut();
+    await Promise.allSettled([unregisterCurrentDeviceForPush(), clearScheduledReminders()]);
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
     if (signOutError) Alert.alert('Không thể đăng xuất', signOutError.message);
   };
 
@@ -148,14 +117,14 @@ export default function ProfileScreen() {
       const imageResponse = await fetch(asset.uri);
       const imageBlob = await imageResponse.blob();
       if (imageBlob.size > 5 * 1024 * 1024) throw new Error('Hãy chọn ảnh có dung lượng nhỏ hơn 5 MB.');
-      const response = await fetch(`${runtimeConfig.apiUrl}/api/profile/avatar`, {
+      const response = await fetchWithTimeout(`${runtimeConfig.apiUrl}/api/profile/avatar`, {
         method: 'PUT',
         headers: { Accept: 'application/json', Authorization: `Bearer ${session.access_token}`, 'Content-Type': mimeType },
         body: imageBlob,
       });
       const payload = await response.json().catch(() => ({})) as { avatarUrl?: string; error?: string };
       if (!response.ok || !payload.avatarUrl) throw new Error(payload.error || 'Không thể cập nhật ảnh đại diện.');
-      setAvatarUrl(`${payload.avatarUrl}?updated=${Date.now()}`);
+      setAvatarUrl(payload.avatarUrl);
     } catch (cause) {
       Alert.alert('Không thể tải ảnh', cause instanceof Error ? cause.message : 'Vui lòng thử lại sau.');
     } finally {
@@ -164,12 +133,12 @@ export default function ProfileScreen() {
   };
 
   const pickAvatar = async (source: 'camera' | 'library') => {
-    const permission = source === 'camera'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(source === 'camera' ? 'Chưa có quyền camera' : 'Chưa có quyền thư viện ảnh', 'Hãy cấp quyền trong cài đặt để cập nhật ảnh đại diện.');
-      return;
+    if (source === 'camera') {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Chưa có quyền camera', 'Hãy cấp quyền trong cài đặt để chụp ảnh đại diện.');
+        return;
+      }
     }
     const result = source === 'camera'
       ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.75 })
@@ -193,23 +162,7 @@ export default function ProfileScreen() {
     if (!isAvatarUploading) setIsAvatarMenuOpen(true);
   };
 
-  const openMembershipOptions = () => {
-    const tier = membership?.tier ?? 'free';
-    if (tier === 'pro') {
-      Alert.alert('Gói Pro', 'Bạn đang sử dụng gói cao nhất của Fitly với hạn mức AI lớn nhất.');
-      return;
-    }
-    Alert.alert(
-      'Nâng cấp gói Fitly',
-      tier === 'plus'
-        ? 'Bạn có thể nâng cấp lên Pro để nhận 800 lượt AI Coach mỗi tháng và hạn mức điều chỉnh kế hoạch cao hơn.'
-        : 'Plus có 200 lượt AI Coach mỗi tháng. Pro có 800 lượt và hạn mức điều chỉnh kế hoạch cao hơn.',
-      [
-        { text: 'Để sau', style: 'cancel' },
-        { text: 'Xem nâng cấp', onPress: () => Alert.alert('Sắp mở bán', 'Thanh toán đang được hoàn thiện để tích hợp an toàn với App Store và Google Play.') },
-      ],
-    );
-  };
+  const openMembershipOptions = () => router.push('/(app)/premium');
 
   const shareReferral = async () => {
     if (!membership?.refCode) {
@@ -300,6 +253,8 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      <Pressable accessibilityRole="button" style={styles.actionRow} onPress={() => router.push('/(app)/account')}><Text style={styles.actionTitle}>Quyền riêng tư và tài khoản</Text></Pressable>
+      <Pressable accessibilityRole="button" style={styles.actionRow} onPress={() => router.push('/(app)/support')}><Text style={styles.actionTitle}>Hỗ trợ và góp ý</Text></Pressable>
       <Pressable style={styles.signOutButton} onPress={() => void signOut()}><Text style={styles.signOutText}>Đăng xuất khỏi Fitly</Text></Pressable>
 
       <Modal transparent animationType="fade" visible={isAvatarMenuOpen} onRequestClose={() => setIsAvatarMenuOpen(false)}>

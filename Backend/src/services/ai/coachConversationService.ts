@@ -1,3 +1,4 @@
+import { callGroqCompletion } from './groqJsonService';
 import { AIChatContext, AIChatMealSummary, AIIntent, AIResponseMode } from './types';
 
 export type CoachChatMessage = {
@@ -295,28 +296,10 @@ export const callCoachCompletion = async ({
       content: String(item.content || '').slice(0, 1400),
     }));
 
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...normalizedHistory,
-        { role: 'user', content: userMessage },
-      ],
-      temperature,
-      max_tokens: maxTokens,
-    }),
+  const result = await callGroqCompletion({
+    messages: [{ role: 'system', content: systemPrompt }, ...normalizedHistory, { role: 'user', content: userMessage }],
+    temperature, max_tokens: maxTokens, json: false,
   });
-
-  const result: any = await response.json().catch(() => ({}));
-  if (!response.ok || result?.error) {
-    throw new Error(result?.error?.message || 'Groq AI request failed');
-  }
 
   const reply = sanitizeCoachReply(String(result?.choices?.[0]?.message?.content || '').trim());
   if (!reply) throw new Error('Groq AI returned empty reply');

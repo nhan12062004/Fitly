@@ -12,7 +12,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { API_BASE_URL } from '../lib/Api';
+import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
@@ -1098,7 +1098,7 @@ export default function AICoach() {
         const sessionRes = await supabase.auth.getSession();
         const accessToken = sessionRes.data.session?.access_token;
         if (!accessToken) return;
-        const response = await fetch(`${API_BASE_URL}/api/ai/quota`, {
+        const response = await fetchWithAuth('/api/ai/quota', {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         const payload = await response.json().catch(() => ({}));
@@ -1300,7 +1300,7 @@ export default function AICoach() {
       const accessToken = sessionRes.data.session?.access_token;
       if (!accessToken) throw new Error('Missing access token');
 
-      const response = await fetch(`${API_BASE_URL}/api/ai-coach/generate-weekly-plan`, {
+      const response = await fetchWithAuth('/api/ai-coach/generate-weekly-plan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1544,7 +1544,7 @@ export default function AICoach() {
       const accessToken = sessionRes.data.session?.access_token;
       if (!accessToken) throw new Error('Missing access token');
       const endpoint = action === 'apply' ? '/api/ai/apply-adjustment' : '/api/ai/reject-adjustment';
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const response = await fetchWithAuth(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1640,7 +1640,7 @@ export default function AICoach() {
       const accessToken = sessionRes.data.session?.access_token;
       if (!accessToken) throw new Error('Missing access token');
 
-      const response = await fetch(`${API_BASE_URL}/api/ai/chat/clear`, {
+      const response = await fetchWithAuth('/api/ai/chat/clear', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -1703,7 +1703,7 @@ export default function AICoach() {
       const accessToken = sessionRes.data.session?.access_token;
       if (!accessToken) throw new Error('Missing access token');
 
-      const response = await fetch(`${API_BASE_URL}/api/ai/coach-command`, {
+      const response = await fetchWithAuth('/api/ai/coach-command', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1822,7 +1822,7 @@ export default function AICoach() {
       const sessionRes = await supabase.auth.getSession();
       const accessToken = sessionRes.data.session?.access_token;
       if (!accessToken) throw new Error('Missing access token');
-      const response = await fetch(`${API_BASE_URL}/api/ai/chat`, {
+      const response = await fetchWithAuth('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

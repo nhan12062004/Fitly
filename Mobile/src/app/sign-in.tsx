@@ -5,7 +5,6 @@ import { Link, Redirect, router, useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/ui/screen';
 import { getVietnameseAuthError } from '@/lib/auth-errors';
-import { supabaseConfigurationMessage } from '@/lib/runtime-config';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth-provider';
 import { tokens } from '@/theme/tokens';
@@ -25,10 +24,12 @@ export default function SignInScreen() {
   if (session) return <Redirect href="/(app)/(tabs)/home" />;
 
   const submit = async () => {
+    if (isSubmitting) return;
     if (!isSupabaseConfigured) {
-      Alert.alert('Cần cấu hình', `${supabaseConfigurationMessage ?? 'Cấu hình Supabase chưa hợp lệ.'} Hãy sao chép .env.example thành .env và điền giá trị public.`);
+      Alert.alert('Dịch vụ chưa sẵn sàng', 'Vui lòng thử lại sau hoặc liên hệ hỗ trợ Fitly.');
       return;
     }
+    try {
     if (isSignUp) {
       const normalizedName = fullName.trim();
       const normalizedEmail = email.trim();
@@ -72,6 +73,9 @@ export default function SignInScreen() {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setIsSubmitting(false);
     if (error) Alert.alert('Không thể đăng nhập', getVietnameseAuthError(error, 'Đăng nhập chưa thành công. Vui lòng thử lại.'));
+    } catch (error) {
+      Alert.alert('Chưa hoàn tất', getVietnameseAuthError(error, 'Kiểm tra kết nối rồi thử lại.'));
+    } finally { setIsSubmitting(false); }
   };
 
   return (
@@ -97,7 +101,7 @@ export default function SignInScreen() {
         <Pressable disabled={isSubmitting} onPress={() => void submit()} style={({ pressed }) => [styles.button, (pressed || isSubmitting) && styles.buttonPressed]}>
           <Text style={styles.buttonText}>{isSubmitting ? 'Đang xử lý…' : isSignUp ? 'Tạo tài khoản' : 'Đăng nhập'}</Text>
         </Pressable>
-        {!isSignUp ? <Link href="/forgot-password" style={styles.resetLink}>Quên mật khẩu?</Link> : <Text style={styles.terms}>Khi đăng ký, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của Fitly.</Text>}
+        {!isSignUp ? <Link href="/forgot-password" style={styles.resetLink}>Quên mật khẩu?</Link> : <Text style={styles.terms}>Khi đăng ký, bạn đồng ý với <Link href={{ pathname: '/legal', params: { section: 'terms' } }} style={styles.switchLink}>Điều khoản dịch vụ</Link> và <Link href={{ pathname: '/legal', params: { section: 'privacy' } }} style={styles.switchLink}>Chính sách quyền riêng tư</Link> của Fitly.</Text>}
         <View style={styles.switchRow}>
           <Text style={styles.note}>{isSignUp ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'}</Text>
           <Pressable onPress={() => setIsSignUp(!isSignUp)}><Text style={styles.switchLink}>{isSignUp ? 'Đăng nhập' : 'Đăng ký miễn phí'}</Text></Pressable>

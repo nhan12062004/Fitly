@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useResource } from '@/hooks/use-resource';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
-import { formatWorkoutDetailLabel, formatWorkoutExerciseMeta, loadTodayWorkout, type WorkoutItem } from '@/lib/fitness-read-model';
+import { formatWorkoutDetailLabel, formatWorkoutExerciseMeta, loadTodayWorkout } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
 function ExerciseVideo({ source }: { source: string | null }) {
@@ -34,32 +34,13 @@ function DetailItem({ label, value }: { label: string; value: string }) {
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [item, setItem] = useState<WorkoutItem | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setState('loading');
-    setError(null);
-    try {
-      const nextItem = (await loadTodayWorkout()).find((value) => value.id === id);
-      if (!nextItem) throw new Error('Bài tập này không còn trong lịch hôm nay.');
-      setItem(nextItem);
-      setState('ready');
-    } catch (cause) {
-      setState('error');
-      setError(cause instanceof Error ? cause.message : 'Không thể tải chi tiết bài tập.');
-    }
-  }, [id]);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
+  const resource = useResource('workout', loadTodayWorkout);
+  const item = resource.data?.find((value) => value.id === id);
+  const { state, load, errorMessage: error } = resource;
 
   if (state === 'loading') return <Screen scroll={false} contentStyle={styles.loading}><ActivityIndicator color={tokens.colors.lime} size="large" /></Screen>;
 
-  if (state === 'error' || !item) {
+  if (!item) {
     return <Screen contentStyle={styles.content}><Pressable onPress={() => router.back()} style={styles.back}><AppIcon name="arrow-left" color={tokens.colors.lime} size={17} /><Text style={styles.backText}>Danh sách bài tập</Text></Pressable><View style={styles.errorCard}><Text style={styles.errorTitle}>Không thể mở bài tập</Text><Text style={styles.errorText}>{error ?? 'Hãy thử lại.'}</Text><Pressable onPress={() => void load()} style={styles.retryButton}><Text style={styles.retryText}>Thử lại</Text></Pressable></View></Screen>;
   }
 

@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Screen } from '@/components/ui/screen';
 import { getVietnameseAuthError } from '@/lib/auth-errors';
 import { supabase } from '@/lib/supabase';
+import { unregisterCurrentDeviceForPush } from '@/lib/mobile-notifications';
 import { useAuth } from '@/providers/auth-provider';
 import { tokens } from '@/theme/tokens';
 
@@ -28,9 +29,14 @@ export default function ResetPasswordScreen() {
       return;
     }
 
+    if (isSubmitting) return;
     setIsSubmitting(true);
+    try {
     const { error } = await supabase.auth.updateUser({ password });
-    if (!error) await supabase.auth.signOut();
+    if (!error) {
+      await unregisterCurrentDeviceForPush().catch(() => undefined);
+      await supabase.auth.signOut();
+    }
     setIsSubmitting(false);
 
     if (error) {
@@ -40,6 +46,9 @@ export default function ResetPasswordScreen() {
     clearPasswordRecovery();
     Alert.alert('Đã cập nhật mật khẩu', 'Hãy đăng nhập lại bằng mật khẩu mới.');
     router.replace('/sign-in');
+    } catch (error) {
+      Alert.alert('Chưa cập nhật được mật khẩu', getVietnameseAuthError(error, 'Kiểm tra kết nối rồi thử lại.'));
+    } finally { setIsSubmitting(false); }
   };
 
   if (isLoading || recoveryStatus === 'processing') {

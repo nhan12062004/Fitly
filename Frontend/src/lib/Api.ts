@@ -14,11 +14,41 @@ export const fetchWithAuth = async (path: string, init: RequestInit = {}) => {
     throw new Error('Missing access token');
   }
 
+  const usesAi = init.method?.toUpperCase() === 'POST' && (/^\/api\/ai-coach\/generate-/.test(path) || ['/api/ai/chat', '/api/ai/coach-command'].includes(path));
+  if (usesAi) {
+    const userId = sessionRes.data.session!.user.id;
+    const consent = await supabase.from('ai_data_consents').select('version').eq('user_id', userId).maybeSingle();
+    if (consent.error) throw new Error('Chưa kiểm tra được lựa chọn quyền riêng tư. Vui lòng thử lại.');
+    if (consent.data?.version !== 1) {
+      const accepted = window.confirm('Cho phép Fitly gửi yêu cầu cùng dữ liệu cần thiết về mục tiêu, sức khỏe, kế hoạch và nhật ký tới Groq để tạo phản hồi AI, gồm cập nhật kế hoạch tự động theo gói? AI có thể sai và không thay thế tư vấn y tế. Bạn có thể từ chối và dùng các chức năng khác. Xem chính sách và thu hồi đồng ý trên mọi thiết bị tại trang Quyền riêng tư (/privacy).');
+      if (!accepted) throw new Error('Bạn chưa đồng ý chia sẻ dữ liệu để sử dụng AI.');
+      if ((await supabase.auth.getSession()).data.session?.user.id !== userId) throw new Error('Tài khoản đã thay đổi. Vui lòng thử lại.');
+      const saved = await supabase.from('ai_data_consents').upsert({ user_id: userId, version: 1, accepted_at: new Date().toISOString() });
+      if (saved.error) throw new Error('Chưa lưu được lựa chọn quyền riêng tư. Vui lòng thử lại.');
+    }
+    if ((await supabase.auth.getSession()).data.session?.user.id !== userId) throw new Error('Tài khoản đã thay đổi. Vui lòng thử lại.');
+  }
+
   const headers = new Headers(init.headers || {});
   headers.set('Authorization', `Bearer ${accessToken}`);
 
-  return fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers
-  });
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (init.signal?.aborted) abort();
+  init.signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(abort, usesAi ? 45_000 : 15_000);
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, signal: controller.signal });
+    // Buffer JSON API responses so the deadline also covers a stalled response body.
+    const body = await response.arrayBuffer();
+    return new Response(response.status === 204 || response.status === 205 || init.method === 'HEAD' ? null : body, {
+      status: response.status, statusText: response.statusText, headers: response.headers,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw new Error('Kết nối mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    init.signal?.removeEventListener('abort', abort);
+  }
 };

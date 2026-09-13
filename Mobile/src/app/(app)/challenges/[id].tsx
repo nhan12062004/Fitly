@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useResource } from '@/hooks/use-resource';
+import { useAuth } from '@/providers/auth-provider';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { FoundationCard } from '@/components/ui/foundation-card';
 import { Screen } from '@/components/ui/screen';
-import { challengeDuration, elapsedChallengeDays, goalLabel, loadChallengeDetail, manualChallengeCheckin, todayKey, type ChallengeParticipant, type ChallengeSummary } from '@/lib/challenge-model';
-import { supabase } from '@/lib/supabase';
+import { blockChallengeMember, challengeDuration, elapsedChallengeDays, goalLabel, loadChallengeDetail, manualChallengeCheckin, todayKey, type ChallengeParticipant, type ChallengeSummary } from '@/lib/challenge-model';
 import { tokens } from '@/theme/tokens';
 
 type Detail = { challenge: ChallengeSummary; participants: ChallengeParticipant[] };
@@ -23,25 +24,11 @@ const initials = (name: string) => name.trim().split(/\s+/).slice(-2).map((part)
 
 export default function ChallengeDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const { session } = useAuth();
+  const userId = session?.user.id;
+  const resource = useResource('challenge', () => loadChallengeDetail(params.id), [params.id]);
+  const { data: detail, state, load } = resource;
   const [checkingIn, setCheckingIn] = useState(false);
-
-  const load = useCallback(async () => {
-    if (!params.id) return;
-    setState('loading');
-    try {
-      const [{ data: auth }, result] = await Promise.all([supabase.auth.getUser(), loadChallengeDetail(params.id)]);
-      setUserId(auth.user?.id ?? null);
-      setDetail(result);
-      setState(result ? 'ready' : 'error');
-    } catch {
-      setState('error');
-    }
-  }, [params.id]);
-
-  useEffect(() => { const task = setTimeout(() => { void load(); }, 0); return () => clearTimeout(task); }, [load]);
 
   const mine = useMemo(() => detail?.participants.find((item) => item.user_id === userId) ?? null, [detail, userId]);
   const checkedToday = Boolean(mine?.checkin_dates.includes(todayKey()));
@@ -99,13 +86,36 @@ function ChallengeBody({ detail, mine, checkedToday, days, checkingIn, onAction 
     <View style={styles.calendar}>{days.map((day) => { const checked = Boolean(mine?.checkin_dates.includes(day)); const isToday = day === todayKey(); return <View key={day} style={styles.day}><Text style={[styles.dayLabel, isToday && styles.dayLabelToday]}>{shortDay(day)}</Text><View style={[styles.dayMark, checked && styles.dayMarkChecked, isToday && !checked && styles.dayMarkToday]}>{checked ? <Text style={styles.check}>✓</Text> : <Text style={styles.dateNumber}>{day.slice(-2)}</Text>}</View></View>; })}</View>
 
     {isCrew ? <CrewSection challenge={challenge} participants={participants} /> : <SoloSection goal={goal} />}
-    <View style={styles.privacy}><AppIcon name="check" size={18} color="#B9FF3A" /><Text style={styles.privacyText}>Fitly chỉ hiển thị trạng thái đã hoàn thành theo ngày, không chia sẻ dữ liệu sức khỏe chi tiết.</Text></View>
+    <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/(app)/support", params: { category: "challenge_report", context: `${detail.challenge.title}\n${detail.challenge.description || ""}`, target_type: "challenge", target_id: detail.challenge.id } })}><Text style={styles.backText}>Báo cáo nội dung thử thách</Text></Pressable><View style={styles.privacy}><AppIcon name="check" size={18} color="#B9FF3A" /><Text style={styles.privacyText}>Fitly chỉ hiển thị trạng thái đã hoàn thành theo ngày, không chia sẻ dữ liệu sức khỏe chi tiết.</Text></View>
   </>;
 }
 
 function CrewSection({ challenge, participants }: { challenge: ChallengeSummary; participants: ChallengeParticipant[] }) {
+  const { session } = useAuth();
+  const [busy, setBusy] = useState(false);
   const today = todayKey();
-  return <View style={styles.crew}><View style={styles.sectionHeader}><View><Text style={styles.sectionKicker}>CÙNG GIỮ NHỊP</Text><Text style={styles.sectionTitle}>{participants.length} thành viên</Text></View>{challenge.invite_code ? <View style={styles.code}><Text style={styles.codeCaption}>MÃ MỜI</Text><Text style={styles.codeValue}>{challenge.invite_code}</Text></View> : null}</View><View style={styles.memberList}>{participants.slice(0, 5).map((person, index) => <View key={person.user_id} style={styles.member}><View style={[styles.memberAvatar, { backgroundColor: ['#51366A', '#28495B', '#45401E', '#533236', '#234534'][index] }]}><Text style={styles.memberInitial}>{initials(person.display_name)}</Text></View><View style={styles.memberCopy}><Text style={styles.memberName}>{person.display_name}</Text><Text style={styles.memberMeta}>{person.checkin_dates.length} ngày ghi nhận</Text></View><View style={[styles.memberStatus, person.checkin_dates.includes(today) && styles.memberStatusDone]}><Text style={[styles.memberStatusText, person.checkin_dates.includes(today) && styles.memberStatusTextDone]}>{person.checkin_dates.includes(today) ? 'Xong' : 'Chờ'}</Text></View></View>)}</View></View>;
+  const block = (person: ChallengeParticipant) => Alert.alert('Chặn thành viên?',
+    'Bạn sẽ rời các nhóm chung không do bạn tạo; thành viên này sẽ bị đưa khỏi nhóm do bạn tạo. Điểm danh trong nhóm đã rời cũng được xóa. Hai bên không thể tham gia lại cùng nhóm cho đến khi bỏ chặn.', [
+      { text: 'Hủy', style: 'cancel' },
+      { text: 'Chặn', style: 'destructive', onPress: () => {
+        setBusy(true);
+        void blockChallengeMember(person.user_id).then(() => router.replace('/challenges'))
+          .catch((error) => Alert.alert('Chưa chặn được', error instanceof Error ? error.message : 'Vui lòng thử lại.'))
+          .finally(() => setBusy(false));
+      } },
+    ]);
+  return <View style={styles.crew}>
+    <View style={styles.sectionHeader}><View><Text style={styles.sectionKicker}>CÙNG GIỮ NHỊP</Text><Text style={styles.sectionTitle}>{participants.length} thành viên</Text></View>{challenge.invite_code && <View style={styles.code}><Text style={styles.codeCaption}>MÃ MỜI</Text><Text style={styles.codeValue}>{challenge.invite_code}</Text></View>}</View>
+    <View style={styles.memberList}>{participants.map((person, index) => <View key={person.user_id} style={styles.member}>
+      <View style={[styles.memberAvatar, { backgroundColor: ['#51366A', '#28495B', '#45401E', '#533236', '#234534'][index % 5] }]}><Text style={styles.memberInitial}>{initials(person.display_name)}</Text></View>
+      <View style={styles.memberCopy}><Text style={styles.memberName}>{person.display_name}</Text><Text style={styles.memberMeta}>{person.checkin_dates.length} ngày ghi nhận · {person.checkin_dates.includes(today) ? 'Đã xong hôm nay' : 'Chờ'}</Text>
+        {person.user_id !== session?.user.id && <View style={{ flexDirection: 'row', gap: 16 }}>
+          <Pressable accessibilityRole="button" disabled={busy} onPress={() => block(person)} style={{ paddingVertical: 12 }}><Text style={styles.backText}>Chặn</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/(app)/support', params: { category: 'challenge_report', target_type: 'user', target_id: person.user_id, context: `Thành viên: ${person.display_name}\nNhóm: ${challenge.title}` } })} style={{ paddingVertical: 12 }}><Text style={styles.backText}>Báo cáo</Text></Pressable>
+        </View>}
+      </View>
+    </View>)}</View>
+  </View>;
 }
 
 function SoloSection({ goal }: { goal: string }) { return <View style={styles.solo}><AppIcon name="zap" size={24} color="#D4A7FF" /><View style={styles.soloCopy}><Text style={styles.soloTitle}>Hành động nào được tính?</Text><Text style={styles.soloText}>Fitly tự điểm danh khi bạn hoàn thành: {goal.toLowerCase()}. Bạn không cần cập nhật thêm ở đây.</Text></View></View>; }

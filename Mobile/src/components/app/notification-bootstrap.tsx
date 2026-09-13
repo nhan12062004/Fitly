@@ -1,16 +1,24 @@
 import { useEffect } from 'react';
 import { router } from 'expo-router';
 
-import { hasNativeNotifications, initializeNativeNotifications, loadReminderSettings, registerCurrentDeviceForPush, rescheduleLocalReminders } from '@/lib/mobile-notifications';
+import { clearScheduledReminders, hasNativeNotifications, initializeNativeNotifications, loadReminderSettings, registerCurrentDeviceForPush, rescheduleLocalReminders } from '@/lib/mobile-notifications';
+import { useAuth } from '@/providers/auth-provider';
 
 const validDestinations = new Set(['/tracking', '/workout', '/meals', '/coach', '/progress', '/notifications']);
 
 export function NotificationBootstrap() {
+  const { session, isLoading } = useAuth();
+  const userId = session?.user.id;
   useEffect(() => {
-    if (!hasNativeNotifications()) return undefined;
+    if (!hasNativeNotifications() || isLoading) return undefined;
+    if (!userId) { void clearScheduledReminders().catch(() => undefined); return undefined; }
+    let disposed = false;
     void initializeNativeNotifications().then(async () => {
+      if (disposed) return;
       const settings = await loadReminderSettings();
-      await rescheduleLocalReminders(settings);
+      if (disposed) return;
+      await rescheduleLocalReminders(settings, false);
+      if (disposed) return;
       await registerCurrentDeviceForPush();
     }).catch(() => undefined);
     try {
@@ -20,11 +28,11 @@ export function NotificationBootstrap() {
         const destination = response.notification.request.content.data?.destination;
         if (typeof destination === 'string' && validDestinations.has(destination)) router.push(destination as never);
       });
-      return () => subscription.remove();
+      return () => { disposed = true; subscription.remove(); };
     } catch {
-      return undefined;
+      return () => { disposed = true; };
     }
-  }, []);
+  }, [userId, isLoading]);
 
   return null;
 }

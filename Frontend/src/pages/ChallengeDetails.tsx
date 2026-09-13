@@ -29,6 +29,7 @@ import {
   type ChallengeLeaderboardEntry,
 } from '../lib/Challenges';
 import { supabase } from '../lib/Supabase';
+import CommunityControls from '../components/CommunityControls';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DAY_MS = 86_400_000;
@@ -735,6 +736,7 @@ export default function ChallengeDetails() {
             : 'Việc ghi nước, bữa ăn, giấc ngủ và tập luyện sẽ tự động điểm danh. Thành viên chỉ thấy trạng thái theo ngày, không thấy dữ liệu sức khỏe riêng tư.'}
         </p>
       </section>
+      {challenge.mode === 'crew' && <CommunityControls challengeId={challenge.id} title={challenge.title} participants={participants} />}
     </div>
   );
 }

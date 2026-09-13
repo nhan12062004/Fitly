@@ -781,6 +781,7 @@ export default function AdminPanel() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-black text-text-primary">Quản trị viên</h1>
+          <a href="/admin-feedback" className="text-sm font-bold text-accent">Phản hồi và báo cáo người dùng</a>
           <p className="mt-1 text-sm font-semibold text-text-secondary">Người dùng, bài tập, thực đơn và vận hành hệ thống.</p>
         </div>
         <button

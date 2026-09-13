@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useResource } from '@/hooks/use-resource';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
-import { addWaterIntake, loadWellnessSnapshot, recordSleepHours, vietnamDateKey, type WellnessSnapshot } from '@/lib/wellness-read-model';
+import { addWaterIntake, loadWellnessSnapshot, recordSleepHours, vietnamDateKey } from '@/lib/wellness-read-model';
 import { tokens } from '@/theme/tokens';
 
 const WATER_AMOUNTS = [250, 500] as const;
@@ -25,30 +26,11 @@ const formatDayLabel = (dateKey: string) => {
 
 export default function TrackingScreen() {
   const [dateKey, setDateKey] = useState(vietnamDateKey());
-  const [snapshot, setSnapshot] = useState<WellnessSnapshot | null>(null);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const resource = useResource('wellness', () => loadWellnessSnapshot(dateKey), [dateKey]);
+  const { data: snapshot, setData: setSnapshot, state, refreshing: isRefreshing, refresh } = resource;
   const [isSaving, setIsSaving] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [sheet, setSheet] = useState<'water' | 'sleep' | null>(null);
   const [customWater, setCustomWater] = useState('');
-
-  const load = useCallback(async (refresh = false) => {
-    if (refresh) setIsRefreshing(true);
-    else setState('loading');
-    try {
-      setSnapshot(await loadWellnessSnapshot(dateKey));
-      setState('ready');
-    } catch {
-      setState('error');
-    } finally {
-      setIsRefreshing(false);
-    }
-  }, [dateKey]);
-
-  useEffect(() => {
-    const task = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(task);
-  }, [load]);
 
   const todayKey = vietnamDateKey();
   const isToday = dateKey === todayKey;
@@ -56,7 +38,7 @@ export default function TrackingScreen() {
   const waterRemaining = snapshot?.waterGoalMl ? Math.max(0, snapshot.waterGoalMl - snapshot.waterIntakeMl) : 0;
 
   const saveWater = async (amount: number) => {
-    if (!snapshot) return;
+    if (!snapshot || isSaving) return;
     const previous = snapshot;
     setSnapshot({ ...previous, waterIntakeMl: previous.waterIntakeMl + amount });
     setIsSaving(true);
@@ -74,7 +56,7 @@ export default function TrackingScreen() {
   };
 
   const saveSleep = async (hours: number) => {
-    if (!snapshot) return;
+    if (!snapshot || isSaving) return;
     const previous = snapshot;
     setSnapshot({ ...previous, sleepHours: hours });
     setIsSaving(true);
@@ -91,7 +73,7 @@ export default function TrackingScreen() {
   };
 
   return (
-    <Screen contentStyle={styles.content} refreshing={isRefreshing} onRefresh={() => void load(true)}>
+    <Screen contentStyle={styles.content} refreshing={isRefreshing} onRefresh={refresh}>
       <View style={styles.topRow}>
         <Pressable onPress={() => router.back()} hitSlop={8} style={styles.back}><AppIcon name="arrow-left" color={tokens.colors.lime} size={17} /><Text style={styles.backText}>Quay lại</Text></Pressable>
         <Pressable onPress={() => router.push('/notifications')} hitSlop={8} style={styles.bell}><AppIcon name="bell" color={tokens.colors.ink} size={18} /></Pressable>
@@ -106,7 +88,7 @@ export default function TrackingScreen() {
       </View>
 
       {state === 'loading' ? <View style={styles.center}><ActivityIndicator color={tokens.colors.lime} size="large" /></View> : null}
-      {state === 'error' ? <View style={styles.errorCard}><Text style={styles.errorTitle}>Chưa tải được dữ liệu</Text><Pressable onPress={() => void load()}><Text style={styles.retry}>Thử lại</Text></Pressable></View> : null}
+      {state === 'error' ? <View style={styles.errorCard}><Text style={styles.errorTitle}>Chưa tải được dữ liệu</Text><Pressable onPress={() => void resource.load()}><Text style={styles.retry}>Thử lại</Text></Pressable></View> : null}
       {state === 'ready' && snapshot ? <>
         <View style={styles.waterCard}>
           <View style={styles.cardHead}><View style={styles.waterMark}><Text style={styles.waterMarkText}>H₂O</Text></View><View style={styles.cardHeadCopy}><Text style={styles.cardKicker}>NƯỚC</Text><Text style={styles.cardTitle}>Uống đủ, cơ thể nhẹ hơn</Text></View><Text style={styles.percent}>{waterPercent}%</Text></View>

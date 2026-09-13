@@ -1,5 +1,16 @@
 import { apiConfigurationMessage, isApiConfigured, runtimeConfig } from '@/lib/runtime-config';
 import { supabase } from '@/lib/supabase';
+import { invalidateResources } from '@/lib/query-cache';
+import { ensureAiConsent } from '@/lib/ai-consent';
+
+const publicErrors: Record<string, string> = {
+  UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+  FORBIDDEN: 'Tài khoản chưa có quyền thực hiện thao tác này.',
+  QUOTA_EXCEEDED: 'Bạn đã dùng hết lượt hiện có. Vui lòng thử lại sau.',
+  EXTERNAL_PROVIDER_ERROR: 'Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau ít phút.',
+  INTERNAL_CONFIGURATION_ERROR: 'Dịch vụ đang được bảo trì. Vui lòng thử lại sau.',
+  INTERNAL_ERROR: 'Có lỗi khi xử lý yêu cầu. Vui lòng thử lại.',
+};
 
 type ErrorPayload =
   | { error?: { code?: string; message?: string; requestId?: string } }
@@ -12,7 +23,7 @@ export class ApiClientError extends Error {
 
   constructor(status: number, payload: ErrorPayload) {
     const normalized = typeof payload.error === 'object' ? payload.error : undefined;
-    super(normalized?.message ?? (typeof payload.error === 'string' ? payload.error : 'Request failed'));
+    super(((normalized?.code && publicErrors[normalized.code]) || normalized?.message) ?? (typeof payload.error === 'string' ? payload.error : 'Không thể xử lý yêu cầu.'));
     this.name = 'ApiClientError';
     this.status = status;
     this.code = normalized?.code;
@@ -33,15 +44,23 @@ export const apiRequest = async <T>(path: string, options: ApiRequestOptions = {
 
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new ApiClientError(401, { error: 'Unauthorized' });
+  if (options.method === 'POST' && (/^\/api\/ai-coach\/generate-/.test(path) || ['/api/ai/chat', '/api/ai/coach-command'].includes(path))) {
+    if (!await ensureAiConsent(session.user.id)) throw new Error('Bạn chưa đồng ý chia sẻ dữ liệu để sử dụng AI.');
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user.id !== session.user.id) throw new Error('Tài khoản đã thay đổi. Vui lòng thử lại.');
+  }
 
-  const { timeoutMs, signal: suppliedSignal, ...fetchOptions } = options;
-  const controller = !suppliedSignal && timeoutMs ? new AbortController() : null;
-  const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  const { timeoutMs = 15_000, signal: suppliedSignal, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (suppliedSignal?.aborted) abort();
+  suppliedSignal?.addEventListener('abort', abort, { once: true });
+  const timeout = setTimeout(abort, timeoutMs);
 
   try {
     const response = await fetch(`${runtimeConfig.apiUrl}${path}`, {
       ...fetchOptions,
-      signal: suppliedSignal ?? controller?.signal,
+      signal: controller.signal,
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${session.access_token}`,
@@ -51,10 +70,25 @@ export const apiRequest = async <T>(path: string, options: ApiRequestOptions = {
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     const text = await response.text();
-    const payload = text ? JSON.parse(text) : {};
+    let payload;
+    try { payload = text ? JSON.parse(text) : {}; } catch {
+      throw new ApiClientError(response.status >= 400 ? response.status : 502, { error: 'Máy chủ chưa phản hồi đúng định dạng. Vui lòng thử lại sau.' });
+    }
     if (!response.ok) throw new ApiClientError(response.status, payload);
+    if (options.method && !['GET', 'HEAD'].includes(options.method.toUpperCase())) {
+      if (path === '/api/ai/chat') void invalidateResources('home', 'wellness', 'progress', 'quota');
+      else if (/workout|apply-adjustment/.test(path)) void invalidateResources('workout', 'meals', 'home', 'progress', 'quota', 'challenges', 'challenge');
+      else if (/ai|nutrition/.test(path)) void invalidateResources('quota');
+      if (/profile|subscription/.test(path)) void invalidateResources('account', 'profile', 'quota', 'home');
+    }
     return payload as T;
+  } catch (error) {
+    if (error instanceof ApiClientError) throw error;
+    if (error instanceof Error && error.name === 'AbortError') throw new Error('Kết nối mất nhiều thời gian hơn dự kiến. Vui lòng thử lại.');
+    if (error instanceof TypeError) throw new Error('Không thể kết nối. Hãy kiểm tra Internet rồi thử lại.');
+    throw error;
   } finally {
-    if (timeout) clearTimeout(timeout);
+    clearTimeout(timeout);
+    suppliedSignal?.removeEventListener('abort', abort);
   }
 };
