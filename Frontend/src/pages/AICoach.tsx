@@ -1636,20 +1636,11 @@ export default function AICoach() {
     if (!user?.id || isClearingChat) return;
     setIsClearingChat(true);
     try {
-      const sessionRes = await supabase.auth.getSession();
-      const accessToken = sessionRes.data.session?.access_token;
-      if (!accessToken) throw new Error('Missing access token');
-
-      const response = await fetchWithAuth('/api/ai/chat/clear', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Không thể xoá cuộc hội thoại.');
-      }
+      const { error } = await supabase
+        .from('ai_chat_messages')
+        .delete()
+        .eq('user_id', user.id);
+      if (error) throw error;
 
       if (cacheKey) {
         aiCoachPageCache.delete(cacheKey);

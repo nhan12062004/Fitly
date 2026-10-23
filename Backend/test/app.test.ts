@@ -22,7 +22,9 @@ const mocks = vi.hoisted(() => {
     remove: userStorageRemove,
     getPublicUrl: userStorageGetPublicUrl,
   }));
-  const userFrom = vi.fn(() => ({ select: userSelect, update: userUpdate }));
+  const adminDeleteEq = vi.fn();
+  const adminDelete = vi.fn(() => ({ eq: adminDeleteEq }));
+  const userFrom = vi.fn(() => ({ select: userSelect, update: userUpdate, delete: vi.fn() }));
   const userGetUser = vi.fn();
   const adminGetUser = vi.fn();
   const adminDeleteUser = vi.fn();
@@ -36,7 +38,7 @@ const mocks = vi.hoisted(() => {
   }));
 
   return {
-    from: vi.fn(() => ({ select })),
+    from: vi.fn(() => ({ select, delete: adminDelete })),
     select,
     limit,
     userMaybeSingle,
@@ -55,6 +57,8 @@ const mocks = vi.hoisted(() => {
     userGetUser,
     adminGetUser,
     adminDeleteUser,
+    adminDelete,
+    adminDeleteEq,
     adminStorageList,
     adminStorageRemove,
     adminStorageFrom,
@@ -108,6 +112,7 @@ describe('Express application bootstrap', () => {
     mocks.adminStorageList.mockResolvedValue({ data: [{ name: 'avatar.png' }], error: null });
     mocks.adminStorageRemove.mockResolvedValue({ error: null });
     mocks.adminDeleteUser.mockResolvedValue({ error: null });
+    mocks.adminDeleteEq.mockResolvedValue({ error: null });
   });
 
   it('imports the Express app without opening an HTTP port or starting runtime services', async () => {
@@ -309,6 +314,21 @@ describe('Express application bootstrap', () => {
       expect(response.body.error.requestId).toBe(response.headers['x-request-id']);
     }
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('authenticates and deletes only the current user AI chat history', async () => {
+    const { app } = await import('../src/app');
+
+    const response = await request(app)
+      .post('/api/ai/chat/clear')
+      .set('Authorization', 'Bearer user-jwt')
+      .send({});
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ success: true });
+    expect(mocks.adminDelete).toHaveBeenCalledTimes(1);
+    expect(mocks.adminDeleteEq).toHaveBeenCalledWith('user_id', 'authenticated-user');
+    expect(mocks.createUserScopedSupabaseClient).toHaveBeenCalledWith('user-jwt');
   });
 
   it('builds avatar paths from the authenticated user and never accepts a client path', async () => {

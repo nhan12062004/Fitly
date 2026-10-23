@@ -43,7 +43,7 @@ export const registerAiCoachRoutes = (app: Express, dependencies: AiCoachRouteDe
   app.get('/api/ai/quota', aiLimiter, getQuota);
   app.post('/api/ai/chat', aiLimiter, validateBody(aiChatSchema), requireAuth, requireAiDataConsent, chat);
   app.post('/api/ai/coach-command', aiLimiter, requireAuth, requireAiDataConsent, coachCommand);
-  app.post('/api/ai/chat/clear', aiLimiter, clearChat);
+  app.post('/api/ai/chat/clear', aiLimiter, requireAuth, clearChat);
   app.post('/api/ai/apply-adjustment', aiLimiter, applyAdjustment);
   app.post('/api/ai/reject-adjustment', aiLimiter, rejectAdjustment);
   app.get('/api/ai/metrics', metrics);
