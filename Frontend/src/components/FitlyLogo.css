@@ -1,0 +1,21 @@
+.fitly-logo {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  font-size: 29px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -1.5px;
+  text-transform: none;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.fitly-logo-compact { font-size: 24px; letter-spacing: -1.25px; }
+.fitly-logo-dot { color: var(--accent-primary); }
+.fitly-logo-on-dark { color: #f8fafc; }
+
+@media (max-width: 767px) {
+  .fitly-logo-regular { font-size: 26px; }
+}

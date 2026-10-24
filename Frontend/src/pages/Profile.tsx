@@ -378,7 +378,7 @@ export default function Profile() {
               const payload = await response.json().catch(() => ({}));
               return response.ok
                 ? { data: payload.data, error: null }
-                : { data: null, error: new Error(getApiErrorMessage(payload?.error, 'Unable to load profile.')) };
+                : { data: null, error: new Error(getApiErrorMessage(payload?.error, 'Không thể tải thông tin cá nhân. Vui lòng thử lại.')) };
             }),
           supabase
             .from('body_metrics')

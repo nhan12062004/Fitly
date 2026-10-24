@@ -17,6 +17,14 @@ export default defineConfig(({ mode }) => {
           target: apiTarget,
           changeOrigin: true,
           secure: isHttpsTarget,
+          configure: (proxy) => {
+            proxy.on('error', (_error, _request, response) => {
+              if ('writeHead' in response && !response.headersSent && !response.writableEnded) {
+                response.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+                response.end(JSON.stringify({ error: 'Không thể kết nối tới máy chủ Fitly. Vui lòng thử lại sau.' }));
+              }
+            });
+          },
         },
       },
     },

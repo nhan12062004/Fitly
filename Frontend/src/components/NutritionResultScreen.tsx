@@ -1,3 +1,4 @@
+import FitlyLogo from './FitlyLogo';
 import {
   Apple,
   ArrowRight,
@@ -135,8 +136,7 @@ export default function NutritionResultScreen({
       <div className="mx-auto w-full max-w-[640px]">
         <header className="text-center">
           <div className="mx-auto flex items-center justify-center gap-1.5">
-            <img src="/logo.png" alt="Fitly" className="h-7 w-7 object-contain" />
-            <span className="text-sm font-black text-[#7dfba0]">Fitly</span>
+            <FitlyLogo size="compact" className="fitly-logo-on-dark" />
           </div>
 
           <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#0c766d] bg-[#062b2d] px-4 py-1.5 text-[10px] font-black uppercase text-[#5eead4] shadow-[0_0_22px_rgba(20,184,166,0.15)]">

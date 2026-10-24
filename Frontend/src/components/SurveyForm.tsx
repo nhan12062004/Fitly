@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import FitlyLogo from './FitlyLogo';
 import {
   Activity,
   Bike,
@@ -1430,7 +1431,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
         <aside className="hidden">
           <div className="themed-subtle-panel rounded-[24px] border p-4 shadow-[0_18px_42px_rgba(0,0,0,0.18)] sm:p-5">
             <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Trợ lý cá nhân" className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
+              <FitlyLogo size="compact" />
               <div className="min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">Trợ lý cá nhân</p>
                 <h2 className="mt-1 text-lg font-black leading-tight text-text-primary sm:text-xl">
@@ -1530,7 +1531,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
             <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0">
                 <div className="flex items-center gap-3">
-                  <img src="/logo.png" alt="Fitly" className="h-11 w-11 shrink-0 sm:h-12 sm:w-12" />
+                  <FitlyLogo size="compact" />
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">Khảo sát Fitly</p>
                     <h2 className="mt-1 text-xl font-black leading-tight text-text-primary sm:text-2xl">
@@ -1629,7 +1630,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
-                    <img src="/logo.png" alt="Fitly" className="h-10 w-10 shrink-0 sm:h-11 sm:w-11" />
+                    <FitlyLogo size="compact" />
                     <div className="min-w-0">
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-accent">Khảo sát Fitly</p>
                       <h2 className="mt-1 text-xl font-black leading-tight text-text-primary sm:text-2xl">

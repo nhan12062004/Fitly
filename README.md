@@ -63,6 +63,14 @@ npm run dev
 
 Frontend: `http://localhost:3000`
 
+Web local sử dụng backend đã triển khai trên Render. Đặt
+`VITE_API_URL=https://trendfit.onrender.com` trong `Frontend/.env`; Vite chuyển tiếp
+các yêu cầu `/api` đến địa chỉ này. Không cần chạy backend local khi dùng Render.
+
+Chỉ đặt `VITE_API_URL=http://localhost:5001` khi muốn phát triển backend local;
+khi đó cần cấu hình `Backend/.env` và chạy `npm run dev` trong thư mục `Backend`
+trước khi mở web. Khởi động lại Vite sau khi thay đổi cấu hình API.
+
 <details>
 <summary><strong>Biến môi trường chính</strong></summary>
 

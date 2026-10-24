@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ElementType } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
+import FitlyLogo from '../components/FitlyLogo';
 import { useAuth } from '../contexts/AuthContext';
 import {
   archiveNotification,
@@ -365,12 +366,9 @@ export default function TopBar() {
     <header className="topbar-shell sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-3 bg-bg-secondary px-4 md:h-20 md:gap-4 md:px-8">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <NavLink to="/overview" className="topbar-brand flex min-w-0 shrink-0 items-center gap-2 rounded-full pr-2 text-text-primary">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center">
-            <img src="/logo.png" alt="Fitly" className="h-full w-full object-contain" />
-          </span>
-          <span className="hidden min-w-0 flex-col leading-tight sm:flex">
-            <span className="truncate text-lg font-bold">Fitly</span>
-            <span className="truncate text-[10px] font-semibold uppercase tracking-widest text-accent">Trợ lý cá nhân</span>
+          <span className="flex min-w-0 flex-col leading-tight">
+            <FitlyLogo size="compact" />
+            <span className="hidden truncate text-[10px] font-semibold uppercase tracking-widest text-accent sm:block">Trợ lý cá nhân</span>
           </span>
         </NavLink>
 

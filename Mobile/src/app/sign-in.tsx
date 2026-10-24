@@ -1,4 +1,5 @@
 import * as Linking from 'expo-linking';
+import { useFonts } from 'expo-font';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Link, Redirect, router, useLocalSearchParams } from 'expo-router';
@@ -10,6 +11,9 @@ import { useAuth } from '@/providers/auth-provider';
 import { tokens } from '@/theme/tokens';
 
 export default function SignInScreen() {
+  const [brandFontLoaded] = useFonts({
+    'Manrope-ExtraBold': require('../../assets/fonts/Manrope-ExtraBold.ttf'),
+  });
   const { session } = useAuth();
   const params = useLocalSearchParams<{ mode?: string }>();
   const [isSignUp, setIsSignUp] = useState(params.mode === 'signup');
@@ -82,8 +86,9 @@ export default function SignInScreen() {
     <Screen keyboardAware backgroundColor={tokens.colors.authCanvas} contentStyle={styles.content}>
       <View style={styles.brandBlock}>
         <View style={styles.brandRow}>
-          <View style={styles.logo}><Text style={styles.logoText}>F</Text></View>
-          <Text style={styles.brand}>fitly</Text>
+          <Text accessibilityRole="image" accessibilityLabel="Fitly" style={[styles.brand, brandFontLoaded && styles.brandFont]}>
+            Fitly<Text style={styles.brandDot}>.</Text>
+          </Text>
         </View>
         <Text style={styles.eyebrow}>{isSignUp ? 'BẮT ĐẦU HÀNH TRÌNH' : 'TẬP LUYỆN · PHỤC HỒI · TIẾN BỘ'}</Text>
         <Text style={styles.title}>{isSignUp ? 'Tạo tài khoản' : 'Chào mừng trở lại'}</Text>
@@ -115,10 +120,10 @@ const styles = StyleSheet.create({
   content: { paddingTop: tokens.spacing.lg, paddingBottom: tokens.spacing.xxl, gap: tokens.spacing.xxl },
   brandBlock: { gap: 8, paddingTop: tokens.spacing.sm },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  logo: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: tokens.colors.lime },
-  logoText: { color: tokens.colors.canvas, fontSize: 22, fontWeight: '900', letterSpacing: -1 },
   eyebrow: { color: tokens.colors.lime, fontSize: tokens.type.overline, fontWeight: '800', letterSpacing: 1.8 },
-  brand: { color: tokens.colors.ink, fontSize: 28, fontWeight: '900', letterSpacing: -1 },
+  brand: { color: tokens.colors.ink, fontSize: 29, fontWeight: '800', letterSpacing: -1.5, lineHeight: 37 },
+  brandFont: { fontFamily: 'Manrope-ExtraBold', fontWeight: 'normal' },
+  brandDot: { color: '#22C55E' },
   title: { color: tokens.colors.ink, fontSize: 34, lineHeight: 40, fontWeight: '900', letterSpacing: -1 },
   lead: { maxWidth: 310, color: tokens.colors.muted, fontSize: 15, lineHeight: 21 },
   form: { gap: 14, padding: 20, borderRadius: 24, backgroundColor: tokens.colors.surfaceRaised, borderWidth: 1, borderColor: '#39433B' },

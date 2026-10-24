@@ -11,6 +11,7 @@ import {
   Target,
 } from 'lucide-react';
 import type { SurveyPlanSummary } from './SurveyForm';
+import FitlyLogo from './FitlyLogo';
 
 interface SurveyResultScreenProps {
   summary: SurveyPlanSummary;
@@ -226,12 +227,7 @@ export default function SurveyResultScreen({
       <div className="mx-auto w-full max-w-[640px]">
         <header className="text-center">
           <div className="mx-auto flex items-center justify-center gap-1.5">
-            <img src="/logo.png" alt="Fitly" className="h-7 w-7 object-contain" />
-            <span className="hidden relative flex h-7 w-7 items-center justify-center">
-              <span className="absolute h-4 w-1.5 rotate-[-28deg] rounded-full bg-[#1f7cff]" />
-              <span className="absolute ml-3 h-6 w-1.5 rotate-[34deg] rounded-full bg-[#12e59a]" />
-            </span>
-            <span className="text-sm font-black text-[#7dfba0]">Fitly</span>
+            <FitlyLogo size="compact" className="fitly-logo-on-dark" />
           </div>
 
           <div className="hidden mt-5 inline-flex items-center gap-2 rounded-full border border-[#0c766d] bg-[#062b2d] px-4 py-1.5 text-[10px] font-black uppercase text-[#5eead4] shadow-[0_0_22px_rgba(20,184,166,0.15)]">
