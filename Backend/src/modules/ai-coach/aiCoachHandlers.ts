@@ -104,7 +104,7 @@ const getAiQuota: RequestHandler = async (req, res, next) => {
 
     const profileRes = await supabase
       .from('profiles')
-      .select('id, membership_tier, created_at, ai_coach_free_used_at')
+      .select('id, membership_tier, membership_expires_at, created_at, ai_coach_free_used_at')
       .eq('id', authUserId)
       .maybeSingle();
     if (profileRes.error) throw profileRes.error;
@@ -112,7 +112,12 @@ const getAiQuota: RequestHandler = async (req, res, next) => {
     const accessState = await getAiCoachAccessState(profileRes.data || {}, authUserId);
     return res.json({
       membershipTier: accessState.membershipTier,
+      membership: accessState.membership,
       canChat: accessState.canChat,
+      canGenerate: accessState.canGenerate,
+      canUseWorkoutAdjustment: accessState.canUseWorkoutAdjustment,
+      canUseMealAdjustment: accessState.canUseMealAdjustment,
+      quotaWindow: accessState.quotaWindow,
       trialExpired: accessState.trialExpired,
       aiQuota: buildAiQuotaSnapshot(accessState)
     });
@@ -246,7 +251,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         .gte('log_date', getWeekStartKey(today)),
       supabase
         .from('profiles')
-        .select('id, full_name, gender, birthday, membership_tier, created_at')
+        .select('id, full_name, gender, birthday, membership_tier, membership_expires_at, created_at')
         .eq('id', authUserId)
         .maybeSingle(),
       supabase
@@ -763,7 +768,7 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
     }
     const dayOfWeek = Number(newData.day_of_week);
     const [applyProfileRes, applyLifestyleRes, applyHealthRes] = await Promise.all([
-      supabase.from('profiles').select('id, gender, birthday, membership_tier').eq('id', authUserId).maybeSingle(),
+      supabase.from('profiles').select('id, gender, birthday, membership_tier, membership_expires_at, created_at').eq('id', authUserId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle()
     ]);
@@ -1900,7 +1905,7 @@ const generateAiMealPlan: RequestHandler = async (req, res) => {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const profileRes = await supabase.from('profiles').select('id, membership_tier').eq('id', userId).maybeSingle();
+    const profileRes = await supabase.from('profiles').select('id, membership_tier, membership_expires_at, created_at').eq('id', userId).maybeSingle();
     const accessState = await getAiCoachAccessState(profileRes.data || {}, userId);
     if (!accessState.canUseMealAdjustment) {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'mealAdjustments'));
@@ -1949,7 +1954,7 @@ const recordAiMealSwap: RequestHandler = async (req, res) => {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const profileRes = await supabase.from('profiles').select('id, membership_tier').eq('id', userId).maybeSingle();
+    const profileRes = await supabase.from('profiles').select('id, membership_tier, membership_expires_at, created_at').eq('id', userId).maybeSingle();
     const accessState = await getAiCoachAccessState(profileRes.data || {}, userId);
     if (!accessState.canUseMealAdjustment) {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'mealAdjustments'));

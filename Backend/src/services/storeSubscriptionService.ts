@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { adminSupabase } from '../config/Supabase';
 import { AppError, InternalConfigurationError } from '../http/errors';
+import { resolveMembership, type MembershipProfile, type StoreMembership, type MembershipState } from '../../../shared/membership';
 
 export type StoreTier = 'free' | 'plus' | 'pro';
-const tierRank = { free: 0, plus: 1, pro: 2 };
 const entitlementSchema = z.object({ expires_date: z.string().nullable(), product_identifier: z.string() }).passthrough();
 const subscriberSchema = z.object({
   request_date_ms: z.number().finite(),
@@ -30,12 +30,8 @@ export function selectStoreEntitlement(payload: unknown, now = Date.now()) {
   return { tier: 'free' as const, expiresAt: null, checkedAt: new Date(parsed.request_date_ms).toISOString() };
 }
 
-export function effectiveMembershipTier(profile: { membership_tier?: string; membership_expires_at?: string | null }, store?: { tier: string; expires_at: string | null } | null, now = Date.now()): StoreTier {
-  let tier: StoreTier = profile.membership_tier === 'premium' || profile.membership_tier === 'pro' ? 'pro' : profile.membership_tier === 'plus' ? 'plus' : 'free';
-  if (profile.membership_expires_at && !(Date.parse(profile.membership_expires_at) > now)) tier = 'free';
-  const storeTier = store?.tier === 'pro' ? 'pro' : store?.tier === 'plus' ? 'plus' : 'free';
-  if (store?.expires_at && Date.parse(store.expires_at) > now && tierRank[storeTier] > tierRank[tier]) tier = storeTier;
-  return tier;
+export function effectiveMembershipTier(profile: MembershipProfile, store?: StoreMembership | null, now = Date.now()): StoreTier {
+  return resolveMembership(profile, store, now).tier;
 }
 
 async function revenueCatRequest(userId: string, method = 'GET') {
@@ -67,10 +63,14 @@ export async function syncStoreSubscription(userId: string) {
 }
 
 export async function getEffectiveMembershipTier(profile: any, userId: string): Promise<StoreTier> {
-  if (!process.env.REVENUECAT_SECRET_API_KEY) return effectiveMembershipTier(profile);
+  return (await getEffectiveMembership(profile, userId)).tier;
+}
+
+export async function getEffectiveMembership(profile: MembershipProfile, userId: string): Promise<MembershipState> {
+  if (!process.env.REVENUECAT_SECRET_API_KEY) return resolveMembership(profile);
   const { data, error } = await adminSupabase.from('store_entitlements').select('tier, expires_at').eq('user_id', userId).maybeSingle();
   if (error) throw error;
-  return effectiveMembershipTier(profile, data);
+  return resolveMembership(profile, data);
 }
 
 export async function deleteStoreCustomer(userId: string) {

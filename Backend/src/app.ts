@@ -22,7 +22,7 @@ import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
 import { accountRouter } from './modules/account/accountRouter';
 import { storeRouter } from './modules/account/storeRouter';
 import { feedbackRouter } from './modules/account/feedbackRouter';
-import { getEffectiveMembershipTier } from './services/storeSubscriptionService';
+import { getEffectiveMembership } from './services/storeSubscriptionService';
 import { hasAiDataConsent } from './services/ai/aiConsentService';
 import { registerAdminRoutes } from './modules/admin/adminRoutes';
 import { createAdminHandlers } from './modules/admin/adminHandlers';
@@ -398,7 +398,8 @@ const recordAiQuotaUsage = async (userId: string, quotaKey: AiQuotaKey) => {
 };
 
 const getAiCoachAccessState = async (profile: any, userId: string) => {
-  const membershipTier = await getEffectiveMembershipTier(profile, userId);
+  const membership = await getEffectiveMembership(profile, userId);
+  const membershipTier = membership.tier;
   const quotaLimits = AI_QUOTAS_BY_TIER[membershipTier];
   const quotaWindow = getAiQuotaWindow(profile, membershipTier);
   const trialExpired = membershipTier === 'free' && !!quotaWindow.endsAt && new Date() >= quotaWindow.endsAt;
@@ -430,6 +431,7 @@ const getAiCoachAccessState = async (profile: any, userId: string) => {
 
   return {
     membershipTier,
+    membership,
     trialExpired,
     trialEndsAt: membershipTier === 'free' ? quotaWindow.endsAt?.toISOString() || null : null,
     quotaWindow: {

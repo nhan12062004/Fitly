@@ -84,10 +84,10 @@ const formatMembershipExpiry = (value: unknown): string => {
 };
 
 export default function PremiumCheckout() {
-  const { profile, membershipTier } = useAuth();
+  const { profile, membershipTier, membership } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const membershipExpiryLabel = formatMembershipExpiry(profile?.membership_expires_at);
+  const membershipExpiryLabel = formatMembershipExpiry(membership.expiresAt);
 
   const handleClose = () => {
     if (window.history.length > 1) {

@@ -49,6 +49,7 @@ import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import { getUserChallenges, type ChallengeSummary } from '../lib/Challenges';
 import { fetchWithAuth } from '../lib/Api';
+import AiPlanCard from '../components/AiPlanCard';
 import {
   EQUIPMENT_TYPES,
   TRAINING_LOCATIONS,
@@ -164,10 +165,6 @@ const getBmiStatus = (bmi: number | null) => {
   return 'Cao';
 };
 
-const membershipLabels = { free: 'Free', plus: 'Plus', pro: 'Pro' };
-
-const AI_LIMIT = { free: 25, plus: 200, pro: 800 };
-const AI_SWAP_LIMIT = { free: 5, plus: 30, pro: 100 };
 const APP_URL = (import.meta.env.VITE_APP_URL || 'https://trend-fit.vercel.app').replace(/\/$/, '');
 const FITNESS_GOAL_OPTIONS = ['Giảm mỡ', 'Tăng cơ', 'Sức mạnh', 'Sức bền', 'Dẻo dai', 'Phục hồi & Tái tạo'];
 const FITNESS_GOAL_DESCRIPTIONS: Record<string, string> = {
@@ -327,7 +324,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
   const isProfileEditPage = location.pathname === '/profile/edit';
-  const { user, profile, membershipTier, isAdmin, openPremiumModal, refreshProfile, signOut } = useAuth();
+  const { user, profile, membershipTier, membership, isAdmin, refreshTick, openPremiumModal, refreshProfile, signOut } = useAuth();
   const toast = useToast();
   const [formData, setFormData] = useState(emptyForm);
   const selectedAllergies = normalizeAllergies(formData.allergies).filter((value) => ALLERGENS.includes(value as typeof ALLERGENS[number]));
@@ -348,9 +345,6 @@ export default function Profile() {
   const [referralCount, setReferralCount] = useState(0);
   const [copied, setCopied] = useState(false);
   const [completedChallenges, setCompletedChallenges] = useState<ChallengeSummary[]>([]);
-  const [aiUsed, setAiUsed] = useState(0);
-  const [aiSwapWorkout, setAiSwapWorkout] = useState(0);
-  const [aiSwapMeal, setAiSwapMeal] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -372,7 +366,7 @@ export default function Profile() {
       setLoading(true);
       setError('');
       try {
-        const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, aiQuotaPayload, allChallenges] = await Promise.all([
+        const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, allChallenges] = await Promise.all([
           fetchWithAuth('/api/profile')
             .then(async (response) => {
               const payload = await response.json().catch(() => ({}));
@@ -395,9 +389,6 @@ export default function Profile() {
             .eq('user_id', userId)
             .order('log_date', { ascending: false })
             .limit(90),
-          fetchWithAuth('/api/ai/quota')
-            .then(async (response) => response.ok ? response.json() : null)
-            .catch(() => null),
           getUserChallenges(userId).catch(() => []),
         ]);
 
@@ -462,13 +453,6 @@ export default function Profile() {
             else if (i > 0) break;
           }
           setStreakCount(streak);
-        }
-
-        const quotaUsage = aiQuotaPayload?.aiQuota?.usage;
-        if (quotaUsage) {
-          setAiUsed(Math.max(0, Number(quotaUsage.chatMessages) || 0));
-          setAiSwapWorkout(Math.max(0, Number(quotaUsage.workoutAdjustments) || 0));
-          setAiSwapMeal(Math.max(0, Number(quotaUsage.mealAdjustments) || 0));
         }
       } catch (err: any) {
         if (!cancelled) setError(err?.message || 'Không thể tải thông tin cá nhân.');
@@ -700,19 +684,10 @@ export default function Profile() {
 
   const rawName = formData.full_name || profile?.full_name || user?.email?.split('@')[0] || 'Thành viên';
   const initial = rawName.trim().charAt(0).toUpperCase() || '?';
-  const membershipLabel = membershipLabels[membershipTier] || 'Free';
   const bmiLabel = bmi ? bmi.toFixed(1) : '--';
   const bmiStatus = getBmiStatus(bmi);
   const joinedLabel = profile?.created_at ? `Thành viên từ tháng ${formatJoinMonth(profile.created_at)}` : '';
-  const membershipExpiryLabel = profile?.membership_expires_at
-    ? (() => {
-        const d = new Date(String(profile.membership_expires_at));
-        return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      })()
-    : '';
   const goalLabel = fitnessGoal || 'Chưa đặt mục tiêu';
-  const aiLimit = AI_LIMIT[membershipTier] ?? 25;
-  const aiSwapLimit = AI_SWAP_LIMIT[membershipTier] ?? 5;
   const referralLink = refCode ? `${APP_URL}/register?ref=${refCode}` : '';
 
   const level = dbLevel;
@@ -1172,105 +1147,7 @@ export default function Profile() {
 
 
       {/* ── GÓI AI ───────────────────────────────────────────────────── */}
-      <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
-        <div className="p-4 md:p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent border border-accent/20">
-                <Zap className="h-4 w-4" />
-              </span>
-              <h2 className="text-base font-black text-text-primary">Gói AI</h2>
-            </div>
-            {membershipTier !== 'pro' && (
-              <button type="button" onClick={openPremiumModal} className="flex items-center gap-1 text-xs font-bold text-accent hover:text-accent/80 transition-colors">
-                <TrendingUp className="h-3.5 w-3.5" /> Nâng cấp
-              </button>
-            )}
-          </div>
-
-          {/* Badge & Expiry */}
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-tertiary px-3 py-1 text-xs font-black text-text-secondary">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              {membershipLabel.toUpperCase()}
-            </span>
-            {membershipTier !== 'free' && membershipExpiryLabel && (
-              <span className="text-xs font-semibold text-text-tertiary">
-                Hạn dùng đến: <span className="font-bold text-accent">{membershipExpiryLabel}</span>
-              </span>
-            )}
-          </div>
-
-          {/* Total AI usage bar */}
-          {aiLimit !== Infinity && (
-            <div className="mt-3">
-              <div className="flex justify-between mb-1.5">
-                <p className="text-xs font-semibold text-text-secondary">Lượt AI đã dùng</p>
-                <p className="text-xs font-black text-text-primary">{aiUsed} / {aiLimit}</p>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-bg-tertiary">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-accent to-accent/70 transition-[width]"
-                  style={{ width: `${Math.min(100, (aiUsed / aiLimit) * 100)}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Swap limits */}
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border-primary bg-bg-tertiary/50 p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Activity className="h-3.5 w-3.5 text-accent" />
-                <p className="text-xs font-semibold text-text-secondary">Đổi bài tập</p>
-              </div>
-              <p className="text-lg font-black text-text-primary">
-                {aiSwapLimit === Infinity ? '∞' : Math.max(0, aiSwapLimit - aiSwapWorkout)}
-              </p>
-              <p className="text-[10px] text-text-tertiary font-semibold">/ {aiSwapLimit === Infinity ? '∞' : aiSwapLimit} lượt</p>
-              {aiSwapLimit !== Infinity && (
-                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-bg-secondary">
-                  <div
-                    className="h-full rounded-full bg-accent transition-[width] duration-300"
-                    style={{ width: `${Math.max(0, Math.min(100, ((aiSwapLimit - aiSwapWorkout) / aiSwapLimit) * 100))}%` }}
-                  />
-                </div>
-              )}
-            </div>
-            <div className="rounded-xl border border-border-primary bg-bg-tertiary/50 p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <Apple className="h-3.5 w-3.5 text-emerald-400" />
-                <p className="text-xs font-semibold text-text-secondary">Đổi món ăn</p>
-              </div>
-              <p className="text-lg font-black text-text-primary">
-                {aiSwapLimit === Infinity ? '∞' : Math.max(0, aiSwapLimit - aiSwapMeal)}
-              </p>
-              <p className="text-[10px] text-text-tertiary font-semibold">/ {aiSwapLimit === Infinity ? '∞' : aiSwapLimit} lượt</p>
-              {aiSwapLimit !== Infinity && (
-                <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-bg-secondary">
-                  <div
-                    className="h-full rounded-full bg-emerald-400 transition-[width] duration-300"
-                    style={{ width: `${Math.max(0, Math.min(100, ((aiSwapLimit - aiSwapMeal) / aiSwapLimit) * 100))}%` }}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Upgrade buttons */}
-          {membershipTier !== 'pro' && (
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={openPremiumModal}
-                className="inline-flex w-full h-10 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-black text-text-inverse transition-colors hover:bg-accent-hover"
-              >
-                <Zap className="h-3.5 w-3.5" /> {membershipTier === 'plus' ? 'Mua gói PRO' : 'Mua gói PLUS / PRO'}
-              </button>
-            </div>
-          )}
-        </div>
-      </section>
+      {user?.id && <AiPlanCard userId={user.id} profile={profile} membership={membership} refreshTick={refreshTick} />}
 
       {/* ── MỜI BẠN BẾ ─────────────────────────────────── */}
       <section className="overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">

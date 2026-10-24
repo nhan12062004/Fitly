@@ -215,7 +215,7 @@ const replaceDailyExercise: RequestHandler = async (req, res, next) => {
     }
 
     const [profileRes, lifestyleRes, healthRes, sameDayRes, catalogRes] = await Promise.all([
-      supabase.from('profiles').select('id, gender, birthday, membership_tier').eq('id', authUserId).maybeSingle(),
+      supabase.from('profiles').select('id, gender, birthday, membership_tier, membership_expires_at, created_at').eq('id', authUserId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle(),
       supabase.from('daily_exercise_sessions').select('exercise_id').eq('user_id', authUserId).eq('log_date', currentSession.log_date),

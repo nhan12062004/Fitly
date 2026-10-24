@@ -252,8 +252,13 @@ Success `200`:
 ```ts
 {
   membershipTier: string;
+  membership: { tier: 'free' | 'plus' | 'pro'; expiresAt: string | null; source: 'profile' | 'store' | 'none'; expired: { tier: 'plus' | 'pro'; expiresAt: string } | null };
   canChat: boolean;
   trialExpired: boolean;
+  canGenerate: boolean;
+  canUseWorkoutAdjustment: boolean;
+  canUseMealAdjustment: boolean;
+  quotaWindow: { startsAt: string; endsAt: string | null };
   aiQuota: AiQuotaSnapshot;
 }
 ```

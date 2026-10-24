@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { effectiveMembershipTier, selectStoreEntitlement } from '../src/services/storeSubscriptionService';
 import { validWebhookAuthorization } from '../src/modules/account/storeRouter';
+import { resolveMembership } from '../../shared/membership';
 
 const now = Date.parse('2026-09-12T12:00:00Z');
 const fixture = (expires = '2026-10-12T12:00:00Z', sandbox = false) => ({
@@ -41,6 +42,17 @@ describe('verified subscription rights', () => {
     expect(effectiveMembershipTier({ membership_tier: 'pro' }, { tier: 'free', expires_at: null }, now)).toBe('pro');
     expect(effectiveMembershipTier({ membership_tier: 'plus' }, { tier: 'pro', expires_at: '2026-10-01' }, now)).toBe('pro');
     expect(effectiveMembershipTier({ membership_tier: 'pro', membership_expires_at: '2026-01-01' }, null, now)).toBe('free');
+  });
+  it('expires an August subscription by October 24 without inventing a new monthly period', () => {
+    const profile = { membership_tier: 'pro', membership_expires_at: '2026-08-22T00:00:00+07:00' };
+    const october24 = Date.parse('2026-10-24T12:00:00+07:00');
+    expect(effectiveMembershipTier(profile, null, october24)).toBe('free');
+    expect(resolveMembership(profile, null, october24)).toMatchObject({ tier: 'free', expiresAt: null, expired: { tier: 'pro' } });
+    expect(profile.membership_expires_at).toBe('2026-08-22T00:00:00+07:00');
+  });
+  it('takes a newer verified expiry for a renewal of the same tier', () => {
+    const state = resolveMembership({ membership_tier: 'pro', membership_expires_at: '2026-10-25' }, { tier: 'pro', expires_at: '2026-11-25' }, Date.parse('2026-10-24'));
+    expect(state).toMatchObject({ tier: 'pro', source: 'store', expiresAt: '2026-11-25T00:00:00.000Z' });
   });
 });
 

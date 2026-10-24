@@ -1,11 +1,12 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/Supabase';
 import { User } from '@supabase/supabase-js';
 import AuthModal from '../components/AuthModal';
 import LoadingScreen from '../components/LoadingScreen';
 import { useNavigate } from 'react-router';
 
-export type MembershipTier = 'free' | 'plus' | 'pro';
+import { resolveMembership, type MembershipState, type MembershipTier, type StoreMembership } from '../../../shared/membership';
+export type { MembershipTier } from '../../../shared/membership';
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -15,6 +16,7 @@ interface AuthContextType {
   isCheckingProfile: boolean;
   userRole: string | null;
   membershipTier: MembershipTier;
+  membership: MembershipState;
   isPremium: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -27,13 +29,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-const normalizeMembershipTier = (value: unknown): MembershipTier => {
-  const tier = String(value || '').trim().toLowerCase();
-  if (tier === 'pro' || tier === 'premium') return 'pro';
-  if (tier === 'plus') return 'plus';
-  return 'free';
-};
 
 const getSupabaseAuthType = () => {
   const searchParams = new URLSearchParams(window.location.search);
@@ -71,43 +66,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hasProfile, setHasProfile] = useState(false);
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [membershipTier, setMembershipTier] = useState<MembershipTier>('free');
+  const [storeMembership, setStoreMembership] = useState<StoreMembership | null>(null);
+  const [membershipNow, setMembershipNow] = useState(Date.now);
+  const membership = useMemo(() => resolveMembership(profile, storeMembership, membershipNow), [profile, storeMembership, membershipNow]);
+  const membershipTier = membership.tier;
+  const profileRequestId = useRef(0);
   const [loading, setLoading] = useState(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [refreshTick, setRefreshTick] = useState(0);
 
   const checkProfile = async (userId: string) => {
+    const requestId = ++profileRequestId.current;
     setIsCheckingProfile(true);
     try {
-      // 1. Lấy thông tin cơ bản từ profiles
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      // 2. Kiểm tra xem đã hoàn thành survey chưa (lifestyle_settings tồn tại)
-      const { data: lifestyleData } = await supabase
-        .from('lifestyle_settings')
-        .select('user_id')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const [profileResult, lifestyleResult, storeResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+        supabase.from('lifestyle_settings').select('user_id').eq('user_id', userId).maybeSingle(),
+        // Owner-only RLS exposes the verified subscription, never store credentials.
+        supabase.from('store_entitlements').select('tier, expires_at').eq('user_id', userId).maybeSingle(),
+      ]);
+      if (requestId !== profileRequestId.current) return;
+      if (profileResult.error) throw profileResult.error;
+      const profileData = profileResult.data;
+      const lifestyleData = lifestyleResult.data;
 
       setProfile(profileData || null);
       // hasProfile chỉ là true khi ĐÃ CÓ profile và ĐÃ HOÀN THÀNH survey
       setHasProfile(!!profileData && !!lifestyleData);
       setUserRole(profileData?.role || 'user');
-      setMembershipTier(normalizeMembershipTier(profileData?.membership_tier));
+      setStoreMembership(storeResult.error ? null : storeResult.data);
+      setMembershipNow(Date.now());
     } catch (error) {
+      if (requestId !== profileRequestId.current) return;
       console.error('Error checking profile/survey status:', error);
       setProfile(null);
       setHasProfile(false);
-      setMembershipTier('free');
+      setStoreMembership(null);
     } finally {
-      setIsCheckingProfile(false);
+      if (requestId === profileRequestId.current) setIsCheckingProfile(false);
     }
   };
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const updateClock = () => {
+      const now = Date.now();
+      setMembershipNow(now);
+      const expiresAt = Date.parse(membership.expiresAt || '');
+      if (expiresAt > now) timer = setTimeout(updateClock, Math.min(expiresAt - now + 10, 2_147_483_647));
+    };
+    const onFocus = () => setMembershipNow(Date.now());
+    updateClock();
+    window.addEventListener('focus', onFocus);
+    return () => { clearTimeout(timer); window.removeEventListener('focus', onFocus); };
+  }, [membership.expiresAt]);
 
   useEffect(() => {
     const handleInitialAuthUrl = async () => {
@@ -151,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (currentUser) {
         checkProfile(currentUser.id).finally(() => setLoading(false));
       } else {
+        profileRequestId.current += 1;
         setLoading(false);
         setIsCheckingProfile(false);
       }
@@ -170,10 +184,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         checkProfile(currentUser.id);
         setIsAuthModalOpen(false);
       } else {
+        profileRequestId.current += 1;
         setProfile(null);
         setHasProfile(false);
         setUserRole(null);
-        setMembershipTier('free');
+        setStoreMembership(null);
         setIsCheckingProfile(false);
         setRefreshTick(0);
       }
@@ -189,6 +204,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const channelTopic = `realtime_sync_${session.user.id}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         realtimeChannel = supabase.channel(channelTopic)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${session.user.id}` }, () => {
+            void checkProfile(session.user.id);
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'store_entitlements', filter: `user_id=eq.${session.user.id}` }, () => {
             void checkProfile(session.user.id);
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_progress_logs', filter: `user_id=eq.${session.user.id}` }, () => {
@@ -214,6 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mounted = false;
+      profileRequestId.current += 1;
       subscription.unsubscribe();
       if (realtimeChannel) supabase.removeChannel(realtimeChannel);
     };
@@ -225,11 +244,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Error during signOut:', error);
     } finally {
+      profileRequestId.current += 1;
       setUser(null);
       setProfile(null);
       setHasProfile(false);
       setUserRole(null);
-      setMembershipTier('free');
+      setStoreMembership(null);
       setRefreshTick(0);
       
       try {
@@ -268,6 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isCheckingProfile,
       userRole,
       membershipTier,
+      membership,
       isPremium: membershipTier === 'pro',
       isAdmin: userRole === 'admin',
       signOut,
