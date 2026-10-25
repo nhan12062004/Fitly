@@ -28,12 +28,11 @@ const planCards: Array<{
     name: 'Free',
     price: '0',
     period: 'VND / tháng',
-    description: 'Dùng thử lịch tập, thực đơn và AI Coach trong 7 ngày.',
+    description: 'Nhận lịch tập và thực đơn 7 ngày một lần khi hoàn tất khảo sát ban đầu.',
     benefits: [
-      'Lịch tập và thực đơn 7 ngày đầu',
-      'Có giới hạn lượt tạo lại bài tập',
-      'Có giới hạn lượt tạo lại thực đơn',
-      'AI Coach giới hạn 25 tin nhắn',
+      'Tạo lịch tập và thực đơn 7 ngày đầu một lần',
+      'Xem lại kế hoạch và theo dõi tiến độ',
+      'AI Coach giới hạn 25 tin nhắn trong 7 ngày',
     ],
   },
   {

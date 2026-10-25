@@ -1176,6 +1176,9 @@ const generateAiDailyWorkout: RequestHandler = async (req, res, next) => {
     };
     trainingContext.safetyContext = { profile, lifestyle, health };
     const accessState = await getAiCoachAccessState(profile, authUserId);
+    if (accessState.membershipTier === 'free') {
+      return next(new AppError(403, 'PREMIUM_REQUIRED', 'Gói Free chỉ có lịch tập 7 ngày được tạo khi hoàn tất khảo sát. Nâng cấp Plus hoặc Pro để tạo buổi tập mới.'));
+    }
     if (!accessState.canGenerate) {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'planGenerations'));
     }
@@ -1385,10 +1388,6 @@ const generateAiWeeklyPlan: RequestHandler = async (req, res, next) => {
     }
     const { weekStartDate } = req.body || {};
     const userId = authUserId;
-    if (!process.env.GROQ_API_KEY) {
-      return next(new InternalConfigurationError());
-    }
-
     const weekStartKey = weekStartDate || getVietnamDateKey();
 
     const [
@@ -1458,9 +1457,37 @@ const generateAiWeeklyPlan: RequestHandler = async (req, res, next) => {
       });
     }
 
+    if (accessState.membershipTier === 'free') {
+      if (req.body?.planScope !== 'workout_only') {
+        return next(new AppError(403, 'PREMIUM_REQUIRED', 'Gói Free chỉ tạo lịch tập 7 ngày trong khảo sát ban đầu. Nâng cấp Plus hoặc Pro để tạo kế hoạch mới.'));
+      }
+      const priorPlans = await supabase.from('weekly_plans')
+        .select('id, week_start_date, plan_status')
+        .eq('user_id', userId)
+        .in('plan_status', ['active', 'completed', 'adjusted'])
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (priorPlans.error) throw priorPlans.error;
+      const priorPlan = priorPlans.data?.[0];
+      if (priorPlan) {
+        if (priorPlan.plan_status === 'active' && priorPlan.week_start_date === weekStartKey) {
+          return res.json({ success: true, data: {
+            weeklyPlanId: priorPlan.id,
+            weekStartDate: weekStartKey,
+            trainingPrescription,
+            membershipTier: 'free',
+            aiQuota: buildAiQuotaSnapshot(accessState),
+            source: 'existing',
+          } });
+        }
+        return next(new AppError(403, 'PREMIUM_REQUIRED', 'Gói Free chỉ được tạo lịch tập và thực đơn 7 ngày một lần khi hoàn tất khảo sát. Nâng cấp Plus hoặc Pro để tạo kế hoạch mới.'));
+      }
+    }
+
     if (!accessState.canGenerate) {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'planGenerations'));
     }
+    if (!process.env.GROQ_API_KEY) return next(new InternalConfigurationError());
 
     const { text: exerciseCatalog, referenceIds: exerciseReferenceIds } = buildAiExerciseCatalog(exercises);
 
@@ -1900,13 +1927,16 @@ const generateAiMealDraft = async (params: {
   throw new ApiRequestError(500, { error: 'Không tìm thấy công thức ăn uống phù hợp trong danh mục.' });
 };
 
-const generateAiMealPlan: RequestHandler = async (req, res) => {
+const generateAiMealPlan: RequestHandler = async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const profileRes = await supabase.from('profiles').select('id, membership_tier, membership_expires_at, created_at').eq('id', userId).maybeSingle();
     const accessState = await getAiCoachAccessState(profileRes.data || {}, userId);
+    if (accessState.membershipTier === 'free') {
+      return next(new AppError(403, 'PREMIUM_REQUIRED', 'Gói Free chỉ nhận thực đơn 7 ngày khi hoàn tất khảo sát ban đầu. Nâng cấp Plus hoặc Pro để tạo thực đơn mới bằng AI.'));
+    }
     if (!accessState.canUseMealAdjustment) {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'mealAdjustments'));
     }
@@ -1949,13 +1979,16 @@ const generateAiMealPlan: RequestHandler = async (req, res) => {
   }
 };
 
-const recordAiMealSwap: RequestHandler = async (req, res) => {
+const recordAiMealSwap: RequestHandler = async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     const profileRes = await supabase.from('profiles').select('id, membership_tier, membership_expires_at, created_at').eq('id', userId).maybeSingle();
     const accessState = await getAiCoachAccessState(profileRes.data || {}, userId);
+    if (accessState.membershipTier === 'free') {
+      return next(new AppError(403, 'PREMIUM_REQUIRED', 'Gói Free không có lượt đổi thực đơn bằng AI. Nâng cấp Plus hoặc Pro để sử dụng tính năng này.'));
+    }
     if (!accessState.canUseMealAdjustment) {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'mealAdjustments'));
     }
@@ -1990,16 +2023,17 @@ const generateAiOnboardingMealPlan: RequestHandler = async (req, res, next) => {
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-    if (!process.env.GROQ_API_KEY) return next(new InternalConfigurationError());
 
     const rawWeekStartKey = String(req.body?.weekStartDate || getVietnamDateKey()).trim();
     const weekStartKey = getWeekStartKey(new Date(`${rawWeekStartKey}T00:00:00`));
-    const [workoutPlanRes, foodPlanRes] = await Promise.all([
+    const [profileRes, workoutPlanRes, foodPlanRes] = await Promise.all([
+      supabase.from('profiles').select('id, membership_tier, membership_expires_at, created_at').eq('id', userId).maybeSingle(),
       supabase.from('weekly_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),
       supabase.from('weekly_food_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),
     ]);
-    const firstError = [workoutPlanRes.error, foodPlanRes.error].find(Boolean);
+    const firstError = [profileRes.error, workoutPlanRes.error, foodPlanRes.error].find(Boolean);
     if (firstError) throw firstError;
+    const accessState = await getAiCoachAccessState(profileRes.data || {}, userId);
     const existingFoodPlanId = foodPlanRes.data?.[0]?.id;
     if (existingFoodPlanId) {
       const [lifestyleRes, bodyMetricsRes] = await Promise.all([
@@ -2025,6 +2059,22 @@ const generateAiOnboardingMealPlan: RequestHandler = async (req, res, next) => {
         },
       });
     }
+
+    if (accessState.membershipTier === 'free') {
+      const priorFoodPlans = await supabase.from('weekly_food_plans')
+        .select('id')
+        .eq('user_id', userId)
+        .in('plan_status', ['active', 'completed', 'adjusted'])
+        .limit(1);
+      if (priorFoodPlans.error) throw priorFoodPlans.error;
+      if (priorFoodPlans.data?.length) {
+        return next(new AppError(403, 'PREMIUM_REQUIRED', 'Gói Free chỉ được tạo thực đơn 7 ngày một lần khi hoàn tất khảo sát. Nâng cấp Plus hoặc Pro để tạo thực đơn mới.'));
+      }
+      if (!workoutPlanRes.data?.[0]?.id) {
+        return res.status(409).json({ error: 'Lịch tập 7 ngày chưa sẵn sàng. Vui lòng hoàn tất khảo sát trước.' });
+      }
+    }
+    if (!process.env.GROQ_API_KEY) return next(new InternalConfigurationError());
 
     const draft = await generateAiMealDraft({ userId, weekStartKey, scope: 'week' });
     const generatedPlan = await supabase

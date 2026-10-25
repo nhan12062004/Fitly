@@ -63,6 +63,7 @@ export const getApiErrorMessage = ({
   fallbackByStatus?: Record<number, string>;
 }) => {
   const payloadCandidates = [
+    payload?.error?.message,
     payload?.error,
     payload?.message,
   ];
@@ -98,4 +99,9 @@ export const getApiErrorMessage = ({
   }
 
   return fallbackMessage;
+};
+
+export const getApiErrorCode = (payload: any): string => {
+  const code = payload?.error?.code || payload?.code;
+  return typeof code === 'string' ? code : '';
 };

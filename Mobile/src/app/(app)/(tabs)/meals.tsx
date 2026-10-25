@@ -7,7 +7,8 @@ import { router } from 'expo-router';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
 import { apiRequest } from '@/lib/api-client';
-import { getVietnamDayIndex, getVietnamWeekStartKey, loadProfileSnapshot, loadTodayMeals, saveGeneratedMealPlan, type GeneratedMealPlanItem } from '@/lib/fitness-read-model';
+import { openInitialAssessment } from '@/lib/assessment';
+import { getVietnamDayIndex, getVietnamWeekStartKey, hasAnyWeeklyMealPlan, hasAnyWeeklyWorkoutPlan, loadProfileSnapshot, loadTodayMeals, saveGeneratedMealPlan, type GeneratedMealPlanItem } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
 const weekdayLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -38,8 +39,14 @@ export default function MealsScreen() {
   const todayKey = useTodayKey();
   const resource = useResource('meals', loadTodayMeals);
   const profile = useResource('profile', loadProfileSnapshot);
+  const quota = useResource('quota', () => apiRequest<{ membershipTier: 'free' | 'plus' | 'pro'; canGenerate: boolean }>('/api/ai/quota'));
+  const firstMealPlan = useResource('first-meal-plan', hasAnyWeeklyMealPlan, [], 0);
+  const firstWorkoutPlan = useResource('first-workout-plan', hasAnyWeeklyWorkoutPlan, [], 0);
   const { state, refreshing, refresh, load, errorMessage: error } = resource;
   const items = useMemo(() => resource.data ?? [], [resource.data]);
+  const isFree = quota.data?.membershipTier === 'free';
+  const needsInitialMealPlan = isFree && firstMealPlan.data === false && (firstWorkoutPlan.data === true || Boolean(quota.data?.canGenerate));
+  const canCreateNewMealPlan = quota.data?.membershipTier === 'plus' || quota.data?.membershipTier === 'pro';
   const targetCalories = profile.data?.targetCalories ?? null;
   const [isMealPlanModalVisible, setIsMealPlanModalVisible] = useState(false);
   const [isGeneratingMealPlan, setIsGeneratingMealPlan] = useState(false);
@@ -63,6 +70,9 @@ export default function MealsScreen() {
   const openCoach = () => router.push('/coach');
 
   const openMealPlanModal = () => {
+    if (needsInitialMealPlan) return void openInitialAssessment();
+    if (isFree) return router.push('/(app)/premium');
+    if (!canCreateNewMealPlan) return;
     setMealPlanError(null);
     setMealPlanScope('day');
     setIsMealPlanModalVisible(true);
@@ -75,6 +85,7 @@ export default function MealsScreen() {
   };
 
   const createMealPlan = async () => {
+    if (!canCreateNewMealPlan) return;
     if (isGeneratingMealPlan) return;
     setIsGeneratingMealPlan(true);
     setMealPlanError(null);
@@ -125,7 +136,7 @@ export default function MealsScreen() {
       <View style={styles.mealHeader}><View><Text style={styles.microKicker}>NHẬT KÝ HÔM NAY</Text><Text style={styles.mealTitle}>Bạn đã ăn gì?</Text></View><View style={styles.mealCount}><Text style={styles.mealCountText}>{items.length} món</Text></View></View>
       {state === 'loading' && !refreshing ? <View style={styles.loading}><ActivityIndicator color={tokens.colors.lime} /></View> : null}
       {state === 'error' ? <Pressable onPress={() => void load()} style={styles.errorCard}><Text style={styles.errorText}>{error}</Text><Text style={styles.retryText}>Chạm để thử lại</Text></Pressable> : null}
-      {state === 'ready' && items.length === 0 ? <View style={styles.emptyCard}><View style={styles.emptyIcon}><AppIcon name="meals" color={tokens.colors.lime} size={29} /></View><Text style={styles.emptyTitle}>Bữa ăn đang trống</Text><Text style={styles.emptyText}>Để AI Coach gợi ý một thực đơn phù hợp với mục tiêu của bạn.</Text><Pressable onPress={openMealPlanModal} style={styles.emptyAction}><Text style={styles.emptyActionText}>Tạo thực đơn AI</Text><AppIcon name="arrow-right" color={tokens.colors.canvas} size={17} /></Pressable></View> : null}
+      {state === 'ready' && items.length === 0 ? <View style={styles.emptyCard}><View style={styles.emptyIcon}><AppIcon name="meals" color={tokens.colors.lime} size={29} /></View><Text style={styles.emptyTitle}>Bữa ăn đang trống</Text><Text style={styles.emptyText}>{needsInitialMealPlan ? 'Hoàn tất khảo sát ban đầu trên Fitly web để nhận thực đơn Free 7 ngày.' : isFree ? 'Gói Free chỉ nhận thực đơn 7 ngày một lần khi hoàn tất khảo sát. Nâng cấp để tạo thực đơn mới.' : canCreateNewMealPlan ? 'Để AI Coach gợi ý một thực đơn phù hợp với mục tiêu của bạn.' : 'Đang kiểm tra quyền tạo thực đơn.'}</Text><Pressable disabled={!quota.data || (isFree && firstMealPlan.data === undefined)} onPress={openMealPlanModal} style={styles.emptyAction}><Text style={styles.emptyActionText}>{needsInitialMealPlan ? 'Hoàn tất khảo sát ban đầu' : isFree ? 'Xem gói Plus / Pro' : canCreateNewMealPlan ? 'Tạo thực đơn AI' : 'Đang kiểm tra gói'}</Text><AppIcon name="arrow-right" color={tokens.colors.canvas} size={17} /></Pressable></View> : null}
       {state === 'ready' && items.length > 0 ? <View style={styles.mealList}>{items.map((item, index) => {
         const tone = mealTones[index % mealTones.length];
         return <Pressable key={item.id} disabled={!item.recipeId} onPress={() => item.recipeId && router.push({ pathname: '/recipe/[id]', params: { id: item.recipeId } })} style={({ pressed }) => [styles.mealCard, { backgroundColor: tone.surface }, item.recipeId && pressed && styles.pressed]}>
@@ -134,7 +145,7 @@ export default function MealsScreen() {
         </Pressable>;
       })}</View> : null}
 
-      <Pressable onPress={openCoach} style={({ pressed }) => [styles.coachPrompt, pressed && styles.pressed]}><View style={styles.coachPromptIcon}><AppIcon name="coach" color="#D7A4FF" size={22} /></View><View style={styles.coachPromptCopy}><Text style={styles.coachPromptTitle}>Cần đổi món?</Text><Text style={styles.coachPromptText}>Hỏi AI Coach một gợi ý khác ngay.</Text></View><AppIcon name="arrow-right" color="#D7A4FF" size={18} /></Pressable>
+      <Pressable onPress={openCoach} style={({ pressed }) => [styles.coachPrompt, pressed && styles.pressed]}><View style={styles.coachPromptIcon}><AppIcon name="coach" color="#D7A4FF" size={22} /></View><View style={styles.coachPromptCopy}><Text style={styles.coachPromptTitle}>{isFree ? 'Cần tư vấn món ăn?' : 'Cần đổi món?'}</Text><Text style={styles.coachPromptText}>{isFree ? 'Hỏi AI Coach để nhận lời khuyên dinh dưỡng.' : 'Hỏi AI Coach một gợi ý khác ngay.'}</Text></View><AppIcon name="arrow-right" color="#D7A4FF" size={18} /></Pressable>
 
       <Modal visible={isMealPlanModalVisible} transparent animationType="slide" onRequestClose={closeMealPlanModal}>
         <View style={styles.modalOverlay}>

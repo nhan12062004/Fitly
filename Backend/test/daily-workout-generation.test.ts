@@ -18,7 +18,7 @@ const query = (data: unknown) => {
   return result;
 };
 
-const fixture = (existing = false, safeDuration = 45) => {
+const fixture = (existing = false, safeDuration = 45, membershipTier: 'free' | 'plus' = 'plus') => {
   const profile = { id: 'user-1' };
   const lifestyle = { fitness_goal: 'Tăng cơ', workout_location: 'Phòng gym', equipment_available: 'barbell' };
   const health = { injuries: 'knee injury' };
@@ -52,7 +52,7 @@ const fixture = (existing = false, safeDuration = 45) => {
       profile, lifestyle, health, safetyContext: { profile, lifestyle, health },
       trainingPrescription: { durationMinutes: safeDuration },
     })),
-    getAiCoachAccessState: async () => ({ canGenerate: true }),
+    getAiCoachAccessState: async () => ({ membershipTier, canGenerate: true }),
     buildExerciseEligibilityContext: vi.fn((context) => context),
     getEligibleExercises: (exercises: unknown[]) => exercises,
     rankExercises: (exercises: unknown[]) => exercises.map((exercise) => ({ exercise })),
@@ -116,6 +116,15 @@ describe('daily workout quick setup', () => {
     const response = await request(app).post('/daily').send({});
     expect(response.status).toBe(200);
     expect(response.body.data.source).toBe('existing');
+    expect(callGroqJson).not.toHaveBeenCalled();
+    expect(inserts).not.toHaveBeenCalled();
+  });
+
+  it('does not generate a new daily workout for a Free member', async () => {
+    const { app, inserts } = fixture(false, 45, 'free');
+    const response = await request(app).post('/daily').send({ logDate: '2026-09-12' });
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe('PREMIUM_REQUIRED');
     expect(callGroqJson).not.toHaveBeenCalled();
     expect(inserts).not.toHaveBeenCalled();
   });

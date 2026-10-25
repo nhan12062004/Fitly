@@ -17,10 +17,12 @@ import {
   X
 } from 'lucide-react';
 import { supabase } from '../lib/Supabase';
+import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock, SkeletonHero, SkeletonSurface } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
 import { fetchWithAuth } from '../lib/Api';
+import { getApiErrorMessage } from '../lib/ErrorMessage';
 import { RecipeDetailModal } from '../components/RecipeDetailModal';
 
 interface Food {
@@ -528,7 +530,8 @@ export function DietPlanSkeleton() {
 }
 
 export default function DietPlan() {
-  const { user } = useAuth();
+  const { user, membershipTier } = useAuth();
+  const navigate = useNavigate();
   const toast = useToast();
   const alert = (message: unknown) => {
     const text = String(message || '');
@@ -1059,7 +1062,7 @@ export default function DietPlan() {
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload?.error || 'Không thể tạo thực đơn AI cho ngày này.');
+      if (!response.ok) throw new Error(getApiErrorMessage({ payload, fallbackMessage: 'Không thể tạo thực đơn AI cho ngày này.' }));
 
       const generatedItems = Array.isArray(payload?.data?.mealItems) ? payload.data.mealItems : [];
       const nextItems: PlanFood[] = generatedItems
@@ -1610,7 +1613,9 @@ export default function DietPlan() {
                 <p className="text-[11px] font-black uppercase tracking-[0.16em] text-warning">Recovery day</p>
                 <h2 className="mt-2 text-2xl font-black leading-tight">Ngày nghỉ để hồi phục</h2>
                 <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-text-secondary">
-                  Không cần hiển thị quá nhiều chi tiết cho ngày này. Bạn có thể bật lại thực đơn hoặc để AI tạo lại menu nhẹ hơn.
+                  {membershipTier === 'free'
+                    ? 'Bạn có thể bật lại thực đơn đã tạo hoặc tự chọn món cho ngày này.'
+                    : 'Không cần hiển thị quá nhiều chi tiết cho ngày này. Bạn có thể bật lại thực đơn hoặc để AI tạo lại menu nhẹ hơn.'}
                 </p>
                 <button
                   type="button"
@@ -1638,17 +1643,19 @@ export default function DietPlan() {
                 <Utensils className="mx-auto h-9 w-9 text-info" />
                 <h3 className="mt-4 text-lg font-black text-text-primary">Chưa có thực đơn cho ngày này</h3>
                 <p className="mx-auto mt-2 max-w-xl text-sm font-semibold leading-6 text-text-secondary">
-                  Tạo thực đơn AI hoặc tự chọn món để bắt đầu theo dõi macro trong ngày.
+                  {membershipTier === 'free'
+                    ? 'Gói Free nhận thực đơn 7 ngày một lần khi hoàn tất khảo sát ban đầu. Bạn có thể tự chọn món hoặc nâng cấp để tạo thực đơn mới bằng AI.'
+                    : 'Tạo thực đơn AI hoặc tự chọn món để bắt đầu theo dõi macro trong ngày.'}
                 </p>
                 <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
                   <button
                     type="button"
-                    onClick={autoCreateMenu}
-                    disabled={isSaving}
+                    onClick={membershipTier === 'free' ? () => navigate('/premium') : autoCreateMenu}
+                    disabled={membershipTier !== 'free' && isSaving}
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Bot className="h-4 w-4" />
-                    {isSaving ? 'Đang tạo...' : 'Tạo thực đơn AI'}
+                    {membershipTier === 'free' ? 'Xem gói Plus / Pro' : isSaving ? 'Đang tạo...' : 'Tạo thực đơn AI'}
                   </button>
                   <button
                     type="button"
@@ -1716,7 +1723,7 @@ export default function DietPlan() {
                             </p>
                           </div>
                           <div className="flex shrink-0 items-center gap-1.5">
-                            <button
+                            {membershipTier !== 'free' ? <button
                               type="button"
                               onClick={() => void replaceFoodInPlan(item)}
                               disabled={isSaving || Boolean(replacingFoodId)}
@@ -1725,7 +1732,7 @@ export default function DietPlan() {
                               title="Đổi sang món tương đương"
                             >
                               <RefreshCw className={replacingFoodId === item.tempId ? 'animate-spin' : ''} />
-                            </button>
+                            </button> : null}
                             {!isCompleted && (
                               <button
                                 type="button"

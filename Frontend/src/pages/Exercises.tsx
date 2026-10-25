@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { fetchWithAuth } from '../lib/Api';
+import { getApiErrorMessage } from '../lib/ErrorMessage';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { type ExerciseDetailItem } from '../components/ExerciseDetailOverlay';
@@ -380,7 +381,7 @@ export const ExercisesSkeleton = () => {
 };
 
 export default function Exercises() {
-  const { user, refreshProfile } = useAuth();
+  const { user, membershipTier, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
   const cacheForToday =
@@ -742,7 +743,7 @@ export default function Exercises() {
       const details = Array.isArray(payload?.details)
         ? payload.details.slice(0, 3).join('; ')
         : '';
-      throw new Error([payload?.error || 'Không thể tạo kế hoạch tập. Vui lòng thử lại.', details].filter(Boolean).join(': '));
+      throw new Error([getApiErrorMessage({ payload, fallbackMessage: 'Không thể tạo kế hoạch tập. Vui lòng thử lại.' }), details].filter(Boolean).join(': '));
     }
 
     const nextLimit = Number(payload?.aiQuota?.limits?.planGenerations);
@@ -1040,7 +1041,9 @@ export default function Exercises() {
             <h2 className="today-workout-title">{selectedDayTitle}</h2>
           </div>
           <span className="today-workout-status-pill today-workout-status-active">
-            {workoutPlanQuota
+            {membershipTier === 'free'
+              ? 'Free · Lịch tập 7 ngày đầu'
+              : workoutPlanQuota
               ? `Lượt còn lại: ${Math.max(0, workoutPlanQuota.limit - workoutPlanQuota.used)}/${workoutPlanQuota.limit}`
               : 'Đang tải lượt còn lại…'}
           </span>
@@ -1121,19 +1124,21 @@ export default function Exercises() {
               </p>
               {isTodaySelected ? (
                 <p className="today-workout-empty-note">
-                  Tạo lịch tập hôm nay để Fitly sắp xếp bài tập, số hiệp và lần lặp phù hợp với mục tiêu của bạn.
+                  {membershipTier === 'free'
+                    ? 'Gói Free nhận lịch tập 7 ngày một lần khi hoàn tất khảo sát ban đầu. Nâng cấp Plus hoặc Pro để tạo lịch mới.'
+                    : 'Tạo lịch tập hôm nay để Fitly sắp xếp bài tập, số hiệp và lần lặp phù hợp với mục tiêu của bạn.'}
                 </p>
               ) : null}
               {isTodaySelected ? (
                 <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setIsWorkoutSurveyOpen(true)}
-                    disabled={!workoutPlanQuota || workoutPlanQuota.used >= workoutPlanQuota.limit}
+                    onClick={() => membershipTier === 'free' ? navigate('/premium') : setIsWorkoutSurveyOpen(true)}
+                    disabled={membershipTier !== 'free' && (!workoutPlanQuota || workoutPlanQuota.used >= workoutPlanQuota.limit)}
                     className="today-workout-empty-action"
                   >
                     <Plus className="h-4 w-4" />
-                    Tạo lịch tập hôm nay
+                    {membershipTier === 'free' ? 'Xem gói Plus / Pro' : 'Tạo lịch tập hôm nay'}
                   </button>
                 </div>
               ) : null}
@@ -1154,7 +1159,7 @@ export default function Exercises() {
                   <strong>{workoutOrderSummary.progress}%</strong>
                   <span>hoàn thành</span>
                 </div>
-                <button
+                {membershipTier !== 'free' ? <button
                   type="button"
                   onClick={() => setIsWorkoutSurveyOpen(true)}
                   disabled={workoutPlanQuota !== null && workoutPlanQuota.used >= workoutPlanQuota.limit}
@@ -1163,7 +1168,7 @@ export default function Exercises() {
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                   Tạo lại lịch tập
-                </button>
+                </button> : null}
               </div>
             ) : null}
           </div>

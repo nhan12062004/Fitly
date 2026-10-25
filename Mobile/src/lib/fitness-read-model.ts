@@ -269,6 +269,28 @@ export const loadTodayMeals = async (): Promise<MealItem[]> => {
   });
 };
 
+export const hasAnyWeeklyMealPlan = async (): Promise<boolean> => {
+  const userId = await requireUserId();
+  const { data, error } = await supabase.from('weekly_food_plans')
+    .select('id')
+    .eq('user_id', userId)
+    .in('plan_status', ['active', 'completed', 'adjusted'])
+    .limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+};
+
+export const hasAnyWeeklyWorkoutPlan = async (): Promise<boolean> => {
+  const userId = await requireUserId();
+  const { data, error } = await supabase.from('weekly_plans')
+    .select('id')
+    .eq('user_id', userId)
+    .in('plan_status', ['active', 'completed', 'adjusted'])
+    .limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+};
+
 export const saveGeneratedMealPlan = async ({
   weekStartKey,
   scope,

@@ -112,9 +112,9 @@ type MembershipTier = 'free' | 'plus' | 'pro';
 type AiQuotaKey = 'planGenerations' | 'workoutAdjustments' | 'mealAdjustments' | 'chatMessages';
 const AI_QUOTAS_BY_TIER: Record<MembershipTier, Record<AiQuotaKey, number>> = {
   free: {
-    planGenerations: 5,
-    workoutAdjustments: 5,
-    mealAdjustments: 5,
+    planGenerations: 1,
+    workoutAdjustments: 0,
+    mealAdjustments: 0,
     chatMessages: 25
   },
   plus: {
@@ -422,6 +422,15 @@ const getAiCoachAccessState = async (profile: any, userId: string) => {
     mealAdjustments,
     chatMessages
   };
+  if (membershipTier === 'free' && usage.planGenerations === 0) {
+    const priorPlan = await supabase.from('weekly_plans')
+      .select('id')
+      .eq('user_id', userId)
+      .in('plan_status', ['active', 'completed', 'adjusted'])
+      .limit(1);
+    if (priorPlan.error) throw priorPlan.error;
+    if (priorPlan.data?.length) usage.planGenerations = 1;
+  }
   const remaining = Object.fromEntries(
     (Object.keys(quotaLimits) as AiQuotaKey[]).map((key) => [
       key,
@@ -463,8 +472,10 @@ const buildAiQuotaLimitError = (
   accessState: Awaited<ReturnType<typeof getAiCoachAccessState>>,
   quotaKey: AiQuotaKey
 ) => ({
-  code: 'AI_CHANGE_LIMIT_REACHED',
-  error: accessState.trialExpired
+  code: accessState.membershipTier === 'free' && quotaKey !== 'chatMessages' ? 'PREMIUM_REQUIRED' : 'AI_CHANGE_LIMIT_REACHED',
+  error: accessState.membershipTier === 'free' && quotaKey !== 'chatMessages'
+    ? 'Gói Free chỉ tạo lịch tập và thực đơn 7 ngày lúc hoàn tất khảo sát. Nâng cấp Plus hoặc Pro để tạo mới hoặc đổi bài, đổi món bằng AI.'
+    : accessState.trialExpired
     ? 'Free trial 7 ngay da ket thuc. Vui long nang cap Plus hoac Pro de tiep tuc dung AI Coach.'
     : AI_QUOTA_ERROR_MESSAGES[quotaKey],
   membershipTier: accessState.membershipTier,

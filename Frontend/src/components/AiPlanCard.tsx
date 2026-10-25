@@ -8,7 +8,7 @@ import type { MembershipState } from '../../../shared/membership';
 
 const quotaItems = [
   { key: 'chatMessages', label: 'Tin nhắn AI Coach', unit: 'tin nhắn', description: 'Hỏi đáp về tập luyện và dinh dưỡng.', icon: MessageCircle, color: 'text-ai', fill: 'bg-ai' },
-  { key: 'planGenerations', label: 'Tạo kế hoạch', unit: 'lượt', description: 'Tạo lại kế hoạch tập luyện và thực đơn.', icon: CalendarDays, color: 'text-info', fill: 'bg-info' },
+  { key: 'planGenerations', label: 'Tạo kế hoạch', unit: 'lượt', description: 'Tạo kế hoạch tập luyện 7 ngày.', icon: CalendarDays, color: 'text-info', fill: 'bg-info' },
   { key: 'workoutAdjustments', label: 'Đổi bài tập', unit: 'lượt', description: 'Điều chỉnh bài tập trong kế hoạch.', icon: Dumbbell, color: 'text-accent', fill: 'bg-accent' },
   { key: 'mealAdjustments', label: 'Đổi thực đơn', unit: 'lượt', description: 'Điều chỉnh bữa ăn trong thực đơn.', icon: Utensils, color: 'text-warning', fill: 'bg-warning' },
 ] satisfies Array<{ key: AiQuotaKey; label: string; unit: string; description: string; icon: typeof Zap; color: string; fill: string }>;
@@ -108,12 +108,13 @@ export default function AiPlanCard({ userId, profile, membership, refreshTick = 
               const limit = data.aiQuota.limits[key];
               const used = data.aiQuota.usage[key];
               const remaining = data.trialExpired ? 0 : Math.max(0, Math.min(limit, data.aiQuota.remaining[key]));
+              const unavailableOnFree = !isPaid && limit === 0;
               const progress = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
               return <div key={key} data-quota={key} className="min-w-0 rounded-xl border border-border-primary bg-bg-tertiary/35 p-4">
-                <div className="flex items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-text-secondary"><Icon className={`h-4 w-4 shrink-0 ${color}`} aria-hidden="true" />{label}</h3>{remaining === 0 && <span className="shrink-0 text-[10px] text-warning">{data.trialExpired ? 'Hết hiệu lực' : 'Hết lượt'}</span>}</div>
+                <div className="flex items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-xs font-semibold text-text-secondary"><Icon className={`h-4 w-4 shrink-0 ${color}`} aria-hidden="true" />{label}</h3>{remaining === 0 && <span className="shrink-0 text-[10px] text-warning">{unavailableOnFree ? 'Plus / Pro' : data.trialExpired ? 'Hết hiệu lực' : 'Hết lượt'}</span>}</div>
                 <p className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1"><span className="text-2xl font-semibold tabular-nums text-text-primary">{number(remaining)}</span><span className="text-[11px] text-text-secondary">{unit} còn lại / {number(limit)}</span></p>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg-quaternary" role="progressbar" aria-label={`${label} đã dùng`} aria-valuemin={0} aria-valuemax={limit || 1} aria-valuenow={Math.min(used, limit)} aria-valuetext={`Đã dùng ${number(used)} trên ${number(limit)} ${unit}`}><div className={`h-full rounded-full ${fill}`} style={{ width: `${progress}%` }} /></div>
-                <p className="mt-2 text-[11px] text-text-secondary">Đã dùng {number(used)} / {number(limit)} {unit}</p><p className="mt-2 text-[10px] leading-5 text-text-secondary">{description}</p>
+                <p className="mt-2 text-[11px] text-text-secondary">{unavailableOnFree ? 'Không có trong gói Free' : `Đã dùng ${number(used)} / ${number(limit)} ${unit}`}</p><p className="mt-2 text-[10px] leading-5 text-text-secondary">{!isPaid && key === 'planGenerations' ? 'Một lần khi hoàn tất khảo sát ban đầu; thực đơn 7 ngày đi kèm.' : description}</p>
               </div>;
             })}
           </div>

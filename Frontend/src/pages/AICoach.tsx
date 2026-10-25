@@ -13,6 +13,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { fetchWithAuth } from '../lib/Api';
+import { getApiErrorCode, getApiErrorMessage } from '../lib/ErrorMessage';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
@@ -1028,7 +1029,7 @@ function TodayDigestBubble({
 }
 
 export default function AICoach() {
-  const { user, isLoggedIn, profile, refreshTick, refreshProfile, openPremiumModal } = useAuth();
+  const { user, isLoggedIn, profile, membershipTier, refreshTick, refreshProfile, openPremiumModal } = useAuth();
   const location = useLocation();
   const toast = useToast();
   const initialTodayDateKey = getVietnamDateKey();
@@ -1310,10 +1311,10 @@ export default function AICoach() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (payload?.code === 'AI_CHANGE_LIMIT_REACHED' || payload?.code === 'PREMIUM_REQUIRED') {
+        if (['AI_CHANGE_LIMIT_REACHED', 'PREMIUM_REQUIRED'].includes(getApiErrorCode(payload))) {
           openPremiumModal();
         }
-        throw new Error(payload?.error || 'Không thể tạo kế hoạch từ AI Coach.');
+        throw new Error(getApiErrorMessage({ payload, fallbackMessage: 'Không thể tạo kế hoạch từ AI Coach.' }));
       }
       await refreshProfile();
       setReloadKey((value) => value + 1);
@@ -1555,10 +1556,10 @@ export default function AICoach() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (payload?.code === 'AI_CHANGE_LIMIT_REACHED' || payload?.code === 'PREMIUM_REQUIRED') {
+        if (['AI_CHANGE_LIMIT_REACHED', 'PREMIUM_REQUIRED'].includes(getApiErrorCode(payload))) {
           openPremiumModal();
         }
-        throw new Error(payload?.error || 'Action failed');
+        throw new Error(getApiErrorMessage({ payload, fallbackMessage: 'Không thể cập nhật kế hoạch.' }));
       }
 
       setChatMessages((current) =>
@@ -1833,12 +1834,12 @@ export default function AICoach() {
           setAiQuota(payload.aiQuota);
           writeAiQuota(aiQuotaStorageKey, payload.aiQuota);
         }
-        if (payload?.code === 'AI_CHANGE_LIMIT_REACHED' || payload?.code === 'PREMIUM_REQUIRED') {
+        if (['AI_CHANGE_LIMIT_REACHED', 'PREMIUM_REQUIRED'].includes(getApiErrorCode(payload))) {
           openPremiumModal();
-          toast.error(payload?.error || payload?.reply || 'Bạn đã dùng hết lượt AI Coach trong gói hiện tại.');
+          toast.error(getApiErrorMessage({ payload, fallbackMessage: payload?.reply || 'Bạn đã dùng hết lượt AI Coach trong gói hiện tại.' }));
           return;
         }
-        throw new Error(payload?.error || payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.');
+        throw new Error(getApiErrorMessage({ payload, fallbackMessage: payload?.reply || 'Không thể gửi tin nhắn tới AI Coach.' }));
       }
 
       if (payload.aiQuota) {
@@ -2293,7 +2294,13 @@ export default function AICoach() {
                   {isSavingPlanSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Lưu
                 </button>
-                <button
+                {membershipTier === 'free' ? <button
+                  type="button"
+                  onClick={openPremiumModal}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-ai px-4 text-xs font-black text-white transition-colors hover:bg-ai-hover"
+                >
+                  Nâng cấp để tạo lại kế hoạch
+                </button> : <button
                   type="button"
                   onClick={() => void savePlanSettings('regenerate')}
                   disabled={isSavingPlanSettings || isGenerating}
@@ -2305,7 +2312,7 @@ export default function AICoach() {
                     <RefreshCw className="h-4 w-4" />
                   )}
                   Lưu & tạo lại
-                </button>
+                </button>}
               </footer>
             </form>
           </div>

@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
 import { ApiClientError, apiRequest } from '@/lib/api-client';
+import { openInitialAssessment } from '@/lib/assessment';
 import { loadTodayWorkout } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
@@ -35,8 +36,12 @@ export default function WorkoutScreen() {
   const todayKey = useTodayKey();
   const creatingRef = useRef(false);
   const resource = useResource('workout', loadTodayWorkout);
+  const quota = useResource('quota', () => apiRequest<{ membershipTier: 'free' | 'plus' | 'pro'; canGenerate: boolean }>('/api/ai/quota'));
   const { state, refreshing, refresh, load, errorMessage: error } = resource;
   const items = resource.data ?? [];
+  const isFree = quota.data?.membershipTier === 'free';
+  const needsInitialPlan = isFree && quota.data?.canGenerate === true;
+  const canCreateNewWorkout = quota.data?.membershipTier === 'plus' || quota.data?.membershipTier === 'pro';
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
   const [isPlanModalVisible, setIsPlanModalVisible] = useState(false);
   const [isCreatingPlan, setIsCreatingPlan] = useState(false);
@@ -57,7 +62,7 @@ export default function WorkoutScreen() {
   const workoutStatus = isWorkoutComplete ? 'Đã hoàn thành hôm nay' : hasWorkout ? 'Sẵn sàng bắt đầu' : 'Ngày tập linh hoạt';
   const workoutHeadline = isWorkoutComplete ? 'Bạn đã hoàn thành\nrất tốt.' : hasWorkout ? 'Tập trung vào\nmục tiêu hôm nay.' : 'Tập theo cách\nbạn muốn.';
   const workoutStateLabel = isWorkoutComplete ? 'Hoàn thành' : completedSets > 0 ? 'Đang tập' : hasWorkout ? 'Sẵn sàng' : 'Tự do';
-  const workoutSupportingText = isWorkoutComplete ? 'Toàn bộ bài tập hôm nay đã được đánh dấu hoàn thành.' : hasWorkout ? `Còn ${remainingSets} set để hoàn thành mục tiêu hôm nay.` : 'Tạo một lịch tập phù hợp với mục tiêu và thời gian của bạn.';
+  const workoutSupportingText = isWorkoutComplete ? 'Toàn bộ bài tập hôm nay đã được đánh dấu hoàn thành.' : hasWorkout ? `Còn ${remainingSets} set để hoàn thành mục tiêu hôm nay.` : needsInitialPlan ? 'Hoàn tất khảo sát ban đầu trên Fitly web để nhận lịch tập và thực đơn Free 7 ngày.' : isFree ? 'Gói Free chỉ nhận lịch tập 7 ngày một lần khi hoàn tất khảo sát. Nâng cấp để tạo lịch mới.' : canCreateNewWorkout ? 'Tạo một lịch tập phù hợp với mục tiêu và thời gian của bạn.' : 'Đang kiểm tra quyền tạo lịch tập của bạn.';
 
   const closePlanModal = () => {
     if (isCreatingPlan) return;
@@ -65,7 +70,16 @@ export default function WorkoutScreen() {
     setPlanError(null);
   };
 
+  const openWorkoutPlanAction = () => {
+    if (needsInitialPlan) return void openInitialAssessment();
+    if (isFree) return router.push('/(app)/premium');
+    if (!canCreateNewWorkout) return;
+    setPlanError(null);
+    setIsPlanModalVisible(true);
+  };
+
   const createPlan = async () => {
+    if (!canCreateNewWorkout) return;
     if (creatingRef.current) return;
     creatingRef.current = true;
     setIsCreatingPlan(true);
@@ -106,8 +120,8 @@ export default function WorkoutScreen() {
           <View style={styles.heroStat}><Text style={styles.heroStatLabel}>Tiến độ</Text><Text style={styles.heroStatValue}>{totalSets ? `${completedSets}/${totalSets} set` : '0/0 set'}</Text></View>
           <View style={styles.heroStat}><Text style={styles.heroStatLabel}>Trạng thái</Text><Text numberOfLines={1} style={styles.heroStatValue}>{workoutStateLabel}</Text></View>
         </View>
-        <Pressable onPress={() => hasWorkout ? router.push({ pathname: '/workout/[id]', params: { id: items[0]?.id } }) : (setPlanError(null), setIsPlanModalVisible(true))} style={styles.heroAction}>
-          <Text style={styles.heroActionText}>{hasWorkout ? 'Bắt đầu buổi tập' : 'Tạo lịch với AI Coach'}</Text><AppIcon name="arrow-right" color={tokens.colors.canvas} size={18} />
+        <Pressable disabled={!hasWorkout && !quota.data} onPress={() => hasWorkout ? router.push({ pathname: '/workout/[id]', params: { id: items[0]?.id } }) : openWorkoutPlanAction()} style={styles.heroAction}>
+          <Text style={styles.heroActionText}>{hasWorkout ? 'Bắt đầu buổi tập' : needsInitialPlan ? 'Hoàn tất khảo sát ban đầu' : isFree ? 'Xem gói Plus / Pro' : canCreateNewWorkout ? 'Tạo lịch với AI Coach' : 'Đang kiểm tra gói'}</Text><AppIcon name="arrow-right" color={tokens.colors.canvas} size={18} />
         </Pressable>
       </View>
 
@@ -124,7 +138,7 @@ export default function WorkoutScreen() {
       <View style={styles.workoutSection}>
         <View style={styles.sectionHeading}><View><Text style={styles.sectionKicker}>LỘ TRÌNH HÔM NAY</Text><Text style={styles.sectionTitle}>Buổi tập của bạn</Text></View><View style={styles.remainingChip}><Text style={styles.remainingChipText}>{totalSets ? `${remainingSets} set còn lại` : 'Chưa có lịch'}</Text></View></View>
         {state === 'loading' && !refreshing ? <View style={styles.loadingPanel}><ActivityIndicator color={tokens.colors.lime} /></View> : null}
-        {state !== 'loading' && !hasWorkout ? <View style={styles.noWorkoutPanel}><View style={styles.noWorkoutIcon}><AppIcon name="coach" color={tokens.colors.lime} size={22} /></View><View style={styles.noWorkoutCopy}><Text style={styles.noWorkoutTitle}>Lịch tập vẫn đang trống</Text><Text style={styles.noWorkoutText}>AI Coach sẽ tạo bài tập và số set phù hợp cho hôm nay.</Text></View><Pressable onPress={() => { setPlanError(null); setIsPlanModalVisible(true); }} style={styles.noWorkoutButton}><AppIcon name="arrow-right" color={tokens.colors.canvas} size={17} /></Pressable></View> : null}
+        {state !== 'loading' && !hasWorkout ? <View style={styles.noWorkoutPanel}><View style={styles.noWorkoutIcon}><AppIcon name="coach" color={tokens.colors.lime} size={22} /></View><View style={styles.noWorkoutCopy}><Text style={styles.noWorkoutTitle}>Lịch tập vẫn đang trống</Text><Text style={styles.noWorkoutText}>{needsInitialPlan ? 'Mở khảo sát trên Fitly web để nhận lịch đầu tiên.' : isFree ? 'Lịch Free được tạo một lần lúc hoàn tất khảo sát. Nâng cấp để tạo lịch mới.' : canCreateNewWorkout ? 'AI Coach sẽ tạo bài tập và số set phù hợp cho hôm nay.' : 'Đang kiểm tra quyền tạo lịch tập.'}</Text></View><Pressable disabled={!quota.data} onPress={openWorkoutPlanAction} style={styles.noWorkoutButton}><AppIcon name="arrow-right" color={tokens.colors.canvas} size={17} /></Pressable></View> : null}
         {items.map((item, index) => (
           <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Xem chi tiết ${item.name}`} onPress={() => router.push(`/workout/detail/${item.id}` as never)} style={({ pressed }) => [styles.exerciseCard, pressed && styles.exerciseCardPressed]}>
             <ExercisePreview source={item.videoUrl} name={item.name} />
