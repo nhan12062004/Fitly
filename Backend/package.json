@@ -30,7 +30,7 @@
         "helmet": "^8.2.0",
         "node-cron": "^4.2.1",
         "tsx": "^4.21.0",
-        "zod": "4.3.6"
+        "zod": "4.6.7"
     },
     "devDependencies": {
         "@electric-sql/pglite": "0.5.8",
