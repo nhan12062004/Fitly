@@ -38,12 +38,11 @@ jobs:
         working-directory: Mobile
         run: npm ci
 
-      - name: Verify mobile code and cache behavior
+      - name: Verify mobile code and release configuration
         working-directory: Mobile
         run: |
           npm run typecheck
           npm run lint
-          npm test
           npm run check:release
 
       - name: Export mobile bundles

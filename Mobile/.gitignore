@@ -27,6 +27,7 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 /fitly-*.png
+/*.xml
 
 # macOS
 .DS_Store
