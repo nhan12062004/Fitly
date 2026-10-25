@@ -7,7 +7,6 @@
         "start": "npx tsx src/server.ts",
         "build": "tsc --noEmit",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run",
         "db:test:rls": "npx supabase test db --local ../supabase/tests/rls_ownership_test.sql --workdir ..",
         "db:migration:list": "npx supabase migration list --workdir ..",
         "db:migration:repair:normalize-rls": "npx supabase migration repair 20260602110000 --status applied --linked --workdir ..",
@@ -33,14 +32,10 @@
         "zod": "4.6.7"
     },
     "devDependencies": {
-        "@electric-sql/pglite": "0.5.8",
         "@types/cors": "^2.8.19",
         "@types/express": "^5.0.6",
         "@types/node": "^25.5.2",
-        "@types/supertest": "^7.2.1",
-        "supertest": "^7.2.2",
-        "typescript": "^6.0.2",
-        "vitest": "^4.1.10"
+        "typescript": "^6.0.2"
     },
     "allowScripts": {
         "esbuild@0.28.1": true
