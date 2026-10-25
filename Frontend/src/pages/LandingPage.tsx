@@ -533,12 +533,12 @@ export default function LandingPage() {
                     <span className="premium-plan-period">VND / tháng</span>
                   </div>
                 </div>
-                <p className="premium-plan-description">Dùng thử lịch tập, thực đơn và AI Coach trong 7 ngày.</p>
+                <p className="premium-plan-description">Nhận lịch tập và thực đơn 7 ngày một lần khi hoàn tất khảo sát ban đầu.</p>
                 <button type="button" onClick={() => navigate('/signup')} className="premium-plan-cta premium-plan-cta-disabled">
                   Bắt đầu miễn phí
                 </button>
                 <div className="premium-plan-benefits">
-                  {['Lịch tập và thực đơn 7 ngày đầu', 'Có giới hạn lượt tạo lại bài tập', 'Có giới hạn lượt tạo lại thực đơn', 'AI Coach giới hạn 25 tin nhắn'].map((item) => (
+                  {['Tạo lịch tập và thực đơn 7 ngày đầu một lần', 'Xem lại kế hoạch và theo dõi tiến độ', 'AI Coach giới hạn 25 tin nhắn trong 7 ngày'].map((item) => (
                     <p key={item} className="premium-plan-benefit">
                       <span className="premium-plan-check premium-plan-check-free">✓</span>
                       <span>{item}</span>
