@@ -745,30 +745,39 @@ export default function Overview() {
 
   return (
     <div className="dashboard-page-shell flex flex-col gap-4 pb-4 md:gap-5 md:pb-6 lg:pb-7">
-      <section className="overview-hero flex flex-col justify-between overflow-hidden rounded-xl px-5 py-5 md:px-6 md:py-6">
-        <div className="max-w-[28rem]">
-          <p className="text-sm font-black text-accent md:text-base">
-            {greetingLabel}, {userName} <span aria-hidden>👋</span>
+      <section className="overview-hero flex flex-col justify-between overflow-hidden rounded-xl px-5 py-6 md:px-8 md:py-8">
+        <div className="overview-hero-content max-w-[34rem]">
+          <p className="overview-hero-eyebrow inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em]">
+            <span className="overview-hero-pulse h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
+            {greetingLabel}, {userName}
           </p>
-          <h1 className="overview-hero-title mt-2 max-w-[20rem] text-[2rem] font-black leading-[1.02] md:text-[2.55rem]">
-            Chào mừng đến với Fitly!
+          <h1 className="overview-hero-title mt-5 text-[2.25rem] font-black leading-[0.98] tracking-[-0.055em] sm:text-[2.7rem] lg:text-[3.25rem]">
+            <span className="block">Bắt nhịp hôm nay.</span>
+            <span className="overview-hero-title-accent mt-1 block">Bứt phá mỗi ngày.</span>
           </h1>
-          <span className="mt-4 block h-1.5 w-16 rounded-full bg-accent" aria-hidden="true" />
-          <p className="overview-hero-copy mt-4 max-w-[21rem] text-sm font-semibold leading-6 md:text-[15px]">
-            Tạo kế hoạch tập & ăn để bắt đầu theo dõi hành trình của bạn.
+          <p className="overview-hero-copy mt-4 max-w-[25rem] text-sm font-semibold leading-6 md:text-[15px]">
+            Tập luyện theo nhịp của bạn. Fitly đồng hành cùng từng bước tiến.
           </p>
+          <button
+            type="button"
+            onClick={() => navigate('/exercises')}
+            className="overview-hero-action mt-5 inline-flex min-h-11 items-center gap-3 rounded-full bg-accent px-5 text-sm font-black text-text-inverse transition-transform hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+          >
+            {hasWorkoutPlan ? 'Xem bài tập hôm nay' : 'Tạo kế hoạch tập'}
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
 
-        <div className="overview-hero-metrics mt-6 grid max-w-[38rem] grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="overview-hero-metric-card flex min-w-0 items-center gap-4 rounded-2xl border p-3 backdrop-blur-md">
+        <div className="overview-hero-metrics mt-7 grid max-w-[34rem] grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="overview-hero-metric-card flex min-w-0 items-center gap-3 rounded-2xl border p-2.5 backdrop-blur-md">
             <div
-              className="overview-hero-score-ring flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
+              className="overview-hero-score-ring flex h-14 w-14 shrink-0 items-center justify-center rounded-full"
               style={{
                 background: `conic-gradient(rgb(var(--accent-rgb)) ${healthScore * 3.6}deg, rgba(148, 163, 184, 0.28) 0deg)`,
               }}
             >
-              <div className="flex h-[3.25rem] w-[3.25rem] flex-col items-center justify-center rounded-full bg-slate-800/95 leading-none">
-                <span className="text-xl font-black text-white">{healthScore}</span>
+              <div className="flex h-11 w-11 flex-col items-center justify-center rounded-full bg-slate-800/95 leading-none">
+                <span className="text-lg font-black text-white">{healthScore}</span>
                 <span className="text-[10px] font-bold text-slate-300">/100</span>
               </div>
             </div>
@@ -778,20 +787,20 @@ export default function Overview() {
             </div>
           </div>
 
-          <div className="overview-hero-metric-card flex min-w-0 items-center justify-between gap-4 rounded-2xl border p-3 backdrop-blur-md">
+          <div className="overview-hero-metric-card flex min-w-0 items-center justify-between gap-3 rounded-2xl border p-2.5 backdrop-blur-md">
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-200">Chuỗi duy trì</p>
-              <p className="mt-2 text-2xl font-black text-white">{formatWholeNumber(dailyStreak.count)} ngày</p>
-              <div className="mt-3 flex gap-2" aria-hidden="true">
+              <p className="mt-1 text-xl font-black text-white">{formatWholeNumber(dailyStreak.count)} ngày</p>
+              <div className="mt-2 flex gap-1.5" aria-hidden="true">
                 {Array.from({ length: 7 }).map((_, index) => (
                   <span
                     key={index}
-                    className={`h-1.5 w-5 rounded-full ${index < Math.min(7, dailyStreak.count) ? 'bg-accent' : 'bg-slate-500/65'}`}
+                    className={`h-1.5 w-4 rounded-full ${index < Math.min(7, dailyStreak.count) ? 'bg-accent' : 'bg-slate-500/65'}`}
                   />
                 ))}
               </div>
             </div>
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-text-inverse">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-text-inverse">
               <Flame className="h-5 w-5" />
             </span>
           </div>

@@ -1,5 +1,4 @@
 import type { Session } from '@supabase/supabase-js';
-import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
@@ -89,7 +88,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (mounted) {
         setSession(nextSession);
         setIsLoading(false);
-        await SplashScreen.hideAsync();
       }
     };
     void initialize();

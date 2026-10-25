@@ -632,9 +632,9 @@ body {
 
   .overview-hero {
     --overview-hero-title: #f8fafc;
-    --overview-hero-copy: #cbd5e1;
-    --overview-hero-card: rgba(15, 23, 42, 0.68);
-    --overview-hero-border: rgba(255,255,255,0.18);
+    --overview-hero-copy: #d8e5dd;
+    --overview-hero-card: rgba(5, 18, 13, 0.8);
+    --overview-hero-border: rgba(163, 236, 188, 0.28);
     --text-primary: #f8fafc;
     --text-secondary: #cbd5e1;
     --text-tertiary: #94a3b8;
@@ -642,14 +642,26 @@ body {
     position: relative;
     overflow: hidden;
     isolation: isolate;
-    min-height: clamp(19rem, 26vw, 23rem);
-    background:
-      linear-gradient(90deg, rgba(2, 6, 23, 0.84) 0%, rgba(2, 6, 23, 0.66) 36%, rgba(2, 6, 23, 0.24) 68%, rgba(2, 6, 23, 0.04) 100%),
-      url('https://wpkbzssdipqtbmthvgvx.supabase.co/storage/v1/object/public/banner/banner/banner.png');
-    background-position: center right;
+    min-height: 25rem;
+    background-color: #06110d;
+    background-image:
+      linear-gradient(90deg, rgba(3, 12, 9, 0.98) 0%, rgba(3, 12, 9, 0.89) 30%, rgba(3, 12, 9, 0.48) 57%, rgba(3, 12, 9, 0.06) 100%),
+      linear-gradient(0deg, rgba(3, 12, 9, 0.52), transparent 55%),
+      url('/overview-hero-sport.png');
+    background-position: center, center, right center;
     background-repeat: no-repeat;
     background-size: cover;
-    box-shadow: none;
+    border: 1px solid rgba(115, 221, 152, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.09);
+  }
+
+  .overview-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(118deg, rgba(34, 197, 94, 0.16), transparent 34%);
+    z-index: 0;
   }
 
   .overview-hero > * {
@@ -659,15 +671,39 @@ body {
 
   .overview-hero-copy {
     color: var(--overview-hero-copy);
-    text-shadow: 0 1px 14px rgba(0,0,0,0.32);
+    text-shadow: 0 1px 12px rgba(0,0,0,0.45);
+  }
+
+  .overview-hero-eyebrow {
+    color: #d3fce0;
+    background: rgba(13, 49, 28, 0.76);
+    border: 1px solid rgba(113, 235, 151, 0.36);
+    backdrop-filter: blur(12px);
+  }
+
+  .overview-hero-pulse {
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.16);
+  }
+
+  .overview-hero-title-accent {
+    color: #63e998;
+    font-style: italic;
+  }
+
+  .overview-hero-action {
+    box-shadow: 0 12px 28px rgba(34, 197, 94, 0.22);
+  }
+
+  .overview-hero-action:hover {
+    box-shadow: 0 16px 32px rgba(34, 197, 94, 0.3);
   }
 
   .overview-hero-metric-card {
     border-color: var(--overview-hero-border);
     background: var(--overview-hero-card);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,0.16),
-      0 16px 36px rgb(0 0 0 / 0.26);
+      inset 0 1px 0 rgba(255,255,255,0.1),
+      0 12px 28px rgb(0 0 0 / 0.18);
   }
 
   .overview-hero-score-ring {
@@ -2038,12 +2074,32 @@ body.landing-scrollbar-visible::-webkit-scrollbar-thumb:hover {
 }
 
 .overview-hero-title {
-  display: -webkit-box;
-  overflow: hidden;
   color: var(--overview-hero-title);
-  text-shadow: 0 2px 22px rgba(0,0,0,0.34);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-shadow: 0 2px 22px rgba(0,0,0,0.38);
+}
+
+@media (max-width: 639px) {
+  .overview-hero {
+    min-height: 34rem;
+    background-image:
+      linear-gradient(180deg, rgba(3, 12, 9, 0.64) 0%, rgba(3, 12, 9, 0.84) 43%, #06110d 79%),
+      linear-gradient(90deg, rgba(3, 12, 9, 0.75), rgba(3, 12, 9, 0.06)),
+      url('/overview-hero-sport.png');
+    background-position: center, center, 75% top;
+    background-size: cover, cover, auto 75%;
+  }
+
+  .overview-hero-content {
+    max-width: 100%;
+  }
+
+  .overview-hero-title {
+    font-size: clamp(1.9rem, 8vw, 2.25rem);
+  }
+
+  .overview-hero-metrics {
+    max-width: 100%;
+  }
 }
 
 .profile-modal-root {
