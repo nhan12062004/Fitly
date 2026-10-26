@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronRight, ClipboardList, Sparkles, X } from 'lucide-react';
-import { supabase } from '../lib/Supabase';
+import { profileDetailsResource } from '../lib/accountReads';
 import { useAuth } from '../contexts/AuthContext';
 
 type ProfileCompletionNudgeProps = {
@@ -21,7 +21,7 @@ const toNumber = (value: unknown) => {
 };
 
 export default function ProfileCompletionNudge({ onOpenProfile }: ProfileCompletionNudgeProps) {
-  const { user, refreshTick } = useAuth();
+  const { user, profile, lifestyle, refreshTick } = useAuth();
   const [data, setData] = useState<ProfileCompletionData | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -35,49 +35,15 @@ export default function ProfileCompletionNudge({ onOpenProfile }: ProfileComplet
     }
 
     const userId = user.id;
-    setDismissed(localStorage.getItem(dismissKey) === 'true');
-
+    const isDismissed = localStorage.getItem(dismissKey) === 'true';
+    setDismissed(isDismissed);
+    if (isDismissed) return;
     let cancelled = false;
-    async function loadProfileDepth() {
-      const [profileRes, bodyRes, lifestyleRes, healthRes] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('birthday')
-          .eq('id', userId)
-          .maybeSingle(),
-        supabase
-          .from('body_metrics')
-          .select('weight, target_weight, body_fat, body_fat_percentage, chest, waist, hips, neck')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from('lifestyle_settings')
-          .select('current_diet, cooking_ability, budget_level, workout_time, motivation, expectations, daily_water_goal')
-          .eq('user_id', userId)
-          .maybeSingle(),
-        supabase
-          .from('health_conditions')
-          .select('medical_history, health_condition, injuries, medications, stress_level, sleep_quality, sleep_hours')
-          .eq('user_id', userId)
-          .maybeSingle(),
-      ]);
-
-      if (cancelled) return;
-      setData({
-        profile: profileRes.data || null,
-        body: bodyRes.data || null,
-        lifestyle: lifestyleRes.data || null,
-        health: healthRes.data || null,
-      });
-    }
-
-    void loadProfileDepth();
-    return () => {
-      cancelled = true;
-    };
-  }, [dismissKey, refreshTick, user?.id]);
+    void profileDetailsResource.load(userId).then((details) => {
+      if (!cancelled) setData({ profile, lifestyle, body: details.body, health: details.health });
+    }).catch(() => { if (!cancelled) setData(null); });
+    return () => { cancelled = true; };
+  }, [dismissKey, refreshTick, user?.id, profile, lifestyle]);
 
   useEffect(() => {
     const handleSupplementSaved = () => {

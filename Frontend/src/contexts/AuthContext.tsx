@@ -4,6 +4,8 @@ import { User } from '@supabase/supabase-js';
 import AuthModal from '../components/AuthModal';
 import LoadingScreen from '../components/LoadingScreen';
 import { useNavigate } from 'react-router';
+import { activateReadAccount } from '../lib/accountResource';
+import { accountOverviewResource, aiQuotaResource, profileDetailsResource } from '../lib/accountReads';
 
 import { resolveMembership, type MembershipState, type MembershipTier, type StoreMembership } from '../../../shared/membership';
 export type { MembershipTier } from '../../../shared/membership';
@@ -12,6 +14,7 @@ interface AuthContextType {
   isLoggedIn: boolean;
   user: User | null;
   profile: any | null;
+  lifestyle: any | null;
   hasProfile: boolean;
   isCheckingProfile: boolean;
   userRole: string | null;
@@ -63,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
+  const [lifestyle, setLifestyle] = useState<any | null>(null);
   const [hasProfile, setHasProfile] = useState(false);
   const [isCheckingProfile, setIsCheckingProfile] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -76,31 +80,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [refreshTick, setRefreshTick] = useState(0);
 
-  const checkProfile = async (userId: string) => {
+  const checkProfile = async (userId: string, force = false) => {
     const requestId = ++profileRequestId.current;
     setIsCheckingProfile(true);
     try {
-      const [profileResult, lifestyleResult, storeResult] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-        supabase.from('lifestyle_settings').select('user_id').eq('user_id', userId).maybeSingle(),
-        // Owner-only RLS exposes the verified subscription, never store credentials.
-        supabase.from('store_entitlements').select('tier, expires_at').eq('user_id', userId).maybeSingle(),
-      ]);
+      const overview = await accountOverviewResource.load(userId, force);
       if (requestId !== profileRequestId.current) return;
-      if (profileResult.error) throw profileResult.error;
-      const profileData = profileResult.data;
-      const lifestyleData = lifestyleResult.data;
+      const profileData = overview.profile;
+      const lifestyleData = overview.lifestyle;
 
       setProfile(profileData || null);
+      setLifestyle(lifestyleData || null);
       // hasProfile chỉ là true khi ĐÃ CÓ profile và ĐÃ HOÀN THÀNH survey
       setHasProfile(!!profileData && !!lifestyleData);
       setUserRole(profileData?.role || 'user');
-      setStoreMembership(storeResult.error ? null : storeResult.data);
+      setStoreMembership(overview.store);
       setMembershipNow(Date.now());
     } catch (error) {
       if (requestId !== profileRequestId.current) return;
       console.error('Error checking profile/survey status:', error);
       setProfile(null);
+      setLifestyle(null);
       setHasProfile(false);
       setStoreMembership(null);
     } finally {
@@ -108,19 +108,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const prepareAccount = (userId: string | null) => {
+    activateReadAccount(userId);
+    if (!userId) return;
+    void aiQuotaResource.load(userId).catch(() => undefined);
+    if (window.location.pathname.startsWith('/profile')) void profileDetailsResource.load(userId).catch(() => undefined);
+  };
+
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const updateClock = () => {
+      clearTimeout(timer);
       const now = Date.now();
       setMembershipNow(now);
       const expiresAt = Date.parse(membership.expiresAt || '');
       if (expiresAt > now) timer = setTimeout(updateClock, Math.min(expiresAt - now + 10, 2_147_483_647));
+      else if (Number.isFinite(expiresAt) && user?.id) {
+        aiQuotaResource.invalidate(user.id);
+        void aiQuotaResource.load(user.id).catch(() => undefined);
+      }
     };
-    const onFocus = () => setMembershipNow(Date.now());
+    const onFocus = () => {
+      if (Date.parse(membership.expiresAt || '') <= Date.now()) updateClock();
+      else setMembershipNow(Date.now());
+    };
     updateClock();
     window.addEventListener('focus', onFocus);
     return () => { clearTimeout(timer); window.removeEventListener('focus', onFocus); };
-  }, [membership.expiresAt]);
+  }, [membership.expiresAt, user?.id]);
 
   useEffect(() => {
     const handleInitialAuthUrl = async () => {
@@ -160,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
 
       const currentUser = session?.user ?? null;
+      prepareAccount(currentUser?.id || null);
       setUser(currentUser);
       if (currentUser) {
         checkProfile(currentUser.id).finally(() => setLoading(false));
@@ -179,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const currentUser = session?.user ?? null;
+      prepareAccount(currentUser?.id || null);
       setUser(currentUser);
       if (currentUser) {
         checkProfile(currentUser.id);
@@ -186,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         profileRequestId.current += 1;
         setProfile(null);
+        setLifestyle(null);
         setHasProfile(false);
         setUserRole(null);
         setStoreMembership(null);
@@ -202,12 +220,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!session?.user || realtimeChannel) return;
 
         const channelTopic = `realtime_sync_${session.user.id}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const refreshAccountReads = () => {
+          accountOverviewResource.invalidate(session.user.id);
+          profileDetailsResource.invalidate(session.user.id);
+          aiQuotaResource.invalidate(session.user.id);
+          void aiQuotaResource.load(session.user.id).catch(() => undefined);
+          void checkProfile(session.user.id, true);
+        };
         realtimeChannel = supabase.channel(channelTopic)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${session.user.id}` }, () => {
-            void checkProfile(session.user.id);
+            refreshAccountReads();
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'store_entitlements', filter: `user_id=eq.${session.user.id}` }, () => {
-            void checkProfile(session.user.id);
+            refreshAccountReads();
           })
           .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_progress_logs', filter: `user_id=eq.${session.user.id}` }, () => {
             setRefreshTick(prev => prev + 1);
@@ -239,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    activateReadAccount(null);
     try {
       await supabase.auth.signOut();
     } catch (error) {
@@ -247,6 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileRequestId.current += 1;
       setUser(null);
       setProfile(null);
+      setLifestyle(null);
       setHasProfile(false);
       setUserRole(null);
       setStoreMembership(null);
@@ -274,7 +301,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const closePremiumModal = () => undefined;
   const refreshProfile = async () => {
     if (user) {
-      await checkProfile(user.id);
+      accountOverviewResource.invalidate(user.id);
+      profileDetailsResource.invalidate(user.id);
+      aiQuotaResource.invalidate(user.id);
+      await checkProfile(user.id, true);
       setRefreshTick(prev => prev + 1);
     }
   };
@@ -284,6 +314,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoggedIn: !!user,
       user,
       profile,
+      lifestyle,
       hasProfile,
       isCheckingProfile,
       userRole,

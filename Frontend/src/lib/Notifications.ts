@@ -1,3 +1,4 @@
+import { accountOverviewResource, profileDetailsResource } from './accountReads';
 import { supabase } from './Supabase';
 import { ensureChallengeNotifications, syncChallengeCheckin } from './Challenges';
 
@@ -261,16 +262,8 @@ export const ensureActionableNotifications = async (userId: string) => {
     latestWorkoutPlanRes,
     completedExerciseRes,
   ] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('id', userId)
-      .maybeSingle(),
-    supabase
-      .from('lifestyle_settings')
-      .select('daily_water_goal, workout_duration')
-      .eq('user_id', userId)
-      .maybeSingle(),
+    accountOverviewResource.load(userId).then((overview) => ({ data: overview.profile, error: null })),
+    accountOverviewResource.load(userId).then((overview) => ({ data: overview.lifestyle, error: null })),
     supabase
       .from('daily_progress_logs')
       .select('water_intake_ml')
@@ -283,11 +276,7 @@ export const ensureActionableNotifications = async (userId: string) => {
       .eq('user_id', userId)
       .eq('log_date', addDaysToDateKey(todayKey, -1))
       .maybeSingle(),
-    supabase
-      .from('health_conditions')
-      .select('sleep_hours, sleep_quality')
-      .eq('user_id', userId)
-      .maybeSingle(),
+    profileDetailsResource.load(userId).then((details) => ({ data: details.health, error: null })),
     supabase
       .from('daily_exercise_sessions')
       .select('id, is_completed, estimated_kcal')

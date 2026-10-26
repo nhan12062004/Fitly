@@ -14,6 +14,9 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth } from '../lib/Api';
 import { getApiErrorCode, getApiErrorMessage } from '../lib/ErrorMessage';
+import { useAiQuota } from '../hooks/useAiQuota';
+import { accountOverviewResource, publishAiQuotaSnapshot } from '../lib/accountReads';
+import { getDisplayedMembership } from '../lib/aiQuota';
 import { supabase } from '../lib/Supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { SkeletonBlock } from '../components/PageSkeleton';
@@ -149,7 +152,6 @@ type AICoachPageCache = {
 
 const aiCoachPageCache = new Map<string, AICoachPageCache>();
 const AI_CHAT_DRAFT_STORAGE_PREFIX = 'fitly:ai-coach-draft:';
-const AI_QUOTA_STORAGE_PREFIX = 'fitly:ai-coach-quota:';
 
 const readChatDraft = (storageKey: string | null): string => {
   if (!storageKey || typeof window === 'undefined') return '';
@@ -374,30 +376,6 @@ const inferResponseMode = (
   if (intent === 'motivation') return 'support';
   if (intent === 'out_of_scope') return 'redirect';
   return 'coach_advice';
-};
-
-const readAiQuota = (storageKey: string | null): AiQuotaSnapshot | null => {
-  if (!storageKey || typeof window === 'undefined') return null;
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || 'null');
-    // Keep the last server-confirmed value so the quota is visible immediately
-    // when the Coach opens. A background request below always refreshes it.
-    if (!parsed || typeof parsed !== 'object') return null;
-    const quota = parsed.quota;
-    if (!quota || typeof quota !== 'object' || !quota.limits || !quota.usage || !quota.remaining) return null;
-    return quota as AiQuotaSnapshot;
-  } catch {
-    return null;
-  }
-};
-
-const writeAiQuota = (storageKey: string | null, quota: AiQuotaSnapshot): void => {
-  if (!storageKey || typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify({ savedAt: Date.now(), quota }));
-  } catch {
-    // The live quota request remains the source of truth when storage is unavailable.
-  }
 };
 
 const getAssistantModeLabel = (message: ChatMessage) => {
@@ -1029,14 +1007,13 @@ function TodayDigestBubble({
 }
 
 export default function AICoach() {
-  const { user, isLoggedIn, profile, membershipTier, refreshTick, refreshProfile, openPremiumModal } = useAuth();
+  const { user, isLoggedIn, profile, membershipTier, membership, refreshTick, refreshProfile, openPremiumModal } = useAuth();
   const location = useLocation();
   const toast = useToast();
   const initialTodayDateKey = getVietnamDateKey();
   const initialWeekStartKey = getWeekStartKey(new Date(`${initialTodayDateKey}T00:00:00`));
   const initialCoachCache = user?.id ? aiCoachPageCache.get(`${user.id}:${initialWeekStartKey}:${initialTodayDateKey}`) || null : null;
   const chatDraftStorageKey = user?.id ? `${AI_CHAT_DRAFT_STORAGE_PREFIX}${user.id}` : null;
-  const aiQuotaStorageKey = user?.id ? `${AI_QUOTA_STORAGE_PREFIX}${user.id}` : null;
   const [loading, setLoading] = useState(() => !initialCoachCache);
   const [, setIsRefreshingPlan] = useState(false);
   const [, setIsRefreshingChat] = useState(false);
@@ -1051,7 +1028,7 @@ export default function AICoach() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [chatInput, setChatInput] = useState(() => readChatDraft(chatDraftStorageKey));
-  const [aiQuota, setAiQuota] = useState<AiQuotaSnapshot | null>(() => readAiQuota(aiQuotaStorageKey));
+  const { data: quotaData, loading: quotaLoading, fetching: quotaFetching, error: quotaError, refresh: refreshQuota } = useAiQuota(user?.id, refreshTick);
   const [selectedCoachDayIndex, setSelectedCoachDayIndex] = useState<number | null>(() => getCoachLaunchDayIndex(location.search));
   const [isListening, setIsListening] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; size: number; type: string } | null>(null);
@@ -1085,41 +1062,6 @@ export default function AICoach() {
   }, [location.search]);
 
   useEffect(() => {
-    let cancelled = false;
-    const loadQuota = async () => {
-      if (!user?.id) {
-        setAiQuota(null);
-        return;
-      }
-
-      const cachedQuota = readAiQuota(aiQuotaStorageKey);
-      if (cachedQuota) setAiQuota(cachedQuota);
-
-      try {
-        const sessionRes = await supabase.auth.getSession();
-        const accessToken = sessionRes.data.session?.access_token;
-        if (!accessToken) return;
-        const response = await fetchWithAuth('/api/ai/quota', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!cancelled && response.ok && payload?.aiQuota) {
-          const nextQuota = payload.aiQuota as AiQuotaSnapshot;
-          setAiQuota(nextQuota);
-          writeAiQuota(aiQuotaStorageKey, nextQuota);
-        }
-      } catch {
-        // Keep the cached quota visible if the refresh request is unavailable.
-      }
-    };
-
-    void loadQuota();
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id, refreshTick, aiQuotaStorageKey]);
-
-  useEffect(() => {
     const loadPlan = async () => {
       const cached = cacheKey ? aiCoachPageCache.get(cacheKey) || null : null;
       if (!user?.id) {
@@ -1147,16 +1089,8 @@ export default function AICoach() {
         setIsRefreshingPlan(true);
       }
       try {
-        const lifestyleResult = await supabase
-          .from('lifestyle_settings')
-          .select(
-            'weekly_workouts, activity_level, workout_duration, workout_location, equipment_available, experience_level, fitness_goal, diet_preference, meals_per_day, target_calories, daily_water_goal',
-          )
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (lifestyleResult.error) throw lifestyleResult.error;
-        setLifestyle((lifestyleResult.data || null) as LifestyleSummary | null);
+        const overview = await accountOverviewResource.load(user.id);
+        setLifestyle((overview.lifestyle || null) as LifestyleSummary | null);
 
         let selectedPlan: WeeklyPlan | null = null;
         const byWeek = await supabase
@@ -1393,12 +1327,12 @@ export default function AICoach() {
   const selectedDayIndex = selectedCoachDayIndex ?? todayDayIndex;
   const selectedDay = days[selectedDayIndex] || days[todayDayIndex] || days[0];
   const chatQuotaSummary = useMemo(() => {
-    const limit = Number(aiQuota?.limits?.chatMessages ?? 0);
-    if (!limit) return null;
-    const used = Math.max(0, Number(aiQuota?.usage?.chatMessages ?? 0));
-    const remaining = Math.max(0, Number(aiQuota?.remaining?.chatMessages ?? Math.max(0, limit - used)));
-    return { limit, used, remaining };
-  }, [aiQuota]);
+    if (!quotaData) return null;
+    const effective = getDisplayedMembership(quotaData, profile, membership);
+    if (quotaData.membershipTier !== effective.tier) return null;
+    const { limits, usage, remaining } = quotaData.aiQuota;
+    return { limit: limits.chatMessages, used: usage.chatMessages, remaining: quotaData.trialExpired ? 0 : remaining.chatMessages };
+  }, [quotaData, profile, membership]);
 
   useEffect(() => {
     const fetchChat = async () => {
@@ -1831,8 +1765,7 @@ export default function AICoach() {
       const payload = (await response.json().catch(() => ({}))) as Partial<AIChatApiResponse>;
       if (!response.ok) {
         if (payload?.aiQuota) {
-          setAiQuota(payload.aiQuota);
-          writeAiQuota(aiQuotaStorageKey, payload.aiQuota);
+          publishAiQuotaSnapshot(user.id, payload.aiQuota);
         }
         if (['AI_CHANGE_LIMIT_REACHED', 'PREMIUM_REQUIRED'].includes(getApiErrorCode(payload))) {
           openPremiumModal();
@@ -1843,8 +1776,7 @@ export default function AICoach() {
       }
 
       if (payload.aiQuota) {
-        setAiQuota(payload.aiQuota);
-        writeAiQuota(aiQuotaStorageKey, payload.aiQuota);
+        publishAiQuotaSnapshot(user.id, payload.aiQuota);
       }
       const replyContent = String(payload.reply || '').trim() || buildCoachReply(targetDay, message, previousTopic, lifestyle);
       const assistantMessage: ChatMessage = {
@@ -1919,7 +1851,7 @@ export default function AICoach() {
     void submitChat();
   };
 
-  if (loading) return <AICoachSkeleton />;
+  if (loading || (quotaLoading && !quotaData)) return <AICoachSkeleton />;
 
   return (
     <div className="contents xl:flex xl:flex-col xl:gap-5">
@@ -1942,10 +1874,10 @@ export default function AICoach() {
                   </div>
                   <div className="ai-coach-header-actions">
                     {user?.id ? (
-                      <div className="ai-coach-quota-pill" title={chatQuotaSummary ? `${chatQuotaSummary.remaining} lượt AI Coach còn lại` : 'Đang tải lượt AI Coach'}>
+                      <button type="button" className="ai-coach-quota-pill" onClick={refreshQuota} disabled={quotaFetching} aria-busy={quotaFetching} aria-label="Làm mới số lượt AI Coach" title={quotaError ? 'Chưa đồng bộ được số lượt. Nhấn để thử lại.' : chatQuotaSummary ? `${chatQuotaSummary.remaining} lượt AI Coach còn lại` : 'Nhấn để đồng bộ số lượt AI Coach'}>
                         <Zap className="h-3 w-3 fill-current" aria-hidden="true" />
-                        <strong>{chatQuotaSummary ? `${chatQuotaSummary.remaining} lượt` : '... lượt'}</strong>
-                      </div>
+                        <strong aria-live="polite">{chatQuotaSummary ? `${chatQuotaSummary.remaining} lượt` : quotaFetching ? 'Đang tải lượt…' : 'Tải lại lượt'}</strong>
+                      </button>
                     ) : null}
                     {chatMessages.length > 0 ? (
                       <button

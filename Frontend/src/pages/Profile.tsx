@@ -50,6 +50,7 @@ import { useToast } from '../components/ToastProvider';
 import { getUserChallenges, type ChallengeSummary } from '../lib/Challenges';
 import { fetchWithAuth } from '../lib/Api';
 import AiPlanCard from '../components/AiPlanCard';
+import { profileDetailsResource } from '../lib/accountReads';
 import {
   EQUIPMENT_TYPES,
   TRAINING_LOCATIONS,
@@ -315,6 +316,40 @@ const normalizeExperienceLevel = (value: unknown): WorkoutExperienceLevel => {
   return 'advanced';
 };
 
+type ProfileDetails = NonNullable<ReturnType<typeof profileDetailsResource.read>['data']>;
+
+function buildProfileForm(profile: any, details: ProfileDetails | null, lifestyle: any, user: any): typeof emptyForm {
+  const p = profile || {};
+  const b = details?.body || {};
+  const h = details?.health || {};
+  const lifestyleRes = { data: lifestyle || {} };
+  const metadataFullName = user?.user_metadata?.full_name || '';
+  const userEmail = user?.email || '';
+  return {
+    full_name: p.full_name || metadataFullName || '',
+    email: p.email || userEmail,
+    gender: normalizeGender(p.gender),
+    birthday: p.birthday || '',
+    age: getAgeFromBirthday(p.birthday || ''),
+    height: toInput(b.height),
+    weight: toInput(b.weight),
+    target_weight: toInput(b.target_weight),
+    body_fat: toInput(b.body_fat || b.body_fat_percentage),
+    health_condition: h.health_condition || '',
+    injuries: h.injuries || '',
+    allergies: Array.isArray(h.allergies) && h.allergies.length > 0 ? h.allergies.join(', ') : h.medical_history || '',
+    medications: h.medications || 'Không sử dụng thuốc',
+    fitness_goal: normalizeFitnessGoal(lifestyleRes.data?.fitness_goal),
+    diet_preference: lifestyleRes.data?.diet_preference || 'Bình thường',
+    dietary_restrictions: normalizeDietaryRestrictions(lifestyleRes.data?.dietary_restrictions, lifestyleRes.data?.diet_preference, lifestyleRes.data?.current_diet),
+    diet_styles: normalizeDietStyles(lifestyleRes.data?.diet_styles, lifestyleRes.data?.diet_preference, lifestyleRes.data?.current_diet),
+    budget_level: normalizeBudgetLevel(lifestyleRes.data?.budget_level) || 'medium',
+    workout_location: normalizeWorkoutLocation(lifestyleRes.data?.workout_location),
+    equipment_available: normalizeAvailableEquipment(lifestyleRes.data?.equipment_available),
+    experience_level: normalizeExperienceLevel(lifestyleRes.data?.experience_level),
+  };
+}
+
 type ProfileOutletContext = {
   onPasswordClick?: () => void;
 };
@@ -324,27 +359,30 @@ export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
   const isProfileEditPage = location.pathname === '/profile/edit';
-  const { user, profile, membershipTier, membership, isAdmin, refreshTick, openPremiumModal, refreshProfile, signOut } = useAuth();
+  const { user, profile, lifestyle: accountLifestyle, membershipTier, membership, isAdmin, refreshTick, openPremiumModal, refreshProfile, signOut } = useAuth();
   const toast = useToast();
-  const [formData, setFormData] = useState(emptyForm);
+  const initialDetails = profileDetailsResource.read(user?.id).data;
+  const [formData, setFormData] = useState(() => buildProfileForm(profile, initialDetails, accountLifestyle, user));
   const selectedAllergies = normalizeAllergies(formData.allergies).filter((value) => ALLERGENS.includes(value as typeof ALLERGENS[number]));
-  const [latestBodyCreatedAt, setLatestBodyCreatedAt] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [latestBodyCreatedAt, setLatestBodyCreatedAt] = useState(initialDetails?.body?.created_at || '');
+  const [loading, setLoading] = useState(() => !initialDetails);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(isProfileEditPage);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
   const [avatarUploading, setAvatarUploading] = useState(false);
-  const [fitnessGoal, setFitnessGoal] = useState('');
-  const [streakCount, setStreakCount] = useState(0);
-  const [totalActiveDays, setTotalActiveDays] = useState(0);
-  const [totalExp, setTotalExp] = useState(0);
-  const [dbLevel, setDbLevel] = useState(1);
-  const [refCode, setRefCode] = useState('');
-  const [referralCount, setReferralCount] = useState(0);
+  const [fitnessGoal, setFitnessGoal] = useState(normalizeFitnessGoal(accountLifestyle?.fitness_goal));
+  const [streakCount, setStreakCount] = useState<number | null>(null);
+  const [totalActiveDays, setTotalActiveDays] = useState<number | null>(null);
+  const [totalExp, setTotalExp] = useState(profile?.exp ?? 0);
+  const [dbLevel, setDbLevel] = useState(profile?.level ?? 1);
+  const [refCode, setRefCode] = useState(profile?.ref_code || '');
+  const [referralCount, setReferralCount] = useState(profile?.referral_count ?? 0);
   const [copied, setCopied] = useState(false);
   const [completedChallenges, setCompletedChallenges] = useState<ChallengeSummary[]>([]);
+  const [challengesLoading, setChallengesLoading] = useState(true);
+  const [challengesError, setChallengesError] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -354,114 +392,68 @@ export default function Profile() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
 
-  // ── Load profile data ────────────────────────────────────────────────────
+  // Reuse the authenticated profile; only body and health details gate this page.
   useEffect(() => {
     if (!user?.id) return;
     const userId = user.id;
-    const userEmail = user.email || '';
-    const metadataFullName = user.user_metadata?.full_name || '';
     let cancelled = false;
-
     async function loadProfile() {
-      setLoading(true);
+      setLoading(!profileDetailsResource.read(userId).data);
       setError('');
       try {
-        const [profileRes, bodyRes, healthRes, lifestyleRes, streakRes, allChallenges] = await Promise.all([
-          fetchWithAuth('/api/profile')
-            .then(async (response) => {
-              const payload = await response.json().catch(() => ({}));
-              return response.ok
-                ? { data: payload.data, error: null }
-                : { data: null, error: new Error(getApiErrorMessage(payload?.error, 'Không thể tải thông tin cá nhân. Vui lòng thử lại.')) };
-            }),
-          supabase
-            .from('body_metrics')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          supabase.from('health_conditions').select('*').eq('user_id', userId).maybeSingle(),
-          supabase.from('lifestyle_settings').select('*').eq('user_id', userId).maybeSingle(),
-          supabase
-            .from('daily_progress_logs')
-            .select('log_date')
-            .eq('user_id', userId)
-            .order('log_date', { ascending: false })
-            .limit(90),
-          getUserChallenges(userId).catch(() => []),
-        ]);
-
-        const done = (allChallenges || [])
-          .filter((c) => c.status === 'completed')
-          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-          .slice(0, 4);
-        if (!cancelled) setCompletedChallenges(done);
-
-        const firstError = [profileRes.error, bodyRes.error, healthRes.error].find(Boolean);
-        if (firstError) throw firstError;
+        const details = await profileDetailsResource.load(userId);
         if (cancelled) return;
-
-        const p = profileRes.data || {};
-        const b = bodyRes.data || {};
-        const h = healthRes.data || {};
-
-        setFormData({
-          full_name: p.full_name || metadataFullName || '',
-          email: p.email || userEmail,
-          gender: normalizeGender(p.gender),
-          birthday: p.birthday || '',
-          age: getAgeFromBirthday(p.birthday || ''),
-          height: toInput(b.height),
-          weight: toInput(b.weight),
-          target_weight: toInput(b.target_weight),
-          body_fat: toInput(b.body_fat || b.body_fat_percentage),
-          health_condition: h.health_condition || '',
-          injuries: h.injuries || '',
-          allergies: Array.isArray(h.allergies) && h.allergies.length > 0 ? h.allergies.join(', ') : h.medical_history || '',
-          medications: h.medications || 'Không sử dụng thuốc',
-          fitness_goal: normalizeFitnessGoal(lifestyleRes.data?.fitness_goal),
-          diet_preference: lifestyleRes.data?.diet_preference || 'Bình thường',
-          dietary_restrictions: normalizeDietaryRestrictions(lifestyleRes.data?.dietary_restrictions, lifestyleRes.data?.diet_preference, lifestyleRes.data?.current_diet),
-          diet_styles: normalizeDietStyles(lifestyleRes.data?.diet_styles, lifestyleRes.data?.diet_preference, lifestyleRes.data?.current_diet),
-          budget_level: normalizeBudgetLevel(lifestyleRes.data?.budget_level) || 'medium',
-          workout_location: normalizeWorkoutLocation(lifestyleRes.data?.workout_location),
-          equipment_available: normalizeAvailableEquipment(lifestyleRes.data?.equipment_available),
-          experience_level: normalizeExperienceLevel(lifestyleRes.data?.experience_level),
-        });
-        setLatestBodyCreatedAt(b.created_at || '');
-        setAvatarUrl(p.avatar_url || null);
-        setFitnessGoal(normalizeFitnessGoal(lifestyleRes.data?.fitness_goal));
-        setTotalExp(p.exp ?? 0);
-        setDbLevel(p.level ?? 1);
-        setRefCode(p.ref_code || '');
-        setReferralCount(p.referral_count ?? 0);
-
-
-        const totalDays = streakRes.data?.length ?? 0;
-        setTotalActiveDays(totalDays);
-
-        if (streakRes.data && streakRes.data.length > 0) {
-          const logDates = new Set(streakRes.data.map((r: any) => r.log_date as string));
-          let streak = 0;
-          const today = new Date();
-          for (let i = 0; i < 365; i++) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
-            const key = d.toISOString().slice(0, 10);
-            if (logDates.has(key)) streak++;
-            else if (i > 0) break;
-          }
-          setStreakCount(streak);
-        }
+        setFormData(buildProfileForm(profile, details, accountLifestyle, user));
+        setLatestBodyCreatedAt(details.body?.created_at || '');
+        setAvatarUrl(profile?.avatar_url || null);
+        setFitnessGoal(normalizeFitnessGoal(accountLifestyle?.fitness_goal));
+        setTotalExp(profile?.exp ?? 0);
+        setDbLevel(profile?.level ?? 1);
+        setRefCode(profile?.ref_code || '');
+        setReferralCount(profile?.referral_count ?? 0);
       } catch (err: any) {
         if (!cancelled) setError(err?.message || 'Không thể tải thông tin cá nhân.');
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
-
     void loadProfile();
+    return () => { cancelled = true; };
+  }, [reloadKey, user?.id]);
+
+  // Slow activity and challenge reads update their own sections independently.
+  useEffect(() => {
+    if (!user?.id) return;
+    const userId = user.id;
+    let cancelled = false;
+    setChallengesLoading(true);
+    setChallengesError(false);
+    void (async () => {
+      try {
+        const result = await supabase.from('daily_progress_logs').select('log_date').eq('user_id', userId).order('log_date', { ascending: false }).limit(90);
+        if (cancelled) return;
+        if (result.error) throw result.error;
+        const logs = result.data || [];
+        setTotalActiveDays(logs.length);
+        const dates = new Set(logs.map((row: any) => row.log_date as string));
+        let streak = 0;
+        const today = new Date();
+        for (let i = 0; i < 365; i++) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          if (dates.has(date.toISOString().slice(0, 10))) streak++;
+          else if (i > 0) break;
+        }
+        setStreakCount(streak);
+      } catch { if (!cancelled) { setStreakCount(null); setTotalActiveDays(null); } }
+    })();
+    void (async () => {
+      try {
+        const challenges = await getUserChallenges(userId);
+        if (!cancelled) setCompletedChallenges(challenges.filter((challenge) => challenge.status === 'completed').sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 4));
+      } catch { if (!cancelled) setChallengesError(true); }
+      finally { if (!cancelled) setChallengesLoading(false); }
+    })();
     return () => { cancelled = true; };
   }, [reloadKey, user?.id]);
 
@@ -1036,7 +1028,7 @@ export default function Profile() {
             <Flame className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-2xl font-black text-text-primary leading-none">{streakCount}</p>
+            <p className="text-2xl font-black text-text-primary leading-none">{streakCount ?? '—'}</p>
             <p className="mt-1 text-xs font-semibold text-text-secondary">Chuỗi duy trì · ngày</p>
           </div>
         </div>
@@ -1045,7 +1037,7 @@ export default function Profile() {
             <CalendarDays className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-2xl font-black text-text-primary leading-none">{totalActiveDays}</p>
+            <p className="text-2xl font-black text-text-primary leading-none">{totalActiveDays ?? '—'}</p>
             <p className="mt-1 text-xs font-semibold text-text-secondary">Tổng ngày hoạt động</p>
           </div>
         </div>
@@ -1121,7 +1113,11 @@ export default function Profile() {
           </button>
         </div>
 
-        {completedChallenges.length === 0 ? (
+        {challengesLoading ? (
+          <p role="status" className="py-4 text-xs text-text-secondary">Đang tải thành tựu…</p>
+        ) : challengesError ? (
+          <p className="py-4 text-xs text-text-secondary">Chưa tải được thành tựu. Bạn có thể xem lại trong mục Thử thách.</p>
+        ) : completedChallenges.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-4 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border-primary bg-bg-tertiary text-text-tertiary">
               <Trophy className="h-5 w-5" />

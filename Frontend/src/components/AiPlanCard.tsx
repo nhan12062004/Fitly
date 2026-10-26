@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 import { AlertCircle, ArrowRight, CalendarDays, Check, Dumbbell, Loader2, LockKeyhole, MessageCircle, RefreshCw, Sparkles, Utensils, Zap } from 'lucide-react';
-import type { AiQuotaKey, AiQuotaResponse } from '../../../shared/aiQuota';
-import { fetchWithAuth } from '../lib/Api';
-import { formatAiDate, getDisplayedMembership, getQuotaPeriod, parseAiQuotaResponse } from '../lib/aiQuota';
+import type { AiQuotaKey } from '../../../shared/aiQuota';
+import { useAiQuota } from '../hooks/useAiQuota';
+import { formatAiDate, getDisplayedMembership, getQuotaPeriod } from '../lib/aiQuota';
 import type { MembershipState } from '../../../shared/membership';
 
 const quotaItems = [
@@ -21,47 +21,13 @@ export default function AiPlanCard({ userId, profile, membership, refreshTick = 
   membership?: MembershipState;
   refreshTick?: number;
 }) {
-  const [resource, setResource] = useState<{ userId: string; data: AiQuotaResponse | null; error: string; loading: boolean } | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const lastFetchAt = useRef(0);
-  const current = resource?.userId === userId ? resource : null;
-  const data = current?.data;
-  const loading = current?.loading ?? true;
-
+  const { data, error, loading, fetching, refresh } = useAiQuota(userId, refreshTick);
+  const previousMembership = useRef(`${membership?.tier}:${membership?.expiresAt}`);
   useEffect(() => {
-    const controller = new AbortController();
-    let cancelled = false;
-    setResource({ userId, data: null, error: '', loading: true });
-    const load = async () => {
-      try {
-        const response = await fetchWithAuth('/api/ai/quota', { signal: controller.signal });
-        if (!response.ok) throw new Error('Chưa tải được quyền lợi AI. Vui lòng thử lại.');
-        const nextData = parseAiQuotaResponse(await response.json());
-        if (!cancelled) setResource({ userId, data: nextData, error: '', loading: false });
-      } catch (error) {
-        if (!cancelled) setResource({ userId, data: null, error: error instanceof Error ? error.message : 'Chưa tải được quyền lợi AI. Vui lòng thử lại.', loading: false });
-      } finally {
-        if (!cancelled) lastFetchAt.current = Date.now();
-      }
-    };
-    void load();
-    return () => { cancelled = true; controller.abort(); };
-  }, [userId, refreshTick, reloadKey, membership?.tier, membership?.expiresAt]);
-
-  useEffect(() => {
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastFetchAt.current >= 30_000) {
-        lastFetchAt.current = Date.now();
-        setReloadKey((key) => key + 1);
-      }
-    };
-    window.addEventListener('focus', refreshWhenVisible);
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    return () => {
-      window.removeEventListener('focus', refreshWhenVisible);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-    };
-  }, []);
+    const key = `${membership?.tier}:${membership?.expiresAt}`;
+    if (previousMembership.current !== key) refresh();
+    previousMembership.current = key;
+  }, [membership?.tier, membership?.expiresAt, refresh]);
 
   const effective = getDisplayedMembership(data, profile, membership);
   const isPaid = effective.tier !== 'free';
@@ -71,20 +37,20 @@ export default function AiPlanCard({ userId, profile, membership, refreshTick = 
   const number = (count: number) => count.toLocaleString('vi-VN');
 
   return (
-    <section aria-labelledby="ai-plan-title" aria-busy={loading} className="min-w-0 overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+    <section aria-labelledby="ai-plan-title" aria-busy={fetching} className="min-w-0 overflow-hidden rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
       <div className="p-4 md:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/20 bg-accent/10 text-accent"><Zap className="h-5 w-5" aria-hidden="true" /></span>
             <div><h2 id="ai-plan-title" className="text-base font-black text-text-primary">Gói AI</h2><p className="mt-0.5 text-[11px] text-text-secondary">Quyền lợi và hạn mức sử dụng của bạn</p></div>
           </div>
-          <button type="button" disabled={loading} onClick={() => setReloadKey((key) => key + 1)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border-primary px-3 text-xs text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:cursor-wait disabled:opacity-60">
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />{loading ? 'Đang đồng bộ' : 'Làm mới'}
+          <button type="button" disabled={fetching} onClick={refresh} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border-primary px-3 text-xs text-text-secondary transition-colors hover:border-accent/40 hover:text-accent disabled:cursor-wait disabled:opacity-60">
+            <RefreshCw className={`h-3.5 w-3.5 ${fetching ? 'animate-spin' : ''}`} aria-hidden="true" />{fetching ? 'Đang đồng bộ' : 'Làm mới'}
           </button>
         </div>
 
         {loading && <div role="status" className="mt-5 flex min-h-40 items-center justify-center gap-2 text-sm text-text-secondary"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Đang tải quyền lợi và số lượt thực tế…</div>}
-        {!loading && current?.error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-warning/25 bg-warning/5 p-4 text-sm text-text-secondary"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" /><div><p>{current.error}</p><p className="mt-1 text-xs">Nhấn “Làm mới” để đồng bộ lại. Số lượt sẽ hiển thị sau khi tải thành công.</p></div></div>}
+        {!loading && error && <div role="alert" className="mt-5 flex items-start gap-3 rounded-xl border border-warning/25 bg-warning/5 p-4 text-sm text-text-secondary"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" /><div><p>{error.message}</p><p className="mt-1 text-xs">Nhấn “Làm mới” để đồng bộ lại. Số lượt sẽ được cập nhật khi tải thành công.</p></div></div>}
 
         {data && <>
           <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border-primary pt-5">
