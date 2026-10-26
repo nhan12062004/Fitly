@@ -583,7 +583,7 @@ export const aiChatService = async (
       };
     }
   } catch (error: any) {
-    console.warn('[aiChatService] Groq chat fallback:', error?.message || error);
+    console.warn('[aiChatService] Groq chat fallback:');
   }
 
   return {

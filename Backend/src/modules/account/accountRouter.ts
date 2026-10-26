@@ -1,11 +1,12 @@
 import express, { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { requireRecentAuthentication } from '../../auth/recentAuthentication';
 import { requireAuth } from '../../auth/middleware';
 import { adminSupabase } from '../../config/Supabase';
 import { ExternalProviderError, NotFoundError, UnauthorizedError, ValidationError } from '../../http/errors';
 import { validateBody } from '../../http/validation';
-import { deleteStoreCustomer } from '../../services/storeSubscriptionService';
+import { performAccountDeletion } from '../../services/accountDeletionService';
 
 const accountDeletionSchema = z.object({ confirmation: z.literal('DELETE') }).strict();
 const SELF_SERVICE_PROFILE_COLUMNS = 'id, full_name, email, gender, birthday, avatar_url, membership_tier, membership_expires_at, exp, level, ref_code, referral_count, created_at, updated_at';
@@ -153,25 +154,12 @@ export const createAccountRouter = ({ serviceRoleClient = adminSupabase }: Accou
     }
   });
 
-  router.delete('/account', validateBody(accountDeletionSchema), requireAuth, async (req, res, next) => {
+  router.delete('/account', validateBody(accountDeletionSchema), requireAuth, requireRecentAuthentication, async (req, res, next) => {
     let userId: string;
     try {
       ({ userId } = getAuthenticatedContext(req));
 
-      const avatarList = await serviceRoleClient.storage
-        .from('avatars')
-        .list(userId, { limit: 100 });
-      if (avatarList.error) throw avatarList.error;
-
-      const avatarPaths = getDirectChildPaths(userId, avatarList.data || []);
-      if (avatarPaths.length > 0) {
-        const avatarDelete = await serviceRoleClient.storage.from('avatars').remove(avatarPaths);
-        if (avatarDelete.error) throw avatarDelete.error;
-      }
-
-      await deleteStoreCustomer(userId);
-      const deleteUser = await serviceRoleClient.auth.admin.deleteUser(userId);
-      if (deleteUser.error) throw deleteUser.error;
+      await performAccountDeletion(userId, serviceRoleClient);
 
       return res.json({ success: true });
     } catch (error) {

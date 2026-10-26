@@ -1,3 +1,4 @@
+import { createAccountResource } from './accountResource';
 import { accountOverviewResource, profileDetailsResource } from './accountReads';
 import { supabase } from './Supabase';
 import { ensureChallengeNotifications, syncChallengeCheckin } from './Challenges';
@@ -482,3 +483,12 @@ export const ensureActionableNotifications = async (userId: string) => {
     console.warn('Challenge notification sync failed:', challengeError);
   });
 };
+
+// Share polling work between the top bar and the full inbox. Realtime reads
+// bypass freshness while concurrent callbacks still share one pending request.
+const actionableResource = createAccountResource(async (userId) => { await ensureActionableNotifications(userId); return true; },55_000);
+const inboxResource = createAccountResource((userId) => fetchUserNotifications(userId,80),2000);
+export async function loadNotificationSnapshot(userId: string, syncActionable = false) {
+  if (syncActionable) await actionableResource.load(userId);
+  return inboxResource.load(userId,!syncActionable);
+}

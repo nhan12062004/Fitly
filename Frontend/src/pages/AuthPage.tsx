@@ -134,6 +134,7 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
         options: {
           data: {
             full_name: fullName,
+            referral_code: localStorage.getItem('fitly_ref') || undefined,
           },
           emailRedirectTo: `${import.meta.env.VITE_APP_URL || window.location.origin}/login?verified=1`,
         },
@@ -143,17 +144,6 @@ export default function AuthPage({ initialMode }: AuthPageProps) {
 
       if (data.user && data.user.identities && data.user.identities.length === 0) {
         throw new Error('User already registered');
-      }
-
-      // Ghi referred_by nếu có ref code trong localStorage
-      if (data.user) {
-        const savedRef = localStorage.getItem('fitly_ref');
-        if (savedRef) {
-          await supabase
-            .from('profiles')
-            .upsert({ id: data.user.id, referred_by: savedRef, updated_at: new Date().toISOString() });
-          localStorage.removeItem('fitly_ref');
-        }
       }
 
       if (data.session) {

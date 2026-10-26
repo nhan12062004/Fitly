@@ -1,3 +1,4 @@
+import { apiRequest } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { requireSessionUser } from '@/lib/account-read-model';
 import { invalidateResources } from '@/lib/query-cache';
@@ -50,6 +51,7 @@ export type MealItem = {
 };
 
 export type GeneratedMealPlanItem = {
+  id?: string | null;
   day_of_week?: number | null;
   meal_type?: string | null;
   recipe_id?: string | null;
@@ -312,7 +314,7 @@ export const saveGeneratedMealPlan = async ({
 
   const { data: currentPlan, error: currentPlanError } = await supabase
     .from('weekly_food_plans')
-    .select('id')
+    .select('id, version')
     .eq('user_id', userId)
     .eq('week_start_date', weekStartKey)
     .eq('plan_status', 'active')
@@ -325,61 +327,26 @@ export const saveGeneratedMealPlan = async ({
   if (scope === 'day' && currentPlan?.id) {
     const { data, error } = await supabase
       .from('weekly_food_items')
-      .select('day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, order_index, is_rest_day')
+      .select('id, day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, order_index, is_rest_day')
       .eq('food_plan_id', currentPlan.id)
       .neq('day_of_week', safeTargetDayIndex);
     if (error) throw error;
     preservedItems = data ?? [];
   }
 
-  const { data: newPlan, error: createPlanError } = await supabase
-    .from('weekly_food_plans')
-    .insert({
-      user_id: userId,
-      name: scope === 'week' ? 'Thực đơn AI 7 ngày' : 'Thực đơn AI hôm nay',
-      week_start_date: weekStartKey,
-      plan_status: 'draft',
-      generated_by: 'ai',
-    })
-    .select('id')
-    .single();
-  if (createPlanError) throw createPlanError;
-
   const rows = [...preservedItems, ...generatedItems].map((item, index) => ({
-    food_plan_id: newPlan.id,
-    day_of_week: Math.max(0, Math.min(6, Number(item.day_of_week) || 0)),
-    meal_type: String(item.meal_type || 'lunch'),
+    id: item.id ?? null, day_of_week: Number(item.day_of_week), meal_type: String(item.meal_type || 'lunch'),
     recipe_id: item.recipe_id ? String(item.recipe_id) : null,
-    quantity: Math.max(0.25, Number(item.quantity) || 1),
-    calories: Math.max(0, Number(item.calories) || 0),
-    protein: Math.max(0, Number(item.protein) || 0),
-    carbs: Math.max(0, Number(item.carbs) || 0),
-    fat: Math.max(0, Number(item.fat) || 0),
-    order_index: Number.isFinite(Number(item.order_index)) ? Number(item.order_index) : index,
-    is_rest_day: Boolean(item.is_rest_day),
+    quantity: Math.max(0.25, Number(item.quantity) || 1), order_index: index, is_rest_day: Boolean(item.is_rest_day),
   }));
-  const insertItems = await supabase.from('weekly_food_items').insert(rows);
-  if (insertItems.error) throw insertItems.error;
-
-  const activatedAt = new Date().toISOString();
-  const activatePlan = await supabase
-    .from('weekly_food_plans')
-    .update({ plan_status: 'active', updated_at: activatedAt })
-    .eq('id', newPlan.id)
-    .eq('plan_status', 'draft');
-  if (activatePlan.error) throw activatePlan.error;
-
-  const retireOldPlans = await supabase
-    .from('weekly_food_plans')
-    .update({ plan_status: 'adjusted', updated_at: activatedAt })
-    .eq('user_id', userId)
-    .eq('week_start_date', weekStartKey)
-    .eq('plan_status', 'active')
-    .neq('id', newPlan.id);
-  if (retireOldPlans.error) throw retireOldPlans.error;
-
+  const result = await apiRequest<{ data: { planId: string } }>('/api/meal-plans/save', {
+    method: 'POST', body: {
+      planId: currentPlan?.id ?? null, expectedVersion: currentPlan ? Number(currentPlan.version) : null,
+      name: scope === 'week' ? 'Thực đơn AI 7 ngày' : 'Thực đơn AI hôm nay', weekStartDate: weekStartKey, items: rows,
+    },
+  });
   void invalidateResources('meals', 'home', 'quota');
-  return newPlan.id as string;
+  return result.data.planId;
 };
 
 export const loadProfileSnapshot = async (): Promise<ProfileSnapshot> => {

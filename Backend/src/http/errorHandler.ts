@@ -10,6 +10,6 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const status = appError?.status ?? 500;
   const code = appError?.code ?? 'INTERNAL_ERROR';
   const message = appError?.expose ? appError.publicMessage : 'Internal server error';
-  reportException(error, { requestId: req.requestId, method: req.method, path: req.path, status, code, errorCode: code });
+  if (status >= 500) reportException(error, { requestId: req.requestId, method: req.method, path: req.route?.path || 'unmatched', status, code, errorCode: code });
   res.status(status).json({ error: { code, message, requestId: req.requestId } });
 };

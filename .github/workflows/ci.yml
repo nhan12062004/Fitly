@@ -34,6 +34,13 @@ jobs:
         working-directory: Backend
         run: npm run typecheck
 
+      - name: Test security, database transactions and account cache
+        working-directory: Backend
+        env:
+          NODE_ENV: test
+          ENABLE_JOBS: 'false'
+        run: npm test
+
       - name: Install mobile dependencies
         working-directory: Mobile
         run: npm ci
@@ -75,3 +82,45 @@ jobs:
       - name: Audit frontend dependencies
         working-directory: Frontend
         run: npm audit --audit-level=high
+
+      - name: Install Chromium
+        working-directory: Frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Test web account flows
+        working-directory: Frontend
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: test-anon-key
+          VITE_API_URL: http://127.0.0.1:5001
+        run: npm run test:e2e
+
+  supabase-integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+          cache-dependency-path: Backend/package-lock.json
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.0
+      - name: Install backend dependencies
+        working-directory: Backend
+        run: npm ci
+      - name: Start isolated Supabase and apply migrations
+        run: supabase start
+      - name: Test database ownership
+        run: supabase test db --local supabase/tests/rls_ownership_test.sql
+      - name: Write local connection information without logging keys
+        run: supabase status -o json > /tmp/fitly-supabase-local.json
+      - name: Test local Auth, Data API, Storage and account lifecycle
+        working-directory: Backend
+        env:
+          SUPABASE_LOCAL_STATUS_FILE: /tmp/fitly-supabase-local.json
+        run: npm run test:integration:local
+      - name: Stop isolated Supabase
+        if: always()
+        run: supabase stop --no-backup

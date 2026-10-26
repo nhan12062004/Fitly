@@ -90,7 +90,7 @@ export default function LegalPage({ section }: { section: LegalSection }) {
         setConsentNotice('Hãy đăng nhập để thay đổi lựa chọn quyền riêng tư của tài khoản.');
         return;
       }
-      const result = await supabase.from('ai_data_consents').delete().eq('user_id', data.session.user.id);
+      const result = await supabase.rpc('set_ai_data_consent', { p_accept: false, p_version: 1 });
       if (result.error) throw result.error;
       setConsentNotice('Đã thu hồi đồng ý sử dụng AI trên mọi thiết bị, bao gồm tạo kế hoạch tự động. Yêu cầu đang xử lý có thể vẫn hoàn tất.');
     } catch {
@@ -136,7 +136,7 @@ export default function LegalPage({ section }: { section: LegalSection }) {
             <span className="legal-eyebrow"><span /> ĐỒNG HÀNH BẰNG SỰ MINH BẠCH</span>
             <h1 id="legal-title">{details.title}<span className="legal-title-dot">.</span></h1>
             <p className="legal-description">{details.description}</p>
-            <div className="legal-metadata"><CalendarDays size={15} aria-hidden="true" /> Cập nhật ngày <time dateTime="2026-09-12">12/09/2026</time><span className="legal-metadata-divider" /> Fitly</div>
+            <div className="legal-metadata"><CalendarDays size={15} aria-hidden="true" /> Cập nhật ngày <time dateTime="2026-10-26">26/10/2026</time><span className="legal-metadata-divider" /> Fitly</div>
           </div>
           <div className="legal-hero-art" aria-hidden="true">
             <div className="legal-art-orbit legal-art-orbit-outer" />

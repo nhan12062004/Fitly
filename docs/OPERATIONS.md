@@ -1,5 +1,8 @@
 # Operations
 
+Current release procedure, production gates and incident queries are in
+[the 2026-10-26 hardening release](hardening-release-2026-10-26.md).
+
 ## Runtime ownership
 
 `Backend/src/app.ts` only constructs the Express application. Importing it does not open a port, start cron work, register signal handlers, or make a provider call.
@@ -22,9 +25,9 @@ For the current Render web service, set `ENABLE_JOBS=true` only when scheduled p
 
 ## Scheduling and scaling
 
-The current in-process scheduler is a beta, single-web-instance assumption. It prevents duplicate registration inside one Node process, but cannot provide exactly-once execution across multiple Render instances or during overlapping deploys.
+The scheduler now claims each premium daily run and privacy hourly run through a unique database job key. Duplicate schedules/deploys cannot claim the same run. An interrupted run requires inspection; this does not promise exactly-once completion or automatically retry an unknown result.
 
-Before scaling web instances, move premium scheduling to a Render Cron Job or dedicated worker. Keep web HTTP instances with `ENABLE_JOBS=false` unless one instance is explicitly assigned as the scheduler owner.
+Run `npm run jobs:premium` daily and `npm run jobs:privacy` hourly from a dedicated cron/worker before scaling web instances. Keep HTTP instances with `ENABLE_JOBS=false` when using that model. Privacy maintenance removes expired replay bodies and retries account deletions.
 
 ## Health and readiness
 

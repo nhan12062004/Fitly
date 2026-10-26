@@ -12,6 +12,7 @@ type WorkoutHandlers = {
 };
 
 type WorkoutRouteDependencies = WorkoutHandlers & {
+  withAiOperation: (handler: RequestHandler, quota: 'workoutAdjustments') => RequestHandler;
   aiLimiter: RequestHandler;
   dailyExercisesFromPlanSchema: ZodType;
 };
@@ -24,6 +25,7 @@ type WorkoutRouteDependencies = WorkoutHandlers & {
 export const registerWorkoutRoutes = (app: Express, dependencies: WorkoutRouteDependencies) => {
   const {
     aiLimiter,
+    withAiOperation,
     dailyExercisesFromPlanSchema,
     materializeFromPlan,
     replaceDailyExercise,
@@ -34,7 +36,7 @@ export const registerWorkoutRoutes = (app: Express, dependencies: WorkoutRouteDe
   } = dependencies;
 
   app.post('/api/workout/daily-exercises/from-plan', validateBody(dailyExercisesFromPlanSchema), materializeFromPlan);
-  app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, replaceDailyExercise);
+  app.post('/api/workout/daily-exercises/:exerciseSessionId/replace', aiLimiter, withAiOperation(replaceDailyExercise, 'workoutAdjustments'));
   app.post('/api/workout/daily-exercises', createDailyExercise);
   app.post('/api/workout/daily-exercises/:exerciseSessionId/config', updateDailyExerciseConfig);
   app.post('/api/workout/daily-exercises/:exerciseSessionId/completion', updateDailyExerciseCompletion);

@@ -38,13 +38,35 @@ const cleanHtmlTags = (html: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const SEARCH_FOODS = [
+  ['thit lon', 'thịt lợn'], ['thit heo', 'thịt heo'], ['thit bo', 'thịt bò'],
+  ['uc ga', 'ức gà'], ['thit ga', 'thịt gà'], ['trung ga', 'trứng gà'],
+  ['ca hoi', 'cá hồi'], ['ca thu', 'cá thu'], ['dau phu', 'đậu phụ'],
+  ['gao', 'gạo'], ['yen mach', 'yến mạch'], ['khoai lang', 'khoai lang'],
+] as const;
+
+/** Construct a query from constants only. Names, diagnoses, medication, free
+ * text and chat history can never reach the search provider through this path. */
+export const buildMarketPriceSearchQuery = (message: string): string | null => {
+  const normalized = ` ${normalizeVietnameseText(message).replace(/[^a-z0-9 ]/g, ' ')} `;
+  const foods = SEARCH_FOODS.filter(([term]) => normalized.includes(` ${term} `)).map(([, label]) => label);
+  return foods.length ? `giá ${[...new Set(foods)].join(', ')} hôm nay thị trường Việt Nam` : null;
+};
+
+const priceCache = new Map<string, { expiresAt: number; result: MarketPriceSearchResult }>();
+
 export const fetchRealtimeMarketPrices = async (userQuery: string): Promise<MarketPriceSearchResult | null> => {
+  if (process.env.MARKET_PRICE_SEARCH_ENABLED !== 'true') return null;
+  const searchQuery = buildMarketPriceSearchQuery(userQuery);
+  if (!searchQuery) return null;
+  const cached = priceCache.get(searchQuery);
+  if (cached && cached.expiresAt > Date.now()) return cached.result;
   try {
-    const todayStr = new Date().toLocaleDateString('vi-VN');
-    const searchQuery = `${userQuery} hôm nay giá thị trường Việt Nam`;
+    const todayStr = new Date().toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
     const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`;
 
     const response = await fetch(searchUrl, {
+      signal: AbortSignal.timeout(5000),
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -72,14 +94,17 @@ export const fetchRealtimeMarketPrices = async (userQuery: string): Promise<Mark
       return null;
     }
 
-    return {
+    const result = {
       query: searchQuery,
       searchedAt: todayStr,
       snippets: uniqueSnippets,
       summary: uniqueSnippets.join(' | '),
     };
+    if (priceCache.size >= 64) priceCache.delete(priceCache.keys().next().value!);
+    priceCache.set(searchQuery, { result, expiresAt: Date.now() + 10 * 60_000 });
+    return result;
   } catch (error: any) {
-    console.error('[marketPriceService] Real-time price search error:', error?.message || error);
+    console.warn('[marketPriceService] Search unavailable');
     return null;
   }
 };

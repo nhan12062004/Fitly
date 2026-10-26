@@ -94,6 +94,7 @@ type DietPlanPageCache = {
   weeklyPlan: Record<number, PlanFood[]>;
   restDays: Record<number, boolean>;
   planId: string | null;
+  planVersion: number;
   planName: string;
   mealsPerDay: number;
   targetCalories: number;
@@ -103,6 +104,7 @@ type DietPlanPageCache = {
 };
 
 type SavePlanOptions = {
+  chargeMealSwap?: boolean;
   weeklyPlanOverride?: Record<number, PlanFood[]>;
   restDaysOverride?: Record<number, boolean>;
   showSuccess?: boolean;
@@ -553,6 +555,8 @@ export default function DietPlan() {
   const [selectedDayId, setSelectedDayId] = useState(() => initialDietCache?.selectedDayId ?? getTodayDayIndex());
   const [weeklyPlan, setWeeklyPlan] = useState<Record<number, PlanFood[]>>(() => initialDietCache?.weeklyPlan || {});
   const [restDays, setRestDays] = useState<Record<number, boolean>>(() => initialDietCache?.restDays || {});
+  const savePendingRef = useRef(false);
+  const [planVersion, setPlanVersion] = useState(initialDietCache?.planVersion ?? 0);
   const [planId, setPlanId] = useState<string | null>(() => initialDietCache?.planId || null);
   const [planName, setPlanName] = useState(() => initialDietCache?.planName || DEFAULT_PLAN_NAME);
   const [isLoading, setIsLoading] = useState(() => !initialDietCache);
@@ -893,6 +897,7 @@ export default function DietPlan() {
         setWeeklyPlan(cached.weeklyPlan);
         setRestDays(cached.restDays);
         setPlanId(cached.planId);
+        setPlanVersion(cached.planVersion ?? 0);
         setPlanName(cached.planName);
         setMealsPerDay(cached.mealsPerDay || 3);
         setTargetCalories(cached.targetCalories);
@@ -902,6 +907,7 @@ export default function DietPlan() {
       setIsLoading(!cached);
       setIsRefreshing(!!cached);
       try {
+        let nextPlanVersion = 0;
         let nextPlanId: string | null = null;
         let nextPlanName = DEFAULT_PLAN_NAME;
         const nextWeek: Record<number, PlanFood[]> = {};
@@ -927,6 +933,7 @@ export default function DietPlan() {
 
           if (plan) {
             nextPlanId = plan.id;
+            nextPlanVersion = Number(plan.version ?? 0);
             nextPlanName = plan.name === 'Kế hoạch ăn uống tuần' ? DEFAULT_PLAN_NAME : (plan.name || DEFAULT_PLAN_NAME);
 
             const { data: items, error: itemsError } = await supabase
@@ -977,6 +984,7 @@ export default function DietPlan() {
 
         if (!cancelled) {
           setPlanId(nextPlanId);
+          setPlanVersion(nextPlanVersion);
           setPlanName(nextPlanName);
           setWeeklyPlan(nextWeek);
           setRestDays(nextRestDays);
@@ -1008,6 +1016,7 @@ export default function DietPlan() {
       weeklyPlan,
       restDays,
       planId,
+      planVersion,
       planName,
       mealsPerDay,
       targetCalories,
@@ -1015,7 +1024,7 @@ export default function DietPlan() {
       waterGoal,
       waterLogDate: getVietnamDateKey()
     });
-  }, [cacheKey, isLoading, foods, selectedDayId, weeklyPlan, restDays, planId, planName, mealsPerDay, targetCalories, waterIntake, waterGoal]);
+  }, [cacheKey, isLoading, foods, selectedDayId, weeklyPlan, restDays, planId, planVersion, planName, mealsPerDay, targetCalories, waterIntake, waterGoal]);
 
   const addFoodToPlan = useCallback((food: Food, mealType: MealTypeId = activeMealType) => {
     const nextWeeklyPlan = {
@@ -1130,6 +1139,7 @@ export default function DietPlan() {
   };
 
   const savePlan = async (options: SavePlanOptions = {}) => {
+    if (savePendingRef.current) return false;
     if (!user) {
       alert('Vui lòng đăng nhập để lưu thực đơn.');
       return false;
@@ -1139,89 +1149,32 @@ export default function DietPlan() {
     const restDaysToSave = options.restDaysOverride || restDays;
     const showSuccess = options.showSuccess ?? true;
 
+    savePendingRef.current = true;
     setIsSaving(true);
     try {
-      const foodIds = Object.values(planToSave).flatMap((items) => items.map((item) => item.food_id).filter((id): id is string => Boolean(id)));
-      const recipeIds = Object.values(planToSave).flatMap((items) => items.map((item) => item.recipe_id).filter((id): id is string => Boolean(id)));
-      const validationResponse = await fetchWithAuth('/api/meal-plans/validate-foods', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ food_ids: foodIds, recipe_ids: recipeIds }),
-      });
-      if (!validationResponse.ok) {
-        const payload = await validationResponse.json().catch(() => ({}));
-        throw new Error(payload?.error || 'Một số món không phù hợp với hồ sơ ăn uống của bạn.');
-      }
-      let nextPlanId = planId;
-
-      if (!nextPlanId) {
-        const { data: existingPlans } = await supabase
-          .from('weekly_food_plans')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('week_start_date', selectedWeekKey)
-          .eq('plan_status', 'active')
-          .limit(20);
-        const existing = pickLatestPlan(existingPlans);
-        if (existing?.id) nextPlanId = existing.id;
-      }
-
-      if (!nextPlanId) {
-        const { data, error } = await supabase
-          .from('weekly_food_plans')
-          .insert({ user_id: user.id, name: planName, week_start_date: selectedWeekKey })
-          .select('id')
-          .single();
-        if (error) throw error;
-        nextPlanId = data.id;
-      } else {
-        const { error } = await supabase
-          .from('weekly_food_plans')
-          .update({ name: planName, week_start_date: selectedWeekKey, updated_at: new Date().toISOString() })
-          .eq('id', nextPlanId);
-        if (error) throw error;
-      }
-
-      if (!nextPlanId) throw new Error('Không tạo được thực đơn.');
-      setPlanId(nextPlanId);
-
-      await supabase.from('weekly_food_items').delete().eq('food_plan_id', nextPlanId);
-
       const rows: any[] = [];
       DAYS.forEach(({ id: dayIndex }) => {
         if (restDaysToSave[dayIndex]) {
-          rows.push({ food_plan_id: nextPlanId, day_of_week: dayIndex, meal_type: 'breakfast', is_rest_day: true, order_index: 0 });
+          rows.push({ id: null, day_of_week: dayIndex, meal_type: 'breakfast', recipe_id: null, quantity: 1, is_rest_day: true, order_index: 0 });
           return;
         }
-
-        (planToSave[dayIndex] || [])
-          .filter((item) => activeMealTypeIds.has(item.meal_type as MealTypeId))
-          .forEach((item, index) => {
+        (planToSave[dayIndex] || []).filter((item) => activeMealTypeIds.has(item.meal_type as MealTypeId)).forEach((item, index) => {
           rows.push({
-            food_plan_id: nextPlanId,
-            day_of_week: dayIndex,
-            meal_type: item.meal_type,
-            food_id: item.food_id,
-            recipe_id: item.recipe_id || null,
-            quantity: item.quantity,
-            calories: item.calories,
-            protein: item.protein,
-            carbs: item.carbs,
-            fat: item.fat,
-            order_index: index
+            id: item.weekly_food_item_id || null, day_of_week: dayIndex, meal_type: item.meal_type,
+            recipe_id: item.recipe_id || item.food_id || null, quantity: item.quantity,
+            order_index: index, is_rest_day: false,
           });
         });
       });
-
-      let insertedItems: Array<{ id: string; day_of_week: number; order_index: number }> = [];
-      if (rows.length > 0) {
-        const { data, error } = await supabase
-          .from('weekly_food_items')
-          .insert(rows)
-          .select('id, day_of_week, order_index');
-        if (error) throw error;
-        insertedItems = data || [];
-      }
+      const response = await fetchWithAuth(options.chargeMealSwap ? '/api/meal-plans/swap' : '/api/meal-plans/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId, expectedVersion: planId ? planVersion : null, name: planName, weekStartDate: selectedWeekKey, items: rows }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error?.message || payload?.error || 'Chưa lưu được thực đơn.');
+      setPlanId(payload.data.planId);
+      setPlanVersion(Number(payload.data.version));
+      const insertedItems: Array<{ id: string; day_of_week: number; order_index: number }> = payload.data.items;
 
       const insertedIdByDayAndOrder = new Map(
         insertedItems.map((item) => [`${Number(item.day_of_week)}:${Number(item.order_index)}`, String(item.id)])
@@ -1245,6 +1198,7 @@ export default function DietPlan() {
       alert(`Không thể lưu thực đơn: ${error.message}`);
       return false;
     } finally {
+      savePendingRef.current = false;
       setIsSaving(false);
     }
   };
@@ -1296,16 +1250,6 @@ export default function DietPlan() {
 
     setReplacingFoodId(item.tempId);
     try {
-      const response = await fetchWithAuth('/api/ai-coach/record-meal-swap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldFoodName: item.name, newFoodName: replacement.name }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Bạn đã dùng hết lượt đổi thực đơn trong gói hiện tại.');
-      }
-
       const nextDayItems = (weeklyPlan[selectedDayId] || []).map((entry) =>
         entry.tempId === item.tempId
           ? {
@@ -1321,6 +1265,7 @@ export default function DietPlan() {
       const saved = await savePlan({
         weeklyPlanOverride: nextWeeklyPlan,
         restDaysOverride: restDays,
+        chargeMealSwap: true,
         showSuccess: false
       });
       if (saved) {

@@ -79,7 +79,7 @@ export default function ActiveWorkoutScreen() {
     setError(null);
     try {
       const response = await apiRequest<{ exercise: unknown }>(`/api/workout/daily-exercises/${item.id}/complete-set`, {
-        method: 'POST', body: { restSeconds: item.restSeconds ?? 0 }, timeoutMs: 15_000,
+        method: 'POST', body: { restSeconds: item.restSeconds ?? 0, setNumber: item.completedSets + 1 }, timeoutMs: 15_000,
       });
       const serverItem = toWorkoutItem(response.exercise);
       resource.setData((items) => items?.map((entry) => entry.id === serverItem.id ? serverItem : entry));

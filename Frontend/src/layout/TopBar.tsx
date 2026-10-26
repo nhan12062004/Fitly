@@ -26,8 +26,7 @@ import FitlyLogo from '../components/FitlyLogo';
 import { useAuth } from '../contexts/AuthContext';
 import {
   archiveNotification,
-  ensureActionableNotifications,
-  fetchUserNotifications,
+  loadNotificationSnapshot,
   markAllUserNotificationsRead,
   markNotificationRead,
   recordWaterFromNotification,
@@ -166,10 +165,7 @@ export default function TopBar() {
 
     setIsLoadingNotifications(true);
     try {
-      if (syncActionable) {
-        await ensureActionableNotifications(user.id);
-      }
-      const items = await fetchUserNotifications(user.id);
+      const items = await loadNotificationSnapshot(user.id,syncActionable);
       setNotifications(items);
     } catch (error) {
       console.error('Notification load error:', error);
@@ -185,7 +181,7 @@ export default function TopBar() {
   useEffect(() => {
     if (!user?.id) return;
     const intervalId = window.setInterval(() => {
-      void loadNotifications(true);
+      if (document.visibilityState === 'visible') void loadNotifications(true);
     }, 60000);
     return () => window.clearInterval(intervalId);
   }, [loadNotifications, user?.id]);

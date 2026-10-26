@@ -1170,7 +1170,8 @@ export default function WorkoutSession() {
                           'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                          restSeconds: selectedRestSeconds
+                          restSeconds: selectedRestSeconds,
+                          setNumber: nextCompletedSets
                         })
                       });
                       const payload = await response.json().catch(() => ({}));

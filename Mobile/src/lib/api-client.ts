@@ -3,6 +3,14 @@ import { supabase } from '@/lib/supabase';
 import { invalidateResources } from '@/lib/query-cache';
 import { ensureAiConsent } from '@/lib/ai-consent';
 
+const uncertainRequests = new Map<string, string>();
+let requestAccount: string | null = null;
+supabase.auth.onAuthStateChange((_event, session) => {
+  const account = session?.user.id || null;
+  if (account !== requestAccount) uncertainRequests.clear();
+  requestAccount = account;
+});
+
 const publicErrors: Record<string, string> = {
   UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
   FORBIDDEN: 'Tài khoản chưa có quyền thực hiện thao tác này.',
@@ -50,6 +58,11 @@ export const apiRequest = async <T>(path: string, options: ApiRequestOptions = {
     if (data.session?.user.id !== session.user.id) throw new Error('Tài khoản đã thay đổi. Vui lòng thử lại.');
   }
 
+  const durableAction = options.method?.toUpperCase() === 'POST' && (/^\/api\/ai-coach\//.test(path) || ['/api/ai/chat','/api/ai/apply-adjustment','/api/meal-plans/save'].includes(path));
+  const retryIdentity = durableAction && !options.headers?.['Idempotency-Key'] ? JSON.stringify([session.user.id,path,options.body ?? null]) : null;
+  const requestKey = (retryIdentity && uncertainRequests.get(retryIdentity)) || `request-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  if (retryIdentity) uncertainRequests.set(retryIdentity,requestKey);
+
   const { timeoutMs = 15_000, signal: suppliedSignal, ...fetchOptions } = options;
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -63,6 +76,7 @@ export const apiRequest = async <T>(path: string, options: ApiRequestOptions = {
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
+        ...(options.method && !['GET', 'HEAD'].includes(options.method.toUpperCase()) ? { 'Idempotency-Key': requestKey } : {}),
         Authorization: `Bearer ${session.access_token}`,
         ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...options.headers,
@@ -74,6 +88,7 @@ export const apiRequest = async <T>(path: string, options: ApiRequestOptions = {
     try { payload = text ? JSON.parse(text) : {}; } catch {
       throw new ApiClientError(response.status >= 400 ? response.status : 502, { error: 'Máy chủ chưa phản hồi đúng định dạng. Vui lòng thử lại sau.' });
     }
+    if (retryIdentity && (response.ok || (response.status < 500 && response.status !== 409) || response.headers.get('Idempotency-Replayed') === 'true')) uncertainRequests.delete(retryIdentity);
     if (!response.ok) throw new ApiClientError(response.status, payload);
     if (options.method && !['GET', 'HEAD'].includes(options.method.toUpperCase())) {
       if (path === '/api/ai/chat') void invalidateResources('home', 'wellness', 'progress', 'quota');

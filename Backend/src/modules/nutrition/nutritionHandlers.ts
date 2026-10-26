@@ -1,3 +1,4 @@
+import { adminSupabase } from '../../config/Supabase';
 import type { RequestHandler } from 'express';
 
 export const createNutritionHandlers = (dependencies: any) => {
@@ -10,6 +11,7 @@ export const createNutritionHandlers = (dependencies: any) => {
     RECIPE_WITH_INGREDIENTS_SELECT,
   } = dependencies;
 const validateMealPlanFoods: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -52,6 +54,7 @@ const validateMealPlanFoods: RequestHandler = async (req, res, next) => {
 };
 
 const getRecipeDetails: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });

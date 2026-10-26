@@ -1,3 +1,5 @@
+import { adminSupabase } from '../../config/Supabase';
+import { snapshotHttpMetrics } from '../../http/requestMetrics';
 import type { RequestHandler } from 'express';
 import { z } from 'zod';
 import { AppError, ValidationError } from '../../http/errors';
@@ -96,6 +98,7 @@ export const createAiCoachHandlers = (dependencies: any) => {
     workoutAdjusterService
   } = dependencies;
 const getAiQuota: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -127,6 +130,7 @@ const getAiQuota: RequestHandler = async (req, res, next) => {
 };
 
 const chatWithAiCoach: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   const startedAt = Date.now();
   const traceId = `ai-chat-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -329,7 +333,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
     try {
       trackingActionLog = (await processNaturalTracking(authUserId, normalizedMessage)).actionLog;
     } catch (trackingError: any) {
-      console.warn('[ai-chat] natural tracking skipped:', trackingError?.message || trackingError);
+      console.warn('[ai-chat] natural tracking skipped:');
     }
 
     const workoutRows = (todayWorkoutRes.data as any)?.weekly_plan_exercises || [];
@@ -377,7 +381,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         buildCoachDataContext(authUserId)
       ]);
     } catch (contextError: any) {
-      console.warn('[ai-chat] extended coach context skipped:', contextError?.message || contextError);
+      console.warn('[ai-chat] extended coach context skipped:');
     }
     const dbChatHistory = ((recentChatRes.data || []) as any[])
       .reverse()
@@ -513,14 +517,14 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
       normalizedResponse.actionPayload = null;
     }
 
-    const userChatInsert = await supabase.from('ai_chat_messages').insert({
+    const userChatInsert = await adminSupabase.from('ai_chat_messages').insert({
       user_id: authUserId,
       role: 'user',
       content: normalizedMessage.slice(0, 3000),
       intent
     }).select('id').maybeSingle();
     if (userChatInsert.error) {
-      console.warn('Failed to save user ai chat message:', userChatInsert.error.message);
+      console.warn('Failed to save user ai chat message:');
     }
 
     // This must be independent from ai_chat_messages: users can safely clear
@@ -559,7 +563,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
       }
     }
 
-    const assistantChatInsert = await supabase.from('ai_chat_messages').insert({
+    const assistantChatInsert = await adminSupabase.from('ai_chat_messages').insert({
       user_id: authUserId,
       role: 'assistant',
       content: String(normalizedResponse.reply || '').slice(0, 5000),
@@ -569,7 +573,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
       action_payload: normalizedResponse.actionPayload
     }).select('id').maybeSingle();
     if (assistantChatInsert.error) {
-      console.warn('Failed to save assistant ai chat message:', assistantChatInsert.error.message);
+      console.warn('Failed to save assistant ai chat message:');
     }
 
     let adjustmentId: string | undefined;
@@ -597,7 +601,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
             day_of_week: dayIndex,
             exercises: targetWorkoutContext,
           };
-      const adjustmentInsert = await supabase.from('ai_plan_adjustments').insert({
+      const adjustmentInsert = await adminSupabase.from('ai_plan_adjustments').insert({
         user_id: authUserId,
         plan_type: isMealIntent(normalizedResponse.intent) ? 'meal' : 'workout',
         source_type: 'chat',
@@ -609,7 +613,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         chat_message_id: assistantChatInsert.data?.id || null
       }).select('id').maybeSingle();
       if (adjustmentInsert.error) {
-        console.warn('Failed to save proposed ai adjustment:', adjustmentInsert.error.message);
+        console.warn('Failed to save proposed ai adjustment:');
       } else {
         adjustmentId = adjustmentInsert.data?.id;
       }
@@ -631,7 +635,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
       traceId,
       latencyMs: Date.now() - startedAt
     });
-    console.error(`[ai-chat] failed traceId=${traceId}:`, error?.message || 'unknown_error');
+    console.error(`[ai-chat] failed traceId=${traceId}:`);
     return next(new ExternalProviderError());
   } finally {
     logAIEvent({
@@ -646,6 +650,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
 };
 
 const executeAiCoachCommand: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -671,18 +676,18 @@ const executeAiCoachCommand: RequestHandler = async (req, res, next) => {
         : `/${command}`;
 
     if (!result.clearHistory) {
-      const userInsert = await supabase.from('ai_chat_messages').insert({
+      const userInsert = await adminSupabase.from('ai_chat_messages').insert({
         user_id: authUserId,
         role: 'user',
         content: userCommandText.slice(0, 3000),
         intent: 'view_day_plan'
       });
       if (userInsert.error) {
-        console.warn('Failed to save user coach command:', userInsert.error.message);
+        console.warn('Failed to save user coach command:');
       }
     }
 
-    const assistantInsert = await supabase.from('ai_chat_messages').insert({
+    const assistantInsert = await adminSupabase.from('ai_chat_messages').insert({
       user_id: authUserId,
       role: 'assistant',
       content: String(result.reply || '').slice(0, 5000),
@@ -690,17 +695,18 @@ const executeAiCoachCommand: RequestHandler = async (req, res, next) => {
       confidence: 1
     });
     if (assistantInsert.error) {
-      console.warn('Failed to save assistant coach command:', assistantInsert.error.message);
+      console.warn('Failed to save assistant coach command:');
     }
 
     return res.json(result);
   } catch (error: any) {
-    console.error('[ai-coach-command] failed:', error?.message || error);
+    console.error('[ai-coach-command] failed:');
     return next(new ExternalProviderError());
   }
 };
 
 const clearAiCoachChat: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -715,12 +721,13 @@ const clearAiCoachChat: RequestHandler = async (req, res, next) => {
     if (error) throw error;
     return res.json({ success: true });
   } catch (error: any) {
-    console.error('[ai-chat-clear] failed:', error?.message || error);
+    console.error('[ai-chat-clear] failed:');
     return next(new ExternalProviderError());
   }
 };
 
 const applyAiAdjustment: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   const startedAt = Date.now();
   const traceId = `ai-apply-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -768,7 +775,7 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
     }
     const dayOfWeek = Number(newData.day_of_week);
     const [applyProfileRes, applyLifestyleRes, applyHealthRes] = await Promise.all([
-      supabase.from('profiles').select('id, gender, birthday, membership_tier, membership_expires_at, created_at').eq('id', authUserId).maybeSingle(),
+      supabase.from('profiles').select('id, updated_at, gender, birthday, membership_tier, membership_expires_at, created_at').eq('id', authUserId).maybeSingle(),
       supabase.from('lifestyle_settings').select('*').eq('user_id', authUserId).maybeSingle(),
       supabase.from('health_conditions').select('*').eq('user_id', authUserId).maybeSingle()
     ]);
@@ -883,7 +890,7 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
         })
       )).filter(Boolean) as any[];
 
-      const atomicApplyRes = await supabase.rpc('apply_workout_adjustment_atomically', {
+      const atomicApplyRes = await adminSupabase.rpc('apply_workout_adjustment_atomically', {
         p_adjustment_id: adjustmentId,
         p_user_id: authUserId,
         p_idempotency_key: idempotencyKey,
@@ -957,7 +964,7 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
 
       const foodRes = await supabase
         .from('recipes')
-        .select('id, name, meal_type, calories, protein, carbs, fat, allergens, dietary_restrictions, diet_styles, is_active, price_level, goal_type')
+        .select('id, updated_at, name, meal_type, calories, protein, carbs, fat, allergens, dietary_restrictions, diet_styles, is_active, price_level, goal_type')
         .eq('id', newFoodId)
         .maybeSingle();
       if (foodRes.error) throw foodRes.error;
@@ -976,50 +983,21 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
         });
       }
 
-      const updateMealRes = await supabase
-        .from('weekly_food_items')
-        .update({
-          day_of_week: dayOfWeek,
-          meal_type: mealType,
-          recipe_id: newFoodId,
-          quantity: Math.max(0.25, Number(newData.quantity || 1)),
-          calories: Number(foodRes.data.calories || 0),
-          protein: Number(foodRes.data.protein || 0),
-          carbs: Number(foodRes.data.carbs || 0),
-          fat: Number(foodRes.data.fat || 0),
-          is_rest_day: false
-        })
-        .eq('food_plan_id', foodPlanId)
-        .eq('id', oldWeeklyFoodItemId);
-      if (updateMealRes.error) throw updateMealRes.error;
+      const applied = await adminSupabase.rpc('apply_meal_adjustment_atomically', {
+        p_user_id: authUserId, p_adjustment_id: adjustmentId, p_key: idempotencyKey,
+        p_plan_id: foodPlanId, p_item_id: oldWeeklyFoodItemId, p_recipe_id: newFoodId,
+        p_day: dayOfWeek, p_meal_type: mealType, p_quantity: Number(newData.quantity || 1),
+        p_profile_updated_at: applyProfileRes.data?.updated_at,
+        p_health_updated_at: applyHealthRes.data?.updated_at ?? null,
+        p_lifestyle_updated_at: applyLifestyleRes.data?.updated_at ?? null,
+        p_recipe_updated_at: foodRes.data.updated_at,
+      });
+      if (applied.error?.code === '40001') return res.status(409).json({ error: 'Thực đơn hoặc hồ sơ đã thay đổi. Hãy tạo lại đề xuất.' });
+      if (applied.error) throw applied.error;
+      success = true;
+      return res.json({ success: true, adjustmentId, alreadyApplied: Boolean(applied.data?.already_applied), aiQuota: buildAiQuotaSnapshot(applyAccessState, adjustmentQuotaKey) });
     }
-
-    const updateRes = await supabase
-      .from('ai_plan_adjustments')
-      .update({
-        status: 'applied',
-        applied_at: new Date().toISOString(),
-        apply_idempotency_key: idempotencyKey
-      })
-      .eq('id', adjustmentId)
-      .eq('user_id', authUserId)
-      .eq('status', 'proposed')
-      .select('id')
-      .maybeSingle();
-    if (updateRes.error) throw updateRes.error;
-    if (!updateRes.data?.id) {
-      return res.status(409).json({ error: 'Adjustment is not in proposed status' });
-    }
-
-    // This is after the guarded proposed -> applied transition, so only the
-    // request that actually applies an adjustment can record quota usage.
-    await recordAiQuotaUsage(authUserId, adjustmentQuotaKey);
-    success = true;
-    return res.json({
-      success: true,
-      adjustmentId,
-      aiQuota: buildAiQuotaSnapshot(applyAccessState, adjustmentQuotaKey)
-    });
+    return res.status(400).json({ error: 'Unsupported adjustment type' });
   } catch (error: any) {
     incrementMetric('errorCount');
     logAIEvent({
@@ -1029,7 +1007,7 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
       traceId,
       latencyMs: Date.now() - startedAt
     });
-    console.error(`[ai-apply] failed traceId=${traceId}:`, error?.message || 'unknown_error');
+    console.error(`[ai-apply] failed traceId=${traceId}:`);
     return next(new ExternalProviderError());
   } finally {
     logAIEvent({
@@ -1043,6 +1021,7 @@ const applyAiAdjustment: RequestHandler = async (req, res, next) => {
 };
 
 const rejectAiAdjustment: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   const startedAt = Date.now();
   const traceId = `ai-reject-${startedAt}-${Math.floor(Math.random() * 10000)}`;
   let success = false;
@@ -1057,7 +1036,7 @@ const rejectAiAdjustment: RequestHandler = async (req, res, next) => {
       return res.status(400).json({ error: 'adjustmentId are required' });
     }
 
-    const updateRes = await supabase
+    const updateRes = await adminSupabase
       .from('ai_plan_adjustments')
       .update({
         status: 'rejected',
@@ -1084,7 +1063,7 @@ const rejectAiAdjustment: RequestHandler = async (req, res, next) => {
       traceId,
       latencyMs: Date.now() - startedAt
     });
-    console.error(`[ai-reject] failed traceId=${traceId}:`, error?.message || 'unknown_error');
+    console.error(`[ai-reject] failed traceId=${traceId}:`);
     return next(new ExternalProviderError());
   } finally {
     logAIEvent({
@@ -1098,6 +1077,7 @@ const rejectAiAdjustment: RequestHandler = async (req, res, next) => {
 };
 
 const getAiMetrics: RequestHandler = async (req, res) => {
+  const supabase = req.supabase!;
   const authUserId = await getAuthUserId(req);
   if (!authUserId) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -1108,12 +1088,16 @@ const getAiMetrics: RequestHandler = async (req, res) => {
   }
   return res.json({
     success: true,
-    data: snapshotAIMetrics(),
+    data: {
+      ...snapshotAIMetrics(), http:snapshotHttpMetrics(),
+      operations: await adminSupabase.rpc('operational_snapshot').then((result) => result.error ? {status:'unavailable'} : result.data),
+    },
     actionFlowEnabled: AI_ACTION_FLOW_ENABLED
   });
 };
 
 const generateAiDailyWorkout: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   let createdWorkoutSessionId: string | null = null;
   let createdDailyExerciseIds: string[] = [];
   try {
@@ -1328,7 +1312,7 @@ JSON schema:
     );
     if (snapshotRes.error) throw snapshotRes.error;
 
-    const quotaRes = await supabase.from('ai_plan_adjustments').insert({
+    const quotaRes = await adminSupabase.from('ai_plan_adjustments').insert({
       user_id: authUserId,
       plan_type: 'workout',
       source_type: 'ai_coach_generate',
@@ -1370,7 +1354,7 @@ JSON schema:
     if (createdWorkoutSessionId) {
       await supabase.from('daily_workout_sessions').delete().eq('id', createdWorkoutSessionId);
     }
-    console.error('[ai-coach-generate-daily-workout] failed:', error?.message || 'unknown_error');
+    console.error('[ai-coach-generate-daily-workout] failed:');
     if (error instanceof AppError) return next(error);
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     if (isDatabaseMigrationRequiredError(error)) return res.status(503).json(databaseMigrationRequiredResponse);
@@ -1381,6 +1365,7 @@ JSON schema:
 const callGroqWithRetry = callGroqJson;
 
 const generateAiWeeklyPlan: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -1625,40 +1610,7 @@ ${jsonSchemaPrompt}
     normalizedPlan.workoutPlan = balanceWorkoutDays(normalizedPlan.workoutPlan, trainingPrescription.weeklyWorkouts);
     normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
 
-    const existingWorkoutPlans = await supabase
-      .from('weekly_plans')
-      .select('id, created_at, updated_at')
-      .eq('user_id', userId)
-      .eq('week_start_date', weekStartKey)
-      .eq('plan_status', 'active')
-      .limit(20);
-    if (existingWorkoutPlans.error) throw existingWorkoutPlans.error;
-
-    const previousWorkoutPlanId = pickLatestByUpdatedAt(existingWorkoutPlans.data as any[])?.id || null;
-    const replacementStartedAt = new Date().toISOString();
-    if (previousWorkoutPlanId) {
-      const archiveWorkoutPlan = await supabase
-        .from('weekly_plans')
-        .update({ plan_status: 'adjusted', updated_at: replacementStartedAt })
-        .eq('id', previousWorkoutPlanId)
-        .eq('plan_status', 'active');
-      if (archiveWorkoutPlan.error) throw archiveWorkoutPlan.error;
-    }
-    const createdWorkoutPlan = await supabase
-      .from('weekly_plans')
-      .insert({
-        user_id: userId,
-        name: normalizedPlan.workoutPlan.plan_name || 'AI Coach Week Plan',
-        description: normalizedPlan.workoutPlan.explanation || '',
-        week_start_date: weekStartKey,
-        plan_status: 'draft',
-        generated_by: 'ai',
-        ai_explanation: truncateText(normalizedPlan.workoutPlan.explanation || '', 500)
-      })
-      .select('id')
-      .single();
-    if (createdWorkoutPlan.error) throw createdWorkoutPlan.error;
-    const weeklyPlanId = createdWorkoutPlan.data.id;
+    const weeklyPlanId = crypto.randomUUID();
 
     const workoutRows: any[] = [];
     for (const day of normalizedPlan.workoutPlan.days || []) {
@@ -1716,50 +1668,14 @@ ${jsonSchemaPrompt}
         );
       }
     }
-    if (workoutRows.length > 0) {
-      const insertedWorkout = await supabase.from('weekly_plan_exercises').insert(workoutRows);
-      if (insertedWorkout.error) throw insertedWorkout.error;
-    }
-
-    const activatedAt = new Date().toISOString();
-    const activateWorkoutPlan = await supabase
-      .from('weekly_plans')
-      .update({ plan_status: 'active', updated_at: activatedAt })
-      .eq('id', weeklyPlanId)
-      .eq('plan_status', 'draft');
-    if (activateWorkoutPlan.error) throw activateWorkoutPlan.error;
-
-    if (previousWorkoutPlanId) {
-      const markOldWorkoutPlan = await supabase
-        .from('weekly_plans')
-        .update({ plan_status: 'adjusted', updated_at: activatedAt })
-        .eq('id', previousWorkoutPlanId)
-        .eq('plan_status', 'active');
-      if (markOldWorkoutPlan.error) throw markOldWorkoutPlan.error;
-    }
-
-    const recommendation = await supabase.from('ai_recommendations').insert({
-      user_id: userId,
-      plan_type: 'weekly_workout_plan',
-      recommendation_content: { workout_plan: normalizedPlan.workoutPlan },
-      status: 'active'
+    const publication = await adminSupabase.rpc('publish_coach_plan_atomically', {
+      p_user_id: userId, p_week_start: weekStartKey,
+      p_workout_id: weeklyPlanId, p_workout_meta: { name: normalizedPlan.workoutPlan.plan_name || 'AI Coach Week Plan', explanation: truncateText(normalizedPlan.workoutPlan.explanation || '',500) },
+      p_workout_rows: workoutRows, p_meal_id: null, p_meal_meta: null, p_meal_rows: null, p_source: 'ai_coach_generate',
+      p_safety: { profile: profile.updated_at, health: health.updated_at ?? null, lifestyle: lifestyle.updated_at ?? null },
     });
-    if (recommendation.error) console.warn('Failed to store ai_recommendations:', recommendation.error.message);
-
-    const adjustment = await supabase.from('ai_plan_adjustments').insert({
-      user_id: userId,
-      plan_type: 'workout',
-      source_type: 'ai_coach_generate',
-      old_plan_id: previousWorkoutPlanId,
-      new_plan_id: weeklyPlanId,
-      old_data: { workout_plan_id: previousWorkoutPlanId },
-      new_data: { workout_plan_id: weeklyPlanId, workout_plan_name: normalizedPlan.workoutPlan.plan_name },
-      reason: truncateText(normalizedPlan.workoutPlan.explanation || 'AI regenerated workout plan.', 300),
-      created_by: 'ai',
-      status: 'applied',
-      applied_at: new Date().toISOString()
-    });
-    if (adjustment.error) console.warn('Failed to store ai_plan_adjustments:', adjustment.error.message);
+    if (publication.error?.code === '40001') return res.status(409).json({ error: 'Hồ sơ đã thay đổi trong lúc tạo kế hoạch. Hãy tải lại và thử lại.' });
+    if (publication.error) throw publication.error;
 
     return res.json({
       success: true,
@@ -1776,7 +1692,7 @@ ${jsonSchemaPrompt}
       }
     });
   } catch (error: any) {
-    console.error('[ai-coach-generate] failed:', error?.message || 'unknown_error');
+    console.error('[ai-coach-generate] failed:');
     if (error instanceof ApiRequestError) {
       return res.status(error.status).json(error.body);
     }
@@ -1917,6 +1833,7 @@ const generateAiMealDraft = async (params: {
         rows,
         nutritionTargets: calculateNutritionMacroTargets({ targetCalories, fitnessGoal: lifestyle.fitness_goal, dietPreference: lifestyle.diet_preference, weightKg: bodyMetricsRes.data?.weight }),
         mode: 'recipe' as const,
+        safetyVersion: { profile: profileRes.data.updated_at, health: healthRes.data?.updated_at ?? null, lifestyle: lifestyleRes.data?.updated_at ?? null },
       };
     } catch (recipeError: any) {
       if (recipeError instanceof ApiRequestError) throw recipeError;
@@ -1928,6 +1845,7 @@ const generateAiMealDraft = async (params: {
 };
 
 const generateAiMealPlan: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -1946,7 +1864,7 @@ const generateAiMealPlan: RequestHandler = async (req, res, next) => {
     const targetDayIndex = Math.max(0, Math.min(6, Number(req.body?.dayIndex) || 0));
     const draft = await generateAiMealDraft({ userId, weekStartKey, scope, targetDayIndex });
 
-    await supabase.from('ai_plan_adjustments').insert({
+    await adminSupabase.from('ai_plan_adjustments').insert({
       user_id: userId,
       plan_type: 'meal',
       source_type: 'ai_meal_generate',
@@ -1973,53 +1891,19 @@ const generateAiMealPlan: RequestHandler = async (req, res, next) => {
       },
     });
   } catch (error: any) {
-    console.error('[ai-coach-generate-meal] failed:', error?.message || 'unknown_error');
+    console.error('[ai-coach-generate-meal] failed:');
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI lúc này.' });
   }
 };
 
-const recordAiMealSwap: RequestHandler = async (req, res, next) => {
-  try {
-    const userId = await getAuthUserId(req);
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    const profileRes = await supabase.from('profiles').select('id, membership_tier, membership_expires_at, created_at').eq('id', userId).maybeSingle();
-    const accessState = await getAiCoachAccessState(profileRes.data || {}, userId);
-    if (accessState.membershipTier === 'free') {
-      return next(new AppError(403, 'PREMIUM_REQUIRED', 'Gói Free không có lượt đổi thực đơn bằng AI. Nâng cấp Plus hoặc Pro để sử dụng tính năng này.'));
-    }
-    if (!accessState.canUseMealAdjustment) {
-      return res.status(403).json(buildAiQuotaLimitError(accessState, 'mealAdjustments'));
-    }
-
-    const { oldFoodName, newFoodName } = req.body || {};
-    await supabase.from('ai_plan_adjustments').insert({
-      user_id: userId,
-      plan_type: 'meal',
-      source_type: 'single_meal_swap',
-      old_plan_id: null,
-      new_plan_id: null,
-      old_data: { old_food_name: String(oldFoodName || '') },
-      new_data: { new_food_name: String(newFoodName || '') },
-      reason: `Đổi món ${oldFoodName || ''} sang ${newFoodName || ''}`,
-      created_by: 'user',
-      status: 'applied',
-      applied_at: new Date().toISOString()
-    });
-    void recordAiQuotaUsage(userId, 'mealAdjustments').catch(() => null);
-
-    return res.json({ success: true });
-  } catch (error: any) {
-    if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
-    return res.status(500).json({ error: 'Không thể ghi nhận lượt đổi món.' });
-  }
-};
+const recordAiMealSwap: RequestHandler = (_req, _res, next) => next(new AppError(410, 'CLIENT_UPDATE_REQUIRED', 'Hãy tải lại Fitly để đổi món bằng luồng lưu mới.'));
 
 // The onboarding flow deliberately generates meals in a second, smaller request.
 // Workout generation already happened after the training survey; regenerating it
 // here wastes Groq tokens and replaces a plan the user has just reviewed.
 const generateAiOnboardingMealPlan: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -2077,60 +1961,15 @@ const generateAiOnboardingMealPlan: RequestHandler = async (req, res, next) => {
     if (!process.env.GROQ_API_KEY) return next(new InternalConfigurationError());
 
     const draft = await generateAiMealDraft({ userId, weekStartKey, scope: 'week' });
-    const generatedPlan = await supabase
-      .from('weekly_food_plans')
-      .insert({
-        user_id: userId,
-        name: 'AI Coach Meal Plan',
-        week_start_date: weekStartKey,
-        plan_status: 'draft',
-        generated_by: 'ai',
-        ai_explanation: truncateText(draft.mealPlan.explanation || '', 500),
-      })
-      .select('id')
-      .single();
-    if (generatedPlan.error) throw generatedPlan.error;
-    const foodPlanId = generatedPlan.data.id;
-    const insertedItems = await supabase.from('weekly_food_items').insert(
-      draft.rows.map((row: any) => ({
-        food_plan_id: foodPlanId,
-        day_of_week: Number(row.day_of_week || 0),
-        meal_type: String(row.meal_type || 'lunch'),
-        recipe_id: row.recipe_id ? String(row.recipe_id) : null,
-        quantity: Number(row.quantity || row.servings || 1),
-        calories: Number(row.calories || 0),
-        protein: Number(row.protein || 0),
-        carbs: Number(row.carbs || 0),
-        fat: Number(row.fat || 0),
-        order_index: Number(row.order_index || 0),
-        is_rest_day: Boolean(row.is_rest_day),
-      }))
-    );
-    if (insertedItems.error) throw insertedItems.error;
-    const activatedPlan = await supabase
-      .from('weekly_food_plans')
-      .update({ plan_status: 'active', updated_at: new Date().toISOString() })
-      .eq('id', foodPlanId)
-      .eq('plan_status', 'draft');
-    if (activatedPlan.error) throw activatedPlan.error;
-    const adjustment = await supabase.from('ai_plan_adjustments').insert({
-      user_id: userId,
-      plan_type: 'meal',
-      source_type: 'onboarding_meal_generate',
-      old_plan_id: null,
-      new_plan_id: workoutPlanRes.data?.[0]?.id || null,
-      old_data: {},
-      new_data: {
-        workout_plan_id: workoutPlanRes.data?.[0]?.id || null,
-        food_plan_id: foodPlanId,
-        target_calories: draft.mealPlan.target_calories,
-      },
-      reason: truncateText(draft.mealPlan.explanation || 'AI created onboarding meal plan.', 300),
-      created_by: 'ai',
-      status: 'applied',
-      applied_at: new Date().toISOString(),
+    const foodPlanId = crypto.randomUUID();
+    const publication = await adminSupabase.rpc('publish_coach_plan_atomically', {
+      p_user_id: userId, p_week_start: weekStartKey,
+      p_workout_id: null, p_workout_meta: null, p_workout_rows: null,
+      p_meal_id: foodPlanId, p_meal_meta: { name: 'AI Coach Meal Plan', explanation: truncateText(draft.mealPlan.explanation || '',500) },
+      p_meal_rows: draft.rows, p_source: 'onboarding_meal_generate', p_safety: draft.safetyVersion,
     });
-    if (adjustment.error) console.warn('Failed to store onboarding meal adjustment:', adjustment.error.message);
+    if (publication.error?.code === '40001') return res.status(409).json({ error: 'Hồ sơ đã thay đổi trong lúc tạo kế hoạch. Hãy tải lại và thử lại.' });
+    if (publication.error) throw publication.error;
     return res.json({
       success: true,
       data: {
@@ -2144,7 +1983,7 @@ const generateAiOnboardingMealPlan: RequestHandler = async (req, res, next) => {
     });
 
   } catch (error: any) {
-    console.error('[ai-coach-onboarding-meal] failed:', error?.message || 'unknown_error');
+    console.error('[ai-coach-onboarding-meal] failed:');
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI 7 ngày lúc này.' });
   }

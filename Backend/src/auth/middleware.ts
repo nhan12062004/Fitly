@@ -30,11 +30,11 @@ const logAuthRejection = (reason: string, error?: { status?: number; code?: stri
     reason,
     status: error?.status ?? null,
     code: error?.code ?? null,
-    message: error?.message ?? null,
   }));
 };
 
 export const createRequireAuth = (dependencies: AuthDependencies): RequestHandler => async (req, res, next) => {
+  if (req.auth && req.supabase) return next();
   const accessToken = extractBearerToken(req.headers.authorization);
   if (!accessToken) {
     logAuthRejection('missing_bearer_token');
@@ -78,6 +78,14 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
 
   const role = String(req.auth.user.app_metadata?.role || '').trim().toLowerCase();
   if (role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const requireMfa = process.env.REQUIRE_ADMIN_MFA === 'true'
+    || (process.env.NODE_ENV === 'production' && process.env.REQUIRE_ADMIN_MFA !== 'false');
+  if (requireMfa) {
+    try {
+      const claims = JSON.parse(Buffer.from(req.auth.accessToken.split('.')[1],'base64url').toString('utf8'));
+      if (claims.aal !== 'aal2') return res.status(403).json({ error:'Xác minh hai bước trong Hồ sơ trước khi mở quản trị.', code:'ADMIN_MFA_REQUIRED' });
+    } catch { return res.status(403).json({ error:'Yêu cầu xác minh hai bước.',code:'ADMIN_MFA_REQUIRED' }); }
+  }
 
   return next();
 };

@@ -10,6 +10,7 @@ type OperationalLog = {
   requestId?: string;
   correlationId?: string;
   jobName?: string;
+  durationMs?: number;
 };
 
 type OperationalLogInput = Omit<OperationalLog, 'timestamp' | 'message'> & { message?: unknown };
@@ -21,7 +22,9 @@ const SECRET_PATTERNS = [
 ];
 
 export const sanitizeOperationalMessage = (value: unknown): string => {
-  let message = String(value instanceof Error ? value.message : value || 'unknown_error');
+  // Free-text Error.message may contain a failing health row or provider echo.
+  // Error codes and correlation IDs carry operational context without it.
+  let message = String(value instanceof Error ? value.name : value || 'unknown_error');
   for (const pattern of SECRET_PATTERNS) message = message.replace(pattern, '[redacted]');
   return message.replace(/\s+/g, ' ').trim().slice(0, 240) || 'unknown_error';
 };

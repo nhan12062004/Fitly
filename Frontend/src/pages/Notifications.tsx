@@ -4,8 +4,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/Supabase';
 import {
-  ensureActionableNotifications,
-  fetchUserNotifications,
+  loadNotificationSnapshot,
   markAllUserNotificationsRead,
   markNotificationRead,
   recordSleepFromNotification,
@@ -78,8 +77,7 @@ export default function Notifications() {
     }
 
     try {
-      if (syncActionable) await ensureActionableNotifications(user.id);
-      const items = await fetchUserNotifications(user.id, 80);
+      const items = await loadNotificationSnapshot(user.id,syncActionable);
       setNotifications(items);
     } catch (error) {
       console.error('Notifications page load error:', error);
@@ -95,7 +93,7 @@ export default function Notifications() {
   useEffect(() => {
     if (!user?.id) return;
     const intervalId = window.setInterval(() => {
-      void loadNotifications(true);
+      if (document.visibilityState === 'visible') void loadNotifications(true);
     }, 60000);
     return () => window.clearInterval(intervalId);
   }, [loadNotifications, user?.id]);

@@ -1,0 +1,228 @@
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { PGlite } from '@electric-sql/pglite';
+import { createTestDatabase } from './database';
+
+const A = '00000000-0000-4000-8000-000000000001';
+const B = '00000000-0000-4000-8000-000000000002';
+let db: PGlite;
+const value = async (sql: string, params: unknown[] = []) => (await db.query<Record<string, any>>(sql, params)).rows[0];
+const asUser = async (id: string) => {
+  await db.exec('reset role; set local role authenticated');
+  await db.query(`select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claim.role','authenticated',true)`,[id]);
+};
+const asServer = async () => { await db.exec('reset role'); };
+beforeAll(async () => { db = await createTestDatabase(); }, 60_000);
+afterAll(async () => { await db?.close(); });
+beforeEach(async () => {
+  await db.exec('begin');
+  await db.query(`insert into auth.users(id,email,email_confirmed_at) values($1,'a@example.invalid',now()),($2,'b@example.invalid',now())`,[A,B]);
+  await db.query(`insert into public.profiles(id,full_name,ref_code) values($1,'A','AAAAAA'),($2,'B','BBBBBB')`,[A,B]);
+});
+afterEach(async () => { await db.exec('reset role; rollback'); });
+
+describe('production security migrations', () => {
+  it('allows one verified referral claim and cannot reset or repeat the reward', async () => {
+    await asUser(B);
+    expect((await value(`select public.claim_referral('AAAAAA') ok`)).ok).toBe(true);
+    expect((await value(`select public.claim_referral('AAAAAA') ok`)).ok).toBe(true);
+    await asServer();
+    expect((await value('select referral_count from profiles where id=$1',[A])).referral_count).toBe(1);
+    expect((await value(`select count(*)::int n from referral_events`)).n).toBe(1);
+    await asUser(B);
+    await db.exec('savepoint forbidden');
+    await expect(db.query('update public.profiles set referred_by=null where id=$1',[B])).rejects.toMatchObject({ code:'42501' });
+    await db.exec('rollback to savepoint forbidden');
+    expect((await value('select public.claim_referral($1) ok',['BBBBBB'])).ok).toBe(false);
+  });
+
+  it('denies entitlement, ledger, adjustment and meal-plan writes from clients', async () => {
+    const rights = await value(`select
+      has_column_privilege('authenticated','public.profiles','membership_tier','UPDATE') membership,
+      has_column_privilege('authenticated','public.profiles','referred_by','UPDATE') referral,
+      has_table_privilege('authenticated','public.ai_quota_usage_events','INSERT') ledger,
+      has_table_privilege('authenticated','public.ai_plan_adjustments','DELETE') adjustment,
+      has_table_privilege('authenticated','public.weekly_food_items','INSERT') meals,
+      has_table_privilege('authenticated','public.weekly_food_plans','UPDATE') plans`);
+    expect(Object.values(rights!)).toEqual([false,false,false,false,false,false]);
+    await asUser(A);
+    expect((await db.query('select id from public.profiles')).rows).toEqual([{ id:A }]);
+  });
+
+  it('reserves the last quota once and replays a completed request without charging twice', async () => {
+    const start = async (key: string) => (await value(`select public.begin_api_operation($1,'chat',$2,$3,'chatMessages',1,now()-interval '1 day',null,8,100) result`,[A,key.repeat(64),'f'.repeat(64)])).result;
+    const first = await start('a');
+    expect(first.kind).toBe('started');
+    expect((await start('b')).kind).toBe('busy');
+    await db.query(`select public.finish_api_operation($1,200,'{"reply":"ok"}',true)`,[first.id]);
+    expect((await start('a')).kind).toBe('replay');
+    expect((await start('b')).kind).toBe('exhausted');
+    expect((await value('select count(*)::int n from ai_quota_usage_events')).n).toBe(1);
+  });
+
+  it('refunds a failed operation once and binds each request key to its content', async () => {
+    const args = [A,'a'.repeat(64),'b'.repeat(64)];
+    const first = (await value(`select public.begin_api_operation($1,'chat',$2,$3,'chatMessages',1,now()-interval '1 day',null,8,100) result`,args)).result;
+    await db.query(`select public.finish_api_operation($1,502,'{"error":"unavailable"}',false)`,[first.id]);
+    expect((await value('select count(*)::int n from ai_quota_usage_events')).n).toBe(0);
+    const conflict = (await value(`select public.begin_api_operation($1,'chat',$2,$3,null,null,null,null,8,100) result`,[A,args[1],'c'.repeat(64)])).result;
+    expect(conflict.kind).toBe('conflict');
+  });
+
+  it('admits only one of 20 simultaneous requests for the final quota', async () => {
+    const attempts = await Promise.all(Array.from({length:20},(_,index) => value(
+      `select public.begin_api_operation($1,'chat',$2,$3,'chatMessages',1,now()-interval '1 day',null,8,100) result`,
+      [A,index.toString(16).padStart(64,'0'),'e'.repeat(64)])));
+    expect(attempts.filter((item) => item.result.kind === 'started')).toHaveLength(1);
+    expect((await value('select count(*)::int n from ai_quota_usage_events')).n).toBe(1);
+  });
+
+  it('records consent and revocation using server time, idempotently', async () => {
+    await asUser(A);
+    await db.exec(`select public.set_ai_data_consent(true,1); select public.set_ai_data_consent(true,1)`);
+    expect((await value('select count(*)::int n from ai_consent_events')).n).toBe(1);
+    await db.exec(`select public.set_ai_data_consent(false,1); select public.set_ai_data_consent(false,1)`);
+    expect((await value('select count(*)::int n from ai_consent_events')).n).toBe(2);
+    expect((await value('select count(*)::int n from ai_data_consents')).n).toBe(0);
+    await asUser(B);
+    expect((await value('select count(*)::int n from ai_consent_events')).n).toBe(0);
+  });
+
+  it('keeps the last saved meal plan if any replacement item fails, and rejects stale versions', async () => {
+    await db.exec(`insert into recipes(id,name,meal_type,calories,protein,carbs,fat) values('rice','Rice',array['lunch'],200,4,40,1)`);
+    const profile = await value('select updated_at from profiles where id=$1',[A]);
+    const recipe = await value(`select updated_at from recipes where id='rice'`);
+    const rows = [{id:null,day_of_week:0,meal_type:'lunch',recipe_id:'rice',quantity:1,order_index:0,is_rest_day:false,recipe_updated_at:recipe.updated_at}];
+    const save = async (id: string | null, version: number | null, items: unknown, key: string) => (await value(`select public.replace_meal_plan_atomically($1,$2,$3,'Plan','2026-10-26',$4,$5,null,null,$6,$7) result`,[A,id,version,JSON.stringify(items),profile.updated_at,key,key])).result;
+    const saved = await save(null,null,rows,'first');
+    expect(saved.items).toHaveLength(1);
+    expect((await save(null,null,rows,'first')).planId).toBe(saved.planId);
+    await db.exec('savepoint failing_meal');
+    await expect(save(saved.planId,saved.version,[{...rows[0],recipe_id:'nonexistent'}],'broken')).rejects.toThrow();
+    await db.exec('rollback to savepoint failing_meal');
+    expect((await value('select count(*)::int n from weekly_food_items where food_plan_id=$1',[saved.planId])).n).toBe(1);
+    const second = await save(saved.planId,saved.version,[{...rows[0],id:saved.items[0].id,quantity:2}],'second');
+    expect(second.version).toBeGreaterThan(saved.version);
+    expect(second.items[0].id).toBe(saved.items[0].id);
+    await db.exec('savepoint stale');
+    await expect(save(saved.planId,saved.version,rows,'stale')).rejects.toMatchObject({code:'40001'});
+    await db.exec('rollback to savepoint stale');
+    const owner = await value('select updated_at from profiles where id=$1',[B]);
+    await db.exec('savepoint other_user');
+    await expect(value(`select public.replace_meal_plan_atomically($1,$2,1,'Plan','2026-10-26','[]',$3,null,null,'cross','cross')`,[B,saved.planId,owner.updated_at])).rejects.toMatchObject({code:'42501'});
+    await db.exec('rollback to savepoint other_user');
+  });
+
+  it('publishes a replacement workout atomically and retains the old active plan on failure', async () => {
+    const firstId = '30000000-0000-4000-8000-000000000001';
+    const nextId = '30000000-0000-4000-8000-000000000002';
+    const publish = (id: string, rows: unknown) => db.query(`select public.publish_coach_plan_atomically($1,'2026-10-26',$2,'{"name":"Training"}',$3,null,null,null,'ai_coach_generate',jsonb_build_object('profile',(select updated_at from profiles where id=$1)))`,[A,id,JSON.stringify(rows)]);
+    const rows = [{day_of_week:0,order_index:0,is_rest_day:true}];
+    await publish(firstId,rows);
+    await db.exec('savepoint failed_publication');
+    await expect(publish(nextId,[{day_of_week:9,order_index:0}])).rejects.toThrow();
+    await db.exec('rollback to savepoint failed_publication');
+    expect((await value(`select id from weekly_plans where user_id=$1 and plan_status='active'`,[A])).id).toBe(firstId);
+    await publish(nextId,rows);
+    expect((await value(`select id from weekly_plans where user_id=$1 and plan_status='active'`,[A])).id).toBe(nextId);
+    expect((await value(`select plan_status from weekly_plans where id=$1`,[firstId])).plan_status).toBe('adjusted');
+  });
+
+  it('saves a survey in one transaction and rejects attempts to supply system fields', async () => {
+    await asUser(A);
+    const profile = {full_name:'Updated',gender:'Nam',birthday:'1995-01-01'};
+    const body = {height:175,weight:70,target_weight:72};
+    const lifestyle = {weekly_workouts:3,meals_per_day:3};
+    const health = {sleep_hours:7,allergies:[]};
+    const save = (data: object) => db.query('select public.save_onboarding_survey($1,$2,$3,$4)',[JSON.stringify(profile),JSON.stringify(data),JSON.stringify(lifestyle),JSON.stringify(health)]);
+    await db.exec('savepoint bad_survey');
+    await expect(save({...body,user_id:B})).rejects.toMatchObject({code:'42501'});
+    await db.exec('rollback to savepoint bad_survey');
+    expect((await value('select full_name from profiles where id=$1',[A])).full_name).toBe('A');
+    expect((await value('select count(*)::int n from body_metrics')).n).toBe(0);
+    await save(body);
+    expect((await value('select full_name from profiles where id=$1',[A])).full_name).toBe('Updated');
+    expect((await value('select count(*)::int n from body_metrics')).n).toBe(1);
+    expect((await value('select count(*)::int n from health_conditions')).n).toBe(1);
+    expect((await value('select count(*)::int n from lifestyle_settings')).n).toBe(1);
+  });
+
+  it('rejects publishing a plan after its safety profile snapshot changes', async () => {
+    const profile = await value('select updated_at from profiles where id=$1',[A]);
+    await db.query(`update profiles set full_name='Changed while AI was working' where id=$1`,[A]);
+    await db.exec('savepoint changed_safety');
+    await expect(value(`select public.publish_coach_plan_atomically($1,'2026-10-26',$2,'{"name":"Training"}','[{"day_of_week":0,"order_index":0,"is_rest_day":true}]',null,null,null,'ai_coach_generate',$3)`,[
+      A,'30000000-0000-4000-8000-000000000003',JSON.stringify({profile:profile.updated_at}),
+    ])).rejects.toMatchObject({code:'40001'});
+    await db.exec('rollback to savepoint changed_safety');
+    expect((await value('select count(*)::int n from weekly_plans where user_id=$1',[A])).n).toBe(0);
+  });
+
+  it('commits meal adjustment contents and status together, and bumps the plan version', async () => {
+    await db.exec(`insert into recipes(id,name,meal_type,calories) values('first','First',array['lunch'],200),('next','Next',array['lunch'],300)`);
+    const plan = await value(`insert into weekly_food_plans(user_id,week_start_date) values($1,'2026-10-26') returning id,version`,[A]);
+    const item = await value(`insert into weekly_food_items(food_plan_id,day_of_week,meal_type,recipe_id,order_index) values($1,0,'lunch','first',0) returning id`,[plan.id]);
+    const adjustment = await value(`insert into ai_plan_adjustments(user_id,plan_type,status) values($1,'meal','proposed') returning id`,[A]);
+    const profile = await value('select updated_at from profiles where id=$1',[A]);
+    const recipe = await value(`select updated_at from recipes where id='next'`);
+    const apply = (quantity: number) => value(`select public.apply_meal_adjustment_atomically($1,$2,'apply-key',$3,$4,'next',0,'lunch',$5,$6,null,null,$7) result`,[A,adjustment.id,plan.id,item.id,quantity,profile.updated_at,recipe.updated_at]);
+    await db.exec('savepoint bad_adjustment');
+    await expect(apply(999)).rejects.toThrow();
+    await db.exec('rollback to savepoint bad_adjustment');
+    expect((await value('select recipe_id from weekly_food_items where id=$1',[item.id])).recipe_id).toBe('first');
+    expect((await value('select status from ai_plan_adjustments where id=$1',[adjustment.id])).status).toBe('proposed');
+    await apply(2);
+    expect((await apply(2)).result.already_applied).toBe(true);
+    expect((await value('select recipe_id,calories from weekly_food_items where id=$1',[item.id])).recipe_id).toBe('next');
+    expect(Number((await value('select version from weekly_food_plans where id=$1',[plan.id])).version)).toBe(1);
+  });
+
+  it('does not grant authenticated users access to privileged request/RPC internals', async () => {
+    const rights = await value(`select
+      has_table_privilege('authenticated','public.api_operations','SELECT') operations,
+      has_table_privilege('authenticated','public.ai_provider_calls','INSERT') provider,
+      has_function_privilege('authenticated','public.begin_api_operation(uuid,text,text,text,text,integer,timestamptz,timestamptz,integer,integer)','EXECUTE') admission,
+      has_function_privilege('authenticated','public.publish_coach_plan_atomically(uuid,date,uuid,jsonb,jsonb,uuid,jsonb,jsonb,text,jsonb)','EXECUTE') publish`);
+    expect(Object.values(rights!)).toEqual([false,false,false,false]);
+  });
+
+  it('writes each completed set once with consistent logs, snapshots and calories', async () => {
+    const session = (await value(`insert into daily_exercise_sessions(user_id,log_date,sets,planned_sets,estimated_kcal,order_index) values($1,'2026-10-26',3,3,90,0) returning id`,[A])).id;
+    await db.query(`insert into daily_workout_sessions(user_id,log_date) values($1,'2026-10-26')`,[A]);
+    const record = (version: number, target: number, calories: number) => value(`select public.record_workout_progress_atomically($1,$2,$3,$4,$5,60,'set') result`,[A,session,version,target,calories]);
+    await record(0,1,30);
+    expect((await record(0,1,30)).result.already_recorded).toBe(true);
+    expect((await value(`select completed_sets from daily_exercise_sessions where id=$1`,[session])).completed_sets).toBe(1);
+    expect((await value(`select count(*)::int n from daily_exercise_set_logs where daily_exercise_session_id=$1`,[session])).n).toBe(1);
+    expect((await value(`select calories_burned from daily_progress_logs where user_id=$1`,[A])).calories_burned).toBe(30);
+    await record(1,2,60);
+    expect((await value(`select completed_sets from daily_workout_session_exercises where daily_exercise_session_id=$1`,[session])).completed_sets).toBe(2);
+    await db.exec('savepoint stale_set');
+    await expect(record(0,3,90)).rejects.toMatchObject({code:'40001'});
+    await db.exec('rollback to savepoint stale_set');
+    expect((await value(`select calories_burned from daily_progress_logs where user_id=$1`,[A])).calories_burned).toBe(60);
+  });
+
+  it('budgets provider attempts across users and background jobs', async () => {
+    const first = await value(`select public.reserve_ai_provider_call(100,10,150,8) id`);
+    expect(first.id).toBeTruthy();
+    expect((await value(`select public.reserve_ai_provider_call(100,10,150,8) id`)).id).toBeNull();
+    await db.query('update ai_provider_calls set actual_tokens=20,active=false where id=$1',[first.id]);
+    expect((await value(`select public.reserve_ai_provider_call(100,10,150,8) id`)).id).toBeTruthy();
+  });
+
+  it('claims a daily background job once across scheduler instances', async () => {
+    expect((await value(`select public.claim_background_job('premium','2026-10-26') id`)).id).toBeTruthy();
+    expect((await value(`select public.claim_background_job('premium','2026-10-26') id`)).id).toBeNull();
+  });
+
+  it('deleting an auth account cascades to operation records, quota and consent history', async () => {
+    await db.query(`select public.begin_api_operation($1,'chat',$2,$3,'chatMessages',1,now()-interval '1 day',null,8,100)`,[A,'a'.repeat(64),'b'.repeat(64)]);
+    await asUser(A);
+    await db.exec('select public.set_ai_data_consent(true,1)');
+    await asServer();
+    await db.query('delete from auth.users where id=$1',[A]);
+    expect((await value('select count(*)::int n from api_operations where user_id=$1',[A])).n).toBe(0);
+    expect((await value('select count(*)::int n from ai_quota_usage_events where user_id=$1',[A])).n).toBe(0);
+    expect((await value('select count(*)::int n from ai_consent_events where user_id=$1',[A])).n).toBe(0);
+  });
+});

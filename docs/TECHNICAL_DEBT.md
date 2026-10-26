@@ -26,6 +26,8 @@ migration.
 
 ## Multi-instance operational scheduling
 
+Update 2026-10-26: database job claims and standalone cron entrypoints have been added. See [the hardening release](hardening-release-2026-10-26.md) for current deployment requirements; the original note below describes the earlier implementation.
+
 The current premium auto-planner is isolated from the HTTP app and opt-in through `ENABLE_JOBS`, but remains in-process work. This is suitable only while a single Render web instance owns scheduling. It is not an exactly-once guarantee across horizontally scaled instances or deployment overlap.
 
 When scaling, move each schedule to a Render Cron Job or dedicated worker and leave `ENABLE_JOBS=false` on web instances.

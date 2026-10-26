@@ -108,9 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const prepareAccount = (userId: string | null) => {
+  const prepareAccount = (userId: string | null, referralCode?: string) => {
     activateReadAccount(userId);
     if (!userId) return;
+    const referral = localStorage.getItem('fitly_ref') || referralCode;
+    if (referral) void supabase.rpc('claim_referral', { p_code: referral }).then(({ error }) => {
+      if (!error) localStorage.removeItem('fitly_ref');
+    });
     void aiQuotaResource.load(userId).catch(() => undefined);
     if (window.location.pathname.startsWith('/profile')) void profileDetailsResource.load(userId).catch(() => undefined);
   };
@@ -175,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
 
       const currentUser = session?.user ?? null;
-      prepareAccount(currentUser?.id || null);
+      prepareAccount(currentUser?.id || null, currentUser?.user_metadata?.referral_code);
       setUser(currentUser);
       if (currentUser) {
         checkProfile(currentUser.id).finally(() => setLoading(false));
@@ -195,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const currentUser = session?.user ?? null;
-      prepareAccount(currentUser?.id || null);
+      prepareAccount(currentUser?.id || null, currentUser?.user_metadata?.referral_code);
       setUser(currentUser);
       if (currentUser) {
         checkProfile(currentUser.id);

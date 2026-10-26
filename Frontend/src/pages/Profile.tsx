@@ -1,3 +1,4 @@
+import { AdminMfaPanel } from '../components/AdminMfaPanel';
 import {
   useEffect,
   useMemo,
@@ -388,6 +389,7 @@ export default function Profile() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
@@ -557,6 +559,25 @@ export default function Profile() {
     setDeleteConfirmation('');
     setDeleteAccountError('');
     setIsDeleteAccountOpen(true);
+  };
+
+  const exportPersonalData = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const response = await fetchWithAuth('/api/account/export');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error?.message || 'Chưa tải được dữ liệu cá nhân.');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'fitly-personal-data.json';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Chưa xuất được dữ liệu.'); }
+    finally { setIsExporting(false); }
   };
 
   const handleDeleteAccount = async () => {
@@ -1258,6 +1279,12 @@ export default function Profile() {
           )}
         </div>
       </section>
+
+      {user?.app_metadata?.role === 'admin' && <AdminMfaPanel />}
+      <button type="button" disabled={isExporting} onClick={() => void exportPersonalData()}
+        className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-border-primary text-sm font-bold disabled:opacity-50">
+        {isExporting ? 'Đang chuẩn bị dữ liệu…' : 'Tải dữ liệu cá nhân của tôi (JSON)'}
+      </button>
 
       <button
         type="button"

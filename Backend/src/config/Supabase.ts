@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import path from 'node:path';
+import { boundedFetch } from '../lib/network';
 
 dotenv.config({
   // Keep deployment's Backend/.env as the primary source, while supporting
@@ -28,7 +29,7 @@ const serverAuthOptions = {
 export const adminSupabase = createClient(
   supabaseUrl || 'http://localhost:54321',
   supabaseServiceRoleKey || 'missing-supabase-service-role-key',
-  { auth: serverAuthOptions },
+  { auth: serverAuthOptions, global: { fetch: boundedFetch } },
 );
 
 export const hasUserScopedSupabaseConfiguration = () => Boolean(supabaseUrl && supabasePublishableKey);
@@ -40,6 +41,7 @@ export const createUserScopedSupabaseClient = (accessToken: string): SupabaseCli
 
   return createClient(supabaseUrl, supabasePublishableKey, {
     auth: serverAuthOptions,
+    global: { fetch: boundedFetch },
     accessToken: async () => accessToken,
   });
 };

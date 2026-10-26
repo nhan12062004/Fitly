@@ -1,17 +1,13 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import { requireAuth } from '../../auth/middleware';
+import { requireAdmin, requireAuth } from '../../auth/middleware';
 import { adminSupabase } from '../../config/Supabase';
-import { AppError, ForbiddenError } from '../../http/errors';
+import { AppError } from '../../http/errors';
 import { validateBody } from '../../http/validation';
 
 export const feedbackRouter = Router();
-feedbackRouter.use('/admin/feedback', requireAuth, async (req, _res, next) => {
-  const { data, error } = await adminSupabase.from('profiles').select('role').eq('id', req.auth!.user.id).maybeSingle();
-  if (error || data?.role !== 'admin') return next(new ForbiddenError());
-  next();
-});
+feedbackRouter.use('/admin/feedback', requireAuth, requireAdmin);
 feedbackRouter.get('/admin/feedback', async (_req, res, next) => {
   const { data, error } = await adminSupabase.from('app_feedback').select('id, user_id, category, message, context, status, created_at, target_type, target_id').order('created_at', { ascending: false }).limit(100);
   if (error) return next(new AppError(503, 'FEEDBACK_UNAVAILABLE', 'Chưa tải được phản hồi.'));

@@ -194,7 +194,7 @@ ${COACH_RESPONSE_STYLE_RULES}
 - Neu nguoi dung hoi bai tap hom nay hoac hoi tiep ve workout, liet ke bai tap hien co truoc, kem set/reps/rest neu co.
 
 [HO SO NGUOI DUNG & PERSONAL DATABASE]
-- Ten: ${compactValue((profile as any).full_name)}
+- Xung ho voi nguoi dung la "ban"; khong can ten that.
 - Can nang: ${compactValue((body as any).weight)}kg | Chieu cao: ${compactValue((body as any).height)}cm | Muc tieu can nang: ${compactValue((body as any).target_weight)}kg
 - Muc tieu tap: ${compactValue((lifestyle as any).fitness_goal)}
 - Trinh do: ${compactValue((lifestyle as any).experience_level)} | So buoi/tuan: ${compactValue((lifestyle as any).weekly_workouts || (lifestyle as any).activity_level)}

@@ -1255,28 +1255,8 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
         birthday: resolvedBirthday,
         updated_at: new Date().toISOString()
       };
-      const profilePromise = (async () => {
-        const { data: updatedProfile, error: updateProfileError } = await supabase
-          .from('profiles')
-          .update(profilePayload)
-          .eq('id', targetUserId)
-          .select('id')
-          .maybeSingle();
-
-        if (updateProfileError) throw updateProfileError;
-        if (updatedProfile) return;
-
-        const { error: insertProfileError } = await supabase
-          .from('profiles')
-          .insert({ id: targetUserId, ...profilePayload });
-        if (insertProfileError) throw insertProfileError;
-      })();
-
       // 2. Lưu số đo cơ thể đầy đủ
-      const bodyMetricsPromise = supabase
-        .from('body_metrics')
-        .insert({
-          user_id: targetUserId,
+      const bodyPayload = {
           height: parseFloat(formData.height) || 0,
           weight: parseFloat(formData.weight) || 0,
           target_weight: resolvedTargetWeight,
@@ -1284,13 +1264,10 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           neck: formData.neck ? parseFloat(formData.neck) : null,
           waist: formData.waist ? parseFloat(formData.waist) : null,
           hips: formData.hips ? parseFloat(formData.hips) : null,
-        });
+      };
 
       // 3. Cập nhật Lối sống & Thói quen toàn diện
-      const lifestylePromise = supabase
-        .from('lifestyle_settings')
-        .upsert({
-          user_id: targetUserId,
+      const lifestylePayload = {
           activity_level: normalizedActivityLevel,
           weekly_workouts: weeklyWorkouts,
           fitness_goal: formData.fitness_goal,
@@ -1311,7 +1288,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           diet_styles: normalizeDietStyles(formData.diet_preference, formData.current_diet),
           budget_level: normalizeBudgetLevel(formData.budget_level) || formData.budget_level,
           updated_at: new Date().toISOString()
-        });
+      };
 
       const finalMedications = formData.medications === 'Không sử dụng thuốc'
         ? 'Không sử dụng thuốc'
@@ -1320,10 +1297,7 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           : formData.medications;
 
       // 4. Cập nhật Tình trạng Y tế chi tiết
-      const healthPromise = supabase
-        .from('health_conditions')
-        .upsert({
-          user_id: targetUserId,
+      const healthPayload = {
           health_condition: formData.health_condition,
           medical_history: formData.allergies,
           allergies: normalizeAllergies(formData.allergies),
@@ -1334,30 +1308,17 @@ export default function SurveyForm({ onComplete, isOpen, onClose, modalPurpose =
           sleep_quality: formData.sleep_quality,
           sleep_hours: parseFloat(formData.sleep_hours) || 7,
           updated_at: new Date().toISOString()
-        });
+      };
 
 
-      // 1. ĐẢM BẢO Profile tồn tại trước (Sequential to avoid FK errors)
-      await profilePromise;
-      
-      // 2. Chạy các lệnh còn lại (Concurrent ok now)
-      const results = await Promise.all([
-        bodyMetricsPromise,
-        lifestylePromise,
-        healthPromise
-      ]);
-
-      // In chi tiết lỗi (nếu có) ra console để debug
-      results.forEach((res, index) => {
-        if (res.error) {
-          console.error(`Error in promise ${index}:`, res.error);
-        }
+      const savedSurvey = await supabase.rpc('save_onboarding_survey', {
+        p_profile: profilePayload, p_body: bodyPayload, p_lifestyle: lifestylePayload, p_health: healthPayload,
       });
-
-      // Kiểm tra lỗi từ bất kỳ bảng nào
-      const firstError = results.find(res => res.error)?.error;
-      if (firstError) {
-        throw firstError;
+      if (savedSurvey.error) throw savedSurvey.error;
+      const referral = localStorage.getItem('fitly_ref') || user.user_metadata?.referral_code;
+      if (referral) {
+        const claimed = await supabase.rpc('claim_referral', { p_code: referral });
+        if (!claimed.error) localStorage.removeItem('fitly_ref');
       }
 
       const durationMinutes = Number(DEFAULT_WORKOUT_DURATION) || 45;

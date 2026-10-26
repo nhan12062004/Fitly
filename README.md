@@ -138,4 +138,6 @@ Recipe catalog validation/import details are in [docs/recipe-catalog-design.md](
 
 ## Ghi Chú
 
+Quy trình triển khai bảo mật, migration, MFA quản trị, background jobs và đo tải staging được ghi trong [bản bàn giao production hardening](docs/hardening-release-2026-10-26.md).
+
 Fitly là công cụ hỗ trợ tập luyện và dinh dưỡng, không thay thế tư vấn y tế chuyên môn. Không commit `.env` hoặc secret lên GitHub.

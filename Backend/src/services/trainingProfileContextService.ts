@@ -42,6 +42,7 @@ export const synchronizeTrainingProfileContext = async ({
 
   const needsSync = Number(safeLifestyle.weekly_workouts) !== trainingPrescription.weeklyWorkouts
     || Number(safeLifestyle.workout_duration) !== trainingPrescription.durationMinutes;
+  let updatedAt = safeLifestyle.updated_at;
   if (needsSync) {
     const update = await supabase
       .from('lifestyle_settings')
@@ -50,12 +51,14 @@ export const synchronizeTrainingProfileContext = async ({
         workout_duration: trainingPrescription.durationMinutes,
         updated_at: new Date().toISOString(),
       })
-      .eq('user_id', userId);
+      .eq('user_id', userId).select('updated_at').maybeSingle();
     if (update.error) throw update.error;
+    updatedAt = update.data?.updated_at ?? updatedAt;
   }
 
   const normalizedLifestyle = {
     ...safeLifestyle,
+    updated_at: updatedAt,
     weekly_workouts: trainingPrescription.weeklyWorkouts,
     workout_duration: trainingPrescription.durationMinutes,
   };

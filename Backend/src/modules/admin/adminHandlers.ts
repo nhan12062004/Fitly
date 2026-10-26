@@ -104,7 +104,7 @@ const getAdminUsers: RequestHandler = async (req, res, next) => {
     let { data, error } = await buildProfilesRequest(fullColumns);
 
     if (error) {
-      console.warn('[admin-users] full profile query failed, retrying with minimal columns:', error.message || error);
+      console.warn('[admin-users] full profile query failed, retrying with minimal columns:');
       const fallbackResult = await buildProfilesRequest(fallbackColumns);
       data = fallbackResult.data;
       error = fallbackResult.error;

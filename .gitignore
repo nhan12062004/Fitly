@@ -38,6 +38,9 @@ coverage/
 .nyc_output
 htmlcov/
 *.lcov
+Frontend/test-results/
+Frontend/playwright-report/
+Backend/load-fixtures/
 
 # 📝 System Logs
 *.log

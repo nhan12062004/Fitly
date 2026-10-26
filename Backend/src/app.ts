@@ -1,3 +1,5 @@
+import type { AiQuotaKey } from '../../shared/aiQuota';
+import { aiOperationContext, createAiOperationWrapper } from './services/ai/aiOperationService';
 import { callGroqJson } from './services/ai/groqJsonService';
 import express, { type RequestHandler } from 'express';
 import cors from 'cors';
@@ -5,7 +7,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { adminSupabase, supabase } from './config/Supabase';
-import { requireAuth } from './auth/middleware';
+import { requireAdmin, requireAuth } from './auth/middleware';
 import { type TrainingPrescription } from './lib/TrainingPrescription';
 import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
 import { detectIntent, extractDayIndexFromText, getResponseModeForIntent, normalizeVietnameseText as normalizeVietForChat } from './services/ai/aiRouterService';
@@ -19,6 +21,8 @@ import { WorkoutPrescription, estimateWorkoutKcal, prescribeWorkoutExercise } fr
 import { incrementMetric, logAIEvent, snapshotAIMetrics } from './lib/aiObservability';
 import { validateActionPayload } from './services/ai/aiValidationService';
 import { getAdjustmentApplyDecision } from './services/ai/adjustmentApplyGuard';
+import { privacyRouter } from './modules/account/privacyRouter';
+import { mealPlanRouter, planSchema, saveMealPlan } from './modules/nutrition/mealPlanRouter';
 import { accountRouter } from './modules/account/accountRouter';
 import { storeRouter } from './modules/account/storeRouter';
 import { feedbackRouter } from './modules/account/feedbackRouter';
@@ -79,6 +83,7 @@ import { errorHandler, notFoundHandler } from './http/errorHandler';
 import { ExternalProviderError, InternalConfigurationError, ValidationError } from './http/errors';
 import { legacyErrorContractMiddleware } from './http/legacyErrorContract';
 import { requestIdMiddleware } from './http/requestId';
+import { requestMetrics } from './http/requestMetrics';
 import { logOperational } from './lib/operationalLogger';
 import { validateBody } from './http/validation';
 import {
@@ -109,7 +114,7 @@ const DEFAULT_READY_TIMEOUT_MS = 3000;
 const MIN_READY_TIMEOUT_MS = 10;
 const MAX_READY_TIMEOUT_MS = 60_000;
 type MembershipTier = 'free' | 'plus' | 'pro';
-type AiQuotaKey = 'planGenerations' | 'workoutAdjustments' | 'mealAdjustments' | 'chatMessages';
+
 const AI_QUOTAS_BY_TIER: Record<MembershipTier, Record<AiQuotaKey, number>> = {
   free: {
     planGenerations: 1,
@@ -281,6 +286,7 @@ const awaitWithTimeout = <T>(operation: PromiseLike<T>, timeoutMs: number): Prom
     );
   });
 const getAuthUserId = async (req: express.Request): Promise<string | null> => {
+  if (req.auth) return req.auth.user.id;
   const token = getBearerToken(req.headers.authorization);
   if (!token) return null;
   const authRes = await supabase.auth.getUser(token);
@@ -349,52 +355,22 @@ const getAiQuotaUsageCount = async (
   startsAt: Date,
   endsAt: Date | null
 ): Promise<number> => {
-  if (quotaKey === 'chatMessages') {
-    const chatRes = await applyQuotaWindow(
-      supabase
-        .from('ai_quota_usage_events')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('quota_key', 'chatMessages'),
-      startsAt,
-      endsAt
-    );
-    if (chatRes.error) throw chatRes.error;
-    return chatRes.count || 0;
-  }
-
-  let query = supabase
-    .from('ai_plan_adjustments')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('status', 'applied');
-
-  if (quotaKey === 'planGenerations') {
-    query = query.eq('source_type', 'ai_coach_generate');
-  } else if (quotaKey === 'workoutAdjustments') {
-    query = query
-      .eq('plan_type', 'workout')
-      .not('source_type', 'eq', 'ai_coach_generate')
-      .not('source_type', 'eq', 'premium_auto_generate')
-      .not('source_type', 'eq', 'onboarding_meal_generate');
-  } else if (quotaKey === 'mealAdjustments') {
-    query = query
-      .eq('plan_type', 'meal')
-      .not('source_type', 'eq', 'ai_coach_generate')
-      .not('source_type', 'eq', 'premium_auto_generate')
-      .not('source_type', 'eq', 'onboarding_meal_generate');
-  }
-
-  const usageRes = await applyQuotaWindow(query, startsAt, endsAt);
-  if (usageRes.error) throw usageRes.error;
-  return usageRes.count || 0;
+  let query = supabase.from('ai_quota_usage_events').select('id', { count: 'exact', head: true })
+    .eq('user_id', userId).eq('quota_key', quotaKey);
+  const current = aiOperationContext.getStore();
+  if (current?.userId === userId) query = query.or(`operation_id.is.null,operation_id.neq.${current.id}`);
+  const result = await applyQuotaWindow(query, startsAt, endsAt);
+  if (result.error) throw result.error;
+  return result.count || 0;
 };
 
 const recordAiQuotaUsage = async (userId: string, quotaKey: AiQuotaKey) => {
-  const usageInsert = await supabase
-    .from('ai_quota_usage_events')
-    .insert({ user_id: userId, quota_key: quotaKey });
-  if (usageInsert.error) throw usageInsert.error;
+  const current = aiOperationContext.getStore();
+  if (current?.userId !== userId || current.quotaKey !== quotaKey) {
+    throw new Error('Quota mutation requires a matching durable reservation');
+  }
+  // The admission RPC already reserved this event atomically. The response
+  // wrapper commits or refunds it once, regardless of handler retries.
 };
 
 const getAiCoachAccessState = async (profile: any, userId: string) => {
@@ -1824,31 +1800,7 @@ JSON schema (fixed):
     normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
   }
 
-  const existingWorkoutPlans = await supabase
-    .from('weekly_plans')
-    .select('id, created_at, updated_at')
-    .eq('user_id', userId)
-    .eq('week_start_date', weekStartKey)
-    .eq('plan_status', 'active')
-    .limit(20);
-  if (existingWorkoutPlans.error) throw existingWorkoutPlans.error;
-
-  const previousWorkoutPlanId = pickLatestByUpdatedAt(existingWorkoutPlans.data as any[])?.id || null;
-  const createdWorkoutPlan = await supabase
-    .from('weekly_plans')
-    .insert({
-      user_id: userId,
-      name: normalizedPlan.workoutPlan.plan_name || 'AI Coach Week Plan',
-      description: normalizedPlan.workoutPlan.explanation || '',
-      week_start_date: weekStartKey,
-      plan_status: 'draft',
-      generated_by: 'ai',
-      ai_explanation: truncateText(normalizedPlan.workoutPlan.explanation || '', 500)
-    })
-    .select('id')
-    .single();
-  if (createdWorkoutPlan.error) throw createdWorkoutPlan.error;
-  const weeklyPlanId = createdWorkoutPlan.data.id;
+  const weeklyPlanId = crypto.randomUUID();
 
   const workoutRows: any[] = [];
   for (const day of normalizedPlan.workoutPlan.days || []) {
@@ -1906,35 +1858,7 @@ JSON schema (fixed):
       );
     }
   }
-  if (workoutRows.length > 0) {
-    const insertedWorkout = await supabase.from('weekly_plan_exercises').insert(workoutRows);
-    if (insertedWorkout.error) throw insertedWorkout.error;
-  }
-
-  const existingFoodPlans = await supabase
-    .from('weekly_food_plans')
-    .select('id, created_at, updated_at')
-    .eq('user_id', userId)
-    .eq('week_start_date', weekStartKey)
-    .eq('plan_status', 'active')
-    .limit(20);
-  if (existingFoodPlans.error) throw existingFoodPlans.error;
-
-  const previousFoodPlanId = pickLatestByUpdatedAt(existingFoodPlans.data as any[])?.id || null;
-  const createdFoodPlan = await supabase
-    .from('weekly_food_plans')
-    .insert({
-      user_id: userId,
-      name: 'AI Coach Meal Plan',
-      week_start_date: weekStartKey,
-      plan_status: 'draft',
-      generated_by: 'ai',
-      ai_explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500)
-    })
-    .select('id')
-    .single();
-  if (createdFoodPlan.error) throw createdFoodPlan.error;
-  const foodPlanId = createdFoodPlan.data.id;
+  const foodPlanId = crypto.randomUUID();
 
   const mealRows: any[] = [];
   const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
@@ -1994,85 +1918,15 @@ JSON schema (fixed):
       });
     });
   }
-  if (mealRows.length > 0) {
-    const insertedMeals = await supabase.from('weekly_food_items').insert(mealRows);
-    if (insertedMeals.error) throw insertedMeals.error;
-  }
-
-  // Keep replacement plans invisible to active-plan queries until every
-  // required child row has been persisted. Old plans are retained if any
-  // write above fails, leaving a retry-safe draft instead of a broken active plan.
-  const activatedAt = new Date().toISOString();
-  const activateWorkoutPlan = await supabase
-    .from('weekly_plans')
-    .update({ plan_status: 'active', updated_at: activatedAt })
-    .eq('id', weeklyPlanId)
-    .eq('plan_status', 'draft');
-  if (activateWorkoutPlan.error) throw activateWorkoutPlan.error;
-
-  const activateFoodPlan = await supabase
-    .from('weekly_food_plans')
-    .update({ plan_status: 'active', updated_at: activatedAt })
-    .eq('id', foodPlanId)
-    .eq('plan_status', 'draft');
-  if (activateFoodPlan.error) throw activateFoodPlan.error;
-
-  if (previousWorkoutPlanId) {
-    const markOldWorkoutPlan = await supabase
-      .from('weekly_plans')
-      .update({ plan_status: 'adjusted', updated_at: activatedAt })
-      .eq('id', previousWorkoutPlanId)
-      .eq('plan_status', 'active');
-    if (markOldWorkoutPlan.error) throw markOldWorkoutPlan.error;
-  }
-  if (previousFoodPlanId) {
-    const markOldFoodPlan = await supabase
-      .from('weekly_food_plans')
-      .update({ plan_status: 'adjusted', updated_at: activatedAt })
-      .eq('id', previousFoodPlanId)
-      .eq('plan_status', 'active');
-    if (markOldFoodPlan.error) throw markOldFoodPlan.error;
-  }
-
-  const recommendation = await supabase.from('ai_recommendations').insert({
-    user_id: userId,
-    plan_type: 'weekly_coach_plan',
-    recommendation_content: normalizedPlan,
-    status: 'active'
+  const publication = await supabase.rpc('publish_coach_plan_atomically', {
+    p_user_id: userId, p_week_start: weekStartKey,
+    p_workout_id: weeklyPlanId, p_workout_meta: { name: normalizedPlan.workoutPlan.plan_name || 'AI Coach Week Plan', explanation: truncateText(normalizedPlan.workoutPlan.explanation || '', 500) },
+    p_workout_rows: workoutRows,
+    p_meal_id: foodPlanId, p_meal_meta: { name: 'AI Coach Meal Plan', explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500) },
+    p_meal_rows: mealRows, p_source: premiumOnly ? 'premium_auto_generate' : 'ai_coach_generate',
+    p_safety: { profile: profile.updated_at, health: health.updated_at ?? null, lifestyle: lifestyle.updated_at ?? null },
   });
-  if (recommendation.error) console.warn('Failed to store ai_recommendations:', recommendation.error.message);
-
-  const planType = previousWorkoutPlanId && previousFoodPlanId ? 'both'
-    : previousWorkoutPlanId ? 'workout'
-      : previousFoodPlanId ? 'meal'
-        : 'both';
-  const adjustment = await supabase.from('ai_plan_adjustments').insert({
-    user_id: userId,
-    plan_type: planType,
-    source_type: premiumOnly ? 'premium_auto_generate' : 'ai_coach_generate',
-    old_plan_id: previousWorkoutPlanId || previousFoodPlanId,
-    new_plan_id: weeklyPlanId,
-    old_data: {
-      workout_plan_id: previousWorkoutPlanId,
-      food_plan_id: previousFoodPlanId
-    },
-    new_data: {
-      workout_plan_id: weeklyPlanId,
-      food_plan_id: foodPlanId,
-      workout_plan_name: normalizedPlan.workoutPlan.plan_name,
-      target_calories: normalizedPlan.mealPlan.target_calories
-    },
-    reason: truncateText(
-      normalizedPlan.workoutPlan.explanation || normalizedPlan.mealPlan.explanation || 'AI regenerated plan.',
-      300
-    ),
-    created_by: 'ai',
-    status: 'applied',
-    applied_at: new Date().toISOString()
-  });
-  if (adjustment.error) {
-    console.warn('Failed to store ai_plan_adjustments:', adjustment.error.message);
-  }
+  if (publication.error) throw publication.error;
 
   return {
     weeklyPlanId,
@@ -2190,8 +2044,9 @@ const configuredOrigins = (
 const allowedOrigins = new Set(configuredOrigins);
 
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
+  windowMs: 60 * 1000,
+  max: 6000,
+  skip: (req) => req.path === '/health' || req.path === '/ready',
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please try again later.' },
@@ -2200,12 +2055,14 @@ const generalLimiter = rateLimit({
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
+  keyGenerator: (req) => req.auth!.user.id,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many AI requests. Please try again later.' },
 });
 
 app.use(requestIdMiddleware);
+app.use(requestMetrics);
 app.use(legacyErrorContractMiddleware);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
@@ -2232,14 +2089,24 @@ app.use(cors({
     callback(new Error(`Origin ${origin} is not allowed by CORS`));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  credentials: true
+  credentials: true,
+  exposedHeaders: ['X-Request-ID','Idempotency-Key','Idempotency-Replayed','RateLimit-Limit','RateLimit-Remaining','RateLimit-Reset'],
 }));
 
 app.use(generalLimiter);
 app.use(express.json({ limit: '1mb' }));
+const authFailureLimiter = rateLimit({ windowMs: 60_000, limit: 300, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false });
+app.use('/api', authFailureLimiter);
+// The signed store webhook has its own authentication policy.
+app.use('/api', (req, res, next) => req.path === '/subscriptions/webhook' ? next() : requireAuth(req,res,next));
+app.use('/api', (_req, res, next) => { res.setHeader('Cache-Control','private, no-store'); next(); });
+app.use('/api', rateLimit({ windowMs:60_000, limit:120, skip:(req) => !req.auth, keyGenerator:(req) => req.auth!.user.id, standardHeaders:true, legacyHeaders:false }));
+app.use('/api', privacyRouter);
 app.use('/api', accountRouter);
 app.use('/api', storeRouter);
 app.use('/api', feedbackRouter);
+app.use('/api', mealPlanRouter);
+app.use('/api/admin', requireAdmin);
 
 app.get('/', (_req, res) => {
   res.json({
@@ -2279,9 +2146,10 @@ app.get('/ready', async (_req, res) => {
       .from('profiles')
       .select('id', { head: true })
       .limit(1);
-    const { error } = await awaitWithTimeout(readinessQuery, getReadyTimeoutMs());
-
-    if (error) throw error;
+    const [database, schema] = await awaitWithTimeout(Promise.all([
+      readinessQuery, adminSupabase.rpc('production_schema_version'),
+    ]), getReadyTimeoutMs());
+    if (database.error || schema.error || schema.data !== 20261026) throw new Error('Database schema unavailable');
 
     return res.status(200).json({
       status: 'ready',
@@ -2310,7 +2178,7 @@ const listLegacyAdminProfiles: RequestHandler = async (_req, res) => {
       .select('id, full_name, email, gender, birthday, role, membership_tier, created_at, updated_at');
 
     if (error) {
-      console.error('[profiles] query failed:', error.message);
+      console.error('[profiles] query failed:');
       return res.status(500).json({ error: 'Internal Server Error' });
     }
 
@@ -2714,12 +2582,12 @@ const loadAdminCount = async (
   try {
     const { count, error } = await request;
     if (error) {
-      console.warn(`[admin-overview] Failed to load ${label}:`, error.message || error);
+      console.warn(`[admin-overview] Failed to load ${label}:`);
       return 0;
     }
     return count || 0;
   } catch (error: any) {
-    console.warn(`[admin-overview] Failed to load ${label}:`, error?.message || error);
+    console.warn(`[admin-overview] Failed to load ${label}:`);
     return 0;
   }
 };
@@ -2797,10 +2665,19 @@ registerAdminRoutes(app, {
   deleteFood: adminHandlers.deleteFood,
 });
 
+const withAiOperation = createAiOperationWrapper(async (userId) => {
+  const result = await adminSupabase.from('profiles').select('id, membership_tier, membership_expires_at, created_at').eq('id', userId).single();
+  if (result.error) throw new ExternalProviderError();
+  return getAiCoachAccessState(result.data, userId);
+});
+
+mealPlanRouter.post('/meal-plans/swap', requireAuth, validateBody(planSchema), withAiOperation(saveMealPlan, 'mealAdjustments'));
+
 const workoutHandlers = createWorkoutHandlers({ supabase, getAuthUserId, DATE_KEY_REGEX, DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT, addDaysToDateKey, getDayOffsetBetweenDateKeys, buildExerciseEligibilityContext, getExerciseEligibilityDecision, getLatestBodyWeightKg, estimateWorkoutKcal, buildDailyExerciseSessionRow, ApiRequestError, isDatabaseMigrationRequiredError, databaseMigrationRequiredResponse, ExternalProviderError, getAiCoachAccessState, buildAiQuotaLimitError, AI_EXERCISE_CATALOG_FETCH_LIMIT, normalizeKeywordText, getEligibleExercises, prescribeWorkoutExercise, recordAiQuotaUsage, buildAiQuotaSnapshot, truncateText, getExerciseMetaForKcal, loadDailyExerciseSessionWithExerciseMeta, upsertWorkoutSessionExerciseFromDailySession, syncWorkoutCaloriesBurnedForDate, calculateCompletedExerciseKcal, parseAverageReps });
 
 registerWorkoutRoutes(app, {
   aiLimiter,
+  withAiOperation,
   dailyExercisesFromPlanSchema,
   materializeFromPlan: workoutHandlers.materializeFromPlan,
   replaceDailyExercise: workoutHandlers.replaceDailyExercise,
@@ -2814,6 +2691,7 @@ const aiCoachHandlers = createAiCoachHandlers({ addDays, AI_ACTION_FLOW_ENABLED,
 
 registerAiCoachRoutes(app, {
   aiLimiter,
+  withAiOperation,
   aiChatSchema,
   getQuota: aiCoachHandlers.getQuota,
   chat: aiCoachHandlers.chat,

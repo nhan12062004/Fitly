@@ -1,8 +1,10 @@
+import { adminSupabase } from '../../config/Supabase';
 import type { RequestHandler } from 'express';
 
 export const createWorkoutHandlers = (dependencies: any) => {
   const { supabase, getAuthUserId, DATE_KEY_REGEX, DAILY_EXERCISE_SESSION_WITH_EXERCISE_SELECT, addDaysToDateKey, getDayOffsetBetweenDateKeys, buildExerciseEligibilityContext, getExerciseEligibilityDecision, getLatestBodyWeightKg, estimateWorkoutKcal, buildDailyExerciseSessionRow, ApiRequestError, isDatabaseMigrationRequiredError, databaseMigrationRequiredResponse, ExternalProviderError, getAiCoachAccessState, buildAiQuotaLimitError, AI_EXERCISE_CATALOG_FETCH_LIMIT, normalizeKeywordText, getEligibleExercises, prescribeWorkoutExercise, recordAiQuotaUsage, buildAiQuotaSnapshot, truncateText, getExerciseMetaForKcal, loadDailyExerciseSessionWithExerciseMeta, upsertWorkoutSessionExerciseFromDailySession, syncWorkoutCaloriesBurnedForDate, calculateCompletedExerciseKcal, parseAverageReps } = dependencies;
 const materializeDailyExercisesFromPlan: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -147,7 +149,7 @@ const materializeDailyExercisesFromPlan: RequestHandler = async (req, res, next)
       });
     });
 
-    const materializeRes = await supabase.rpc('materialize_daily_workout_from_plan_atomically', {
+    const materializeRes = await adminSupabase.rpc('materialize_daily_workout_from_plan_atomically', {
       p_user_id: authUserId,
       p_weekly_plan_id: plan.id,
       p_log_date: logDate,
@@ -185,7 +187,7 @@ const materializeDailyExercisesFromPlan: RequestHandler = async (req, res, next)
     if (error instanceof ApiRequestError) {
       return res.status(error.status).json(error.body);
     }
-    console.error('[workout/create-daily-exercises-from-plan] failed:', error?.message || error);
+    console.error('[workout/create-daily-exercises-from-plan] failed:');
     if (isDatabaseMigrationRequiredError(error)) {
       return res.status(503).json(databaseMigrationRequiredResponse);
     }
@@ -194,6 +196,7 @@ const materializeDailyExercisesFromPlan: RequestHandler = async (req, res, next)
 };
 
 const replaceDailyExercise: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) return res.status(401).json({ error: 'Unauthorized' });
@@ -322,7 +325,7 @@ const replaceDailyExercise: RequestHandler = async (req, res, next) => {
       .eq('daily_exercise_session_id', currentSession.id);
     if (snapshotRes.error) throw snapshotRes.error;
 
-    const auditRes = await supabase.from('ai_plan_adjustments').insert({
+    const auditRes = await adminSupabase.from('ai_plan_adjustments').insert({
       user_id: authUserId,
       plan_type: 'workout',
       source_type: 'chat',
@@ -344,12 +347,13 @@ const replaceDailyExercise: RequestHandler = async (req, res, next) => {
       aiQuota: buildAiQuotaSnapshot(accessState, 'workoutAdjustments'),
     });
   } catch (error: any) {
-    console.error('[workout/replace-daily-exercise] failed:', error?.message || error);
+    console.error('[workout/replace-daily-exercise] failed:');
     return next(new ExternalProviderError());
   }
 };
 
 const createDailyExercise: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -459,12 +463,13 @@ const createDailyExercise: RequestHandler = async (req, res, next) => {
     if (error instanceof ApiRequestError) {
       return res.status(error.status).json(error.body);
     }
-    console.error('[workout/create-daily-exercise] failed:', error?.message || error);
+    console.error('[workout/create-daily-exercise] failed:');
     return next(new ExternalProviderError());
   }
 };
 
 const updateDailyExerciseConfig: RequestHandler = async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
     const authUserId = await getAuthUserId(req);
     if (!authUserId) {
@@ -546,185 +551,45 @@ const updateDailyExerciseConfig: RequestHandler = async (req, res, next) => {
     if (error instanceof ApiRequestError) {
       return res.status(error.status).json(error.body);
     }
-    console.error('[workout/update-daily-exercise-config] failed:', error?.message || error);
+    console.error('[workout/update-daily-exercise-config] failed:');
     return next(new ExternalProviderError());
   }
 };
 
-const updateDailyExerciseCompletion: RequestHandler = async (req, res, next) => {
+const writeProgress = (mode: 'set' | 'completion'): RequestHandler => async (req, res, next) => {
+  const supabase = req.supabase!;
   try {
-    const authUserId = await getAuthUserId(req);
-    if (!authUserId) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    const userId = await getAuthUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    const sessionId = String(req.params.exerciseSessionId || '');
+    if (!/^[0-9a-f-]{36}$/i.test(sessionId)) return res.status(400).json({ error: 'Invalid session id' });
+    const existing = await loadDailyExerciseSessionWithExerciseMeta(sessionId, userId);
+    const total = Math.max(1, Number(existing.actual_sets ?? existing.sets) || 1);
+    const restSeconds = Number(req.body?.restSeconds ?? existing.actual_rest_seconds ?? existing.rest_seconds ?? 0);
+    const target = mode === 'completion' ? (req.body?.isCompleted === true ? total : 0)
+      : Number(req.body?.setNumber ?? Number(existing.completed_sets || 0) + 1);
+    if (!Number.isInteger(target) || target < (mode === 'set' ? 1 : 0) || target > total
+      || !Number.isFinite(restSeconds) || restSeconds < 0 || restSeconds > 300) {
+      return res.status(400).json({ error: 'Thông tin set tập không hợp lệ.' });
     }
-
-    const exerciseSessionId = String(req.params.exerciseSessionId || '').trim();
-    if (!exerciseSessionId) {
-      return res.status(400).json({ error: 'exerciseSessionId is required' });
+    if (target === Number(existing.completed_sets || 0) || (mode === 'set' && target < Number(existing.completed_sets || 0))) {
+      return res.json({ exercise: existing, alreadyRecorded: true });
     }
-
-    const isCompleted = req.body?.isCompleted === true;
-    const existingSession = await loadDailyExerciseSessionWithExerciseMeta(exerciseSessionId, authUserId);
-    const totalSets = Math.max(1, Number(existingSession.actual_sets ?? existingSession.sets) || 1);
-    const nextCompletedSets = isCompleted ? totalSets : 0;
-    const nextActualKcal = isCompleted
-      ? await calculateCompletedExerciseKcal({
-          userId: authUserId,
-          session: existingSession,
-          completedSets: nextCompletedSets,
-        })
-      : 0;
-
-    const updateRes = await supabase
-      .from('daily_exercise_sessions')
-      .update({
-        is_completed: isCompleted,
-        completed_sets: nextCompletedSets,
-        actual_kcal_estimated: nextActualKcal
-      })
-      .eq('id', exerciseSessionId)
-      .eq('user_id', authUserId)
-      .select('id')
-      .single();
-    if (updateRes.error) throw updateRes.error;
-
-    const updatedSession = await loadDailyExerciseSessionWithExerciseMeta(exerciseSessionId, authUserId);
-    const workoutSessionExercise = await upsertWorkoutSessionExerciseFromDailySession({
-      userId: authUserId,
-      logDate: String(updatedSession.log_date || ''),
-      dailyExerciseSession: updatedSession
+    const actualKcal = target ? await calculateCompletedExerciseKcal({ userId, session: existing, completedSets: target }) : 0;
+    const result = await adminSupabase.rpc('record_workout_progress_atomically', {
+      p_user_id: userId, p_session_id: sessionId, p_expected_version: Number(existing.version),
+      p_target_sets: target, p_actual_kcal: actualKcal, p_rest_seconds: Math.round(restSeconds), p_mode: mode,
     });
-    await syncWorkoutCaloriesBurnedForDate(authUserId, String(updatedSession.log_date || ''));
-
-    if (isCompleted) {
-      const actualReps = parseAverageReps(String((updatedSession.actual_reps ?? updatedSession.reps) || '10'));
-      const actualWeightKg =
-        updatedSession.actual_weight_kg === null || updatedSession.actual_weight_kg === undefined
-          ? updatedSession.weight_kg ?? null
-          : Math.max(0, Number(updatedSession.actual_weight_kg) || 0);
-      const plannedWeightKg =
-        updatedSession.planned_weight_kg === null || updatedSession.planned_weight_kg === undefined
-          ? updatedSession.weight_kg ?? null
-          : Math.max(0, Number(updatedSession.planned_weight_kg) || 0);
-      const setEstimatedKcal = Math.max(1, Math.round(nextActualKcal / Math.max(1, totalSets)));
-      const setRows = Array.from({ length: totalSets }).map((_, index) => ({
-        daily_exercise_session_id: updatedSession.id,
-        workout_session_exercise_id: workoutSessionExercise?.id || null,
-        set_number: index + 1,
-        planned_reps: String((updatedSession.planned_reps ?? updatedSession.reps) || ''),
-        target_weight_kg: plannedWeightKg,
-        actual_reps: actualReps,
-        actual_weight_kg: actualWeightKg,
-        rest_seconds: Math.max(0, Number(updatedSession.actual_rest_seconds ?? updatedSession.rest_seconds) || 0),
-        estimated_kcal: setEstimatedKcal,
-        is_completed: true
-      }));
-      const upsertLogsRes = await supabase
-        .from('daily_exercise_set_logs')
-        .upsert(setRows, { onConflict: 'daily_exercise_session_id,set_number' });
-      if (upsertLogsRes.error) throw upsertLogsRes.error;
-    } else {
-      const deleteLogsRes = await supabase
-        .from('daily_exercise_set_logs')
-        .delete()
-        .eq('daily_exercise_session_id', updatedSession.id);
-      if (deleteLogsRes.error) throw deleteLogsRes.error;
-    }
-
-    return res.json({ exercise: updatedSession });
+    if (result.error?.code === '40001') return res.status(409).json({ error: 'Buổi tập đã thay đổi. Hãy tải lại trước khi tiếp tục.' });
+    if (result.error) throw result.error;
+    return res.json({ exercise: await loadDailyExerciseSessionWithExerciseMeta(sessionId, userId), alreadyRecorded: Boolean(result.data?.already_recorded) });
   } catch (error: any) {
-    if (error instanceof ApiRequestError) {
-      return res.status(error.status).json(error.body);
-    }
-    console.error('[workout/update-daily-exercise-completion] failed:', error?.message || error);
+    if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
     return next(new ExternalProviderError());
   }
 };
-
-const completeDailyExerciseSet: RequestHandler = async (req, res, next) => {
-  try {
-    const authUserId = await getAuthUserId(req);
-    if (!authUserId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const exerciseSessionId = String(req.params.exerciseSessionId || '').trim();
-    if (!exerciseSessionId) {
-      return res.status(400).json({ error: 'exerciseSessionId is required' });
-    }
-
-    const restSeconds = Math.max(0, Math.min(300, Number(req.body?.restSeconds) || 0));
-    const existingSession = await loadDailyExerciseSessionWithExerciseMeta(exerciseSessionId, authUserId);
-    const totalSets = Math.max(1, Number(existingSession.actual_sets ?? existingSession.sets) || 1);
-    const nextCompletedSets = Math.min(totalSets, Math.max(0, Number(existingSession.completed_sets) || 0) + 1);
-    const previousActualKcal = Math.max(0, Number(existingSession.actual_kcal_estimated) || 0);
-    const nextActualKcal = await calculateCompletedExerciseKcal({
-      userId: authUserId,
-      session: existingSession,
-      completedSets: nextCompletedSets,
-    });
-    const nextIsCompleted = nextCompletedSets >= totalSets;
-
-    const updateRes = await supabase
-      .from('daily_exercise_sessions')
-      .update({
-        completed_sets: nextCompletedSets,
-        actual_kcal_estimated: nextActualKcal,
-        is_completed: nextIsCompleted
-      })
-      .eq('id', exerciseSessionId)
-      .eq('user_id', authUserId)
-      .select('id')
-      .single();
-    if (updateRes.error) throw updateRes.error;
-
-    const updatedSession = await loadDailyExerciseSessionWithExerciseMeta(exerciseSessionId, authUserId);
-    const workoutSessionExercise = await upsertWorkoutSessionExerciseFromDailySession({
-      userId: authUserId,
-      logDate: String(updatedSession.log_date || ''),
-      dailyExerciseSession: updatedSession
-    });
-    await syncWorkoutCaloriesBurnedForDate(authUserId, String(updatedSession.log_date || ''));
-
-    const actualReps = parseAverageReps(String((updatedSession.actual_reps ?? updatedSession.reps) || '10'));
-    const actualWeightKg =
-      updatedSession.actual_weight_kg === null || updatedSession.actual_weight_kg === undefined
-        ? updatedSession.weight_kg ?? null
-        : Math.max(0, Number(updatedSession.actual_weight_kg) || 0);
-    const plannedWeightKg =
-      updatedSession.planned_weight_kg === null || updatedSession.planned_weight_kg === undefined
-        ? updatedSession.weight_kg ?? null
-        : Math.max(0, Number(updatedSession.planned_weight_kg) || 0);
-    const setEstimatedKcal = Math.max(1, nextActualKcal - previousActualKcal);
-
-    const setLogRes = await supabase
-      .from('daily_exercise_set_logs')
-      .upsert(
-        {
-          daily_exercise_session_id: updatedSession.id,
-          workout_session_exercise_id: workoutSessionExercise?.id || null,
-          set_number: nextCompletedSets,
-          planned_reps: String((updatedSession.planned_reps ?? updatedSession.reps) || ''),
-          target_weight_kg: plannedWeightKg,
-          actual_reps: actualReps,
-          actual_weight_kg: actualWeightKg,
-          rest_seconds: restSeconds,
-          estimated_kcal: setEstimatedKcal,
-          is_completed: true
-        },
-        { onConflict: 'daily_exercise_session_id,set_number' }
-      );
-    if (setLogRes.error) throw setLogRes.error;
-
-    return res.json({ exercise: updatedSession });
-  } catch (error: any) {
-    if (error instanceof ApiRequestError) {
-      return res.status(error.status).json(error.body);
-    }
-    console.error('[workout/complete-set] failed:', error?.message || error);
-    return next(new ExternalProviderError());
-  }
-};
+const updateDailyExerciseCompletion = writeProgress('completion');
+const completeDailyExerciseSet = writeProgress('set');
 
   return { materializeFromPlan: materializeDailyExercisesFromPlan, replaceDailyExercise, createDailyExercise, updateDailyExerciseConfig, updateDailyExerciseCompletion, completeDailyExerciseSet };
 };
