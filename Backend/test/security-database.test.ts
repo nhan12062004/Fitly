@@ -18,7 +18,7 @@ beforeEach(async () => {
   await db.query(`insert into auth.users(id,email,email_confirmed_at) values($1,'a@example.invalid',now()),($2,'b@example.invalid',now())`,[A,B]);
   await db.query(`insert into public.profiles(id,full_name,ref_code) values($1,'A','AAAAAA'),($2,'B','BBBBBB')`,[A,B]);
 });
-afterEach(async () => { await db.exec('reset role; rollback'); });
+afterEach(async () => { await db.exec('rollback; reset role'); });
 
 describe('production security migrations', () => {
   it('allows one verified referral claim and cannot reset or repeat the reward', async () => {
@@ -183,6 +183,33 @@ describe('production security migrations', () => {
       has_function_privilege('authenticated','public.begin_api_operation(uuid,text,text,text,text,integer,timestamptz,timestamptz,integer,integer)','EXECUTE') admission,
       has_function_privilege('authenticated','public.publish_coach_plan_atomically(uuid,date,uuid,jsonb,jsonb,uuid,jsonb,jsonb,text,jsonb)','EXECUTE') publish`);
     expect(Object.values(rights!)).toEqual([false,false,false,false]);
+  });
+
+  it('removes inherited Supabase grants while preserving owner edits and signed-in RPCs', async () => {
+    const rights = await value(`select
+      has_table_privilege('authenticated','public.profiles','DELETE') delete_profile,
+      has_table_privilege('authenticated','public.ai_quota_usage_events','SELECT') quota,
+      has_table_privilege('anon','public.profiles','SELECT') anonymous_profile,
+      has_function_privilege('authenticated','public.add_exp(uuid,integer)','EXECUTE') award_exp,
+      has_function_privilege('anon','public.sync_challenge_checkin(text,uuid,jsonb)','EXECUTE') anonymous_checkin,
+      has_function_privilege('authenticated','public.sync_challenge_checkin(text,uuid,jsonb)','EXECUTE') checkin,
+      has_function_privilege('service_role','public.add_exp(uuid,integer)','EXECUTE') server_exp`);
+    expect(Object.values(rights!)).toEqual([false,false,false,false,false,true,true]);
+    await asUser(A);
+    expect((await db.query(`update public.profiles set full_name='Owner edit' where id=$1 returning full_name`,[A])).rows)
+      .toEqual([{full_name:'Owner edit'}]);
+    expect((await db.query(`update public.profiles set full_name='Cross-user edit' where id=$1 returning id`,[B])).rows).toEqual([]);
+    await db.exec('savepoint forbidden_delete');
+    await expect(db.query('delete from public.profiles where id=$1',[B])).rejects.toMatchObject({code:'42501'});
+    await db.exec('rollback to savepoint forbidden_delete');
+    await asServer();
+    await db.exec(`create table public.default_acl_probe(id integer); create function public.default_acl_probe() returns integer language sql as 'select 1'`);
+    const defaults = await value(`select
+      has_table_privilege('authenticated','public.default_acl_probe','SELECT') table_access,
+      has_table_privilege('anon','public.default_acl_probe','SELECT') anon_table,
+      has_function_privilege('authenticated','public.default_acl_probe()','EXECUTE') function_access,
+      has_function_privilege('anon','public.default_acl_probe()','EXECUTE') anon_function`);
+    expect(Object.values(defaults!)).toEqual([false,false,false,false]);
   });
 
   it('writes each completed set once with consistent logs, snapshots and calories', async () => {

@@ -2146,10 +2146,11 @@ app.get('/ready', async (_req, res) => {
       .from('profiles')
       .select('id', { head: true })
       .limit(1);
-    const [database, schema] = await awaitWithTimeout(Promise.all([
+    const [database, schema, securityPatch] = await awaitWithTimeout(Promise.all([
       readinessQuery, adminSupabase.rpc('production_schema_version'),
+      adminSupabase.rpc('production_security_patch_version'),
     ]), getReadyTimeoutMs());
-    if (database.error || schema.error || schema.data !== 20261026) throw new Error('Database schema unavailable');
+    if (database.error || schema.error || schema.data !== 20261026 || securityPatch.error || securityPatch.data !== 1) throw new Error('Database schema unavailable');
 
     return res.status(200).json({
       status: 'ready',

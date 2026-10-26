@@ -12,6 +12,11 @@ export async function createTestDatabase() {
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
     create schema auth; create schema storage;
+    -- Supabase's local stack may already grant API roles privileges before
+    -- our baseline is restored. GRANT in a dump adds to those privileges.
+    alter default privileges for role postgres in schema public grant all on tables to anon, authenticated, service_role;
+    alter default privileges for role postgres in schema public grant all on sequences to anon, authenticated, service_role;
+    alter default privileges for role postgres in schema public grant all on functions to anon, authenticated, service_role;
     create table auth.users(id uuid primary key, email text, email_confirmed_at timestamptz,
       raw_app_meta_data jsonb default '{}', raw_user_meta_data jsonb default '{}');
     create function auth.uid() returns uuid language sql stable as

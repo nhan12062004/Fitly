@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(19);
 
 -- These deterministic fixture IDs are never committed: the transaction rolls
 -- back after the assertions. session_replication_role only bypasses foreign
@@ -81,6 +81,9 @@ select is_empty(
 );
 select ok(not has_column_privilege('authenticated', 'public.profiles', 'membership_tier', 'UPDATE'), 'membership tier is not client-updatable');
 select ok(not has_table_privilege('authenticated', 'public.ai_quota_usage_events', 'SELECT'), 'regular users cannot read service-only quota events');
+select ok(not has_function_privilege('authenticated', 'public.add_exp(uuid,integer)', 'EXECUTE'), 'regular users cannot call service-only experience RPC');
+select ok(not has_table_privilege('anon', 'public.profiles', 'SELECT'), 'anonymous users cannot read profile table');
+select ok(has_function_privilege('authenticated', 'public.sync_challenge_checkin(text,uuid,jsonb)', 'EXECUTE'), 'signed-in challenge RPC remains available');
 select ok(
   exists (
     select 1 from pg_policies

@@ -36,7 +36,7 @@ Các helper nội bộ xử lý tác vụ hệ thống và RPC cần quyền đ�
 **Đây là thay đổi cần phối hợp API, web và mobile.** Migration thu hồi các đường ghi trực tiếp cũ; không áp dụng riêng migration rồi tiếp tục vận hành client cũ như trước.
 
 1. Trên staging riêng, tạo backup database và Storage; xác nhận có thể khôi phục. Chạy đủ CI, bao gồm job Supabase local và E2E.
-2. Kiểm tra migration drift với schema thực tế, kiểm tra số referral/usage lịch sử. Migrations mới bắt đầu bằng `20261026090000` và kết thúc bằng `20261026103000`.
+2. Kiểm tra migration drift với schema thực tế, kiểm tra số referral/usage lịch sử. Migrations mới bắt đầu bằng `20261026090000` và kết thúc bằng `20261026104000`; bản cuối thu hồi quyền mặc định cũ của Supabase. `/ready` kiểm tra cả bản vá phân quyền này.
 3. Chuẩn bị cùng phiên bản API, web và mobile. Thông báo/giới hạn client cũ khi cần, chọn cửa sổ bảo trì ngắn cho rollout đầu tiên.
 4. Áp dụng migration lên staging trước, deploy API và client, chạy smoke tests bên dưới. `/ready` của API mới phải trả 200 sau khi đủ schema.
 5. Cấu hình cron privacy và premium theo mô hình worker dưới đây; xác minh job thật đã chạy và có người nhận cảnh báo.
