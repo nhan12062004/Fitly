@@ -20,7 +20,7 @@ privacyRouter.get('/account/export', requireAuth, limit, async (req, res, next) 
   try {
     const output: Record<string, unknown> = { exportedAt: new Date().toISOString(), formatVersion: 1 };
     const tables = [
-      ['profiles','id','id'], ['body_metrics','user_id','id'], ['lifestyle_settings','user_id','id'], ['health_conditions','user_id','id'],
+      ['profiles','id','id'], ['body_metrics','user_id','id'], ['lifestyle_settings','user_id','user_id'], ['health_conditions','user_id','user_id'],
       ['daily_progress_logs','user_id','id'], ['daily_exercise_sessions','user_id','id'], ['daily_workout_sessions','user_id','id'],
       ['daily_meal_logs','user_id','id'], ['weekly_plans','user_id','id'], ['weekly_food_plans','user_id','id'],
       ['ai_chat_messages','user_id','id'], ['ai_plan_adjustments','user_id','id'], ['user_custom_foods','user_id','id'],
