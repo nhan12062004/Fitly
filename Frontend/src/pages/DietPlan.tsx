@@ -562,6 +562,7 @@ export default function DietPlan() {
   const [isLoading, setIsLoading] = useState(() => !initialDietCache);
   const [, setIsRefreshing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [planRefresh, setPlanRefresh] = useState(0);
   const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null);
   const [completingFoodId, setCompletingFoodId] = useState<string | null>(null);
   const [completedMealLogs, setCompletedMealLogs] = useState<CompletedMealLog[]>([]);
@@ -918,18 +919,13 @@ export default function DietPlan() {
             .from('weekly_food_plans')
             .select('*')
             .eq('user_id', user.id)
+            .eq('week_start_date', selectedWeekKey)
             .eq('plan_status', 'active')
-            .order('created_at', { ascending: false });
+            .order('updated_at', { ascending: false })
+            .limit(1);
 
           if (error) throw error;
-          let plan = (plans || []).find((item: any) => String(item.week_start_date || '') === selectedWeekKey);
-          if (!plan && isCurrentWeek) {
-            const todayKey = getVietnamDateKey();
-            plan = [...(plans || [])]
-              .filter((item: any) => String(item.week_start_date || '') <= todayKey)
-              .sort((a: any, b: any) => String(b.week_start_date || '').localeCompare(String(a.week_start_date || '')))[0]
-              || (plans || [])[0];
-          }
+          const plan = plans?.[0];
 
           if (plan) {
             nextPlanId = plan.id;
@@ -1003,7 +999,7 @@ export default function DietPlan() {
     return () => {
       cancelled = true;
     };
-  }, [user, selectedWeekKey, cacheKey]);
+  }, [user, selectedWeekKey, cacheKey, planRefresh]);
 
   useEffect(() => {
     // Do not cache the initial empty state while Supabase is still loading.
@@ -1073,47 +1069,9 @@ export default function DietPlan() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(getApiErrorMessage({ payload, fallbackMessage: 'Không thể tạo thực đơn AI cho ngày này.' }));
 
-      const generatedItems = Array.isArray(payload?.data?.mealItems) ? payload.data.mealItems : [];
-      const nextItems: PlanFood[] = generatedItems
-        .filter((item: any) => Number(item?.day_of_week) === selectedDayId)
-        .map((item: any) => ({
-          tempId: crypto.randomUUID(),
-          weekly_food_item_id: null,
-          food_id: item.recipe_id ? null : (String(item.food_id || '') || null),
-          recipe_id: String(item.recipe_id || '') || null,
-          name: String(item.name || 'Món ăn AI chọn'),
-          image_url: String(item.image_url || ''),
-          category: String(item.category || ''),
-          meal_type: String(item.meal_type || 'lunch'),
-          quantity: Number(item.quantity || 1),
-          serving_unit: String(item.serving_unit || '100g'),
-          calories: Number(item.calories || 0),
-          protein: Number(item.protein || 0),
-          carbs: Number(item.carbs || 0),
-          fat: Number(item.fat || 0),
-          estimated_cost_min_vnd: item.estimated_cost_min_vnd === null || item.estimated_cost_min_vnd === undefined ? null : Number(item.estimated_cost_min_vnd),
-          ingredients: Array.isArray(item.recipe_ingredients)
-            ? item.recipe_ingredients.map((ing: any) => ({
-                ingredient_name: String(ing.ingredient_name || 'Nguyên liệu'),
-                amount: ing.amount === null || ing.amount === undefined ? null : Number(ing.amount),
-                unit: ing.unit || null,
-                preparation_note: ing.preparation_note || null,
-                food: ing.food || null,
-              }))
-            : [],
-          is_rest_day: false,
-        }));
-      if (!nextItems.length) throw new Error('AI chưa trả về món hợp lệ cho ngày này.');
-
-      const nextWeeklyPlan = { ...weeklyPlan, [selectedDayId]: nextItems };
-      const nextRestDays = { ...restDays, [selectedDayId]: false };
-      setWeeklyPlan(nextWeeklyPlan);
-      setRestDays(nextRestDays);
-      await savePlan({
-        weeklyPlanOverride: nextWeeklyPlan,
-        restDaysOverride: nextRestDays,
-        showSuccess: false,
-      });
+      if (!payload?.data?.planId) throw new Error('Máy chủ chưa xác nhận đã lưu thực đơn.');
+      if (cacheKey) dietPlanPageCache.delete(cacheKey);
+      setPlanRefresh((value) => value + 1);
       toast.success('Đã tạo thực đơn AI cho ngày đang chọn.');
     } catch (error: any) {
       toast.error(error?.message || 'Không thể tạo thực đơn AI cho ngày này.');

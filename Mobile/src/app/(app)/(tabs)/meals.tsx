@@ -8,7 +8,8 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
 import { apiRequest } from '@/lib/api-client';
 import { openInitialAssessment } from '@/lib/assessment';
-import { getVietnamDayIndex, getVietnamWeekStartKey, hasAnyWeeklyMealPlan, hasAnyWeeklyWorkoutPlan, loadProfileSnapshot, loadTodayMeals, saveGeneratedMealPlan, type GeneratedMealPlanItem } from '@/lib/fitness-read-model';
+import { getVietnamDayIndex, getVietnamWeekStartKey, hasAnyWeeklyMealPlan, hasAnyWeeklyWorkoutPlan, loadProfileSnapshot, loadTodayMeals } from '@/lib/fitness-read-model';
+import { invalidateResources } from '@/lib/query-cache';
 import { tokens } from '@/theme/tokens';
 
 const weekdayLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -20,7 +21,7 @@ const mealTones = [
   { surface: '#201D2A', accent: '#C596FF' },
 ] as const;
 
-type GenerateMealPlanResponse = { data?: { mealItems?: GeneratedMealPlanItem[] } };
+type GenerateMealPlanResponse = { data?: { planId?: string } };
 
 const getWeekDates = () => {
   const weekStart = new Date(`${getVietnamWeekStartKey()}T00:00:00`);
@@ -96,12 +97,8 @@ export default function MealsScreen() {
         body: { scope: mealPlanScope, weekStartDate: weekStartKey, dayIndex: activeDay },
         timeoutMs: 45_000,
       });
-      await saveGeneratedMealPlan({
-        weekStartKey,
-        scope: mealPlanScope,
-        targetDayIndex: activeDay,
-        items: Array.isArray(response.data?.mealItems) ? response.data.mealItems : [],
-      });
+      if (!response.data?.planId) throw new Error('Máy chủ chưa xác nhận đã lưu thực đơn.');
+      await invalidateResources('meals', 'home', 'quota');
       setIsMealPlanModalVisible(false);
       await load();
     } catch (cause) {

@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 import { adminSupabase, supabase } from './config/Supabase';
 import { requireAdmin, requireAuth } from './auth/middleware';
 import { type TrainingPrescription } from './lib/TrainingPrescription';
+import { toMondayWeekKey } from './lib/weekKey';
 import { synchronizeTrainingProfileContext } from './services/trainingProfileContextService';
 import { detectIntent, extractDayIndexFromText, getResponseModeForIntent, normalizeVietnameseText as normalizeVietForChat } from './services/ai/aiRouterService';
 import { aiChatService } from './services/ai/aiChatService';
@@ -679,8 +680,9 @@ const toDayOfWeekIndex = (value: unknown): number => {
   return 0;
 };
 
-const normalizeAiPlanPayload = (raw: any, options: { requireMealPlan?: boolean } = {}): NormalizedAiPlan => {
+const normalizeAiPlanPayload = (raw: any, options: { requireMealPlan?: boolean; requireWorkoutPlan?: boolean } = {}): NormalizedAiPlan => {
   const requireMealPlan = options.requireMealPlan ?? true;
+  const requireWorkoutPlan = options.requireWorkoutPlan ?? true;
   const workout = raw?.workout_plan || {};
   const meal = raw?.meal_plan || {};
   const workoutDays = Array.isArray(workout.days) ? workout.days : [];
@@ -731,8 +733,8 @@ const normalizeAiPlanPayload = (raw: any, options: { requireMealPlan?: boolean }
     };
   });
 
-  if (normalizedWorkoutDays.length === 0 || (requireMealPlan && normalizedMealDays.length === 0)) {
-    throw new Error(requireMealPlan ? 'AI JSON missing workout_plan.days or meal_plan.days' : 'AI JSON missing workout_plan.days');
+  if ((requireWorkoutPlan && normalizedWorkoutDays.length === 0) || (requireMealPlan && normalizedMealDays.length === 0)) {
+    throw new Error('AI JSON missing a required weekly plan');
   }
 
   return {
@@ -837,10 +839,11 @@ const getDayName = (dayIndex: number) => {
 // and assign training sessions starting directly on TODAY.
 const startWorkoutPlanOnCreationDay = (
   workoutPlan: NormalizedAiPlan['workoutPlan'],
-  _planStartKey?: string,
+  planStartKey?: string,
 ) => {
   const todayKey = getVietnamDateKey();
   const todayDate = new Date(`${todayKey}T00:00:00`);
+  if (planStartKey && planStartKey !== toMondayWeekKey(todayKey)) return workoutPlan;
   const day = todayDate.getDay();
   const todayDayIndex = day === 0 ? 6 : day - 1; // 0=Mon, 1=Tue, ..., 6=Sun
 
@@ -1412,7 +1415,7 @@ const toAiProviderRequestError = (message: unknown) => {
   });
 };
 
-const hasExistingWeeklyCoachPlan = async (userId: string, weekStartKey: string) => {
+const getExistingWeeklyCoachPlans = async (userId: string, weekStartKey: string) => {
   const [workoutRes, foodRes] = await Promise.all([
     supabase
       .from('weekly_plans')
@@ -1433,7 +1436,10 @@ const hasExistingWeeklyCoachPlan = async (userId: string, weekStartKey: string) 
   if (workoutRes.error) throw workoutRes.error;
   if (foodRes.error) throw foodRes.error;
 
-  return Boolean(workoutRes.data?.length || foodRes.data?.length);
+  return {
+    workoutPlanId: workoutRes.data?.[0]?.id ?? null,
+    foodPlanId: foodRes.data?.[0]?.id ?? null,
+  };
 };
 
 const getLatestCoachPlanCycleStart = async (userId: string): Promise<string | null> => {
@@ -1469,8 +1475,11 @@ async function generateWeeklyCoachPlanForUser(params: {
   userId: string;
   weekStartKey: string;
   premiumOnly?: boolean;
+  existingPlans?: { workoutPlanId: string | null; foodPlanId: string | null };
 }) {
-  const { userId, weekStartKey, premiumOnly = false } = params;
+  const { userId, weekStartKey, premiumOnly = false, existingPlans } = params;
+  const needsWorkout = !existingPlans?.workoutPlanId;
+  const needsMeal = !existingPlans?.foodPlanId;
 
   const [
     profileRes,
@@ -1757,34 +1766,34 @@ JSON schema (fixed):
     parseJsonFromAiText(groqResult.choices?.[0]?.message?.content || ''),
     exerciseReferenceIds,
   );
-  const proposalValidation = validateExerciseProposal(parsed, eligibilityContext, exercises, {
-    allowEmpty: true,
-    requireSevenDays: true,
-  });
-  if (!proposalValidation.valid) {
-    throw new ApiRequestError(422, {
-      error: 'AI workout proposal contains an ineligible or invalid exercise.',
-      details: proposalValidation.errors,
+  if (needsWorkout) {
+    const proposalValidation = validateExerciseProposal(parsed, eligibilityContext, exercises, {
+      allowEmpty: true,
+      requireSevenDays: true,
     });
+    if (!proposalValidation.valid) {
+      throw new ApiRequestError(422, {
+        error: 'AI workout proposal contains an ineligible or invalid exercise.',
+        details: proposalValidation.errors,
+      });
+    }
   }
-  const normalizedPlan = normalizeAiPlanPayload(parsed);
-  const guardedWorkout = sanitizeWorkoutPlanForUser(
-    normalizedPlan.workoutPlan,
-    safetyContext,
-    exerciseById
-  );
-  if (guardedWorkout.removedCount > 0) {
-    throw new ApiRequestError(422, {
-      error: 'AI workout proposal failed safety revalidation.',
-      details: guardedWorkout.warnings,
-    });
+  const normalizedPlan = normalizeAiPlanPayload(parsed, { requireWorkoutPlan: needsWorkout, requireMealPlan: needsMeal });
+  if (needsWorkout) {
+    const guardedWorkout = sanitizeWorkoutPlanForUser(normalizedPlan.workoutPlan, safetyContext, exerciseById);
+    if (guardedWorkout.removedCount > 0) {
+      throw new ApiRequestError(422, {
+        error: 'AI workout proposal failed safety revalidation.',
+        details: guardedWorkout.warnings,
+      });
+    }
+    normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
+    normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
   }
-  normalizedPlan.workoutPlan = enforceTrainingPrescription(guardedWorkout.workoutPlan, trainingPrescription);
-  normalizedPlan.workoutPlan = startWorkoutPlanOnCreationDay(normalizedPlan.workoutPlan, weekStartKey);
   if (Number(lifestyle.target_calories || 0) > 0) {
     normalizedPlan.mealPlan = { ...normalizedPlan.mealPlan, target_calories: Math.round(Number(lifestyle.target_calories)) };
   }
-  if (recipeMode) {
+  if (needsMeal && recipeMode) {
     const dayByIndex = new Map(normalizedPlan.mealPlan.days.map((day) => [Number(day.day_of_week), day]));
     if (dayByIndex.size !== 7 || Array.from({ length: 7 }, (_, index) => !dayByIndex.has(index)).some(Boolean)) {
       throw new ApiRequestError(422, { error: 'AI recipe proposal must contain exactly one valid entry for every day.' });
@@ -1795,7 +1804,7 @@ JSON schema (fixed):
       day.meals = proposal.meals.map((item) => ({ ...item, food_ids: [], quantities: [], total_calories: 0 }));
       day.is_rest_day = false;
     }
-  } else {
+  } else if (needsMeal) {
     normalizedPlan.mealPlan = ensureSevenDayMealPlan(normalizedPlan.mealPlan);
     normalizedPlan.mealPlan = startMealPlanOnCreationDay(normalizedPlan.mealPlan, weekStartKey);
   }
@@ -1803,7 +1812,7 @@ JSON schema (fixed):
   const weeklyPlanId = crypto.randomUUID();
 
   const workoutRows: any[] = [];
-  for (const day of normalizedPlan.workoutPlan.days || []) {
+  for (const day of needsWorkout ? normalizedPlan.workoutPlan.days || [] : []) {
     const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
     if (day.is_rest_day || !Array.isArray(day.exercises) || day.exercises.length === 0) {
       workoutRows.push({
@@ -1862,7 +1871,7 @@ JSON schema (fixed):
 
   const mealRows: any[] = [];
   const allowedMealTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
-  for (const day of normalizedPlan.mealPlan.days || []) {
+  for (const day of needsMeal ? normalizedPlan.mealPlan.days || [] : []) {
     const dayIndex = Math.max(0, Math.min(6, Number(day.day_of_week) || 0));
     if (day.is_rest_day && (!Array.isArray(day.meals) || day.meals.length === 0)) {
       mealRows.push({
@@ -1920,19 +1929,21 @@ JSON schema (fixed):
   }
   const publication = await supabase.rpc('publish_coach_plan_atomically', {
     p_user_id: userId, p_week_start: weekStartKey,
-    p_workout_id: weeklyPlanId, p_workout_meta: { name: normalizedPlan.workoutPlan.plan_name || 'AI Coach Week Plan', explanation: truncateText(normalizedPlan.workoutPlan.explanation || '', 500) },
-    p_workout_rows: workoutRows,
-    p_meal_id: foodPlanId, p_meal_meta: { name: 'AI Coach Meal Plan', explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500) },
-    p_meal_rows: mealRows, p_source: premiumOnly ? 'premium_auto_generate' : 'ai_coach_generate',
+    p_workout_id: existingPlans?.workoutPlanId ? null : weeklyPlanId,
+    p_workout_meta: existingPlans?.workoutPlanId ? null : { name: normalizedPlan.workoutPlan.plan_name || 'AI Coach Week Plan', explanation: truncateText(normalizedPlan.workoutPlan.explanation || '', 500) },
+    p_workout_rows: existingPlans?.workoutPlanId ? null : workoutRows,
+    p_meal_id: existingPlans?.foodPlanId ? null : foodPlanId,
+    p_meal_meta: existingPlans?.foodPlanId ? null : { name: 'AI Coach Meal Plan', explanation: truncateText(normalizedPlan.mealPlan.explanation || '', 500) },
+    p_meal_rows: existingPlans?.foodPlanId ? null : mealRows, p_source: premiumOnly ? 'premium_auto_generate' : 'ai_coach_generate',
     p_safety: { profile: profile.updated_at, health: health.updated_at ?? null, lifestyle: lifestyle.updated_at ?? null },
   });
   if (publication.error) throw publication.error;
 
   return {
-    weeklyPlanId,
-    foodPlanId,
-    workoutItems: workoutRows.length,
-    mealItems: mealRows.length,
+    weeklyPlanId: existingPlans?.workoutPlanId ?? weeklyPlanId,
+    foodPlanId: existingPlans?.foodPlanId ?? foodPlanId,
+    workoutItems: existingPlans?.workoutPlanId ? 0 : workoutRows.length,
+    mealItems: existingPlans?.foodPlanId ? 0 : mealRows.length,
     weekStartDate: weekStartKey,
     membershipTier: accessState.membershipTier,
     aiQuota: buildAiQuotaSnapshot(accessState, premiumOnly ? undefined : 'planGenerations'),
@@ -1945,7 +1956,7 @@ JSON schema (fixed):
 
 export async function runPremiumMondayAutoPlanner() {
   const todayKey = getVietnamDateKey();
-  const weekStartKey = todayKey;
+  const weekStartKey = toMondayWeekKey(todayKey)!;
   const premiumProfilesRes = await supabase
     .from('profiles')
     .select('id, full_name')
@@ -1986,22 +1997,22 @@ export async function runPremiumMondayAutoPlanner() {
 
     try {
       if (!await hasAiDataConsent(userId)) { result.skippedWithoutConsent += 1; continue; }
-      const alreadyHasPlan = await hasExistingWeeklyCoachPlan(userId, weekStartKey);
-      if (alreadyHasPlan) {
+      const existingPlans = await getExistingWeeklyCoachPlans(userId, weekStartKey);
+      if (existingPlans.workoutPlanId && existingPlans.foodPlanId) {
         result.skippedExisting += 1;
         continue;
       }
 
       const latestCycleStart = await getLatestCoachPlanCycleStart(userId);
-      if (!latestCycleStart) {
+      if (!latestCycleStart && !existingPlans.workoutPlanId && !existingPlans.foodPlanId) {
         // Plus/Pro continues the seven-day plan the member already received;
         // it does not silently create a first plan before onboarding is done.
         result.skippedWithoutPriorPlan += 1;
         continue;
       }
 
-      const nextCycleDate = addDaysToDateKey(latestCycleStart, 7);
-      if (todayKey < nextCycleDate) {
+      const nextCycleDate = latestCycleStart ? addDaysToDateKey(latestCycleStart, 7) : null;
+      if (!existingPlans.workoutPlanId && !existingPlans.foodPlanId && nextCycleDate && todayKey < nextCycleDate) {
         result.skippedNotDue += 1;
         continue;
       }
@@ -2010,6 +2021,7 @@ export async function runPremiumMondayAutoPlanner() {
         userId,
         weekStartKey,
         premiumOnly: true,
+        existingPlans,
       });
       result.generated += 1;
     } catch (error: any) {
@@ -2137,6 +2149,8 @@ app.get('/ready', async (_req, res) => {
       checks: {
         environment: 'missing_required_variables',
         database: 'skipped',
+        schema: 'skipped',
+        securityPatch: 'skipped',
       },
     });
   }
@@ -2150,23 +2164,32 @@ app.get('/ready', async (_req, res) => {
       readinessQuery, adminSupabase.rpc('production_schema_version'),
       adminSupabase.rpc('production_security_patch_version'),
     ]), getReadyTimeoutMs());
-    if (database.error || schema.error || schema.data !== 20261026 || securityPatch.error || securityPatch.data !== 1) throw new Error('Database schema unavailable');
-
-    return res.status(200).json({
-      status: 'ready',
-      checks: {
-        environment: 'ok',
-        database: 'ok',
-      },
-    });
+    const checks = {
+      environment: 'ok',
+      database: database.error ? 'unavailable' : 'ok',
+      schema: schema.error ? (schema.error.code === 'PGRST202' ? 'migration_required' : 'unavailable') : schema.data === 20261026 ? 'ok' : 'outdated',
+      securityPatch: securityPatch.error ? (securityPatch.error.code === 'PGRST202' ? 'migration_required' : 'unavailable') : securityPatch.data === 1 ? 'ok' : 'outdated',
+    };
+    const ready = checks.database === 'ok' && checks.schema === 'ok' && checks.securityPatch === 'ok';
+    if (!ready) {
+      const failedCheck = (['database', 'schema', 'securityPatch'] as const).find((name) => checks[name] !== 'ok')!;
+      logOperational({
+        level: 'error', event: 'readiness_failed', status: checks[failedCheck],
+        errorCode: `READINESS_${failedCheck.toUpperCase()}_${checks[failedCheck].toUpperCase()}`,
+        message: JSON.stringify({ databaseCode: database.error?.code, schemaCode: schema.error?.code, securityPatchCode: securityPatch.error?.code }),
+      });
+    }
+    return res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not_ready', checks });
   } catch (error) {
     const failureReason = error instanceof ReadinessTimeoutError ? 'timeout' : 'unavailable';
-    logOperational({ level: 'error', event: 'readiness_failed', status: failureReason, errorCode: failureReason === 'timeout' ? 'READINESS_TIMEOUT' : 'READINESS_UNAVAILABLE', message: 'Supabase connectivity check failed' });
+    logOperational({ level: 'error', event: 'readiness_failed', status: failureReason, errorCode: failureReason === 'timeout' ? 'READINESS_TIMEOUT' : 'READINESS_UNAVAILABLE', message: error });
     return res.status(503).json({
       status: 'not_ready',
       checks: {
         environment: 'ok',
         database: 'unavailable',
+        schema: 'unknown',
+        securityPatch: 'unknown',
       },
     });
   }

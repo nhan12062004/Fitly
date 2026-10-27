@@ -127,6 +127,26 @@ describe('production security migrations', () => {
     expect((await value(`select plan_status from weekly_plans where id=$1`,[firstId])).plan_status).toBe('adjusted');
   });
 
+  it('publishes only the missing half of a weekly plan', async () => {
+    const mealId = '40000000-0000-4000-8000-000000000001';
+    const workoutId = '40000000-0000-4000-8000-000000000002';
+    const mealRows = [{ day_of_week: 0, meal_type: 'breakfast', order_index: 0, is_rest_day: true }];
+    const workoutRows = [{ day_of_week: 0, order_index: 0, is_rest_day: true }];
+    const publish = (userId: string, workout: string | null, meal: string | null) => value(
+      `select public.publish_coach_plan_atomically($1,'2026-10-26',$2,'{"name":"Training"}',$3,$4,'{"name":"Meals"}',$5,'premium_auto_generate',jsonb_build_object('profile',(select updated_at from profiles where id=$1)))`,
+      [userId, workout, workout ? JSON.stringify(workoutRows) : null, meal, meal ? JSON.stringify(mealRows) : null],
+    );
+    await publish(A, null, mealId);
+    await publish(A, workoutId, null);
+    expect((await value(`select id from weekly_food_plans where user_id=$1 and plan_status='active'`, [A])).id).toBe(mealId);
+    expect((await value(`select id from weekly_plans where user_id=$1 and plan_status='active'`, [A])).id).toBe(workoutId);
+
+    await publish(B, workoutId.replace(/2$/, '3'), null);
+    await publish(B, null, mealId.replace(/1$/, '4'));
+    expect((await value(`select count(*)::int n from weekly_plans where user_id=$1 and plan_status='active'`, [B])).n).toBe(1);
+    expect((await value(`select count(*)::int n from weekly_food_plans where user_id=$1 and plan_status='active'`, [B])).n).toBe(1);
+  });
+
   it('saves a survey in one transaction and rejects attempts to supply system fields', async () => {
     await asUser(A);
     const profile = {full_name:'Updated',gender:'Nam',birthday:'1995-01-01'};

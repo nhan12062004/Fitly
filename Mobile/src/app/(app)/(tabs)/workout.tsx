@@ -8,7 +8,7 @@ import { AppIcon } from '@/components/ui/app-icon';
 import { Screen } from '@/components/ui/screen';
 import { ApiClientError, apiRequest } from '@/lib/api-client';
 import { openInitialAssessment } from '@/lib/assessment';
-import { loadTodayWorkout } from '@/lib/fitness-read-model';
+import { loadTodayWorkout, loadTodayWorkoutPlanStatus } from '@/lib/fitness-read-model';
 import { tokens } from '@/theme/tokens';
 
 const weekLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
@@ -36,6 +36,7 @@ export default function WorkoutScreen() {
   const todayKey = useTodayKey();
   const creatingRef = useRef(false);
   const resource = useResource('workout', loadTodayWorkout);
+  const planStatus = useResource('workout-plan-status', loadTodayWorkoutPlanStatus);
   const quota = useResource('quota', () => apiRequest<{ membershipTier: 'free' | 'plus' | 'pro'; canGenerate: boolean }>('/api/ai/quota'));
   const { state, refreshing, refresh, load, errorMessage: error } = resource;
   const items = resource.data ?? [];
@@ -54,15 +55,16 @@ export default function WorkoutScreen() {
   const weekDates = Array.from({ length: 7 }, (_, index) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - mondayOffset + index));
   const calendarWeeks = buildMonthWeeks(today);
   const hasWorkout = items.length > 0;
+  const isRestDay = !hasWorkout && planStatus.data === 'rest_day';
   const completedSets = items.reduce((total, item) => total + item.completedSets, 0);
   const totalSets = items.reduce((total, item) => total + item.totalSets, 0);
   const remainingSets = Math.max(totalSets - completedSets, 0);
   const monthLabel = `Tháng ${today.getMonth() + 1}, ${today.getFullYear()}`;
   const isWorkoutComplete = hasWorkout && totalSets > 0 && remainingSets === 0;
-  const workoutStatus = isWorkoutComplete ? 'Đã hoàn thành hôm nay' : hasWorkout ? 'Sẵn sàng bắt đầu' : 'Ngày tập linh hoạt';
-  const workoutHeadline = isWorkoutComplete ? 'Bạn đã hoàn thành\nrất tốt.' : hasWorkout ? 'Tập trung vào\nmục tiêu hôm nay.' : 'Tập theo cách\nbạn muốn.';
-  const workoutStateLabel = isWorkoutComplete ? 'Hoàn thành' : completedSets > 0 ? 'Đang tập' : hasWorkout ? 'Sẵn sàng' : 'Tự do';
-  const workoutSupportingText = isWorkoutComplete ? 'Toàn bộ bài tập hôm nay đã được đánh dấu hoàn thành.' : hasWorkout ? `Còn ${remainingSets} set để hoàn thành mục tiêu hôm nay.` : needsInitialPlan ? 'Hoàn tất khảo sát ban đầu trên Fitly web để nhận lịch tập và thực đơn Free 7 ngày.' : isFree ? 'Gói Free chỉ nhận lịch tập 7 ngày một lần khi hoàn tất khảo sát. Nâng cấp để tạo lịch mới.' : canCreateNewWorkout ? 'Tạo một lịch tập phù hợp với mục tiêu và thời gian của bạn.' : 'Đang kiểm tra quyền tạo lịch tập của bạn.';
+  const workoutStatus = isWorkoutComplete ? 'Đã hoàn thành hôm nay' : hasWorkout ? 'Sẵn sàng bắt đầu' : isRestDay ? 'Ngày nghỉ theo lịch' : 'Ngày tập linh hoạt';
+  const workoutHeadline = isWorkoutComplete ? 'Bạn đã hoàn thành\nrất tốt.' : hasWorkout ? 'Tập trung vào\nmục tiêu hôm nay.' : isRestDay ? 'Hôm nay là\nngày nghỉ.' : 'Tập theo cách\nbạn muốn.';
+  const workoutStateLabel = isWorkoutComplete ? 'Hoàn thành' : completedSets > 0 ? 'Đang tập' : hasWorkout ? 'Sẵn sàng' : isRestDay ? 'Nghỉ' : 'Tự do';
+  const workoutSupportingText = isWorkoutComplete ? 'Toàn bộ bài tập hôm nay đã được đánh dấu hoàn thành.' : hasWorkout ? `Còn ${remainingSets} set để hoàn thành mục tiêu hôm nay.` : isRestDay ? 'Lịch tập tuần dành hôm nay để phục hồi. Thực đơn vẫn được lên cho mỗi ngày.' : needsInitialPlan ? 'Hoàn tất khảo sát ban đầu trên Fitly web để nhận lịch tập và thực đơn Free 7 ngày.' : isFree ? 'Gói Free chỉ nhận lịch tập 7 ngày một lần khi hoàn tất khảo sát. Nâng cấp để tạo lịch mới.' : canCreateNewWorkout ? 'Tạo một lịch tập phù hợp với mục tiêu và thời gian của bạn.' : 'Đang kiểm tra quyền tạo lịch tập của bạn.';
 
   const closePlanModal = () => {
     if (isCreatingPlan) return;
@@ -120,13 +122,13 @@ export default function WorkoutScreen() {
           <View style={styles.heroStat}><Text style={styles.heroStatLabel}>Tiến độ</Text><Text style={styles.heroStatValue}>{totalSets ? `${completedSets}/${totalSets} set` : '0/0 set'}</Text></View>
           <View style={styles.heroStat}><Text style={styles.heroStatLabel}>Trạng thái</Text><Text numberOfLines={1} style={styles.heroStatValue}>{workoutStateLabel}</Text></View>
         </View>
-        <Pressable disabled={!hasWorkout && !quota.data} onPress={() => hasWorkout ? router.push({ pathname: '/workout/[id]', params: { id: items[0]?.id } }) : openWorkoutPlanAction()} style={styles.heroAction}>
+        {!isRestDay ? <Pressable disabled={!hasWorkout && !quota.data} onPress={() => hasWorkout ? router.push({ pathname: '/workout/[id]', params: { id: items[0]?.id } }) : openWorkoutPlanAction()} style={styles.heroAction}>
           <Text style={styles.heroActionText}>{hasWorkout ? 'Bắt đầu buổi tập' : needsInitialPlan ? 'Hoàn tất khảo sát ban đầu' : isFree ? 'Xem gói Plus / Pro' : canCreateNewWorkout ? 'Tạo lịch với AI Coach' : 'Đang kiểm tra gói'}</Text><AppIcon name="arrow-right" color={tokens.colors.canvas} size={18} />
-        </Pressable>
+        </Pressable> : null}
       </View>
 
       <View style={styles.weekSection}>
-        <View style={styles.sectionHeading}><View><Text style={styles.sectionKicker}>NHỊP ĐỘ TRONG TUẦN</Text><Text style={styles.sectionTitle}>Tuần này</Text></View><Text style={styles.weekSummary}>{hasWorkout ? '1 buổi đã lên lịch' : 'Chưa có buổi nào'}</Text></View>
+        <View style={styles.sectionHeading}><View><Text style={styles.sectionKicker}>NHỊP ĐỘ TRONG TUẦN</Text><Text style={styles.sectionTitle}>Tuần này</Text></View><Text style={styles.weekSummary}>{hasWorkout ? '1 buổi đã lên lịch' : isRestDay ? 'Hôm nay nghỉ tập' : 'Chưa có buổi nào'}</Text></View>
         <View style={styles.weekTrack}>
           {weekDates.map((date, index) => {
             const active = date.toDateString() === today.toDateString();
@@ -138,7 +140,7 @@ export default function WorkoutScreen() {
       <View style={styles.workoutSection}>
         <View style={styles.sectionHeading}><View><Text style={styles.sectionKicker}>LỘ TRÌNH HÔM NAY</Text><Text style={styles.sectionTitle}>Buổi tập của bạn</Text></View><View style={styles.remainingChip}><Text style={styles.remainingChipText}>{totalSets ? `${remainingSets} set còn lại` : 'Chưa có lịch'}</Text></View></View>
         {state === 'loading' && !refreshing ? <View style={styles.loadingPanel}><ActivityIndicator color={tokens.colors.lime} /></View> : null}
-        {state !== 'loading' && !hasWorkout ? <View style={styles.noWorkoutPanel}><View style={styles.noWorkoutIcon}><AppIcon name="coach" color={tokens.colors.lime} size={22} /></View><View style={styles.noWorkoutCopy}><Text style={styles.noWorkoutTitle}>Lịch tập vẫn đang trống</Text><Text style={styles.noWorkoutText}>{needsInitialPlan ? 'Mở khảo sát trên Fitly web để nhận lịch đầu tiên.' : isFree ? 'Lịch Free được tạo một lần lúc hoàn tất khảo sát. Nâng cấp để tạo lịch mới.' : canCreateNewWorkout ? 'AI Coach sẽ tạo bài tập và số set phù hợp cho hôm nay.' : 'Đang kiểm tra quyền tạo lịch tập.'}</Text></View><Pressable disabled={!quota.data} onPress={openWorkoutPlanAction} style={styles.noWorkoutButton}><AppIcon name="arrow-right" color={tokens.colors.canvas} size={17} /></Pressable></View> : null}
+        {state !== 'loading' && !hasWorkout ? <View style={styles.noWorkoutPanel}><View style={styles.noWorkoutIcon}><AppIcon name="coach" color={tokens.colors.lime} size={22} /></View><View style={styles.noWorkoutCopy}><Text style={styles.noWorkoutTitle}>{isRestDay ? 'Hôm nay là ngày nghỉ' : 'Lịch tập vẫn đang trống'}</Text><Text style={styles.noWorkoutText}>{isRestDay ? 'Kế hoạch tuần không xếp bài tập cho hôm nay. Bạn vẫn có thực đơn vì lịch ăn được lên đủ 7 ngày.' : needsInitialPlan ? 'Mở khảo sát trên Fitly web để nhận lịch đầu tiên.' : isFree ? 'Lịch Free được tạo một lần lúc hoàn tất khảo sát. Nâng cấp để tạo lịch mới.' : canCreateNewWorkout ? 'AI Coach sẽ tạo bài tập và số set phù hợp cho hôm nay.' : 'Đang kiểm tra quyền tạo lịch tập.'}</Text></View>{!isRestDay ? <Pressable disabled={!quota.data} onPress={openWorkoutPlanAction} style={styles.noWorkoutButton}><AppIcon name="arrow-right" color={tokens.colors.canvas} size={17} /></Pressable> : null}</View> : null}
         {items.map((item, index) => (
           <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Xem chi tiết ${item.name}`} onPress={() => router.push(`/workout/detail/${item.id}` as never)} style={({ pressed }) => [styles.exerciseCard, pressed && styles.exerciseCardPressed]}>
             <ExercisePreview source={item.videoUrl} name={item.name} />

@@ -411,6 +411,7 @@ export default function Exercises() {
   const selectedMonthEndKey = useMemo(() => toDateKey(selectedMonthEnd), [selectedMonthEnd]);
   const monthCalendarDates = useMemo(() => getMonthCalendarDates(selectedMonthStart), [selectedMonthStart]);
   const isTodaySelected = selectedDateKey === vnToday;
+  const isSelectedRestDay = calendarStatsByDate[selectedDateKey]?.isRestDay === true;
   const selectedDayTitle = isTodaySelected
     ? 'Bài tập hôm nay'
     : `Bài tập ${DAYS[selectedDayId]?.full.toLowerCase() || ''}`;
@@ -1120,16 +1121,17 @@ export default function Exercises() {
                 <AlertCircle className="h-6 w-6" />
               </span>
               <p>
-                {isTodaySelected ? 'Chưa có bài tập nào hôm nay.' : 'Chưa có bài tập cho ngày này.'}
+                {isSelectedRestDay ? 'Ngày nghỉ theo lịch tập tuần.' : isTodaySelected ? 'Chưa có bài tập nào hôm nay.' : 'Chưa có bài tập cho ngày này.'}
               </p>
-              {isTodaySelected ? (
+              {isSelectedRestDay ? <p className="today-workout-empty-note">Lịch ăn vẫn có món mỗi ngày; lịch tập dành ngày này để phục hồi.</p> : null}
+              {isTodaySelected && !isSelectedRestDay ? (
                 <p className="today-workout-empty-note">
                   {membershipTier === 'free'
                     ? 'Gói Free nhận lịch tập 7 ngày một lần khi hoàn tất khảo sát ban đầu. Nâng cấp Plus hoặc Pro để tạo lịch mới.'
                     : 'Tạo lịch tập hôm nay để Fitly sắp xếp bài tập, số hiệp và lần lặp phù hợp với mục tiêu của bạn.'}
                 </p>
               ) : null}
-              {isTodaySelected ? (
+              {isTodaySelected && !isSelectedRestDay ? (
                 <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"
@@ -1151,7 +1153,7 @@ export default function Exercises() {
           <div className="workout-order-header">
             <div className="min-w-0">
               <p className="workout-order-eyebrow">THỨ TỰ BÀI TẬP</p>
-              <h2>{`Ngày ${selectedDayId + 1} · ${selectedDayDateLabel}${session.length === 0 ? ' · Nghỉ' : ''}`}</h2>
+              <h2>{`Ngày ${selectedDayId + 1} · ${selectedDayDateLabel}${session.length === 0 && isSelectedRestDay ? ' · Nghỉ' : ''}`}</h2>
             </div>
             {session.length > 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

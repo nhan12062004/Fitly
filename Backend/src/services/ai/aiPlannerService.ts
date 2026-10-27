@@ -11,35 +11,23 @@ export const aiPlannerService = async (intent: AIIntent, input: PlannerInput): P
 
   if (intent === 'create_workout_plan') {
     return {
-      reply: `Minh se tao lich tap tuan moi voi khoang ${input.weeklyWorkouts} buoi, uu tien muc tieu ${goal}.`,
+      reply: `Bạn có thể dùng nút Tạo kế hoạch trong AI Coach để tạo lịch tập tuần mới khoảng ${input.weeklyWorkouts} buổi, theo mục tiêu ${goal}.`,
       intent,
-      responseMode: 'plan_edit',
+      responseMode: 'coach_advice',
       confidence: 0.78,
-      actionRequired: true,
-      actionType: 'create_weekly_workout_plan',
-      actionPayload: {
-        summary: 'Generate a new weekly workout plan from latest profile and constraints.',
-        details: {
-          weekly_workouts: input.weeklyWorkouts,
-          fitness_goal: goal
-        }
-      }
+      actionRequired: false,
+      actionType: null,
+      actionPayload: null
     };
   }
 
   return {
-    reply: `Minh se tao thuc don tuan moi voi ${input.mealsPerDay} bua/ngay, bam sat muc tieu ${goal}.`,
+    reply: `Bạn có thể mở Thực đơn và chọn Tạo thực đơn AI để tạo món cho ngày hoặc cả tuần, với ${input.mealsPerDay} bữa/ngày theo mục tiêu ${goal}.`,
     intent,
-    responseMode: 'plan_edit',
+    responseMode: 'coach_advice',
     confidence: 0.78,
-    actionRequired: true,
-    actionType: 'create_weekly_meal_plan',
-    actionPayload: {
-      summary: 'Generate a new weekly meal plan from latest profile and nutrition targets.',
-      details: {
-        meals_per_day: input.mealsPerDay,
-        fitness_goal: goal
-      }
-    }
+    actionRequired: false,
+    actionType: null,
+    actionPayload: null
   };
 };

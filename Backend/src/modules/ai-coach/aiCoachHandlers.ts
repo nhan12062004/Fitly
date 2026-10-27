@@ -5,6 +5,9 @@ import { z } from 'zod';
 import { AppError, ValidationError } from '../../http/errors';
 import { callGroqJson } from '../../services/ai/groqJsonService';
 import { normalizeTrainingLocation } from '../../../../shared/exerciseCatalog';
+import { toMondayWeekKey } from '../../lib/weekKey';
+import { aiOperationContext } from '../../lib/aiExecutionContext';
+import { persistGeneratedMealPlan } from '../../services/ai/generatedMealPlanService';
 
 const dailyWorkoutOptionsSchema = z.object({
   goal: z.enum(['Giảm mỡ', 'Tăng cơ', 'Sức khỏe']).optional(),
@@ -184,48 +187,32 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
     const requestDayIndex = isValidDayIndex(Number(selectedDayIndex)) ? Number(selectedDayIndex) : null;
     const referencedDayIndex = extractDayIndexFromText(normalizedMessage, todayDayIndex);
     const dayIndex = referencedDayIndex ?? requestDayIndex ?? todayDayIndex;
-    const requestedWeekStartDate = String(weekStartDate || '').trim() || null;
+    const requestedWeekStartDate = toMondayWeekKey(weekStartDate || todayKey);
+    if (!requestedWeekStartDate) return res.status(400).json({ error: 'weekStartDate must be a valid calendar date' });
+    const isCurrentWeek = requestedWeekStartDate === toMondayWeekKey(todayKey);
     let trackingActionLog = '';
     let todayStatusContext = '';
     let coachDataContext = '';
 
     incrementMetric('totalChatRequests');
-    const weeklyPlanQuery = requestedWeekStartDate
-      ? supabase
-          .from('weekly_plans')
-          .select('id, weekly_plan_exercises(day_of_week, exercise_id, sets, reps, rest_seconds, weight_kg, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, target_rpe, estimated_kcal, load_instruction, exercises:exercise_id(name, body_part, target_muscle))')
-          .eq('user_id', authUserId)
-          .eq('week_start_date', requestedWeekStartDate)
-          .eq('plan_status', 'active')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : supabase
-          .from('weekly_plans')
-          .select('id, weekly_plan_exercises(day_of_week, exercise_id, sets, reps, rest_seconds, weight_kg, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, target_rpe, estimated_kcal, load_instruction, exercises:exercise_id(name, body_part, target_muscle))')
-          .eq('user_id', authUserId)
-          .eq('plan_status', 'active')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-    const weeklyFoodPlanQuery = requestedWeekStartDate
-      ? supabase
-          .from('weekly_food_plans')
-          .select('id, weekly_food_items(id, day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, recipes:recipe_id(id, name, meal_type, calories, protein, carbs, fat, goal_type, price_level))')
-          .eq('user_id', authUserId)
-          .eq('week_start_date', requestedWeekStartDate)
-          .eq('plan_status', 'active')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : supabase
-          .from('weekly_food_plans')
-          .select('id, weekly_food_items(id, day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, recipes:recipe_id(id, name, meal_type, calories, protein, carbs, fat, goal_type, price_level))')
-          .eq('user_id', authUserId)
-          .eq('plan_status', 'active')
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+    const weeklyPlanQuery = supabase
+      .from('weekly_plans')
+      .select('id, weekly_plan_exercises(day_of_week, exercise_id, sets, reps, rest_seconds, weight_kg, planned_sets, planned_reps, planned_weight_kg, planned_rest_seconds, target_rpe, estimated_kcal, load_instruction, exercises:exercise_id(name, body_part, target_muscle))')
+      .eq('user_id', authUserId)
+      .eq('week_start_date', requestedWeekStartDate)
+      .eq('plan_status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const weeklyFoodPlanQuery = supabase
+      .from('weekly_food_plans')
+      .select('id, weekly_food_items(id, day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, recipes:recipe_id(id, name, meal_type, calories, protein, carbs, fat, goal_type, price_level))')
+      .eq('user_id', authUserId)
+      .eq('week_start_date', requestedWeekStartDate)
+      .eq('plan_status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
     const [
       todayWorkoutRes,
       todayMealRes,
@@ -346,7 +333,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         day_of_week: todayDayIndex
       }));
     const targetWorkoutRows =
-      dayIndex === todayDayIndex && dailyWorkoutRows.length > 0 ? dailyWorkoutRows : planWorkoutRows;
+      isCurrentWeek && dayIndex === todayDayIndex && dailyWorkoutRows.length > 0 ? dailyWorkoutRows : planWorkoutRows;
     const targetMealRows = mealRows.filter((row: any) => Number(row.day_of_week) === dayIndex && (row.recipe_id || row.food_id));
     const targetWorkoutContext = targetWorkoutRows.map((row: any) => ({
       exercise_id: row.exercise_id,
@@ -475,8 +462,8 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         todayDayIndex: todayDayIndex,
         targetDayIndex: dayIndex,
         targetDayLabel: (() => {
-          if (dayIndex === todayDayIndex) return 'Hôm nay';
-          if (dayIndex === (todayDayIndex + 1) % 7 && /\bmai\b/.test(normalizeVietForChat(normalizedMessage))) return 'Ngày mai';
+          if (isCurrentWeek && dayIndex === todayDayIndex) return 'Hôm nay';
+          if (isCurrentWeek && dayIndex === (todayDayIndex + 1) % 7 && /\bmai\b/.test(normalizeVietForChat(normalizedMessage))) return 'Ngày mai';
           return AI_CHAT_DAY_LABELS[dayIndex] || 'Hôm nay';
         })(),
         profile: profileRes.data || null,
@@ -614,6 +601,10 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
       }).select('id').maybeSingle();
       if (adjustmentInsert.error) {
         console.warn('Failed to save proposed ai adjustment:');
+        normalizedResponse.actionRequired = false;
+        normalizedResponse.actionType = null;
+        normalizedResponse.actionPayload = null;
+        normalizedResponse.reply = 'Mình chưa lưu được đề xuất thay đổi. Bạn vui lòng thử lại.';
       } else {
         adjustmentId = adjustmentInsert.data?.id;
       }
@@ -1373,7 +1364,8 @@ const generateAiWeeklyPlan: RequestHandler = async (req, res, next) => {
     }
     const { weekStartDate } = req.body || {};
     const userId = authUserId;
-    const weekStartKey = weekStartDate || getVietnamDateKey();
+    const weekStartKey = toMondayWeekKey(weekStartDate || getVietnamDateKey());
+    if (!weekStartKey) return res.status(400).json({ error: 'weekStartDate must be a valid calendar date' });
 
     const [
       profileRes,
@@ -1859,24 +1851,37 @@ const generateAiMealPlan: RequestHandler = async (req, res, next) => {
       return res.status(403).json(buildAiQuotaLimitError(accessState, 'mealAdjustments'));
     }
 
-    const scope: AiMealGenerationScope = String(req.body?.scope || '').toLowerCase() === 'week' ? 'week' : 'day';
-    const weekStartKey = req.body?.weekStartDate || getVietnamDateKey();
-    const targetDayIndex = Math.max(0, Math.min(6, Number(req.body?.dayIndex) || 0));
+    const scopeInput = String(req.body?.scope || 'day').toLowerCase();
+    if (scopeInput !== 'day' && scopeInput !== 'week') return res.status(400).json({ error: 'scope must be day or week' });
+    const scope: AiMealGenerationScope = scopeInput;
+    const weekStartKey = toMondayWeekKey(req.body?.weekStartDate || getVietnamDateKey());
+    if (!weekStartKey) return res.status(400).json({ error: 'weekStartDate must be a valid calendar date' });
+    const targetDayIndex = scope === 'day' ? Number(req.body?.dayIndex) : 0;
+    if (!Number.isInteger(targetDayIndex) || targetDayIndex < 0 || targetDayIndex > 6) {
+      return res.status(400).json({ error: 'dayIndex must be an integer between 0 and 6' });
+    }
     const draft = await generateAiMealDraft({ userId, weekStartKey, scope, targetDayIndex });
+    const operationId = aiOperationContext.getStore()?.id;
+    if (!operationId) throw new Error('AI operation context unavailable');
+    const saved = await persistGeneratedMealPlan({
+      userId, weekStartKey, scope, targetDayIndex, generatedRows: draft.rows,
+      safetyVersion: draft.safetyVersion, operationId,
+    });
 
-    await adminSupabase.from('ai_plan_adjustments').insert({
+    const generationRecord = await adminSupabase.from('ai_plan_adjustments').insert({
       user_id: userId,
       plan_type: 'meal',
       source_type: 'ai_meal_generate',
-      old_plan_id: null,
-      new_plan_id: null,
+      old_plan_id: saved.oldPlanId,
+      new_plan_id: saved.planId,
       old_data: {},
-      new_data: { day_index: targetDayIndex, scope },
+      new_data: { day_index: targetDayIndex, scope, plan_id: saved.planId, version: saved.version },
       reason: 'Tạo thực đơn AI cho ngày',
       created_by: 'user',
       status: 'applied',
       applied_at: new Date().toISOString()
     });
+    if (generationRecord.error) console.error('[ai-coach-generate-meal] audit insert failed:', generationRecord.error.code);
     void recordAiQuotaUsage(userId, 'mealAdjustments').catch(() => null);
 
     return res.json({
@@ -1885,15 +1890,17 @@ const generateAiMealPlan: RequestHandler = async (req, res, next) => {
         scope,
         weekStartDate: weekStartKey,
         dayIndex: scope === 'day' ? targetDayIndex : null,
+        planId: saved.planId,
+        version: saved.version,
         mealItems: draft.rows,
         nutritionTargets: draft.nutritionTargets,
         ai_json: { meal_plan: draft.mealPlan },
       },
     });
   } catch (error: any) {
-    console.error('[ai-coach-generate-meal] failed:');
+    console.error('[ai-coach-generate-meal] failed:', error?.code || error?.name || 'unknown');
     if (error instanceof ApiRequestError) return res.status(error.status).json(error.body);
-    return res.status(500).json({ code: 'AI_MEAL_GENERATION_FAILED', error: 'Không thể tạo thực đơn AI lúc này.' });
+    return next(error);
   }
 };
 
@@ -1908,8 +1915,8 @@ const generateAiOnboardingMealPlan: RequestHandler = async (req, res, next) => {
     const userId = await getAuthUserId(req);
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const rawWeekStartKey = String(req.body?.weekStartDate || getVietnamDateKey()).trim();
-    const weekStartKey = getWeekStartKey(new Date(`${rawWeekStartKey}T00:00:00`));
+    const weekStartKey = toMondayWeekKey(req.body?.weekStartDate || getVietnamDateKey());
+    if (!weekStartKey) return res.status(400).json({ error: 'weekStartDate must be a valid calendar date' });
     const [profileRes, workoutPlanRes, foodPlanRes] = await Promise.all([
       supabase.from('profiles').select('id, membership_tier, membership_expires_at, created_at').eq('id', userId).maybeSingle(),
       supabase.from('weekly_plans').select('id').eq('user_id', userId).eq('week_start_date', weekStartKey).eq('plan_status', 'active').limit(1),

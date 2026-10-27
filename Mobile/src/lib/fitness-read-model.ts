@@ -1,7 +1,6 @@
 import { apiRequest } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { requireSessionUser } from '@/lib/account-read-model';
-import { invalidateResources } from '@/lib/query-cache';
 
 type ExerciseRelation = {
   name?: string | null;
@@ -48,20 +47,6 @@ export type MealItem = {
   carbs: number | null;
   fat: number | null;
   isRestDay: boolean;
-};
-
-export type GeneratedMealPlanItem = {
-  id?: string | null;
-  day_of_week?: number | null;
-  meal_type?: string | null;
-  recipe_id?: string | null;
-  quantity?: number | null;
-  calories?: number | null;
-  protein?: number | null;
-  carbs?: number | null;
-  fat?: number | null;
-  order_index?: number | null;
-  is_rest_day?: boolean | null;
 };
 
 export type ProfileSnapshot = {
@@ -221,15 +206,45 @@ export const toWorkoutItem = (row: any): WorkoutItem => {
 
 export const loadTodayWorkout = async (): Promise<WorkoutItem[]> => {
   const userId = await requireUserId();
+  const logDate = getVietnamDateKey();
   const { data, error } = await supabase
     .from('daily_exercise_sessions')
     .select('id, exercise_id, sets, actual_sets, reps, weight_kg, rest_seconds, completed_sets, is_completed, order_index, exercises:exercise_id(name, body_part, target_muscle, equipment, difficulty, movement_pattern, video_url, instructions, estimated_duration_seconds)')
     .eq('user_id', userId)
-    .eq('log_date', getVietnamDateKey())
+    .eq('log_date', logDate)
     .order('order_index', { ascending: true });
   if (error) throw error;
 
-  return (data ?? []).map(toWorkoutItem);
+  if (data?.length) return data.map(toWorkoutItem);
+
+  // Weekly workouts are materialized only when the day is opened. The web app
+  // does this already; mobile must do the same before treating the day as empty.
+  const result = await apiRequest<{ exercises?: unknown[] }>('/api/workout/daily-exercises/from-plan', {
+    method: 'POST',
+    body: { logDate },
+  });
+  return (result.exercises ?? []).map(toWorkoutItem);
+};
+
+export const loadTodayWorkoutPlanStatus = async (): Promise<'rest_day' | 'training_day' | 'no_plan'> => {
+  const userId = await requireUserId();
+  const { data: plan, error: planError } = await supabase.from('weekly_plans')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('week_start_date', getVietnamWeekStartKey())
+    .eq('plan_status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (planError) throw planError;
+  if (!plan) return 'no_plan';
+
+  const { data, error } = await supabase.from('weekly_plan_exercises')
+    .select('exercise_id, is_rest_day')
+    .eq('weekly_plan_id', plan.id)
+    .eq('day_of_week', getVietnamDayIndex());
+  if (error) throw error;
+  return (data ?? []).some((item) => item.exercise_id && !item.is_rest_day) ? 'training_day' : 'rest_day';
 };
 
 export const loadTodayMeals = async (): Promise<MealItem[]> => {
@@ -291,62 +306,6 @@ export const hasAnyWeeklyWorkoutPlan = async (): Promise<boolean> => {
     .limit(1);
   if (error) throw error;
   return Boolean(data?.length);
-};
-
-export const saveGeneratedMealPlan = async ({
-  weekStartKey,
-  scope,
-  targetDayIndex,
-  items,
-}: {
-  weekStartKey: string;
-  scope: 'day' | 'week';
-  targetDayIndex: number;
-  items: GeneratedMealPlanItem[];
-}) => {
-  const userId = await requireUserId();
-  const safeTargetDayIndex = Math.max(0, Math.min(6, Math.round(targetDayIndex)));
-  const generatedItems = items.filter((item) => {
-    const dayIndex = Number(item.day_of_week);
-    return Number.isInteger(dayIndex) && dayIndex >= 0 && dayIndex <= 6 && (scope === 'week' || dayIndex === safeTargetDayIndex);
-  });
-  if (generatedItems.length === 0) throw new Error('AI chưa trả về món phù hợp để lưu.');
-
-  const { data: currentPlan, error: currentPlanError } = await supabase
-    .from('weekly_food_plans')
-    .select('id, version')
-    .eq('user_id', userId)
-    .eq('week_start_date', weekStartKey)
-    .eq('plan_status', 'active')
-    .order('updated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (currentPlanError) throw currentPlanError;
-
-  let preservedItems: GeneratedMealPlanItem[] = [];
-  if (scope === 'day' && currentPlan?.id) {
-    const { data, error } = await supabase
-      .from('weekly_food_items')
-      .select('id, day_of_week, meal_type, recipe_id, quantity, calories, protein, carbs, fat, order_index, is_rest_day')
-      .eq('food_plan_id', currentPlan.id)
-      .neq('day_of_week', safeTargetDayIndex);
-    if (error) throw error;
-    preservedItems = data ?? [];
-  }
-
-  const rows = [...preservedItems, ...generatedItems].map((item, index) => ({
-    id: item.id ?? null, day_of_week: Number(item.day_of_week), meal_type: String(item.meal_type || 'lunch'),
-    recipe_id: item.recipe_id ? String(item.recipe_id) : null,
-    quantity: Math.max(0.25, Number(item.quantity) || 1), order_index: index, is_rest_day: Boolean(item.is_rest_day),
-  }));
-  const result = await apiRequest<{ data: { planId: string } }>('/api/meal-plans/save', {
-    method: 'POST', body: {
-      planId: currentPlan?.id ?? null, expectedVersion: currentPlan ? Number(currentPlan.version) : null,
-      name: scope === 'week' ? 'Thực đơn AI 7 ngày' : 'Thực đơn AI hôm nay', weekStartDate: weekStartKey, items: rows,
-    },
-  });
-  void invalidateResources('meals', 'home', 'quota');
-  return result.data.planId;
 };
 
 export const loadProfileSnapshot = async (): Promise<ProfileSnapshot> => {

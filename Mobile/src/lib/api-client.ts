@@ -92,6 +92,7 @@ export const apiRequest = async <T>(path: string, options: ApiRequestOptions = {
     if (!response.ok) throw new ApiClientError(response.status, payload);
     if (options.method && !['GET', 'HEAD'].includes(options.method.toUpperCase())) {
       if (path === '/api/ai/chat') void invalidateResources('home', 'wellness', 'progress', 'quota');
+      else if (path === '/api/workout/daily-exercises/from-plan') void invalidateResources('home', 'progress');
       else if (/workout|apply-adjustment/.test(path)) void invalidateResources('workout', 'meals', 'home', 'progress', 'quota', 'challenges', 'challenge');
       else if (/ai|nutrition/.test(path)) void invalidateResources('quota');
       if (/profile|subscription/.test(path)) void invalidateResources('account', 'profile', 'quota', 'home');
