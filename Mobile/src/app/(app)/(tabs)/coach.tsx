@@ -5,6 +5,7 @@ import { useResource } from '@/hooks/use-resource';
 import { requireSessionUser } from '@/lib/account-read-model';
 import { supabase } from '@/lib/supabase';
 import { ensureAiConsent } from '@/lib/ai-consent';
+import { invalidateResources } from '@/lib/query-cache';
 
 import { ApiClientError, apiRequest } from '@/lib/api-client';
 import { AppIcon } from '@/components/ui/app-icon';
@@ -190,6 +191,7 @@ export default function CoachScreen() {
         const nextQuota = response.aiQuota;
         setQuota((current) => current ? { ...current, aiQuota: nextQuota } : current);
       }
+      await invalidateResources('workout', 'workout-plan-status', 'meals', 'home', 'quota');
       setMessages((current) => current.map((message) => message.adjustmentId === adjustmentId
         ? { ...message, actionRequired: false, content: `${message.content}\n\n${response.alreadyApplied ? 'Đề xuất này đã được áp dụng trước đó.' : 'Đề xuất đã được áp dụng.'}` }
         : message));

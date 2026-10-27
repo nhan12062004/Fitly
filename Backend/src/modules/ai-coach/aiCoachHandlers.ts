@@ -6,6 +6,8 @@ import { AppError, ValidationError } from '../../http/errors';
 import { callGroqJson } from '../../services/ai/groqJsonService';
 import { normalizeTrainingLocation } from '../../../../shared/exerciseCatalog';
 import { toMondayWeekKey } from '../../lib/weekKey';
+import { resolveChatWeekStartKey } from '../../services/ai/aiRouterService';
+import { mergeCoachChatHistory } from '../../services/ai/coachConversationService';
 import { aiOperationContext } from '../../lib/aiExecutionContext';
 import { persistGeneratedMealPlan } from '../../services/ai/generatedMealPlanService';
 
@@ -187,7 +189,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
     const requestDayIndex = isValidDayIndex(Number(selectedDayIndex)) ? Number(selectedDayIndex) : null;
     const referencedDayIndex = extractDayIndexFromText(normalizedMessage, todayDayIndex);
     const dayIndex = referencedDayIndex ?? requestDayIndex ?? todayDayIndex;
-    const requestedWeekStartDate = toMondayWeekKey(weekStartDate || todayKey);
+    const requestedWeekStartDate = resolveChatWeekStartKey(normalizedMessage, todayKey, weekStartDate);
     if (!requestedWeekStartDate) return res.status(400).json({ error: 'weekStartDate must be a valid calendar date' });
     const isCurrentWeek = requestedWeekStartDate === toMondayWeekKey(todayKey);
     let trackingActionLog = '';
@@ -317,12 +319,6 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
       return res.status(403).json(buildAiQuotaLimitError(chatAccessState, 'chatMessages'));
     }
 
-    try {
-      trackingActionLog = (await processNaturalTracking(authUserId, normalizedMessage)).actionLog;
-    } catch (trackingError: any) {
-      console.warn('[ai-chat] natural tracking skipped:');
-    }
-
     const workoutRows = (todayWorkoutRes.data as any)?.weekly_plan_exercises || [];
     const mealRows = (todayMealRes.data as any)?.weekly_food_items || [];
     const planWorkoutRows = workoutRows.filter((row: any) => Number(row.day_of_week) === dayIndex && row.exercise_id);
@@ -377,21 +373,14 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         content: String(item.content || '').trim(),
       }))
       .filter((item: any) => item.content);
-    const mergedChatHistory = [...dbChatHistory, ...normalizedClientHistory]
-      .reduce((items: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>, item) => {
-        const previous = items[items.length - 1];
-        if (!previous || previous.role !== item.role || previous.content !== item.content) {
-          items.push(item);
-        }
-        return items;
-      }, [])
-      .slice(-10);
+    const mergedChatHistory = mergeCoachChatHistory(dbChatHistory, normalizedClientHistory);
 
     const { intent, confidence } = detectIntent(normalizedMessage, {
       todayWorkoutCount: targetWorkoutRows.length,
       todayMealCount: targetMealRows.length,
       todayDayIndex: todayDayIndex,
-      targetDayIndex: dayIndex
+      targetDayIndex: dayIndex,
+      chatHistory: mergedChatHistory,
     });
     detectedIntent = intent;
 
@@ -408,40 +397,52 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         safetyContext: chatSafetyContext
       });
     } else if (intent === 'adjust_meal') {
-      const currentMeal = targetMealRows[0] || null;
-      const mealType = String(currentMeal?.meal_type || 'dinner');
-      const candidateFoodsRes = await supabase
-        .from('recipes')
-        .select('id, name, meal_type, calories, protein, carbs, fat, serving_unit, is_active, price_level, cooking_time_minutes, region')
-        .contains('meal_type', [mealType])
-        .order('created_at', { ascending: false })
-        .limit(300);
-      if (candidateFoodsRes.error) throw candidateFoodsRes.error;
-      const candidateFoods = buildMealPlanningCatalog(candidateFoodsRes.data as any[], {
-        profile: profileRes.data || {},
-        lifestyle: normalizedChatLifestyle,
-        health: healthRes.data || {},
-        mealsPerDay: Number(normalizedChatLifestyle.meals_per_day || 3),
-        recentMealFoodIds: [
-          ...((recentMealLogsRes.data || []) as any[]),
-          ...mealRows,
-        ]
-          .map((item: any) => String(item.recipe_id || item.food_id || ''))
-          .filter((foodId) => foodId && foodId !== String(currentMeal?.recipe_id || currentMeal?.food_id || '')),
-      }, 24);
-
-      aiResponse = await mealAdjusterService({
-        dayOfWeek: dayIndex,
-        currentMeal,
-        candidateFoods: candidateFoods.map((item: any) => ({
-          id: String(item.id),
-          name: String(item.name || ''),
-          calories: item.calories,
-          protein: item.protein,
-          carbs: item.carbs,
-          fat: item.fat
-        }))
+      const normalizedQuestion = normalizeVietForChat(normalizedMessage);
+      const requestedMealType = /\b(bua sang|sang nay|breakfast)\b/.test(normalizedQuestion) ? 'breakfast'
+        : /\b(bua trua|trua nay|lunch)\b/.test(normalizedQuestion) ? 'lunch'
+          : /\b(bua toi|toi nay|dinner)\b/.test(normalizedQuestion) ? 'dinner'
+            : /\b(bua phu|snack)\b/.test(normalizedQuestion) ? 'snack' : null;
+      const namedMeal = targetMealRows.find((row: any) => {
+        const name = normalizeVietForChat(String(row.recipes?.name || ''));
+        return name.length >= 3 && normalizedQuestion.includes(name);
       });
+      const choices = requestedMealType
+        ? targetMealRows.filter((row: any) => row.meal_type === requestedMealType)
+        : targetMealRows;
+      const chosenMeal = namedMeal || (choices.length === 1 ? choices[0] : null);
+      if (!chosenMeal && (targetMealRows.length > 1 || (requestedMealType && choices.length === 0))) {
+        aiResponse = {
+          reply: choices.length === 0
+            ? 'Mình chưa thấy món của bữa này trong ngày đang chọn. Bạn hãy chọn bữa khác hoặc tạo thực đơn trước.'
+            : `Bạn muốn đổi món nào trong ngày này? ${choices.slice(0, 4).map((row: any) => row.recipes?.name || row.meal_type).join(', ')}.`,
+          intent: 'adjust_meal', responseMode: 'coach_advice', confidence: 0.8,
+          actionRequired: false, actionType: null, actionPayload: null,
+        };
+      } else {
+        const currentMeal = chosenMeal || targetMealRows[0] || null;
+        const mealType = String(currentMeal?.meal_type || requestedMealType || 'dinner');
+        const candidateFoodsRes = await supabase.from('recipes')
+          .select('*, recipe_ingredients(*)')
+          .eq('is_active', true)
+          .contains('meal_type', [mealType])
+          .limit(300);
+        if (candidateFoodsRes.error) throw candidateFoodsRes.error;
+        const candidateFoods = filterEligibleRecipes(
+          candidateFoodsRes.data as any[], buildRecipeEligibilityContext(chatSafetyContext), mealType as any,
+        ).map((item: any) => item.recipe).filter((item: any) => String(item.id) !== String(currentMeal?.recipe_id || '')).slice(0, 24);
+        aiResponse = await mealAdjusterService({
+          dayOfWeek: dayIndex,
+          currentMeal: currentMeal ? {
+            id: String(currentMeal.id), meal_type: String(currentMeal.meal_type),
+            food_id: String(currentMeal.recipe_id || ''), quantity: Number(currentMeal.quantity || 1),
+            foods: { name: String(currentMeal.recipes?.name || 'Món hiện tại') },
+          } : null,
+          candidateFoods: candidateFoods.map((item: any) => ({
+            id: String(item.id), name: String(item.name || ''), calories: item.calories,
+            protein: item.protein, carbs: item.carbs, fat: item.fat,
+          })),
+        });
+      }
     } else if (intent === 'create_workout_plan' || intent === 'create_meal_plan') {
       aiResponse = await aiPlannerService(intent, {
         weeklyWorkouts: chatTrainingContext.trainingPrescription.weeklyWorkouts,
@@ -463,7 +464,7 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         targetDayIndex: dayIndex,
         targetDayLabel: (() => {
           if (isCurrentWeek && dayIndex === todayDayIndex) return 'Hôm nay';
-          if (isCurrentWeek && dayIndex === (todayDayIndex + 1) % 7 && /\bmai\b/.test(normalizeVietForChat(normalizedMessage))) return 'Ngày mai';
+          if (dayIndex === (todayDayIndex + 1) % 7 && /\bmai\b/.test(normalizeVietForChat(normalizedMessage))) return 'Ngày mai';
           return AI_CHAT_DAY_LABELS[dayIndex] || 'Hôm nay';
         })(),
         profile: profileRes.data || null,
@@ -471,7 +472,6 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
         lifestyle: normalizedChatLifestyle,
         health: healthRes.data || null,
         todayStatus: todayStatusContext,
-        actionLog: trackingActionLog,
         extraContext: coachDataContext,
         progressSummary: aiCoachProgressSummary,
         chatHistory: mergedChatHistory,
@@ -489,6 +489,13 @@ const chatWithAiCoach: RequestHandler = async (req, res, next) => {
           fat: row.fat
         }))
       });
+    }
+
+    try {
+      trackingActionLog = (await processNaturalTracking(authUserId, normalizedMessage)).actionLog;
+      if (trackingActionLog) aiResponse.reply = `${trackingActionLog}\n\n${aiResponse.reply}`;
+    } catch {
+      console.warn('[ai-chat] natural tracking skipped');
     }
 
     const normalizedResponse: AIChatResponse = {

@@ -10,7 +10,7 @@ export const boundedFetch: typeof fetch = async (input, init = {}) => {
   const signal = AbortSignal.any([timeout,...(originalSignal?[originalSignal]:[]),...(execution?[execution.signal]:[])]);
   const target = String(input instanceof Request ? input.url : input);
   const businessMutation = !['GET','HEAD'].includes(method.toUpperCase())
-    && /\/rest\/v1\/(?:rpc\/(?:publish_coach_plan_atomically|replace_meal_plan_atomically|apply_workout_adjustment_atomically|apply_meal_adjustment_atomically)|(?:weekly_plans|weekly_food_plans|weekly_plan_exercises|weekly_food_items|daily_exercise_sessions|daily_workout_sessions|ai_chat_messages)(?:\?|$))/.test(target);
+    && /\/rest\/v1\/(?:rpc\/(?:publish_coach_plan_atomically|replace_meal_plan_atomically|apply_workout_adjustment_atomically|apply_meal_adjustment_atomically)|(?:weekly_plans|weekly_food_plans|weekly_plan_exercises|weekly_food_items|daily_exercise_sessions|daily_workout_sessions|daily_progress_logs|ai_chat_messages)(?:\?|$))/.test(target);
   if (execution && businessMutation) { execution.mutationAttempts += 1; execution.mutationMayHaveCommitted = true; }
   const response = await fetch(input, { ...init, signal });
   const body = await response.arrayBuffer();

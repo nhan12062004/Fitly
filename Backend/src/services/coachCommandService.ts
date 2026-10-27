@@ -1,4 +1,5 @@
 import { supabase } from '../config/Supabase';
+import { normalizeVietnameseText } from './ai/aiRouterService';
 
 const VIETNAM_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
@@ -524,24 +525,29 @@ export const buildTodayStatus = async (userId: string) => {
   ].join('\n');
 };
 
-export const processNaturalTracking = async (userId: string, message: string) => {
-  const actionLog: string[] = [];
-  const waterMatch = message.match(/(\d+(?:[.,]\d+)?)\s*(ml|l|lit|lít|liter)\b/i);
+/** Free-form questions must never change progress records. */
+export const parseNaturalTracking = (message: string) => {
+  const normalized = normalizeVietnameseText(message);
+  const isQuestionOrPlan = /\?/.test(message) || /\b(bao nhieu|co nen|nen|can|duoc khong|tot khong|muon|dinh|se|chua)\b/.test(normalized);
+  const explicitlyLogged = /\b(ghi|luu|log|them|cap nhat)\b/.test(normalized);
+  const pastTense = /\b(da|vua|moi)\s+(uong|ngu|an|nap)\b/.test(normalized);
+  if (isQuestionOrPlan || (!explicitlyLogged && !pastTense)) return {} as { waterMl?: number; sleepHours?: number; calories?: number };
+
+  const actions: { waterMl?: number; sleepHours?: number; calories?: number } = {};
+  const waterMatch = message.match(/(\d+(?:[.,]\d+)?)\s*(ml|l|lit|lít|liter)(?=\s|$|[.,!?])/i);
   if (waterMatch && /nước|nuoc|uống|uong|water/i.test(message)) {
     const raw = Number(String(waterMatch[1]).replace(',', '.'));
     const amountMl = /^(l|lit|lít|liter)$/i.test(waterMatch[2]) ? Math.round(raw * 1000) : Math.round(raw);
     if (Number.isFinite(amountMl) && amountMl > 0 && amountMl <= 5000) {
-      const total = await addWaterIntake(userId, amountMl);
-      actionLog.push(`Đã ghi nhận +${amountMl}ml nước. Tổng hôm nay: ${total}ml.`);
+      actions.waterMl = amountMl;
     }
   }
 
-  const sleepMatch = message.match(/(\d+(?:[.,]\d+)?)\s*(tiếng|giờ|h|hour)\b/i);
+  const sleepMatch = message.match(/(\d+(?:[.,]\d+)?)\s*(tiếng|giờ|h|hour)(?=\s|$|[.,!?])/i);
   if (sleepMatch && /ngủ|ngu|sleep/i.test(message)) {
     const hours = Number(String(sleepMatch[1]).replace(',', '.'));
     if (Number.isFinite(hours) && hours > 0 && hours <= 16) {
-      await updateDailyProgress(userId, { sleep_hours: hours });
-      actionLog.push(`Đã ghi nhận ngủ ${hours} tiếng.`);
+      actions.sleepHours = hours;
     }
   }
 
@@ -549,9 +555,27 @@ export const processNaturalTracking = async (userId: string, message: string) =>
   if (calMatch && /ăn|an|eat|nạp|nap|tiêu thụ|tieu thu|thêm|them|ghi|log|lưu|luu|save/i.test(message)) {
     const calories = Number(calMatch[1]);
     if (Number.isFinite(calories) && calories > 0 && calories <= 5000) {
-      await incrementDailyCalories(userId, calories);
-      actionLog.push(`Đã ghi nhận ${calories} kcal.`);
+      actions.calories = calories;
     }
+  }
+
+  return actions;
+};
+
+export const processNaturalTracking = async (userId: string, message: string) => {
+  const actionLog: string[] = [];
+  const actions = parseNaturalTracking(message);
+  if (actions.waterMl) {
+    const total = await addWaterIntake(userId, actions.waterMl);
+    actionLog.push(`Đã ghi nhận +${actions.waterMl}ml nước. Tổng hôm nay: ${total}ml.`);
+  }
+  if (actions.sleepHours) {
+    await updateDailyProgress(userId, { sleep_hours: actions.sleepHours });
+    actionLog.push(`Đã ghi nhận ngủ ${actions.sleepHours} tiếng.`);
+  }
+  if (actions.calories) {
+    await incrementDailyCalories(userId, actions.calories);
+    actionLog.push(`Đã ghi nhận ${actions.calories} kcal.`);
   }
 
   return { actionLog: actionLog.join('\n') };

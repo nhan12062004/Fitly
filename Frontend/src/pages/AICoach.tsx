@@ -3,7 +3,6 @@ import {
   Bot,
   Loader2,
   Mic,
-  Paperclip,
   RefreshCw,
   Save,
   Send,
@@ -1031,7 +1030,6 @@ export default function AICoach() {
   const { data: quotaData, loading: quotaLoading, fetching: quotaFetching, error: quotaError, refresh: refreshQuota } = useAiQuota(user?.id, refreshTick);
   const [selectedCoachDayIndex, setSelectedCoachDayIndex] = useState<number | null>(() => getCoachLaunchDayIndex(location.search));
   const [isListening, setIsListening] = useState(false);
-  const [selectedAttachment, setSelectedAttachment] = useState<{ name: string; size: number; type: string } | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => initialCoachCache?.chatMessages || []);
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [isClearingChat, setIsClearingChat] = useState(false);
@@ -1039,7 +1037,6 @@ export default function AICoach() {
   const chatContentRef = useRef<HTMLDivElement | null>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const voiceRecognitionRef = useRef<any>(null);
   const voiceStopRequestedRef = useRef(false);
   const submitLockRef = useRef(false);
@@ -1509,18 +1506,6 @@ export default function AICoach() {
     }
   };
 
-  const formatAttachmentSize = (size: number) => {
-    if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-    return `${Math.max(1, Math.round(size / 1024))} KB`;
-  };
-
-  const handleAttachmentChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setSelectedAttachment({ name: file.name, size: file.size, type: file.type || 'file' });
-    event.target.value = '';
-  };
-
   const startVoiceInput = () => {
     if (isListening || isSendingChat) return;
     const SpeechRecognitionCtor =
@@ -1616,7 +1601,6 @@ export default function AICoach() {
     };
 
     setChatInput('');
-    setSelectedAttachment(null);
     setIsSendingChat(true);
     setChatMessages((current) => {
       shouldJumpToLatestRef.current = true;
@@ -1691,11 +1675,7 @@ export default function AICoach() {
   };
 
   const submitChat = async (messageText?: string, options?: { dayIndexOverride?: number }) => {
-    const rawMessage = String(messageText ?? chatInput).trim();
-    const attachmentContext = selectedAttachment
-      ? `\n\n[Attached file: ${selectedAttachment.name} (${formatAttachmentSize(selectedAttachment.size)}, ${selectedAttachment.type})]`
-      : '';
-    const message = `${rawMessage}${attachmentContext}`.trim();
+    const message = String(messageText ?? chatInput).trim();
     const targetDay = typeof options?.dayIndexOverride === 'number'
       ? (days[options.dayIndexOverride] || selectedDay)
       : selectedDay;
@@ -1714,7 +1694,6 @@ export default function AICoach() {
     submitLockRef.current = true;
     lastSubmitRef.current = { message, at: now };
     setChatInput('');
-    setSelectedAttachment(null);
     setIsSendingChat(true);
 
     const userMessage: ChatMessage = {
@@ -1726,10 +1705,6 @@ export default function AICoach() {
       optimistic: true,
     };
 
-    const previousTopic = [...chatMessagesRef.current]
-      .reverse()
-      .map((item) => inferChatTopic(item.content))
-      .find((topic): topic is 'meal' | 'workout' => topic === 'meal' || topic === 'workout') || null;
     const clientHistory = chatMessagesRef.current
       .filter((item) => (item.role === 'user' || item.role === 'assistant') && item.content.trim())
       .slice(-10)
@@ -1768,6 +1743,7 @@ export default function AICoach() {
           publishAiQuotaSnapshot(user.id, payload.aiQuota);
         }
         if (['AI_CHANGE_LIMIT_REACHED', 'PREMIUM_REQUIRED'].includes(getApiErrorCode(payload))) {
+          setChatMessages((current) => current.filter((item) => item.id !== userMessage.id));
           openPremiumModal();
           toast.error(getApiErrorMessage({ payload, fallbackMessage: payload?.reply || 'Bạn đã dùng hết lượt AI Coach trong gói hiện tại.' }));
           return;
@@ -1778,7 +1754,8 @@ export default function AICoach() {
       if (payload.aiQuota) {
         publishAiQuotaSnapshot(user.id, payload.aiQuota);
       }
-      const replyContent = String(payload.reply || '').trim() || buildCoachReply(targetDay, message, previousTopic, lifestyle);
+      const replyContent = String(payload.reply || '').trim();
+      if (!replyContent) throw new Error('AI Coach chưa trả về nội dung.');
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now() + 1}`,
         role: 'assistant',
@@ -1798,20 +1775,9 @@ export default function AICoach() {
         setScrollTick((t) => t + 1);
         return [...current, assistantMessage];
       });
-    } catch {
-      const fallbackMessage: ChatMessage = {
-        id: `assistant-${Date.now() + 1}`,
-        role: 'assistant',
-        content: buildCoachReply(targetDay, message, previousTopic, lifestyle),
-        createdAt: new Date().toISOString(),
-        responseMode: 'coach_advice',
-        optimistic: true,
-      };
-      setChatMessages((current) => {
-        shouldJumpToLatestRef.current = true;
-        setScrollTick((t) => t + 1);
-        return [...current, fallbackMessage];
-      });
+    } catch (error: any) {
+      setChatMessages((current) => current.filter((item) => item.id !== userMessage.id));
+      toast.error(error?.message || 'Chưa nhận được câu trả lời từ AI Coach. Vui lòng thử lại.');
     } finally {
       submitLockRef.current = false;
       setIsSendingChat(false);
@@ -1847,7 +1813,7 @@ export default function AICoach() {
   const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== 'Enter' || event.shiftKey) return;
     event.preventDefault();
-    if ((!chatInput.trim() && !selectedAttachment) || isSendingChat) return;
+    if (!chatInput.trim() || isSendingChat) return;
     void submitChat();
   };
 
@@ -1989,37 +1955,7 @@ export default function AICoach() {
               </div>
 
               <div className="relative shrink-0 border-t border-border-primary bg-bg-tertiary px-3 pb-2 pt-2 sm:px-5">
-                {selectedAttachment ? (
-                  <div className="mb-2 flex items-center justify-between gap-2 rounded-2xl border border-border-primary bg-bg-secondary px-3 py-2 text-xs font-semibold text-text-secondary">
-                    <span className="min-w-0 truncate">
-                      {selectedAttachment.name} - {formatAttachmentSize(selectedAttachment.size)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedAttachment(null)}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
-                      aria-label="Bo tep dinh kem"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : null}
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={handleAttachmentChange}
-                />
                 <div className="ai-chat-composer flex min-h-11 items-end gap-1.5 rounded-[22px] border border-border-primary bg-bg-secondary px-2 py-1.5 shadow-[0_8px_18px_rgba(15,23,42,0.05)] sm:gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
-                    aria-label="Đính kèm tệp"
-                  >
-                    <Paperclip className="h-4 w-4" />
-                  </button>
                   <textarea
                     ref={chatInputRef}
                     value={chatInput}
@@ -2043,10 +1979,10 @@ export default function AICoach() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (chatInput.trim() || selectedAttachment) void submitChat();
+                      if (chatInput.trim()) void submitChat();
                     }}
                     onPointerDown={(event) => {
-                      if (chatInput.trim() || selectedAttachment || isSendingChat) return;
+                      if (chatInput.trim() || isSendingChat) return;
                       event.preventDefault();
                       startVoiceInput();
                     }}
@@ -2055,7 +1991,7 @@ export default function AICoach() {
                     onPointerLeave={() => stopVoiceInput()}
                     disabled={isSendingChat}
                     className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                      chatInput.trim() || selectedAttachment || isSendingChat
+                      chatInput.trim() || isSendingChat
                         ? 'bg-ai text-white hover:bg-ai-hover disabled:cursor-not-allowed disabled:opacity-60'
                         : isListening
                           ? 'bg-danger/10 text-danger'
@@ -2065,7 +2001,7 @@ export default function AICoach() {
                   >
                     {isSendingChat ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : chatInput.trim() || selectedAttachment ? (
+                    ) : chatInput.trim() ? (
                       <Send className="h-3.5 w-3.5" />
                     ) : (
                       <Mic className="h-4 w-4" />

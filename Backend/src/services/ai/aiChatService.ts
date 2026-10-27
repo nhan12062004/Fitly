@@ -47,7 +47,7 @@ const isShortFollowUpMessage = (message: string): boolean => {
 
 const getPreviousTopic = (history?: AIChatContext['chatHistory']): 'workout' | 'meal' | null => {
   const rows = Array.isArray(history) ? history : [];
-  for (const item of [...rows].reverse()) {
+  for (const item of [...rows].reverse().filter((entry) => entry.role === 'user')) {
     const normalized = normalizeVietnameseText(item.content);
     if (!normalized) continue;
     if (hasAny(normalized, ['bai tap', 'workout', 'lich tap', 'buoi tap', 'tap gi', 'set x'])) {
@@ -69,11 +69,12 @@ const buildGreetingReply = (context?: AIChatContext): string => {
   return `Chào bạn. Mình đang theo ${dayLabel}: ${workoutText} và ${mealText}. Bạn muốn xem danh sách bài tập, chỉnh buổi tập nhẹ hơn, hay hỏi về bữa ăn hôm nay?`;
 };
 
-const isDailyCalorieQuestion = (message: string): boolean => {
+export const isDailyCalorieQuestion = (message: string): boolean => {
   const normalized = normalizeVietnameseText(message);
   const mentionsCalories = hasAny(normalized, ['kcal', 'calo', 'calories', 'calorie', 'cal']);
   const asksAmount = hasAny(normalized, ['bao nhieu', 'nen an', 'can an', 'mot ngay', 'hang ngay', 'moi ngay', 'target', 'muc']);
-  return mentionsCalories && asksAmount;
+  const asksLoggedAmount = hasAny(normalized, ['da an', 'da nap', 'tieu thu', 'hom nay an', 'con lai']);
+  return mentionsCalories && asksAmount && !asksLoggedAmount;
 };
 
 const readNumber = (...values: unknown[]): number => {
@@ -84,19 +85,20 @@ const readNumber = (...values: unknown[]): number => {
   return 0;
 };
 
-const getAgeYears = (profile?: Record<string, unknown> | null) => {
+const getAgeYears = (profile?: Record<string, unknown> | null): number | null => {
   const birthday = String(
     profile?.birthday ||
       profile?.birth_date ||
       profile?.date_of_birth ||
       '',
   );
-  if (!birthday) return 30;
+  if (!birthday) return null;
   const birthDate = new Date(birthday);
-  if (Number.isNaN(birthDate.getTime())) return 30;
+  if (Number.isNaN(birthDate.getTime())) return null;
   const now = new Date();
-  const age = now.getFullYear() - birthDate.getFullYear();
-  return Math.max(15, Math.min(90, age));
+  let age = now.getFullYear() - birthDate.getFullYear();
+  if (now.getMonth() < birthDate.getMonth() || (now.getMonth() === birthDate.getMonth() && now.getDate() < birthDate.getDate())) age -= 1;
+  return age >= 18 && age <= 100 ? age : null;
 };
 
 const getActivityFactor = (lifestyle?: Record<string, unknown> | null) => {
@@ -126,14 +128,17 @@ const buildDailyCalorieTargetReply = (context?: AIChatContext): string => {
   const height = readNumber((body as any).height, (profile as any).height);
 
   if (!weight || !height) {
-    return [
-      'Để tính kcal sát hơn, mình cần tối thiểu cân nặng, chiều cao và mức vận động.',
-      'Cách tạm tính nhanh: lấy cân nặng x 28-32 kcal để ra mức duy trì, nếu muốn giảm cân thì trừ khoảng 300-500 kcal/ngày. Ví dụ 80kg thường bắt đầu quanh 1.900-2.300 kcal/ngày khi giảm cân.',
-    ].join('\n\n');
+    return 'Mình chưa đủ cân nặng và chiều cao để ước tính kcal cá nhân. Bạn cập nhật hồ sơ cùng mức vận động, ngày sinh và giới tính; mình sẽ tính một khoảng phù hợp thay vì đoán con số.';
   }
 
   const age = getAgeYears(profile);
-  const genderText = normalizeVietnameseText(String((profile as any).gender || (body as any).gender || 'male'));
+  const genderText = normalizeVietnameseText(String((profile as any).gender || (body as any).gender || ''));
+  if (age === null || !genderText || !/(nam|male|nu|female)/.test(genderText)) {
+    const savedTarget = readNumber((lifestyle as any).target_calories);
+    return savedTarget
+      ? `Mục tiêu hiện lưu trong Fitly là ${Math.round(savedTarget)} kcal/ngày. Mình chưa thể ước tính lại khi ngày sinh hoặc giới tính chưa hợp lệ; đây không phải phép tính mới.`
+      : 'Mình chưa thể ước tính kcal cá nhân từ hồ sơ hiện có. Hãy kiểm tra ngày sinh, giới tính và mức vận động; nếu dưới 18 tuổi, nên trao đổi với bác sĩ hoặc chuyên gia dinh dưỡng để đặt mục tiêu.';
+  }
   const genderOffset = genderText.includes('nu') || genderText.includes('female') ? -161 : 5;
   const bmr = 10 * weight + 6.25 * height - 5 * age + genderOffset;
   const maintenance = roundToNearest50(bmr * getActivityFactor(lifestyle));
@@ -536,6 +541,14 @@ export const aiChatService = async (
     };
   }
 
+  if (isGreetingMessage(message)) {
+    return {
+      reply: buildGreetingReply(context), intent: detectedIntent, responseMode,
+      confidence: getIntentConfidence(detectedIntent), actionRequired: false,
+      actionType: null, actionPayload: null,
+    };
+  }
+
   if (detectedIntent === 'injury_care' || detectedIntent === 'out_of_scope') {
     return {
       reply: getFallbackReply(message, detectedIntent, context),
@@ -583,7 +596,7 @@ export const aiChatService = async (
       };
     }
   } catch (error: any) {
-    console.warn('[aiChatService] Groq chat fallback:');
+    if (detectedIntent !== 'recovery' && detectedIntent !== 'motivation') throw error;
   }
 
   return {
