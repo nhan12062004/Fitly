@@ -12,25 +12,54 @@ import { tokens } from '@/theme/tokens';
 
 type Period = 7 | 30 | 90;
 
+type WorkoutRow = {
+  log_date: string;
+  is_completed: boolean | null;
+  sets: number | null;
+  actual_sets: number | null;
+  completed_sets: number | null;
+  actual_kcal_estimated: number | null;
+  estimated_kcal: number | null;
+};
+
+type MealRow = { log_date: string; is_completed: boolean | null };
+
+async function fetchAllRows<T>(fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<{ data: T[]; error: unknown }> {
+  const rows: T[] = [];
+  const pageSize = 500;
+  for (let from = 0; ; from += pageSize) {
+    const result = await fetchPage(from, from + pageSize - 1);
+    if (result.error) return { data: rows, error: result.error };
+    const page = result.data || [];
+    rows.push(...page);
+    if (page.length < pageSize) return { data: rows, error: null };
+  }
+}
+
 type DayRhythm = {
   date: string;
   active: boolean;
   waterHit: boolean;
+  waterLogged: boolean;
   sleepHit: boolean;
+  sleepLogged: boolean;
+  mealLogged: boolean;
 };
 
 type ProgressSnapshot = {
   currentWeight: number | null;
   targetWeight: number | null;
   bodyFat: number | null;
-  completedWorkouts: number;
   completedSets: number;
   caloriesBurned: number;
   activeDays: number;
-  waterGoalMl: number;
-  sleepGoalHours: number;
+  waterGoalMl: number | null;
+  sleepGoalHours: number | null;
   waterHitDays: number;
   sleepHitDays: number;
+  mealLoggedDays: number;
+  completedExercises: number;
+  hasAnyActivity: boolean;
   rhythm: DayRhythm[];
 };
 
@@ -40,10 +69,10 @@ const dateKey = (date: Date) => {
   return `${value('year')}-${value('month')}-${value('day')}`;
 };
 
-const daysAgo = (amount: number) => {
-  const date = new Date();
-  date.setDate(date.getDate() - amount);
-  return dateKey(date);
+const addDays = (key: string, amount: number) => {
+  const [year, month, day] = key.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + amount));
+  return date.toISOString().slice(0, 10);
 };
 
 const weekLabel = (value: string) => {
@@ -61,52 +90,68 @@ export default function ProgressScreen() {
       if (!authData.user) throw new Error('Phiên đăng nhập đã hết hạn.');
       const userId = authData.user.id;
       const today = dateKey(new Date());
-      const startDate = daysAgo(selectedPeriod - 1);
-      const [bodyResult, workoutsResult, dailyResult, lifestyleResult, healthResult] = await Promise.all([
+      const startDate = addDays(today, 1 - selectedPeriod);
+      const [bodyResult, workoutsResult, dailyResult, mealsResult, lifestyleResult, healthResult] = await Promise.all([
         supabase.from('body_metrics').select('weight, target_weight, body_fat, body_fat_percentage, created_at').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.from('daily_exercise_sessions').select('log_date, is_completed, completed_sets').eq('user_id', userId).gte('log_date', startDate).lte('log_date', today),
+        fetchAllRows<WorkoutRow>((from, to) => supabase.from('daily_exercise_sessions').select('log_date, is_completed, sets, actual_sets, completed_sets, actual_kcal_estimated, estimated_kcal').eq('user_id', userId).gte('log_date', startDate).lte('log_date', today).order('log_date', { ascending: true }).order('id', { ascending: true }).range(from, to)),
         supabase.from('daily_progress_logs').select('log_date, calories_burned, water_intake_ml, sleep_hours').eq('user_id', userId).gte('log_date', startDate).lte('log_date', today),
+        fetchAllRows<MealRow>((from, to) => supabase.from('daily_meal_logs').select('log_date, is_completed').eq('user_id', userId).gte('log_date', startDate).lte('log_date', today).order('log_date', { ascending: true }).order('id', { ascending: true }).range(from, to)),
         supabase.from('lifestyle_settings').select('daily_water_goal').eq('user_id', userId).maybeSingle(),
         supabase.from('health_conditions').select('sleep_hours').eq('user_id', userId).maybeSingle(),
       ]);
-      const firstError = [bodyResult.error, workoutsResult.error, dailyResult.error, lifestyleResult.error, healthResult.error].find(Boolean);
+      const firstError = [bodyResult.error, workoutsResult.error, dailyResult.error, mealsResult.error, lifestyleResult.error, healthResult.error].find(Boolean);
       if (firstError) throw firstError;
 
       const workouts = workoutsResult.data ?? [];
       const daily = dailyResult.data ?? [];
       const completedDates = new Set(workouts.filter((item) => Boolean(item.is_completed) || number(item.completed_sets) > 0).map((item) => item.log_date));
       const dailyByDate = new Map(daily.map((item) => [item.log_date, item]));
+      const mealDates = new Set((mealsResult.data ?? []).filter((item) => item.is_completed === true).map((item) => item.log_date));
       const storedWaterGoal = number(lifestyleResult.data?.daily_water_goal);
-      const waterGoalMl = storedWaterGoal > 0 && storedWaterGoal <= 20 ? storedWaterGoal * 1000 : storedWaterGoal || 2400;
-      const sleepGoalHours = number(healthResult.data?.sleep_hours) || 8;
+      const waterGoalMl = storedWaterGoal > 0 ? storedWaterGoal <= 20 ? storedWaterGoal * 1000 : storedWaterGoal : null;
+      const sleepGoalHours = number(healthResult.data?.sleep_hours) || null;
       const rhythm: DayRhythm[] = Array.from({ length: selectedPeriod }, (_, index) => {
-        const date = daysAgo(selectedPeriod - index - 1);
+        const date = addDays(today, index - selectedPeriod + 1);
         const log = dailyByDate.get(date);
         return {
           date,
           active: completedDates.has(date),
-          waterHit: number(log?.water_intake_ml) >= waterGoalMl,
-          sleepHit: number(log?.sleep_hours) >= sleepGoalHours,
+          waterHit: waterGoalMl ? number(log?.water_intake_ml) >= waterGoalMl : number(log?.water_intake_ml) > 0,
+          waterLogged: number(log?.water_intake_ml) > 0,
+          sleepHit: sleepGoalHours ? number(log?.sleep_hours) >= sleepGoalHours : number(log?.sleep_hours) > 0,
+          sleepLogged: number(log?.sleep_hours) > 0,
+          mealLogged: mealDates.has(date),
         };
       });
+      const caloriesByWorkoutDate = new Map<string, number>();
+      workouts.forEach((item) => {
+        const actual = number(item.actual_kcal_estimated);
+        const kcal = actual > 0 ? actual : item.is_completed ? number(item.estimated_kcal) : 0;
+        caloriesByWorkoutDate.set(item.log_date, (caloriesByWorkoutDate.get(item.log_date) ?? 0) + kcal);
+      });
+      const caloriesBurned = rhythm.reduce((total, day) => {
+        const logged = number(dailyByDate.get(day.date)?.calories_burned);
+        return total + (logged > 0 ? logged : caloriesByWorkoutDate.get(day.date) ?? 0);
+      }, 0);
 
       return {
         currentWeight: bodyResult.data?.weight ?? null,
         targetWeight: bodyResult.data?.target_weight ?? null,
         bodyFat: bodyResult.data?.body_fat_percentage ?? bodyResult.data?.body_fat ?? null,
-        completedWorkouts: workouts.filter((item) => Boolean(item.is_completed)).length,
-        completedSets: workouts.reduce((total, item) => total + number(item.completed_sets), 0),
-        caloriesBurned: daily.reduce((total, item) => total + number(item.calories_burned), 0),
+        completedExercises: workouts.filter((item) => Boolean(item.is_completed)).length,
+        hasAnyActivity: rhythm.some((day) => day.active || day.waterLogged || day.sleepLogged || day.mealLogged) || daily.some((item) => number(item.calories_burned) > 0),
+        completedSets: workouts.reduce((total, item) => total + (number(item.completed_sets) > 0 ? number(item.completed_sets) : item.is_completed ? number(item.actual_sets ?? item.sets) : 0), 0),
+        caloriesBurned,
         activeDays: completedDates.size,
         waterGoalMl,
         sleepGoalHours,
         waterHitDays: rhythm.filter((item) => item.waterHit).length,
         sleepHitDays: rhythm.filter((item) => item.sleepHit).length,
+        mealLoggedDays: rhythm.filter((item) => item.mealLogged).length,
         rhythm,
       };
-  }, [period]);
+  }, [period], 0);
   const { data: snapshot, state, errorMessage: error, refreshing, refresh } = resource;
-  const load = (_period: Period) => resource.load();
 
   const latestWeek = useMemo(() => snapshot?.rhythm.slice(-7) ?? [], [snapshot]);
 
@@ -119,43 +164,45 @@ export default function ProgressScreen() {
 
       <View style={styles.heading}>
         <Text style={styles.kicker}>NHỊP CƠ THỂ</Text>
-        <Text style={styles.title}>Tiến độ đang{`\n`}đi lên.</Text>
-        <Text style={styles.subtitle}>Nhìn nhịp đều đặn để điều chỉnh vừa đủ mỗi ngày.</Text>
+        <Text style={styles.title}>Tiến độ của{`\n`}bạn.</Text>
+        <Text style={styles.subtitle}>Hoạt động thực tế trong {period} ngày gần nhất, cập nhật khi bạn ghi nhận.</Text>
       </View>
 
       <View style={styles.periods}>
         {([7, 30, 90] as Period[]).map((item) => (
-          <Pressable key={item} onPress={() => setPeriod(item)} style={[styles.period, period === item && styles.periodActive]} accessibilityRole="button">
+          <Pressable key={item} onPress={() => setPeriod(item)} style={[styles.period, period === item && styles.periodActive]} accessibilityRole="button" accessibilityState={{ selected: period === item }}>
             <Text style={[styles.periodText, period === item && styles.periodTextActive]}>{item} ngày</Text>
           </Pressable>
         ))}
       </View>
 
       {state === 'loading' && !snapshot ? <View style={styles.center}><ActivityIndicator color={tokens.colors.lime} size="large" /></View> : null}
-      {state === 'error' ? <FoundationCard title="Chưa thể tải tiến độ" description={error ?? 'Kiểm tra lại kết nối.'}><Pressable onPress={() => void load(period)}><Text style={styles.retry}>Thử lại</Text></Pressable></FoundationCard> : null}
+      {state === 'error' ? <FoundationCard title="Chưa thể tải tiến độ" description={error ?? 'Kiểm tra lại kết nối.'}><Pressable onPress={() => void resource.load()} accessibilityRole="button"><Text style={styles.retry}>Thử lại</Text></Pressable></FoundationCard> : null}
 
       {snapshot ? <>
         <View style={styles.rhythmCard}>
           <View style={styles.sectionHeader}>
             <View>
-              <Text style={styles.sectionEyebrow}>NHỊP 7 NGÀY</Text>
-              <Text style={styles.sectionTitle}>Giữ nhịp của bạn</Text>
+              <Text style={styles.sectionEyebrow}>7 NGÀY GẦN NHẤT</Text>
+              <Text style={styles.sectionTitle}>Nhịp ghi nhận</Text>
             </View>
             <View style={styles.activeBadge}><View style={styles.dot} /><Text style={styles.activeBadgeText}>{snapshot.activeDays}/{period} ngày tập</Text></View>
           </View>
           <View style={styles.bars}>
             {latestWeek.map((day) => <View key={day.date} style={styles.barItem}>
               <View style={[styles.barTrack, day.active && styles.barTrackActive]}>
-                {day.waterHit ? <View style={styles.waterMarker} /> : null}
-                {day.sleepHit ? <View style={styles.sleepMarker} /> : null}
+                {day.waterLogged ? <View style={[styles.waterMarker, !day.waterHit && styles.markerPartial]} /> : null}
+                {day.sleepLogged ? <View style={[styles.sleepMarker, !day.sleepHit && styles.markerPartial]} /> : null}
+                {day.mealLogged ? <View style={styles.mealMarker} /> : null}
               </View>
               <Text style={[styles.dayLabel, day.date === dateKey(new Date()) && styles.dayLabelToday]}>{weekLabel(day.date)}</Text>
             </View>)}
           </View>
           <View style={styles.legend}>
             <Legend color={tokens.colors.lime} label="Tập luyện" />
-            <Legend color="#4AC7FF" label="Đủ nước" />
-            <Legend color="#B28CFF" label="Ngủ đủ" />
+            <Legend color="#4AC7FF" label="Nước đã ghi" />
+            <Legend color="#B28CFF" label="Ngủ đã ghi" />
+            <Legend color="#FFB86C" label="Đã ăn" />
           </View>
         </View>
 
@@ -164,13 +211,13 @@ export default function ProgressScreen() {
             <View style={styles.wellnessIcon}><Text style={styles.waterGlyph}>⌁</Text></View>
             <Text style={styles.wellnessCaption}>NƯỚC</Text>
             <Text style={styles.wellnessValue}>{snapshot.waterHitDays}<Text style={styles.wellnessUnit}>/{period}</Text></Text>
-            <Text style={styles.wellnessDetail}>ngày đạt {Math.round(snapshot.waterGoalMl / 100) / 10} L</Text>
+            <Text style={styles.wellnessDetail}>{snapshot.waterGoalMl ? `ngày đạt ${Math.round(snapshot.waterGoalMl / 100) / 10} L` : 'ngày ghi nước · chưa đặt mục tiêu'}</Text>
           </View>
           <View style={[styles.wellnessCard, styles.sleepCard]}>
             <View style={styles.wellnessIcon}><Text style={styles.sleepGlyph}>☾</Text></View>
             <Text style={styles.wellnessCaption}>GIẤC NGỦ</Text>
             <Text style={styles.wellnessValue}>{snapshot.sleepHitDays}<Text style={styles.wellnessUnit}>/{period}</Text></Text>
-            <Text style={styles.wellnessDetail}>đêm từ {snapshot.sleepGoalHours} giờ</Text>
+            <Text style={styles.wellnessDetail}>{snapshot.sleepGoalHours ? `đêm từ ${snapshot.sleepGoalHours} giờ` : 'ngày ghi ngủ · chưa đặt mục tiêu'}</Text>
           </View>
         </View>
 
@@ -180,7 +227,7 @@ export default function ProgressScreen() {
               <Text style={styles.sectionEyebrow}>CƠ THỂ</Text>
               <Text style={styles.sectionTitle}>Dấu mốc gần nhất</Text>
             </View>
-            <Pressable onPress={() => router.push('/profile')} hitSlop={8}><Text style={styles.updateLink}>Cập nhật</Text></Pressable>
+            <Pressable onPress={() => router.push('/profile/edit')} hitSlop={8} accessibilityRole="button"><Text style={styles.updateLink}>Cập nhật</Text></Pressable>
           </View>
           <View style={styles.weightLine}>
             <Text style={styles.weightValue}>{snapshot.currentWeight != null ? `${snapshot.currentWeight} kg` : '—'}</Text>
@@ -189,7 +236,7 @@ export default function ProgressScreen() {
           <View style={styles.bodyFacts}>
             <Text style={styles.bodyFact}>Mỡ cơ thể  <Text style={styles.bodyFactValue}>{snapshot.bodyFat != null ? `${snapshot.bodyFat}%` : '—'}</Text></Text>
             <View style={styles.factDivider} />
-            <Text style={styles.bodyFact}>Cập nhật trong Hồ sơ</Text>
+            <Text style={styles.bodyFact}>Số đo gần nhất trong Hồ sơ</Text>
           </View>
         </View>
 
@@ -197,12 +244,18 @@ export default function ProgressScreen() {
           <View style={styles.achievementTitle}><AppIcon name="flame" size={19} color={tokens.colors.lime} /><Text style={styles.achievementTitleText}>THÀNH TÍCH KỲ NÀY</Text></View>
           <View style={styles.achievementStats}>
             <Achievement value={`${snapshot.completedSets}`} label="set đã tập" />
-            <Achievement value={`${snapshot.completedWorkouts}`} label="buổi hoàn tất" />
+            <Achievement value={`${snapshot.completedExercises}`} label="bài hoàn tất" />
             <Achievement value={`${Math.round(snapshot.caloriesBurned)}`} label="kcal tiêu hao" />
           </View>
         </View>
 
-        {snapshot.activeDays === 0 ? <View style={styles.emptyHint}><Text style={styles.emptyHintTitle}>Bắt đầu một dấu mốc mới</Text><Text style={styles.emptyHintBody}>Hoàn thành set đầu tiên, uống đủ nước hoặc ghi giấc ngủ để nhịp sống của bạn xuất hiện tại đây.</Text></View> : null}
+        <View style={styles.emptyHint}>
+          <Text style={styles.emptyHintTitle}>Nhật ký dinh dưỡng</Text>
+          <Text style={styles.emptyHintBody}>{snapshot.mealLoggedDays}/{period} ngày có bữa ăn đã ghi nhận.</Text>
+          <Pressable onPress={() => router.push('/meals')} accessibilityRole="button"><Text style={styles.retry}>Mở nhật ký bữa ăn →</Text></Pressable>
+        </View>
+
+        {!snapshot.hasAnyActivity ? <View style={styles.emptyHint}><Text style={styles.emptyHintTitle}>Bắt đầu một dấu mốc mới</Text><Text style={styles.emptyHintBody}>Hoàn thành bài tập, ghi bữa ăn, nước uống hoặc giấc ngủ để thấy tiến độ của bạn.</Text><Pressable onPress={() => router.push('/workout')} accessibilityRole="button"><Text style={styles.retry}>Mở lịch tập →</Text></Pressable></View> : null}
       </> : null}
     </Screen>
   );
@@ -244,6 +297,8 @@ const styles = StyleSheet.create({
   barTrackActive: { height: 92, backgroundColor: tokens.colors.lime },
   waterMarker: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#4AC7FF' },
   sleepMarker: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#B28CFF' },
+  markerPartial: { opacity: .4 },
+  mealMarker: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#FFB86C' },
   dayLabel: { color: '#7E8680', fontSize: 11, fontWeight: '800' },
   dayLabelToday: { color: tokens.colors.lime },
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
