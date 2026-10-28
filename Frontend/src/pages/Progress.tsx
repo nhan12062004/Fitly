@@ -449,7 +449,7 @@ function buildProgressData(input: {
     currentRangeLabel: formatRange(currentDateKeys),
     previousRangeLabel: formatRange(previousDateKeys),
     hasActivityData,
-    body: { weight, bodyFat, waist, targetWeight, goalProgress, latestDate: sortedBodyMetrics.at(-1)?.created_at ?? null },
+    body: { weight, bodyFat, waist, targetWeight, goalProgress, latestDate: sortedBodyMetrics.filter((row) => toPositiveNumber(row.weight) !== null).at(-1)?.created_at ?? null },
     wellness: {
       streak: getCurrentStreak(days),
       waterGoalMl,
@@ -532,17 +532,17 @@ function KpiCard({
     ai: 'bg-ai/10 text-ai border-ai/15',
   }[tone];
   return (
-    <article className="min-w-0 rounded-2xl border border-border-primary bg-bg-secondary/85 p-4 transition-transform hover:-translate-y-0.5 shadow-[var(--app-shadow-soft)] md:p-5">
+    <article className="min-w-0 rounded-2xl border border-border-primary bg-bg-secondary/85 p-3 transition-transform hover:-translate-y-0.5 shadow-[var(--app-shadow-soft)] sm:p-4 md:p-5">
       <div className="flex items-start justify-between gap-3">
-        <span className={`flex h-10 w-10 items-center justify-center rounded-xl border ${styles}`}>{icon}</span>
-        <span className="rounded-full border border-border-primary bg-bg-tertiary px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-text-secondary">
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl border sm:h-10 sm:w-10 ${styles}`}>{icon}</span>
+        <span className="hidden rounded-full border border-border-primary bg-bg-tertiary px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-text-secondary sm:inline-flex">
           {status}
         </span>
       </div>
-      <p className="mt-3.5 text-xs font-black uppercase tracking-[0.1em] text-text-tertiary">{label}</p>
-      <p className="mt-1 text-2xl font-black text-text-primary">{value}</p>
-      <div className="mt-3 flex min-h-7 items-end justify-between gap-2 border-t border-border-primary/80 pt-2.5">
-        <p className="text-xs font-semibold leading-5 text-text-secondary">{helper}</p>
+      <p className="mt-3 text-[10px] font-black uppercase tracking-[0.08em] text-text-tertiary sm:mt-3.5 sm:text-xs">{label}</p>
+      <p className="mt-1 text-xl font-black text-text-primary sm:text-2xl">{value}</p>
+      <div className="mt-3 flex min-h-7 flex-col items-start gap-1 border-t border-border-primary/80 pt-2.5 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
+        <p className="text-[11px] font-semibold leading-4 text-text-secondary sm:text-xs sm:leading-5">{helper}</p>
         <span className="shrink-0">{comparison}</span>
       </div>
     </article>
@@ -764,6 +764,17 @@ export default function Progress() {
   const selectedDay = training.days.find((day) => day.dateKey === selectedDate) || activityDays.at(-1)!;
   const averageWater = training.days.reduce((sum, day) => sum + day.waterMl, 0) / period;
   const averageSleep = training.days.reduce((sum, day) => sum + day.sleepHours, 0) / period;
+  const waterLoggedDays = training.days.filter((day) => day.waterMl > 0).length;
+  const sleepLoggedDays = training.days.filter((day) => day.sleepHours > 0).length;
+  const weeklyTrend = Array.from({ length: Math.ceil(training.days.length / 7) }, (_, index) => {
+    const days = training.days.slice(index * 7, index * 7 + 7);
+    return {
+      label: `${getShortDate(days[0].dateKey)}–${getShortDate(days.at(-1)!.dateKey)}`,
+      active: days.filter((day) => day.completedWorkoutCount > 0 || day.completedSets > 0).length,
+      meals: days.filter((day) => day.mealLogged).length,
+      total: days.length,
+    };
+  });
   const habits = [
     { label: 'Ngày tập', value: training.current.activeDays, previous: training.previous.activeDays, detail: 'Có bài tập hoặc hiệp đã hoàn thành', tone: 'bg-accent' },
     { label: 'Ngày ghi bữa ăn', value: wellness.mealDays, previous: wellness.previousMealDays, detail: 'Có ít nhất một bữa đã ăn', tone: 'bg-warning' },
@@ -809,17 +820,27 @@ export default function Progress() {
         <p className="rounded-xl border border-warning/20 bg-warning/10 px-4 py-2.5 text-sm font-bold text-warning">{errorMessage}</p>
       )}
 
+      {!data.hasActivityData ? (
+        <Panel className="overflow-hidden p-5 sm:p-7">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-xl">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-accent/10 text-accent"><Activity className="h-5 w-5" /></span>
+              <h2 className="mt-4 text-xl font-black text-text-primary">Chưa có hoạt động trong {period} ngày gần nhất</h2>
+              <p className="mt-2 text-sm leading-6 text-text-secondary">Hoàn thành một buổi tập, ghi bữa ăn hoặc theo dõi nước uống để bắt đầu thấy tiến độ. Những ngày chưa ghi nhận sẽ không được tính là đã hoàn thành.</p>
+              {body.weight.latest !== null && <p className="mt-3 text-sm font-bold text-text-primary">Cân nặng gần nhất: {formatNumber(body.weight.latest, 1)} kg{body.latestDate ? ` · ${getShortDate(getVietnamDateKey(new Date(body.latestDate)))}` : ''}</p>}
+              {(body.bodyFat.latest !== null || body.waist.latest !== null) && <p className="mt-1 text-sm text-text-secondary">{body.bodyFat.latest !== null ? `Mỡ cơ thể ${formatNumber(body.bodyFat.latest, 1)}%` : ''}{body.bodyFat.latest !== null && body.waist.latest !== null ? ' · ' : ''}{body.waist.latest !== null ? `Vòng eo ${formatNumber(body.waist.latest, 1)} cm` : ''}</p>}
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col">
+              <button type="button" onClick={() => navigate('/exercises')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-sm font-black text-text-inverse">Mở lịch tập <ArrowRight className="h-4 w-4" /></button>
+              <button type="button" onClick={() => navigate('/diet-plan')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-4 text-sm font-black text-text-primary">Ghi bữa ăn, nước uống</button>
+              <button type="button" onClick={() => navigate('/profile/edit')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-tertiary px-4 text-sm font-black text-text-primary">Cập nhật cơ thể</button>
+            </div>
+          </div>
+        </Panel>
+      ) : <>
+
       {/* 4 Essential KPI Cards */}
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          label="Ngày ghi nhận bữa ăn"
-          value={`${wellness.mealDays}/${period} ngày`}
-          helper={`Có hoạt động ${wellness.streak} ngày liên tiếp`}
-          comparison={<ChangeLabel value={mealDaysDelta} suffix=" ngày" />}
-          icon={<CircleGauge className="h-5 w-5" />}
-          tone="accent"
-          status="Dinh dưỡng"
-        />
+      <section className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
         <KpiCard
           label="Hoàn thành bài tập"
           value={training.current.plannedExercises > 0 ? `${training.current.completionRate}%` : `${training.current.completedExercises} bài`}
@@ -830,10 +851,19 @@ export default function Progress() {
           status={`${training.current.activeDays}/${period} ngày tập`}
         />
         <KpiCard
+          label="Ngày ghi nhận bữa ăn"
+          value={`${wellness.mealDays}/${period} ngày`}
+          helper={`Kỳ trước: ${wellness.previousMealDays}/${period} ngày`}
+          comparison={<ChangeLabel value={mealDaysDelta} suffix=" ngày" />}
+          icon={<CircleGauge className="h-5 w-5" />}
+          tone="accent"
+          status="Dinh dưỡng"
+        />
+        <KpiCard
           label="Calo tiêu hao ước tính"
-          value={`${training.current.caloriesBurned} kcal`}
-          helper={`TB ${Math.round(training.current.caloriesBurned / period)} kcal/ngày`}
-          comparison={<ChangeLabel value={caloriesDelta} suffix=" kcal" />}
+          value={`${formatNumber(training.current.caloriesBurned)} kcal`}
+          helper={`TB toàn kỳ ${Math.round(training.current.caloriesBurned / period)} kcal/ngày`}
+          comparison={<ChangeLabel value={caloriesDelta} suffix=" kcal" neutralTone />}
           icon={<Zap className="h-5 w-5" />}
           tone="warning"
           status={`${period} ngày`}
@@ -903,7 +933,7 @@ export default function Progress() {
 
                   {/* Calories & Water indicators */}
                   <p className="mt-2.5 text-[11px] font-black text-text-primary">
-                    {day.caloriesBurned > 0 ? `${day.caloriesBurned} kcal` : '—'}
+                    <span className={day.caloriesBurned > 0 ? 'text-warning' : 'text-text-tertiary'}>{day.caloriesBurned > 0 ? formatNumber(day.caloriesBurned) : '—'}</span>
                   </p>
 
                   <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-bg-secondary" title={`Nước: ${day.waterMl}ml`}>
@@ -925,11 +955,11 @@ export default function Progress() {
         <div className="grid gap-px border-t border-border-primary bg-border-primary sm:grid-cols-3">
           <div className="bg-bg-secondary px-4 py-2.5 text-xs font-bold text-text-secondary flex items-center justify-center gap-2">
             <Droplets className="h-4 w-4 text-info" />
-            <span>Nước TB {period} ngày: <strong className="text-text-primary">{formatNumber(averageWater / 1000, 1)}L/ngày</strong></span>
+            <span>Nước TB toàn kỳ: <strong className="text-text-primary">{formatNumber(averageWater / 1000, 1)} L/ngày</strong> <span className="text-text-tertiary">({waterLoggedDays} ngày đã ghi)</span></span>
           </div>
           <div className="bg-bg-secondary px-4 py-2.5 text-xs font-bold text-text-secondary flex items-center justify-center gap-2">
             <BedDouble className="h-4 w-4 text-ai" />
-            <span>Ngủ TB {period} ngày: <strong className="text-text-primary">{formatNumber(averageSleep, 1)}h/ngày</strong></span>
+            <span>Ngủ TB toàn kỳ: <strong className="text-text-primary">{formatNumber(averageSleep, 1)} giờ/ngày</strong> <span className="text-text-tertiary">({sleepLoggedDays} ngày đã ghi)</span></span>
           </div>
           <div className="bg-bg-secondary px-4 py-2.5 text-xs font-bold text-text-secondary flex items-center justify-center gap-2">
             <Zap className="h-4 w-4 text-warning" />
@@ -938,9 +968,29 @@ export default function Progress() {
         </div>
       </Panel>
 
+      {period > 7 && <Panel className="p-4 md:p-5">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <div><h2 className="text-lg font-black text-text-primary">Xu hướng theo tuần</h2><p className="text-xs font-semibold text-text-secondary">Số ngày tập và ngày ghi bữa ăn trong từng nhóm tối đa 7 ngày.</p></div>
+          <span className="text-xs font-bold text-text-tertiary">{data.currentRangeLabel}</span>
+        </div>
+        <div className="overflow-x-auto pb-1">
+          <div className="flex min-w-max items-end gap-2 sm:gap-3">
+            {weeklyTrend.map((week) => <div key={week.label} className="w-14 shrink-0 text-center sm:w-20" aria-label={`${week.label}: ${week.active}/${week.total} ngày tập, ${week.meals}/${week.total} ngày ghi bữa ăn`}>
+              <div className="flex h-28 items-end justify-center gap-1 rounded-lg bg-bg-tertiary/40 px-2 py-2">
+                <div className="w-3 rounded-t bg-accent" style={{ height: `${Math.max(week.active > 0 ? 5 : 0, (week.active / week.total) * 100)}%` }} title={`${week.active} ngày tập`} />
+                <div className="w-3 rounded-t bg-warning" style={{ height: `${Math.max(week.meals > 0 ? 5 : 0, (week.meals / week.total) * 100)}%` }} title={`${week.meals} ngày ghi bữa ăn`} />
+              </div>
+              <p className="mt-2 text-[11px] font-bold text-text-secondary">{week.label}</p>
+              <p className="text-[10px] font-semibold text-text-tertiary">{week.active}/{week.total} tập</p>
+            </div>)}
+          </div>
+        </div>
+        <div className="mt-3 flex gap-4 text-xs font-semibold text-text-secondary"><span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-accent" />Ngày tập</span><span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-warning" />Ngày ghi bữa ăn</span></div>
+      </Panel>}
+
       <Panel className="p-4 md:p-5">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-          <div><h2 className="text-lg font-black text-text-primary">Mức độ duy trì</h2><p className="text-xs font-semibold text-text-secondary">Số ngày có hoạt động hoặc đạt mục tiêu trong {period} ngày.</p></div>
+          <div><h2 className="text-lg font-black text-text-primary">Mức độ duy trì</h2><p className="text-xs font-semibold text-text-secondary">Số ngày có hoạt động hoặc đạt mục tiêu trong {period} ngày.{wellness.streak > 0 ? ` Chuỗi ghi nhận: ${wellness.streak} ngày liên tiếp.` : ''}</p></div>
           <p className="text-xs font-bold text-text-tertiary">So với {data.previousRangeLabel}</p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -959,12 +1009,12 @@ export default function Progress() {
       <div className="grid gap-4 xl:grid-cols-2">
         {/* Body Metrics Card */}
         <Panel className="p-4 md:p-5">
-          <div className="flex items-center justify-between border-b border-border-primary pb-3">
-            <div>
+          <div className="flex items-start justify-between gap-3 border-b border-border-primary pb-3">
+            <div className="min-w-0 flex-1">
               <h2 className="text-lg font-black text-text-primary">Chỉ số cơ thể</h2>
               <p className="text-xs font-semibold text-text-secondary">Giá trị gần nhất; mức thay đổi tính từ các lần đo trong {period} ngày. Cần ít nhất hai lần đo để so sánh.</p>
             </div>
-            <Scale className="h-5 w-5 text-ai" />
+            <Scale className="h-5 w-5 shrink-0 text-ai" />
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -1009,7 +1059,7 @@ export default function Progress() {
           {body.weight.latest === null && (
             <button
               type="button"
-              onClick={() => navigate('/profile')}
+              onClick={() => navigate('/profile/edit')}
               className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-xl border border-ai/30 bg-ai/10 text-xs font-black text-ai hover:bg-ai/15 transition-colors"
             >
               Cập nhật cân nặng mới
@@ -1036,10 +1086,13 @@ export default function Progress() {
             <div className="mt-3 space-y-2.5">
               {training.exercises.map((exercise) => {
                 const hasWeights = exercise.currentBest !== null && exercise.previousBest !== null;
-                const improvement = hasWeights && exercise.previousBest
-                  ? ((exercise.currentBest! - exercise.previousBest) / exercise.previousBest) * 100
-                  : exercise.previousSets > 0 ? ((exercise.currentSets - exercise.previousSets) / exercise.previousSets) * 100 : null;
+                const compareSets = !hasWeights && exercise.currentSets > 0 && exercise.previousSets > 0;
+                const improvement = hasWeights
+                  ? ((exercise.currentBest! - exercise.previousBest!) / exercise.previousBest!) * 100
+                  : compareSets ? ((exercise.currentSets - exercise.previousSets) / exercise.previousSets) * 100 : null;
                 const improved = improvement !== null && improvement >= 5;
+                const currentValue = hasWeights ? `${formatNumber(exercise.currentBest, 1)} kg` : compareSets ? `${exercise.currentSets} hiệp` : exercise.currentBest !== null ? `${formatNumber(exercise.currentBest, 1)} kg` : `${exercise.currentSets} hiệp`;
+                const previousValue = hasWeights ? `${formatNumber(exercise.previousBest, 1)} kg` : compareSets ? `${exercise.previousSets} hiệp` : 'Chưa đủ dữ liệu';
 
                 return (
                   <div key={exercise.id} className="flex items-center justify-between rounded-xl border border-border-primary/60 bg-bg-tertiary/40 p-3">
@@ -1053,10 +1106,10 @@ export default function Progress() {
                     <div className="flex items-center gap-3 text-right">
                       <div>
                         <p className="text-sm font-black text-text-primary">
-                          {exercise.currentBest !== null ? `${formatNumber(exercise.currentBest, 1)} kg` : `${exercise.currentSets} hiệp`}
+                          {currentValue}
                         </p>
                         <p className="text-[10px] font-medium text-text-tertiary">
-                          Trước: {exercise.previousBest !== null ? `${formatNumber(exercise.previousBest, 1)} kg` : `${exercise.previousSets} hiệp`}
+                          Trước: {previousValue}
                         </p>
                       </div>
                       {improved && (
@@ -1131,6 +1184,7 @@ export default function Progress() {
           Hiện gợi ý tiến độ
         </button>
       )}
+      </>}
     </div>
   );
 }

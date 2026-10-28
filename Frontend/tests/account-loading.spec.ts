@@ -12,7 +12,7 @@ const deferred = () => {
   return { promise, resolve };
 };
 
-async function installFixtures(page: Page, holdQuota = false, membershipExpiresAt = '2099-01-01T00:00:00Z', admin = false) {
+async function installFixtures(page: Page, holdQuota = false, membershipExpiresAt = '2099-01-01T00:00:00Z', admin = false, aal: 'aal1' | 'aal2' = 'aal1') {
   const fixtureUser = admin ? { ...user, app_metadata:{role:'admin'}, factors:[{id:'90000000-0000-4000-8000-000000000001',factor_type:'totp',status:'verified',friendly_name:'Fitly Admin',created_at:'2026-01-01T00:00:00Z',updated_at:'2026-01-01T00:00:00Z'}] } : user;
   const quotaGate = deferred();
   const auxiliaryGate = deferred();
@@ -21,7 +21,7 @@ async function installFixtures(page: Page, holdQuota = false, membershipExpiresA
   let expired = false;
   const tokenPart = (data: unknown) => Buffer.from(JSON.stringify(data)).toString('base64url');
   const expires = Math.floor(Date.now() / 1000) + 3600;
-  const session = { access_token: `${tokenPart({ alg: 'HS256', typ: 'JWT' })}.${tokenPart({ sub: userId, exp: expires, role: 'authenticated', aud: 'authenticated',aal:'aal1' })}.test`, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_in: 3600, expires_at: expires, user:fixtureUser };
+  const session = { access_token: `${tokenPart({ alg: 'HS256', typ: 'JWT' })}.${tokenPart({ sub: userId, exp: expires, role: 'authenticated', aud: 'authenticated',aal })}.test`, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_in: 3600, expires_at: expires, user:fixtureUser };
   const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
   await page.addInitScript(({ storageKey, session }) => {
     localStorage.setItem(storageKey, JSON.stringify(session));
@@ -177,12 +177,13 @@ test('a signed-in user can download their personal JSON export', async ({ page }
   const fixture = await installFixtures(page); fixture.releaseAuxiliary();
   await page.route('**/api/account/export',(route) => route.fulfill({contentType:'application/json',body:JSON.stringify({formatVersion:1,profiles:[{id:userId}]})}));
   await page.goto('/profile');
+  await page.getByText('Quyền riêng tư & dữ liệu', { exact: true }).click();
   const download = page.waitForEvent('download');
-  await page.getByRole('button',{name:'Tải dữ liệu cá nhân của tôi (JSON)',exact:true}).click();
+  await page.getByRole('button',{name:'Tải dữ liệu cá nhân (JSON)',exact:true}).click();
   expect((await download).suggestedFilename()).toBe('fitly-personal-data.json');
 });
 
-test('an administrator can complete the second-factor challenge from Profile', async ({ page }) => {
+test('an administrator must verify the second factor before opening Overview', async ({ page }) => {
   const fixture = await installFixtures(page,false,'2099-01-01T00:00:00Z',true); fixture.releaseAuxiliary();
   const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
   const verified = { ...fixture.session, access_token:`${part({alg:'HS256',typ:'JWT'})}.${part({sub:userId,exp:fixture.session.expires_at,role:'authenticated',aud:'authenticated',aal:'aal2'})}.test` };
@@ -191,8 +192,43 @@ test('an administrator can complete the second-factor challenge from Profile', a
     expect(route.request().postDataJSON().code).toBe('123456');
     await route.fulfill({contentType:'application/json',body:JSON.stringify(verified)});
   });
-  await page.goto('/profile');
+  let overviewRequests = 0;
+  await page.route('**/api/admin/overview', (route) => {
+    overviewRequests += 1;
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({data:{users:2,premiumUsers:1,newUsers7d:1,exercises:5,foods:4,aiAdjustments:{proposed:0,applied:0,rejected:0},todayCompletedWorkouts:0,todayCompletedMeals:0}})});
+  });
+  await page.goto('/admin-panel');
+  await expect(page.getByRole('heading', { name: 'Xác minh hai bước cho quản trị' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tổng quan' })).toBeDisabled();
+  expect(overviewRequests).toBe(0);
   await page.getByRole('textbox',{name:'Mã xác thực 6 chữ số'}).fill('123456');
   await page.getByRole('button',{name:'Xác minh phiên quản trị',exact:true}).click();
-  await expect(page.getByText('Phiên hiện tại đã được xác minh.',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tổng quan' })).toBeEnabled();
+  await expect(page.getByText('2', { exact: true }).first()).toBeVisible();
+  await expect.poll(() => overviewRequests).toBe(1);
+});
+
+test('a profile admin role alone does not open server protected admin data', async ({ page }) => {
+  const fixture = await installFixtures(page); fixture.releaseAuxiliary();
+  await page.route('**/rest/v1/profiles*', (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify([{ id: userId, role: 'admin', full_name: 'Profile Fixture' }]),
+  }));
+  await page.goto('/admin-panel');
+  await expect(page.getByRole('heading', { name: 'Không có quyền truy cập' })).toBeVisible();
+  await expect(page.getByText('Hồ sơ đang ghi vai trò admin', { exact: false })).toBeVisible();
+  expect(fixture.requests['/api/admin/overview'] || 0).toBe(0);
+});
+
+test('a forbidden Overview response shows an error instead of zero statistics', async ({ page }) => {
+  const fixture = await installFixtures(page, false, '2099-01-01T00:00:00Z', true, 'aal2'); fixture.releaseAuxiliary();
+  await page.route('**/api/admin/overview', (route) => route.fulfill({
+    status: 403,
+    contentType: 'application/json',
+    body: JSON.stringify({ error: { code: 'FORBIDDEN', message: 'Forbidden', requestId: 'fixture' } }),
+  }));
+  await page.goto('/admin-panel');
+  await expect(page.getByRole('heading', { name: 'Không thể tải dữ liệu quản trị' })).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Máy chủ từ chối quyền quản trị của phiên này.');
+  await expect(page.getByText('Plus / Pro')).toHaveCount(0);
 });

@@ -300,19 +300,17 @@ const isAdminUser = async (userId: string): Promise<boolean> => {
   return String(userRes.data.user.app_metadata?.role || '').toLowerCase() === 'admin';
 };
 const requireAdminUserId = async (req: express.Request, res: express.Response): Promise<string | null> => {
-  const authUserId = await getAuthUserId(req);
-  if (!authUserId) {
+  if (!req.auth?.user.id) {
     res.status(401).json({ error: 'Unauthorized' });
     return null;
   }
 
-  const isAdmin = await isAdminUser(authUserId);
-  if (!isAdmin) {
+  if (String(req.auth.user.app_metadata?.role || '').trim().toLowerCase() !== 'admin') {
     res.status(403).json({ error: 'Forbidden' });
     return null;
   }
 
-  return authUserId;
+  return req.auth.user.id;
 };
 const hasValidCronSecret = (req: express.Request): boolean => {
   const secret = String(req.headers['x-cron-secret'] || '').trim();

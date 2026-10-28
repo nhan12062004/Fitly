@@ -15,12 +15,14 @@ type FormState = {
   height: string;
   weight: string;
   targetWeight: string;
+  bodyFat: string;
+  waist: string;
   targetCalories: string;
   weeklyWorkouts: string;
   fitnessGoal: string;
 };
 
-const emptyForm: FormState = { fullName: '', height: '', weight: '', targetWeight: '', targetCalories: '', weeklyWorkouts: '', fitnessGoal: 'Giảm mỡ' };
+const emptyForm: FormState = { fullName: '', height: '', weight: '', targetWeight: '', bodyFat: '', waist: '', targetCalories: '', weeklyWorkouts: '', fitnessGoal: 'Giảm mỡ' };
 const goals = ['Giảm mỡ', 'Tăng cơ', 'Sức khỏe'];
 const toText = (value: unknown) => value == null ? '' : String(value);
 const toNumberOrNull = (value: string) => {
@@ -31,6 +33,7 @@ const toNumberOrNull = (value: string) => {
 export default function EditProfileScreen() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [state, setState] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -40,21 +43,29 @@ export default function EditProfileScreen() {
       const { data: { user } } = await getSessionUser();
       if (!user) throw new Error('Phiên đăng nhập đã hết hạn.');
       const [bodyResult, lifestyleResult] = await Promise.all([
-        supabase.from('body_metrics').select('height, weight, target_weight').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        supabase.from('body_metrics').select('height, weight, target_weight, body_fat, body_fat_percentage, waist').eq('user_id', user.id).order('created_at', { ascending: false }).limit(120),
         supabase.from('lifestyle_settings').select('fitness_goal, target_calories, weekly_workouts').eq('user_id', user.id).maybeSingle(),
       ]);
       if (bodyResult.error) throw bodyResult.error;
       if (lifestyleResult.error) throw lifestyleResult.error;
+      const latestHeight = bodyResult.data?.find((row) => row.height != null);
+      const latestWeight = bodyResult.data?.find((row) => row.weight != null);
+      const latestTarget = bodyResult.data?.find((row) => row.target_weight != null);
+      const latestBodyFat = bodyResult.data?.find((row) => row.body_fat_percentage != null || row.body_fat != null);
+      const latestWaist = bodyResult.data?.find((row) => row.waist != null);
       const metadata = user.user_metadata ?? {};
       setForm({
         fullName: typeof metadata.full_name === 'string' ? metadata.full_name : typeof metadata.name === 'string' ? metadata.name : user.email?.split('@')[0] ?? '',
-        height: toText(bodyResult.data?.height),
-        weight: toText(bodyResult.data?.weight),
-        targetWeight: toText(bodyResult.data?.target_weight),
+        height: toText(latestHeight?.height),
+        weight: toText(latestWeight?.weight),
+        targetWeight: toText(latestTarget?.target_weight),
+        bodyFat: toText(latestBodyFat?.body_fat_percentage ?? latestBodyFat?.body_fat),
+        waist: toText(latestWaist?.waist),
         targetCalories: toText(lifestyleResult.data?.target_calories),
         weeklyWorkouts: toText(lifestyleResult.data?.weekly_workouts),
         fitnessGoal: lifestyleResult.data?.fitness_goal || 'Giảm mỡ',
       });
+      setHasLoaded(true);
       setState('ready');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể tải dữ liệu hồ sơ.');
@@ -71,6 +82,15 @@ export default function EditProfileScreen() {
 
   const save = async () => {
     if (state === 'saving') return;
+    const bodyFat = form.bodyFat.trim() ? toNumberOrNull(form.bodyFat) : null;
+    if (form.bodyFat.trim() && (bodyFat === null || bodyFat >= 100)) {
+      setError('Tỷ lệ mỡ cần lớn hơn 0 và nhỏ hơn 100%.');
+      return;
+    }
+    if (form.waist.trim() && toNumberOrNull(form.waist) === null) {
+      setError('Vòng eo cần là một số lớn hơn 0.');
+      return;
+    }
     setState('saving');
     setError(null);
     try {
@@ -78,7 +98,7 @@ export default function EditProfileScreen() {
       if (!user) throw new Error('Phiên đăng nhập đã hết hạn.');
       await apiRequest('/api/profile', { method: 'PATCH', body: { full_name: form.fullName.trim() || null }, timeoutMs: 15_000 });
       const [bodyResult, lifestyleResult] = await Promise.all([
-        supabase.from('body_metrics').insert({ user_id: user.id, height: toNumberOrNull(form.height), weight: toNumberOrNull(form.weight), target_weight: toNumberOrNull(form.targetWeight) }),
+        supabase.from('body_metrics').insert({ user_id: user.id, height: toNumberOrNull(form.height), weight: toNumberOrNull(form.weight), target_weight: toNumberOrNull(form.targetWeight), body_fat_percentage: bodyFat, waist: toNumberOrNull(form.waist) }),
         supabase.from('lifestyle_settings').upsert({ user_id: user.id, fitness_goal: form.fitnessGoal, target_calories: toNumberOrNull(form.targetCalories), weekly_workouts: toNumberOrNull(form.weeklyWorkouts), updated_at: new Date().toISOString() }),
       ]);
       if (bodyResult.error) throw bodyResult.error;
@@ -96,12 +116,14 @@ export default function EditProfileScreen() {
       <Pressable onPress={() => router.back()} style={styles.back}><Text style={styles.backText}>← Hồ sơ</Text></Pressable>
       <View><Text style={styles.kicker}>CẬP NHẬT THÔNG TIN</Text><Text style={styles.title}>Hồ sơ cơ thể</Text><Text style={styles.description}>Các chỉ số này giúp Fitly và AI Coach đưa ra gợi ý sát hơn.</Text></View>
       {state === 'loading' ? <View style={styles.loading}><ActivityIndicator color={tokens.colors.lime} /></View> : null}
-      {state !== 'loading' ? <>
+      {state === 'error' && !hasLoaded ? <View style={styles.loadError}><Text style={styles.error}>{error}</Text><Pressable onPress={() => void load()} style={styles.retryButton} accessibilityRole="button"><Text style={styles.retryText}>Thử lại</Text></Pressable></View> : null}
+      {state !== 'loading' && hasLoaded ? <>
         <SectionTitle title="Thông tin cơ bản" />
         <Field label="Họ và tên" value={form.fullName} onChangeText={(value) => update('fullName', value)} placeholder="Tên hiển thị" />
         <SectionTitle title="Cơ thể" />
         <View style={styles.doubleRow}><Field label="Chiều cao" value={form.height} onChangeText={(value) => update('height', value)} placeholder="cm" keyboardType="decimal-pad" /><Field label="Cân nặng" value={form.weight} onChangeText={(value) => update('weight', value)} placeholder="kg" keyboardType="decimal-pad" /></View>
         <Field label="Cân nặng mục tiêu" value={form.targetWeight} onChangeText={(value) => update('targetWeight', value)} placeholder="kg" keyboardType="decimal-pad" />
+        <View style={styles.doubleRow}><Field label="Tỷ lệ mỡ" value={form.bodyFat} onChangeText={(value) => update('bodyFat', value)} placeholder="%" keyboardType="decimal-pad" /><Field label="Vòng eo" value={form.waist} onChangeText={(value) => update('waist', value)} placeholder="cm" keyboardType="decimal-pad" /></View>
         <SectionTitle title="Mục tiêu và nhịp sống" />
         <Text style={styles.fieldLabel}>Mục tiêu chính</Text><View style={styles.goalRow}>{goals.map((goal) => <Pressable key={goal} onPress={() => update('fitnessGoal', goal)} style={[styles.goalChip, form.fitnessGoal === goal && styles.goalChipActive]}><Text style={[styles.goalChipText, form.fitnessGoal === goal && styles.goalChipTextActive]}>{goal}</Text></Pressable>)}</View>
         <View style={styles.doubleRow}><Field label="Mục tiêu calorie" value={form.targetCalories} onChangeText={(value) => update('targetCalories', value)} placeholder="kcal" keyboardType="number-pad" /><Field label="Buổi tập / tuần" value={form.weeklyWorkouts} onChangeText={(value) => update('weeklyWorkouts', value)} placeholder="buổi" keyboardType="number-pad" /></View>
@@ -139,6 +161,9 @@ const styles = StyleSheet.create({
   goalChipText: { color: tokens.colors.muted, fontSize: 13, fontWeight: '800' },
   goalChipTextActive: { color: tokens.colors.lime },
   error: { color: tokens.colors.coral, fontSize: 13, lineHeight: 19 },
+  loadError: { padding: 18, borderRadius: 16, backgroundColor: '#211816', gap: 12 },
+  retryButton: { alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: tokens.colors.lime },
+  retryText: { color: tokens.colors.canvas, fontSize: 13, fontWeight: '900' },
   saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 54, marginTop: tokens.spacing.sm, borderRadius: tokens.radius.pill, backgroundColor: tokens.colors.lime },
   saveButtonDisabled: { opacity: 0.55 },
   saveText: { color: tokens.colors.canvas, fontSize: 16, fontWeight: '900' },

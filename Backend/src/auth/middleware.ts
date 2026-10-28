@@ -83,7 +83,7 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
   if (requireMfa) {
     try {
       const claims = JSON.parse(Buffer.from(req.auth.accessToken.split('.')[1],'base64url').toString('utf8'));
-      if (claims.aal !== 'aal2') return res.status(403).json({ error:'Xác minh hai bước trong Hồ sơ trước khi mở quản trị.', code:'ADMIN_MFA_REQUIRED' });
+      if (claims.aal !== 'aal2') return res.status(403).json({ error:'Mở Quản trị viên → Bảo mật để xác minh hai bước trước khi tiếp tục.', code:'ADMIN_MFA_REQUIRED' });
     } catch { return res.status(403).json({ error:'Yêu cầu xác minh hai bước.',code:'ADMIN_MFA_REQUIRED' }); }
   }
 

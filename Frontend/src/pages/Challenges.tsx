@@ -173,9 +173,7 @@ function LiveChallengeCard({
 }) {
   const duration = getDuration(challenge.start_date, challenge.end_date);
   const elapsed = getElapsedDays(challenge);
-  const progress = challenge.status === 'completed'
-    ? 100
-    : duration === null ? null : Math.min(100, Math.round((challenge.user_checkin_count / duration) * 100));
+  const progress = duration === null ? null : Math.min(100, Math.round((challenge.user_checkin_count / duration) * 100));
   const isGroup = challenge.mode === 'crew';
   const difficultyValue = String(challenge.target.difficulty || '');
   const difficulty = ['easy', 'medium', 'hard'].includes(difficultyValue)
@@ -194,9 +192,9 @@ function LiveChallengeCard({
         <div className="flex items-center gap-2">
           {difficulty && <DifficultyBadge value={difficulty} />}
           <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] ${
-            challenge.status === 'completed' ? 'bg-info/10 text-info' : 'bg-accent/10 text-accent'
+            challenge.status !== 'active' ? 'bg-info/10 text-info' : 'bg-accent/10 text-accent'
           }`}>
-            {challenge.status === 'completed' ? 'Đã hoàn thành' : challenge.user_checked_in ? 'Đã tham gia' : 'Đang tham gia'}
+            {challenge.status === 'cancelled' ? 'Đã hủy' : challenge.status === 'completed' ? 'Đã kết thúc' : 'Đang diễn ra'}
           </span>
         </div>
       </div>
@@ -212,8 +210,8 @@ function LiveChallengeCard({
       </div>
       <div className="mt-5">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-bold text-text-secondary">{challenge.status === 'completed' ? 'Đã hoàn thành thử thách' : duration === null ? `${challenge.user_checkin_count} ngày đã hoàn thành` : `${challenge.user_checkin_count}/${duration} ngày`}</span>
-          <span className="font-black text-text-primary">{progress === null ? `Ngày ${elapsed}` : `${progress}%`}</span>
+          <span className="font-bold text-text-secondary">{duration === null ? `${challenge.user_checkin_count} ngày đã ghi nhận` : `${challenge.user_checkin_count}/${duration} ngày đã ghi nhận`}</span>
+          <span className="font-black text-text-primary">{progress === null ? challenge.status === 'active' ? `Ngày ${elapsed}` : `${challenge.user_checkin_count} ngày` : `${progress}%`}</span>
         </div>
         {progress !== null && (
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-bg-tertiary">
@@ -224,10 +222,10 @@ function LiveChallengeCard({
       <div className="mt-5 flex items-center justify-between gap-3 border-t border-border-primary pt-4">
         <span className={`inline-flex items-center gap-1.5 text-xs font-black ${challenge.user_checked_in ? 'text-accent' : 'text-warning'}`}>
           {challenge.user_checked_in ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
-          {challenge.user_checked_in ? 'Đã xong hôm nay' : 'Hôm nay chưa hoàn thành'}
+          {challenge.status !== 'active' ? 'Xem kết quả đã ghi nhận' : challenge.user_checked_in ? 'Đã xong hôm nay' : 'Hôm nay chưa hoàn thành'}
         </span>
         <button type="button" onClick={onOpen} className="inline-flex items-center gap-1.5 text-sm font-black text-text-primary group-hover:text-accent">
-          {challenge.status === 'completed' ? 'Xem chi tiết' : 'Tiếp tục'}
+          {challenge.status !== 'active' ? 'Xem chi tiết' : 'Tiếp tục'}
           <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </button>
       </div>
@@ -315,7 +313,7 @@ export default function Challenges() {
   const [copied, setCopied] = useState(false);
 
   const activeChallenges = useMemo(() => challenges.filter((challenge) => challenge.status === 'active'), [challenges]);
-  const completedChallenges = useMemo(() => challenges.filter((challenge) => challenge.status === 'completed'), [challenges]);
+  const completedChallenges = useMemo(() => challenges.filter((challenge) => challenge.status !== 'active'), [challenges]);
   const soloChallenges = useMemo(() => activeChallenges.filter((challenge) => challenge.mode === 'solo'), [activeChallenges]);
   const groupChallenges = useMemo(() => activeChallenges.filter((challenge) => challenge.mode === 'crew'), [activeChallenges]);
   const primaryGroup = useMemo(
@@ -448,7 +446,7 @@ export default function Challenges() {
     : 1;
   const groupLeaderboard = useMemo(
     () => groupDetail
-      ? buildChallengeLeaderboard(groupDetail.participants, groupDuration, todayKey, groupDetail.challenge.end_date)
+      ? buildChallengeLeaderboard(groupDetail.participants, groupDuration, todayKey, groupDetail.challenge.end_date, groupDetail.challenge.start_date)
       : [],
     [groupDetail, groupDuration, todayKey],
   );
@@ -468,7 +466,7 @@ export default function Challenges() {
   const completedBadgeNames = new Set(completedChallenges
     .filter((challenge) => {
       const durationDays = Number(challenge.target.duration_days);
-      return Number.isFinite(durationDays)
+      return challenge.status === 'completed' && Number.isFinite(durationDays)
         && durationDays > 0
         && challenge.user_checkin_count >= durationDays;
     })
@@ -488,7 +486,7 @@ export default function Challenges() {
     { id: 'personal', label: 'Cá nhân', count: soloChallenges.length },
     { id: 'recommended', label: 'Gợi ý', count: templates.length },
     { id: 'group', label: 'Nhóm', count: groupChallenges.length },
-    { id: 'completed', label: 'Đã hoàn thành', count: completedChallenges.length },
+    { id: 'completed', label: 'Lịch sử', count: completedChallenges.length },
   ];
 
   return (
@@ -732,7 +730,7 @@ export default function Challenges() {
                 </div>
               </section>
             ) : (
-              <EmptyState icon={<Medal className="h-6 w-6" />} title="Chưa có thử thách nào hoàn thành" description="Các thử thách đã hoàn thành và huy hiệu bạn kiếm được sẽ xuất hiện tại đây." />
+              <EmptyState icon={<Medal className="h-6 w-6" />} title="Chưa có thử thách nào kết thúc" description="Kết quả và huy hiệu đã đạt sẽ xuất hiện tại đây sau khi thử thách kết thúc." />
             )
           )}
         </>

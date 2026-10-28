@@ -214,7 +214,7 @@ describe('production security migrations', () => {
       has_function_privilege('anon','public.sync_challenge_checkin(text,uuid,jsonb)','EXECUTE') anonymous_checkin,
       has_function_privilege('authenticated','public.sync_challenge_checkin(text,uuid,jsonb)','EXECUTE') checkin,
       has_function_privilege('service_role','public.add_exp(uuid,integer)','EXECUTE') server_exp`);
-    expect(Object.values(rights!)).toEqual([false,false,false,false,false,true,true]);
+    expect(Object.values(rights!)).toEqual([false,false,false,false,false,false,true]);
     await asUser(A);
     expect((await db.query(`update public.profiles set full_name='Owner edit' where id=$1 returning full_name`,[A])).rows)
       .toEqual([{full_name:'Owner edit'}]);
@@ -230,6 +230,81 @@ describe('production security migrations', () => {
       has_function_privilege('authenticated','public.default_acl_probe()','EXECUTE') function_access,
       has_function_privilege('anon','public.default_acl_probe()','EXECUTE') anon_function`);
     expect(Object.values(defaults!)).toEqual([false,false,false,false]);
+  });
+
+  it('records challenge activity only after a matching completed action', async () => {
+    const rights = await value(`select
+      has_table_privilege('authenticated','public.challenges','UPDATE') edit_challenge,
+      has_table_privilege('authenticated','public.challenges','DELETE') delete_challenge,
+      has_table_privilege('authenticated','public.challenge_participants','INSERT') add_member,
+      has_table_privilege('authenticated','public.challenge_checkins','INSERT') add_checkin`);
+    expect(Object.values(rights!)).toEqual([false,false,false,false]);
+    const today = (await value(`select (timezone('Asia/Ho_Chi_Minh', now()))::date::text today`)).today;
+    const workout = await value(`insert into challenges(created_by,title,mode,start_date,end_date,target,max_members)
+      values($1,'Workout','solo',$2,$2,'{"goal_key":"workout"}',1) returning id`,[A,today]);
+    const water = await value(`insert into challenges(created_by,title,mode,start_date,end_date,target,max_members)
+      values($1,'Water','solo',$2,$2,'{"goal_key":"water"}',1) returning id`,[A,today]);
+    await db.query(`insert into challenge_participants(challenge_id,user_id,role) values($1,$3,'owner'),($2,$3,'owner')`,[workout.id,water.id,A]);
+    const session = await value(`insert into daily_workout_sessions(user_id,log_date,status,started_at)
+      values($1,$2,'in_progress',now()) returning id`,[A,today]);
+    await db.query(`insert into daily_exercise_sessions(user_id,log_date,is_completed,completed_sets)
+      values($1,$2,false,1)`,[A,today]);
+    expect((await value(`select count(*)::int n from challenge_checkins where user_id=$1`,[A])).n).toBe(0);
+    await db.query(`update daily_workout_sessions set status='completed',completed_at=now() where id=$1`,[session.id]);
+    expect((await value(`select count(*)::int n from challenge_checkins where challenge_id=$1`,[workout.id])).n).toBe(1);
+    expect((await value(`select count(*)::int n from challenge_checkins where challenge_id=$1`,[water.id])).n).toBe(0);
+    await asUser(A);
+    expect((await value(`select public.manual_challenge_checkin($1) checked`,[water.id])).checked).toBe(false);
+    await asServer();
+    await db.query(`insert into daily_progress_logs(user_id,log_date,water_intake_ml) values($1,$2,250)`,[A,today]);
+    expect((await value(`select count(*)::int n from challenge_checkins where challenge_id=$1`,[water.id])).n).toBe(1);
+
+    await asUser(A);
+    await db.exec('savepoint forged_checkin');
+    await expect(db.query(`insert into challenge_checkins(challenge_id,user_id,checkin_date,source_type)
+      values($1,$2,$3,'workout')`,[water.id,A,today])).rejects.toMatchObject({code:'42501'});
+    await db.exec('rollback to savepoint forged_checkin');
+    await db.exec('savepoint forged_rpc');
+    await expect(db.query(`select public.sync_challenge_checkin('workout',null,'{}')`)).rejects.toMatchObject({code:'42501'});
+    await db.exec('rollback to savepoint forged_rpc');
+  });
+
+  it('lets only the owner cancel a challenge and keeps its history', async () => {
+    const today = (await value(`select (timezone('Asia/Ho_Chi_Minh', now()))::date::text today`)).today;
+    const group = await value(`insert into challenges(created_by,title,mode,start_date,end_date,target,max_members)
+      values($1,'Crew','crew',$2,null,'{"goal_key":"any"}',5) returning id`,[A,today]);
+    await db.query(`insert into challenge_participants(challenge_id,user_id,role)
+      values($1,$2,'owner'),($1,$3,'member')`,[group.id,A,B]);
+    await asUser(B);
+    expect((await value(`select public.cancel_challenge($1) cancelled`,[group.id])).cancelled).toBe(false);
+    await asUser(A);
+    expect((await value(`select public.manual_challenge_checkin($1) checked`,[group.id])).checked).toBe(true);
+    expect((await value(`select public.cancel_challenge($1) cancelled`,[group.id])).cancelled).toBe(true);
+    expect((await value(`select public.cancel_challenge($1) cancelled`,[group.id])).cancelled).toBe(false);
+    expect((await value(`select public.manual_challenge_checkin($1) checked`,[group.id])).checked).toBe(false);
+    await asServer();
+    expect((await value(`select status, target->>'cancelled_date' cancelled_date from challenges where id=$1`,[group.id]))).toMatchObject({status:'cancelled',cancelled_date:today});
+    expect((await value(`select count(*)::int n from challenge_checkins where challenge_id=$1`,[group.id])).n).toBe(1);
+  });
+
+  it('rotates a crew invite atomically and rejects the old code', async () => {
+    const today = (await value(`select (timezone('Asia/Ho_Chi_Minh', now()))::date::text today`)).today;
+    const group = await value(`insert into challenges(created_by,title,mode,start_date,end_date,target,max_members,invite_code)
+      values($1,'Crew','crew',$2,null,'{"goal_key":"any"}',5,'OLD12345') returning id`,[A,today]);
+    await db.query(`insert into challenge_participants(challenge_id,user_id,role) values($1,$2,'owner')`,[group.id,A]);
+    await asUser(B);
+    await db.exec('savepoint non_owner');
+    await expect(value(`select public.rotate_challenge_invite_code($1) code`,[group.id])).rejects.toThrow();
+    await db.exec('rollback to savepoint non_owner');
+    await asUser(A);
+    const newCode = (await value(`select public.rotate_challenge_invite_code($1) code`,[group.id])).code;
+    expect(newCode).toMatch(/^[A-F0-9]{8}$/);
+    expect(newCode).not.toBe('OLD12345');
+    await asUser(B);
+    await db.exec('savepoint old_code');
+    await expect(value(`select public.join_challenge_by_invite_code('OLD12345') id`)).rejects.toThrow();
+    await db.exec('rollback to savepoint old_code');
+    expect((await value(`select public.join_challenge_by_invite_code($1) id`,[newCode])).id).toBe(group.id);
   });
 
   it('writes each completed set once with consistent logs, snapshots and calories', async () => {

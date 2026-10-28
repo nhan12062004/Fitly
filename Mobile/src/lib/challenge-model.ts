@@ -68,7 +68,7 @@ export const challengeDuration = (challenge: ChallengeSummary) => {
 
 export const elapsedChallengeDays = (challenge: ChallengeSummary) => {
   const duration = challengeDuration(challenge);
-  const elapsed = Math.max(1, Math.round((new Date(`${todayKey()}T00:00:00Z`).getTime() - new Date(`${challenge.start_date}T00:00:00Z`).getTime()) / 86_400_000) + 1);
+  const elapsed = Math.max(0, Math.round((new Date(`${todayKey()}T00:00:00Z`).getTime() - new Date(`${challenge.start_date}T00:00:00Z`).getTime()) / 86_400_000) + 1);
   return duration ? Math.min(duration, elapsed) : elapsed;
 };
 
@@ -117,6 +117,27 @@ export async function manualChallengeCheckin(id: string) {
   const { data, error } = await supabase.rpc('manual_challenge_checkin', { p_challenge_id: id });
   if (error) throw error;
   void invalidateResources('challenges', 'challenge');
+  return Boolean(data);
+}
+
+export async function cancelChallenge(id: string) {
+  const { data, error } = await supabase.rpc('cancel_challenge', { p_challenge_id: id });
+  if (error) throw error;
+  await invalidateResources('challenges', 'challenge');
+  return Boolean(data);
+}
+
+export async function rotateChallengeInviteCode(id: string) {
+  const { data, error } = await supabase.rpc('rotate_challenge_invite_code', { p_challenge_id: id });
+  if (error) throw error;
+  await invalidateResources('challenges', 'challenge');
+  return String(data);
+}
+
+export async function leaveChallenge(id: string) {
+  const { data, error } = await supabase.rpc('leave_challenge', { p_challenge_id: id });
+  if (error) throw error;
+  await invalidateResources('challenges', 'challenge');
   return Boolean(data);
 }
 

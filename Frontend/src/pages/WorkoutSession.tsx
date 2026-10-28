@@ -6,7 +6,6 @@ import { fetchWithAuth } from '../lib/Api';
 import { supabase } from '../lib/Supabase';
 import { SkeletonBlock } from '../components/PageSkeleton';
 import { useToast } from '../components/ToastProvider';
-import { syncChallengeCheckin } from '../lib/Challenges';
 import { formatTargetMuscleLabel } from '../lib/exerciseCatalog';
 
 interface SessionExercise {
@@ -365,7 +364,6 @@ export default function WorkoutSession() {
   const [completedIds, setCompletedIds] = useState<string[]>(
     orderedSession.filter((item) => item.is_completed).map((item) => item.id)
   );
-  const syncedChallengeSessionId = useRef<string | null>(null);
 
   const activeExercise = orderedSession[activeIndex] || null;
   const activeExerciseSets = getExerciseSets(activeExercise);
@@ -492,25 +490,6 @@ export default function WorkoutSession() {
   const nextExercise = orderedSession.find((item, index) => index > activeIndex && !isSessionExerciseDone(item)) || null;
   const totalActualKcal = orderedSession.reduce((sum, item) => sum + getExerciseKcal(item), 0);
   const totalPlannedKcal = orderedSession.reduce((sum, item) => sum + getExercisePlannedKcal(item), 0);
-
-  useEffect(() => {
-    if (!user?.id || !workoutSessionId || !allExercisesCompleted) return;
-    if (syncedChallengeSessionId.current === workoutSessionId) return;
-
-    const todayInVietnam = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date());
-    if (state.logDate && state.logDate !== todayInVietnam) return;
-
-    syncedChallengeSessionId.current = workoutSessionId;
-    void syncChallengeCheckin(user.id, 'workout', workoutSessionId).catch((challengeError) => {
-      syncedChallengeSessionId.current = null;
-      console.warn('Challenge workout-completion sync failed:', challengeError);
-    });
-  }, [allExercisesCompleted, state.logDate, user?.id, workoutSessionId]);
 
   const updateEditForm = (exercise: SessionExercise | null) => {
     const setsValue = getExerciseSets(exercise);

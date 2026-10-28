@@ -20,8 +20,10 @@ import {
 import { fetchWithAuth } from '../lib/Api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ToastProvider';
-import { getApiErrorMessage } from '../lib/ErrorMessage';
+import { getApiErrorCode, getApiErrorMessage } from '../lib/ErrorMessage';
+import { supabase } from '../lib/Supabase';
 import { AdminRecipesPanel, type AdminRecipe } from '../components/AdminRecipesPanel';
+import { AdminMfaPanel } from '../components/AdminMfaPanel';
 import {
   BODY_PARTS,
   EQUIPMENT_TYPES,
@@ -44,7 +46,7 @@ import {
   type ExerciseInstructions,
 } from '../lib/exerciseCatalog';
 
-type AdminTab = 'overview' | 'users' | 'exercises' | 'foods' | 'recipes';
+type AdminTab = 'overview' | 'users' | 'exercises' | 'foods' | 'recipes' | 'security';
 
 type OverviewStats = {
   users: number;
@@ -229,7 +231,8 @@ const tabs: Array<{ id: AdminTab; label: string; icon: ElementType }> = [
   { id: 'users', label: 'Người dùng', icon: Users },
   { id: 'exercises', label: 'Bài tập', icon: Dumbbell },
   { id: 'foods', label: 'Thực đơn', icon: Utensils }
-  ,{ id: 'recipes', label: 'Recipes', icon: Utensils }
+  ,{ id: 'recipes', label: 'Recipes', icon: Utensils },
+  { id: 'security', label: 'Bảo mật', icon: Shield }
 ];
 const ADMIN_TABLE_PAGE_SIZE = 8;
 
@@ -519,11 +522,15 @@ const extractExerciseFieldErrors = (value: unknown): ExerciseFieldErrors => {
 
 class AdminRequestError extends Error {
   readonly fields: ExerciseFieldErrors;
+  readonly code: string | null;
+  readonly status: number;
 
-  constructor(message: string, fields: ExerciseFieldErrors = {}) {
+  constructor(message: string, fields: ExerciseFieldErrors = {}, code: string | null = null, status = 0) {
     super(message);
     this.name = 'AdminRequestError';
     this.fields = fields;
+    this.code = code;
+    this.status = status;
   }
 }
 
@@ -553,9 +560,11 @@ const toFoodForm = (row?: FoodRow | null): FoodForm => {
 };
 
 export default function AdminPanel() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, userRole } = useAuth();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [assuranceReady, setAssuranceReady] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -607,13 +616,13 @@ export default function AdminPanel() {
         fallbackMessage: 'Không thể tải dữ liệu quản trị',
         fallbackByStatus
       });
-      throw new AdminRequestError(message, extractExerciseFieldErrors(payload?.fields));
+      throw new AdminRequestError(message, extractExerciseFieldErrors(payload?.fields), getApiErrorCode(payload) || null, response.status);
     }
     return payload.data ?? payload;
   };
 
   const loadData = useCallback(async () => {
-    if (!isAdmin) return;
+    if (!isAdmin || !assuranceReady || mfaRequired || activeTab === 'security') return;
     setLoading(true);
     setError('');
     try {
@@ -640,11 +649,40 @@ export default function AdminPanel() {
         setFoods(foodRows);
       }
     } catch (err: any) {
-      setError(err?.message || 'Không thể tải dữ liệu quản trị');
+      if (err instanceof AdminRequestError && err.code === 'ADMIN_MFA_REQUIRED') {
+        const assurance = await supabase.auth.mfa.getAuthenticatorAssuranceLevel().catch(() => null);
+        if (assurance?.data?.currentLevel === 'aal2') {
+          setError('Phiên đã xác minh hai bước nhưng máy chủ vẫn từ chối. Hãy đăng xuất rồi đăng nhập lại; nếu vẫn lỗi, cần kiểm tra backend đang dùng đúng dự án Supabase.');
+        } else {
+          setMfaRequired(true);
+          setActiveTab('security');
+        }
+        return;
+      }
+      if (err instanceof AdminRequestError && err.status === 403 && err.code === 'FORBIDDEN') {
+        setError('Máy chủ từ chối quyền quản trị của phiên này. Hãy đăng xuất rồi đăng nhập lại; nếu vẫn lỗi, cần kiểm tra quyền admin trong Supabase Auth và cấu hình backend.');
+      } else {
+        setError(err?.message || 'Không thể tải dữ liệu quản trị');
+      }
     } finally {
       setLoading(false);
     }
-  }, [activeTab, isAdmin, querySuffix]);
+  }, [activeTab, assuranceReady, isAdmin, mfaRequired, querySuffix]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let mounted = true;
+    void supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data, error: assuranceError }) => {
+      if (!mounted) return;
+      if (!assuranceError && data?.currentLevel !== 'aal2') {
+        setMfaRequired(true);
+        setActiveTab('security');
+      }
+    }).catch(() => undefined).finally(() => {
+      if (mounted) setAssuranceReady(true);
+    });
+    return () => { mounted = false; };
+  }, [isAdmin]);
 
   useEffect(() => {
     void loadData();
@@ -771,6 +809,11 @@ export default function AdminPanel() {
         <div className="rounded-xl border border-border-primary bg-bg-secondary p-6 text-center">
           <Shield className="mx-auto h-8 w-8 text-danger" />
           <h2 className="mt-3 text-lg font-bold text-text-primary">Không có quyền truy cập</h2>
+          <p className="mt-2 max-w-md text-sm text-text-secondary">
+            {userRole === 'admin'
+              ? 'Hồ sơ đang ghi vai trò admin, nhưng tài khoản đăng nhập chưa được cấp quyền quản trị trên máy chủ. Hãy liên hệ người quản lý hệ thống để kiểm tra quyền rồi đăng nhập lại.'
+              : 'Tài khoản này chưa được cấp quyền quản trị.'}
+          </p>
         </div>
       </div>
     );
@@ -787,7 +830,7 @@ export default function AdminPanel() {
         <button
           type="button"
           onClick={() => void loadData()}
-          disabled={loading}
+          disabled={loading || !assuranceReady || mfaRequired || activeTab === 'security'}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-secondary px-4 text-sm font-black text-text-primary transition-colors hover:border-accent/40 disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
@@ -803,6 +846,7 @@ export default function AdminPanel() {
             <button
               key={tab.id}
               type="button"
+              disabled={mfaRequired && tab.id !== 'security'}
               onClick={() => {
                 setActiveTab(tab.id);
                 setSearch('');
@@ -813,7 +857,7 @@ export default function AdminPanel() {
               className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-black transition-colors ${
                 isActive
                   ? 'bg-accent text-text-inverse'
-                  : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary'
+                  : 'text-text-secondary hover:bg-bg-tertiary hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50'
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -823,7 +867,7 @@ export default function AdminPanel() {
         })}
       </div>
 
-      {activeTab !== 'overview' && (
+      {activeTab !== 'overview' && activeTab !== 'security' && (
         <div className="flex flex-col gap-3 rounded-xl border border-border-primary bg-bg-secondary/80 p-3 md:flex-row md:items-center md:justify-between">
           <div className="relative max-w-xl flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
@@ -858,11 +902,27 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {loading ? (
+      {activeTab === 'security' ? (
+        <>
+          {mfaRequired && <p role="status" className="rounded-xl border border-warning/30 bg-bg-secondary p-4 text-sm text-text-secondary">Hãy hoàn tất xác minh hai bước trước khi mở Tổng quan và các mục quản trị khác.</p>}
+          <AdminMfaPanel onVerified={() => {
+            setMfaRequired(false);
+            setActiveTab('overview');
+          }} />
+        </>
+      ) : loading || !assuranceReady ? (
         <AdminTabSkeleton activeTab={activeTab} />
+      ) : error ? (
+        <section role="alert" className="rounded-xl border border-danger/30 bg-bg-secondary p-5">
+          <h2 className="font-bold text-text-primary">Không thể tải dữ liệu quản trị</h2>
+          <p className="mt-2 text-sm text-text-secondary">{error}</p>
+          <button type="button" onClick={() => void loadData()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-accent px-4 font-bold text-text-inverse">
+            <RefreshCcw className="h-4 w-4" /> Thử lại
+          </button>
+        </section>
       ) : (
         <>
-          {activeTab === 'overview' && <OverviewTab overview={overview} />}
+          {activeTab === 'overview' && (overview ? <OverviewTab overview={overview} /> : null)}
           {activeTab === 'users' && <UsersTab users={users} />}
           {activeTab === 'exercises' && (
             <ExercisesTab
@@ -1058,13 +1118,13 @@ function AdminTabSkeleton({ activeTab }: { activeTab: AdminTab }) {
   );
 }
 
-function OverviewTab({ overview }: { overview: OverviewStats | null }) {
+function OverviewTab({ overview }: { overview: OverviewStats }) {
   const stats = [
-    { label: 'Người dùng', value: overview?.users || 0, icon: Users, tone: 'text-info' },
-    { label: 'Plus / Pro', value: overview?.premiumUsers || 0, icon: Crown, tone: 'text-warning' },
-    { label: 'User mới 7 ngày', value: overview?.newUsers7d || 0, icon: Activity, tone: 'text-accent' },
-    { label: 'Bài tập', value: overview?.exercises || 0, icon: Dumbbell, tone: 'text-accent' },
-    { label: 'Thực đơn', value: overview?.foods || 0, icon: Utensils, tone: 'text-warning' }
+    { label: 'Người dùng', value: overview.users, icon: Users, tone: 'text-info' },
+    { label: 'Plus / Pro', value: overview.premiumUsers, icon: Crown, tone: 'text-warning' },
+    { label: 'User mới 7 ngày', value: overview.newUsers7d, icon: Activity, tone: 'text-accent' },
+    { label: 'Bài tập', value: overview.exercises, icon: Dumbbell, tone: 'text-accent' },
+    { label: 'Thực đơn', value: overview.foods, icon: Utensils, tone: 'text-warning' }
   ];
 
   return (
@@ -1094,7 +1154,7 @@ function OverviewTab({ overview }: { overview: OverviewStats | null }) {
           <div>
             <p className="text-sm font-black text-text-primary">AI Coach adjustments</p>
             <p className="text-xs font-semibold text-text-tertiary">
-              Đề xuất: {overview?.aiAdjustments.proposed || 0} · Đã áp dụng: {overview?.aiAdjustments.applied || 0} · Từ chối: {overview?.aiAdjustments.rejected || 0}
+              Đề xuất: {overview.aiAdjustments.proposed} · Đã áp dụng: {overview.aiAdjustments.applied} · Từ chối: {overview.aiAdjustments.rejected}
             </p>
           </div>
         </div>

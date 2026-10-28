@@ -1,8 +1,11 @@
 import { supabase } from './Supabase';
+import { buildChallengeLeaderboard, type ChallengeLeaderboardEntry, type ChallengeParticipantProgress } from '../../../shared/challengeLeaderboard';
+
+export { buildChallengeLeaderboard };
+export type { ChallengeLeaderboardEntry, ChallengeParticipantProgress };
 
 export type ChallengeMode = 'solo' | 'crew';
 export type ChallengeStatus = 'active' | 'completed' | 'cancelled';
-export type ChallengeSourceType = 'water' | 'meal' | 'workout' | 'sleep' | 'manual';
 export type ChallengeDifficulty = 'easy' | 'medium' | 'hard';
 export type ChallengeGoalKey = 'any' | 'workout' | 'meal' | 'water' | 'sleep';
 
@@ -37,24 +40,6 @@ export type ChallengeSummary = {
   today_checkin_count: number;
   user_checkin_count: number;
   user_checked_in: boolean;
-};
-
-export type ChallengeParticipantProgress = {
-  user_id: string;
-  display_name: string;
-  role: 'owner' | 'member';
-  joined_at: string;
-  checkin_dates: string[];
-};
-
-export type ChallengeLeaderboardEntry = ChallengeParticipantProgress & {
-  rank: number;
-  score: number;
-  total_checkins: number;
-  current_streak: number;
-  longest_streak: number;
-  completion_rate: number;
-  checked_in_today: boolean;
 };
 
 export type ChallengeDetail = {
@@ -99,83 +84,6 @@ const normalizeSummary = (row: ChallengeSummary): ChallengeSummary => ({
   user_checked_in: Boolean(row.user_checked_in),
   target: row.target || {},
 });
-
-const addDateKeyDays = (dateKey: string, amount: number): string => {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() + amount);
-  return date.toISOString().slice(0, 10);
-};
-
-const getStreaks = (dateKeys: string[], referenceDate: string) => {
-  const uniqueDates = [...new Set(dateKeys)].sort();
-  const dateSet = new Set(uniqueDates);
-  let longestStreak = 0;
-  let runningStreak = 0;
-  let previousDate = '';
-
-  uniqueDates.forEach((dateKey) => {
-    runningStreak = previousDate && addDateKeyDays(previousDate, 1) === dateKey
-      ? runningStreak + 1
-      : 1;
-    longestStreak = Math.max(longestStreak, runningStreak);
-    previousDate = dateKey;
-  });
-
-  let currentStreak = 0;
-  let cursor = dateSet.has(referenceDate) ? referenceDate : addDateKeyDays(referenceDate, -1);
-  while (dateSet.has(cursor)) {
-    currentStreak += 1;
-    cursor = addDateKeyDays(cursor, -1);
-  }
-
-  return { currentStreak, longestStreak };
-};
-
-export const buildChallengeLeaderboard = (
-  participants: ChallengeParticipantProgress[],
-  totalDays: number,
-  today: string,
-  endDate: string | null,
-): ChallengeLeaderboardEntry[] => {
-  const referenceDate = endDate && today > endDate ? endDate : today;
-  const entries = participants.map((participant) => {
-    const checkinDates = [...new Set(participant.checkin_dates)].sort();
-    const { currentStreak, longestStreak } = getStreaks(checkinDates, referenceDate);
-    const totalCheckins = checkinDates.length;
-    const streakBonus = Math.max(0, longestStreak - 1) * 20;
-    const fullCompletionBonus = endDate && totalCheckins >= totalDays ? 200 : 0;
-
-    return {
-      ...participant,
-      checkin_dates: checkinDates,
-      rank: 0,
-      score: totalCheckins * 100 + streakBonus + fullCompletionBonus,
-      total_checkins: totalCheckins,
-      current_streak: currentStreak,
-      longest_streak: longestStreak,
-      completion_rate: Math.min(100, Math.round((totalCheckins / Math.max(1, totalDays)) * 100)),
-      checked_in_today: checkinDates.includes(today),
-    };
-  });
-
-  entries.sort((left, right) => (
-    right.score - left.score
-    || right.total_checkins - left.total_checkins
-    || right.longest_streak - left.longest_streak
-    || Number(right.checked_in_today) - Number(left.checked_in_today)
-    || new Date(left.joined_at).getTime() - new Date(right.joined_at).getTime()
-  ));
-
-  let previousScore = -1;
-  let previousRank = 0;
-  return entries.map((entry, index) => {
-    const rank = entry.score === previousScore ? previousRank : index + 1;
-    previousScore = entry.score;
-    previousRank = rank;
-    return { ...entry, rank };
-  });
-};
 
 export const createSoloChallenge = async (
   userId: string,
@@ -259,6 +167,20 @@ export const leaveChallenge = async (
   return Boolean(data);
 };
 
+export const cancelChallenge = async (userId: string, challengeId: string): Promise<boolean> => {
+  await assertCurrentUser(userId);
+  const { data, error } = await supabase.rpc('cancel_challenge', { p_challenge_id: challengeId });
+  if (error) throw error;
+  return Boolean(data);
+};
+
+export const rotateChallengeInviteCode = async (userId: string, challengeId: string): Promise<string> => {
+  await assertCurrentUser(userId);
+  const { data, error } = await supabase.rpc('rotate_challenge_invite_code', { p_challenge_id: challengeId });
+  if (error) throw error;
+  return String(data);
+};
+
 export const joinChallengeByInviteCode = async (
   userId: string,
   inviteCode: string,
@@ -321,21 +243,6 @@ export const getChallengeDetail = async (
   return { challenge, participants };
 };
 
-export const syncChallengeCheckin = async (
-  userId: string,
-  sourceType: ChallengeSourceType,
-  sourceId?: string,
-): Promise<number> => {
-  await assertCurrentUser(userId);
-  const { data, error } = await supabase.rpc('sync_challenge_checkin', {
-    p_source_type: sourceType,
-    p_source_id: sourceId || null,
-    p_metadata: {},
-  });
-  if (error) throw error;
-  return Number(data || 0);
-};
-
 export const manualCheckin = async (
   challengeId: string,
   userId: string,
@@ -391,7 +298,7 @@ export const getTodayChallengeStatus = async (
             - new Date(`${challenge.start_date}T00:00:00Z`).getTime()
           ) / 86_400_000) + 1,
         );
-    const leaderboard = buildChallengeLeaderboard(participants, totalDays, today, challenge.end_date);
+    const leaderboard = buildChallengeLeaderboard(participants, totalDays, today, challenge.end_date, challenge.start_date);
     const currentIndex = leaderboard.findIndex((entry) => entry.user_id === userId);
 
     if (currentIndex >= 0) {

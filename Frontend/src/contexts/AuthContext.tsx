@@ -325,7 +325,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       membershipTier,
       membership,
       isPremium: membershipTier === 'pro',
-      isAdmin: userRole === 'admin',
+      isAdmin: String(user?.app_metadata?.role || '').trim().toLowerCase() === 'admin',
       signOut,
       openAuthModal,
       closeAuthModal,

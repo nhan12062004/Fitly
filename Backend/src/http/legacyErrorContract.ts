@@ -49,6 +49,11 @@ export const legacyErrorContractMiddleware: RequestHandler = (req, res, next) =>
   const respond = (status: number, body: unknown): Response => {
     const normalizedStatus = normalizeStatus(status);
     const mapped = byStatus(normalizedStatus, body);
+    const legacy = body as { code?: unknown; error?: unknown } | null;
+    if (normalizedStatus === 403 && legacy?.code === 'ADMIN_MFA_REQUIRED') {
+      mapped.code = 'ADMIN_MFA_REQUIRED';
+      if (typeof legacy.error === 'string') mapped.message = legacy.error;
+    }
     res.status(normalizedStatus);
     return sendJson({ error: { ...mapped, requestId: req.requestId } });
   };

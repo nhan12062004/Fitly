@@ -335,7 +335,7 @@ export default function Dashboard() {
         <TopBar />
         <main className="dashboard-main flex min-h-0 flex-1 flex-col gap-6 bg-bg-primary px-4 pb-4 pt-5 md:px-6 md:pb-6 md:pt-7 lg:px-7 min-w-0 relative">
           <div className="dashboard-content mx-auto w-full min-w-0">
-            <ProfileCompletionNudge onOpenProfile={openProfileSupplement} />
+            {location.pathname !== '/progress' && <ProfileCompletionNudge onOpenProfile={openProfileSupplement} />}
             <Suspense fallback={null}>
               <Outlet context={{ onPasswordClick: () => setIsPasswordModalOpen(true) }} />
             </Suspense>

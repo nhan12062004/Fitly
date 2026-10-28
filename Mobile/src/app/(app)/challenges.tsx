@@ -40,6 +40,11 @@ export default function ChallengesScreen() {
   const visible = tab === 'active' ? active : completed;
 
   const submit = async () => {
+    if (creating) return;
+    if (title.trim().length < 2) {
+      Alert.alert('Tên thử thách quá ngắn', 'Hãy nhập ít nhất 2 ký tự.');
+      return;
+    }
     setCreating(true);
     try {
       const id = await createChallenge({ title, mode, durationDays: duration, goal, maxMembers: mode === 'crew' ? 5 : 1 });
@@ -55,6 +60,11 @@ export default function ChallengesScreen() {
   };
 
   const submitJoin = async () => {
+    if (joining) return;
+    if (inviteCode.trim().length !== 8) {
+      Alert.alert('Mã mời chưa hợp lệ', 'Mã mời cần đủ 8 ký tự.');
+      return;
+    }
     setJoining(true);
     try {
       const id = await joinChallengeByInviteCode(inviteCode);
@@ -83,8 +93,8 @@ export default function ChallengesScreen() {
     {primary ? <PrimaryChallenge item={primary} onOpen={() => router.push({ pathname: '/challenges/[id]', params: { id: primary.id } })} /> : <EmptyChallenge onCreate={() => setShowCreate(true)} />}
 
     <View style={styles.listHeader}><Text style={styles.listTitle}>Kho thử thách</Text><View style={styles.listActions}><Pressable onPress={() => setShowJoin(true)}><Text style={styles.joinLink}>Nhập mã</Text></Pressable><Pressable onPress={() => setShowCreate(true)}><Text style={styles.createLink}>Tạo mới</Text></Pressable></View></View>
-    <View style={styles.tabs}>{([['active', `Đang tham gia ${active.length}`], ['completed', `Đã xong ${completed.length}`]] as [Tab, string][]).map(([item, label]) => <Pressable key={item} onPress={() => setTab(item)} style={[styles.tab, tab === item && styles.tabActive]}><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{label}</Text></Pressable>)}</View>
-    {state === 'ready' && visible.length === 0 ? <View style={styles.listEmpty}><Text style={styles.listEmptyTitle}>{tab === 'active' ? 'Bạn chưa có thử thách nào khác' : 'Chưa có hành trình đã hoàn thành'}</Text><Text style={styles.listEmptyBody}>Bắt đầu với 7 ngày là một nhịp vừa đẹp.</Text></View> : null}
+    <View style={styles.tabs}>{([['active', `Đang tham gia ${active.length}`], ['completed', `Lịch sử ${completed.length}`]] as [Tab, string][]).map(([item, label]) => <Pressable key={item} onPress={() => setTab(item)} style={[styles.tab, tab === item && styles.tabActive]}><Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{label}</Text></Pressable>)}</View>
+    {state === 'ready' && visible.length === 0 ? <View style={styles.listEmpty}><Text style={styles.listEmptyTitle}>{tab === 'active' ? 'Bạn chưa có thử thách nào khác' : 'Chưa có lịch sử thử thách'}</Text><Text style={styles.listEmptyBody}>Bắt đầu với 7 ngày là một nhịp vừa đẹp.</Text></View> : null}
     {visible.filter((item) => item.id !== primary?.id || tab === 'completed').map((item) => <ChallengeRow key={item.id} item={item} onOpen={() => router.push({ pathname: '/challenges/[id]', params: { id: item.id } })} />)}
 
     <View style={styles.tip}><AppIcon name="zap" size={20} color="#D4A7FF" /><View style={styles.tipCopy}><Text style={styles.tipTitle}>Fitly tự ghi nhận khi có thể</Text><Text style={styles.tipBody}>Tập, bữa ăn, nước hoặc giấc ngủ sẽ tự điểm danh nếu đúng với mục tiêu bạn chọn.</Text></View></View>
@@ -98,11 +108,11 @@ function PrimaryChallenge({ item, onOpen }: { item: ChallengeSummary; onOpen: ()
   const total = challengeDuration(item);
   const current = elapsedChallengeDays(item);
   const completed = item.user_checkin_count;
-  const progress = total ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+  const progress = Math.min(100, Math.round((completed / (total ?? Math.max(1, current))) * 100));
   return <Pressable onPress={onOpen} style={styles.primary} accessibilityRole="button">
     <View style={styles.primaryGlow} /><View style={styles.primaryTop}><View style={styles.primaryLabel}><View style={styles.liveDot} /><Text style={styles.primaryLabelText}>ĐANG DIỄN RA</Text></View><Text style={styles.primaryDay}>{total ? `NGÀY ${current}/${total}` : `NGÀY ${current}`}</Text></View>
     <Text style={styles.primaryTitle}>{item.title}</Text><Text style={styles.primaryDescription}>{item.description || `Mục tiêu: ${goalLabel(item.target)}`}</Text>
-    <View style={styles.primaryBottom}><View style={styles.progressMeta}><Text style={styles.progressTitle}>{item.user_checked_in ? 'Bạn đã xong hôm nay' : `Hôm nay: ${goalLabel(item.target)}`}</Text><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View><Text style={styles.progressCaption}>{completed}{total ? `/${total}` : ''} ngày được ghi nhận</Text></View><View style={[styles.orbit, item.user_checked_in && styles.orbitDone]}><Text style={styles.orbitValue}>{item.user_checked_in ? '✓' : `${progress}%`}</Text></View></View>
+    <View style={styles.primaryBottom}><View style={styles.progressMeta}><Text style={styles.progressTitle}>{item.user_checked_in ? 'Bạn đã xong hôm nay' : `Hôm nay: ${goalLabel(item.target)}`}</Text><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View><Text style={styles.progressCaption}>{completed}/{total ?? Math.max(1, current)} ngày được ghi nhận</Text></View><View style={[styles.orbit, item.user_checked_in && styles.orbitDone]}><Text style={styles.orbitValue}>{item.user_checked_in ? '✓' : `${progress}%`}</Text></View></View>
     <View style={styles.primaryFooter}><View style={styles.people}><View style={styles.avatar}><Text style={styles.avatarText}>B</Text></View><Text style={styles.peopleText}>{item.mode === 'crew' ? `${item.participant_count}/${item.max_members} thành viên` : 'Hành trình cá nhân'}</Text></View><AppIcon name="arrow-right" size={21} color={tokens.colors.lime} /></View>
   </Pressable>;
 }
@@ -110,7 +120,7 @@ function PrimaryChallenge({ item, onOpen }: { item: ChallengeSummary; onOpen: ()
 function ChallengeRow({ item, onOpen }: { item: ChallengeSummary; onOpen: () => void }) {
   const duration = challengeDuration(item);
   const totalLabel = duration ? `${item.user_checkin_count}/${duration} ngày` : `${item.user_checkin_count} ngày`;
-  return <Pressable onPress={onOpen} style={styles.challengeRow} accessibilityRole="button"><View style={styles.rowIcon}><AppIcon name={item.mode === 'crew' ? 'profile' : 'target'} size={21} color="#D4A7FF" /></View><View style={styles.rowCopy}><Text style={styles.rowTitle}>{item.title}</Text><Text style={styles.rowMeta}>{goalLabel(item.target)} · {item.mode === 'crew' ? `${item.participant_count} thành viên` : 'Cá nhân'}</Text><Text style={styles.rowProgress}>{totalLabel}</Text></View><AppIcon name="arrow-right" size={19} color={tokens.colors.muted} /></Pressable>;
+  return <Pressable onPress={onOpen} style={styles.challengeRow} accessibilityRole="button"><View style={styles.rowIcon}><AppIcon name={item.mode === 'crew' ? 'profile' : 'target'} size={21} color="#D4A7FF" /></View><View style={styles.rowCopy}><Text style={styles.rowTitle}>{item.title}</Text><Text style={styles.rowMeta}>{goalLabel(item.target)} · {item.mode === 'crew' ? `${item.participant_count} thành viên` : 'Cá nhân'}{item.status === 'cancelled' ? ' · Đã hủy' : item.status === 'completed' ? ' · Đã kết thúc' : ''}</Text><Text style={styles.rowProgress}>{totalLabel}</Text></View><AppIcon name="arrow-right" size={19} color={tokens.colors.muted} /></Pressable>;
 }
 
 function EmptyChallenge({ onCreate }: { onCreate: () => void }) {

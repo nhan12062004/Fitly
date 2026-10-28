@@ -22,9 +22,11 @@ import { useToast } from '../components/ToastProvider';
 import { useAuth } from '../contexts/AuthContext';
 import {
   buildChallengeLeaderboard,
+  cancelChallenge,
   getChallengeDetail,
   leaveChallenge,
   manualCheckin,
+  rotateChallengeInviteCode,
   type ChallengeDetail,
   type ChallengeLeaderboardEntry,
 } from '../lib/Challenges';
@@ -46,10 +48,14 @@ const getVietnamDateKey = (date = new Date()): string => {
 };
 
 const addDays = (dateKey: string, amount: number): string => {
-  const date = new Date(`${dateKey}T00:00:00`);
-  date.setDate(date.getDate() + amount);
-  return getVietnamDateKey(date);
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
 };
+
+const daysBetween = (start: string, end: string): number => Math.round((
+  new Date(`${end}T00:00:00Z`).getTime() - new Date(`${start}T00:00:00Z`).getTime()
+) / DAY_MS);
 
 const formatDate = (dateKey: string): string => new Intl.DateTimeFormat('vi-VN', {
   day: '2-digit',
@@ -64,9 +70,10 @@ const getErrorText = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
-type DayState = 'checked' | 'missed' | 'today' | 'future';
+type DayState = 'checked' | 'missed' | 'today' | 'future' | 'not_joined';
 
-const getDayState = (dateKey: string, checkedDates: Set<string>): DayState => {
+const getDayState = (dateKey: string, checkedDates: Set<string>, eligibleStart?: string): DayState => {
+  if (eligibleStart && dateKey < eligibleStart) return 'not_joined';
   if (checkedDates.has(dateKey)) return 'checked';
   const today = getVietnamDateKey();
   if (dateKey < today) return 'missed';
@@ -76,6 +83,9 @@ const getDayState = (dateKey: string, checkedDates: Set<string>): DayState => {
 
 function StatusMark({ state, compact = false }: { state: DayState; compact?: boolean }) {
   const size = compact ? 'h-8 w-8' : 'h-10 w-10';
+  if (state === 'not_joined') {
+    return <span title="Chưa tham gia nhóm" className={`inline-flex ${size} items-center justify-center rounded-full bg-bg-tertiary text-text-tertiary`}>·</span>;
+  }
   if (state === 'checked') {
     return <span title="Đã điểm danh" className={`inline-flex ${size} items-center justify-center rounded-full bg-accent/15 text-accent`}><Check className="h-4 w-4" /></span>;
   }
@@ -162,6 +172,8 @@ export default function ChallengeDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isRotatingCode, setIsRotatingCode] = useState(false);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -207,20 +219,17 @@ export default function ChallengeDetails() {
 
   const challengeTotalDays = useMemo(() => {
     if (!detail) return 0;
-    const referenceEnd = detail.challenge.end_date || getVietnamDateKey();
-    return Math.max(1, Math.floor((
-      new Date(`${referenceEnd}T00:00:00`).getTime()
-      - new Date(`${detail.challenge.start_date}T00:00:00`).getTime()
-    ) / DAY_MS) + 1);
+    const cancelledDate = detail.challenge.target.cancelled_date;
+    const referenceEnd = detail.challenge.status === 'cancelled' && typeof cancelledDate === 'string'
+      ? cancelledDate : detail.challenge.end_date || getVietnamDateKey();
+    return Math.max(1, daysBetween(detail.challenge.start_date, referenceEnd) + 1);
   }, [detail]);
   const days = useMemo(() => {
     if (!detail) return [];
     const visibleCount = Math.min(7, challengeTotalDays);
-    const today = getVietnamDateKey();
-    const elapsedDays = Math.max(1, Math.min(challengeTotalDays, Math.floor((
-      new Date(`${today}T00:00:00`).getTime()
-      - new Date(`${detail.challenge.start_date}T00:00:00`).getTime()
-    ) / DAY_MS) + 1));
+    const cancelledDate = detail.challenge.target.cancelled_date;
+    const today = detail.challenge.status === 'cancelled' && typeof cancelledDate === 'string' ? cancelledDate : getVietnamDateKey();
+    const elapsedDays = Math.max(1, Math.min(challengeTotalDays, daysBetween(detail.challenge.start_date, today) + 1));
     const startIndex = Math.max(0, Math.min(challengeTotalDays - visibleCount, elapsedDays - visibleCount));
     return Array.from({ length: visibleCount }, (_, index) => ({
       index: startIndex + index,
@@ -230,15 +239,22 @@ export default function ChallengeDetails() {
   }, [challengeTotalDays, detail]);
 
   const todayKey = getVietnamDateKey();
+  const finalDate = detail?.challenge.status === 'cancelled' && typeof detail.challenge.target.cancelled_date === 'string'
+    ? detail.challenge.target.cancelled_date : detail?.challenge.end_date || null;
   const leaderboard = useMemo(
     () => detail
-      ? buildChallengeLeaderboard(detail.participants, challengeTotalDays, todayKey, detail.challenge.end_date)
+      ? buildChallengeLeaderboard(detail.participants, challengeTotalDays, todayKey, finalDate, detail.challenge.start_date, detail.challenge.status !== 'cancelled')
       : [],
-    [challengeTotalDays, detail, todayKey],
+    [challengeTotalDays, detail, todayKey, finalDate],
   );
   const currentParticipant = detail?.participants.find((participant) => participant.user_id === user?.id);
   const currentRanking = leaderboard.find((participant) => participant.user_id === user?.id);
-  const completionPercent = currentRanking?.completion_rate || 0;
+  const plannedTotalDays = detail?.challenge.end_date
+    ? Math.max(1, daysBetween(detail.challenge.start_date, detail.challenge.end_date) + 1)
+    : null;
+  const completionPercent = detail?.challenge.status === 'cancelled' && plannedTotalDays
+    ? Math.min(100, Math.round(((currentRanking?.total_checkins || 0) / plannedTotalDays) * 100))
+    : currentRanking?.completion_rate || 0;
   const currentRankingIndex = leaderboard.findIndex((participant) => participant.user_id === user?.id);
   const nextRanking = currentRanking && currentRankingIndex > 0
     ? leaderboard
@@ -251,10 +267,7 @@ export default function ChallengeDetails() {
     && todayKey >= (detail?.challenge.start_date || '')
     && (!detail?.challenge.end_date || todayKey <= detail.challenge.end_date);
   const currentDay = detail
-    ? Math.max(1, Math.min(challengeTotalDays, Math.floor((
-        new Date(`${todayKey}T00:00:00`).getTime()
-        - new Date(`${detail.challenge.start_date}T00:00:00`).getTime()
-      ) / DAY_MS) + 1))
+    ? Math.max(1, Math.min(challengeTotalDays, daysBetween(detail.challenge.start_date, todayKey) + 1))
     : 1;
 
   const completeToday = async () => {
@@ -289,6 +302,23 @@ export default function ChallengeDetails() {
     }
   };
 
+  const cancelCurrentChallenge = async () => {
+    if (!user?.id || !detail || currentParticipant?.role !== 'owner' || isCancelling) return;
+    if (!window.confirm('Hủy thử thách này? Mọi người sẽ không thể điểm danh thêm; lịch sử đã ghi nhận vẫn được giữ.')) return;
+    setIsCancelling(true);
+    try {
+      const cancelled = await cancelChallenge(user.id, detail.challenge.id);
+      if (cancelled) {
+        toast.success('Đã hủy thử thách.');
+        await loadDetail(false);
+      } else toast.info('Thử thách đã kết thúc hoặc đã được hủy.');
+    } catch (error) {
+      toast.error(getErrorText(error, 'Không thể hủy thử thách.'));
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const copyInviteCode = async () => {
     const code = detail?.challenge.invite_code;
     if (!code) return;
@@ -299,6 +329,21 @@ export default function ChallengeDetails() {
       toast.success('Đã sao chép mã mời.');
     } catch {
       toast.info(`Mã mời: ${code}`);
+    }
+  };
+
+  const rotateInviteCode = async () => {
+    if (!user?.id || !detail || currentParticipant?.role !== 'owner' || isRotatingCode) return;
+    if (!window.confirm('Đổi mã mời? Mã cũ sẽ ngừng hoạt động và bạn cần gửi mã mới cho người muốn tham gia.')) return;
+    setIsRotatingCode(true);
+    try {
+      await rotateChallengeInviteCode(user.id, detail.challenge.id);
+      await loadDetail(false);
+      toast.success('Đã đổi mã mời.');
+    } catch (error) {
+      toast.error(getErrorText(error, 'Không thể đổi mã mời.'));
+    } finally {
+      setIsRotatingCode(false);
     }
   };
 
@@ -336,13 +381,16 @@ export default function ChallengeDetails() {
     : null;
   const rewardEarned = Boolean(
     rewardBadge
+    && challenge.status === 'completed'
     && challenge.end_date
     && currentRanking
     && currentRanking.total_checkins >= challengeTotalDays,
   );
-  const challengeEnded = challenge.status === 'completed' || Boolean(challenge.end_date && todayKey > challenge.end_date);
+  const challengeEnded = challenge.status !== 'active' || Boolean(challenge.end_date && todayKey > challenge.end_date);
   const progressSummary = challenge.end_date
-    ? `${currentRanking?.total_checkins || 0}/${challengeTotalDays} ngày hoàn thành`
+    ? challenge.status === 'cancelled'
+      ? `${currentRanking?.total_checkins || 0}/${plannedTotalDays} ngày kế hoạch đã ghi nhận`
+      : `${currentRanking?.total_checkins || 0}/${isCrew ? currentRanking?.eligible_days || challengeTotalDays : challengeTotalDays} ngày có thể tham gia`
     : `${currentRanking?.total_checkins || 0} ngày hoàn thành · Ngày ${currentDay}`;
   const progressPercentLabel = challenge.end_date
     ? `${completionPercent}%`
@@ -392,22 +440,32 @@ export default function ChallengeDetails() {
 
           <div className="flex shrink-0 flex-col items-stretch gap-2">
             {isCrew && challenge.invite_code && (
-              <button
-                type="button"
-                onClick={copyInviteCode}
-                title="Sao chép mã mời"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-ai/25 bg-ai/10 px-4 text-sm font-black text-ai"
-              >
-                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                <span>Sao chép mã mời:</span>
-                <span className="font-mono tracking-[0.14em]">{challenge.invite_code}</span>
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={copyInviteCode} title="Sao chép mã mời"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-ai/25 bg-ai/10 px-4 text-sm font-black text-ai">
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  <span>Sao chép mã mời:</span><span className="font-mono tracking-[0.14em]">{challenge.invite_code}</span>
+                </button>
+                {currentParticipant?.role === 'owner' && challengeIsActive && (
+                  <button type="button" onClick={rotateInviteCode} disabled={isRotatingCode}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-border-primary px-4 text-sm font-black text-text-secondary disabled:opacity-50">
+                    {isRotatingCode ? 'Đang đổi...' : 'Đổi mã mời'}
+                  </button>
+                )}
+              </div>
             )}
             {requiresTrackedActivity ? (
-              <div className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 text-center text-sm font-black ${checkedToday ? 'border-accent/25 bg-accent/10 text-accent' : 'border-border-primary bg-bg-secondary text-text-secondary'}`}>
-                {checkedToday ? <CheckCircle2 className="h-4 w-4" /> : <Target className="h-4 w-4 text-accent" />}
-                {checkedToday ? 'Đã được ghi nhận hôm nay' : 'Hoàn thành đúng hoạt động để được ghi nhận'}
-              </div>
+              challengeIsActive && !checkedToday ? (
+                <button type="button" onClick={() => navigate(goalKey === 'workout' ? '/exercises' : goalKey === 'meal' ? '/diet-plan' : '/progress')}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 text-center text-sm font-black text-text-inverse">
+                  <Target className="h-4 w-4" /> Đi tới {goalKey === 'workout' ? 'tập luyện' : goalKey === 'meal' ? 'bữa ăn' : 'theo dõi'}
+                </button>
+              ) : (
+                <div className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-primary bg-bg-secondary px-4 text-center text-sm font-black text-text-secondary">
+                  {checkedToday && !challengeEnded ? <CheckCircle2 className="h-4 w-4 text-accent" /> : <Target className="h-4 w-4" />}
+                  {challenge.status === 'cancelled' ? 'Thử thách đã hủy' : challengeEnded ? 'Thử thách đã kết thúc' : checkedToday ? 'Đã được ghi nhận hôm nay' : 'Thử thách chưa hoạt động'}
+                </div>
+              )
             ) : (
               <button
                 type="button"
@@ -416,13 +474,19 @@ export default function ChallengeDetails() {
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-5 text-sm font-black text-text-inverse disabled:cursor-default disabled:opacity-55"
               >
                 {isCheckingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : checkedToday ? <CheckCircle2 className="h-4 w-4" /> : <Flame className="h-4 w-4" />}
-                {challenge.status === 'completed' ? 'Thử thách đã hoàn thành' : checkedToday ? 'Đã hoàn thành hôm nay' : challengeIsActive ? 'Hoàn thành hôm nay' : 'Thử thách chưa hoạt động'}
+                {challenge.status === 'cancelled' ? 'Thử thách đã hủy' : challengeEnded ? 'Thử thách đã kết thúc' : checkedToday ? 'Đã hoàn thành hôm nay' : challengeIsActive ? 'Hoàn thành hôm nay' : 'Thử thách chưa hoạt động'}
               </button>
             )}
             {currentParticipant?.role === 'member' && challenge.status === 'active' && (
               <button type="button" onClick={leaveCurrentChallenge} disabled={isLeaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-danger/25 bg-danger/10 px-5 text-sm font-black text-danger disabled:opacity-50">
                 {isLeaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Rời thử thách
+              </button>
+            )}
+            {currentParticipant?.role === 'owner' && challengeIsActive && (
+              <button type="button" onClick={cancelCurrentChallenge} disabled={isCancelling} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-danger/25 bg-danger/10 px-5 text-sm font-black text-danger disabled:opacity-50">
+                {isCancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                Hủy thử thách
               </button>
             )}
           </div>
@@ -439,7 +503,7 @@ export default function ChallengeDetails() {
                   : 'Tiến độ hiện tại'}
               </p>
               <p className="mt-1 text-lg font-black text-text-primary">
-                {challenge.end_date ? `Ngày ${currentDay}/${challengeTotalDays}` : `Ngày ${currentDay} · Không giới hạn`}
+                {challenge.end_date ? `Ngày ${currentDay}/${plannedTotalDays}` : `Ngày ${currentDay} · Không giới hạn`}
               </p>
             </div>
             <div className="min-[430px]:text-right">
@@ -553,7 +617,7 @@ export default function ChallengeDetails() {
                       </div>
                       <p className="col-start-2 text-sm font-black text-text-primary lg:col-start-auto">
                         <span className="mr-1 text-[10px] uppercase text-text-tertiary lg:hidden">Hoàn thành</span>
-                        {challenge.end_date ? `${entry.total_checkins}/${challengeTotalDays} ngày` : `${entry.total_checkins} ngày`}
+                        {entry.total_checkins}/{entry.eligible_days} ngày{entry.joined_late ? ' *' : ''}
                       </p>
                       <p className="col-start-2 inline-flex items-center gap-1 text-sm font-black text-warning lg:col-start-auto">
                         <Flame className="h-4 w-4" />
@@ -603,7 +667,7 @@ export default function ChallengeDetails() {
                       {days.map((day) => (
                         <div key={day.dateKey} className="text-center">
                           <p className="mb-1 text-[9px] font-black text-text-tertiary">{day.label.replace('Ngày ', 'N')}</p>
-                          <StatusMark compact state={getDayState(day.dateKey, checkedDates)} />
+                          <StatusMark compact state={getDayState(day.dateKey, checkedDates, participant.eligible_start_date)} />
                         </div>
                       ))}
                     </div>
@@ -642,7 +706,7 @@ export default function ChallengeDetails() {
                         </td>
                         {days.map((day) => (
                           <td key={day.dateKey} className="px-3 py-3 text-center">
-                            <StatusMark compact state={getDayState(day.dateKey, checkedDates)} />
+                            <StatusMark compact state={getDayState(day.dateKey, checkedDates, participant.eligible_start_date)} />
                           </td>
                         ))}
                       </tr>
@@ -656,7 +720,7 @@ export default function ChallengeDetails() {
       ) : (
         <section className="rounded-2xl border border-border-primary bg-bg-secondary/80 p-5 md:p-6">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-accent">
-            {challenge.end_date ? `Hành trình ${challengeTotalDays} ngày` : 'Hành trình không giới hạn'}
+            {challenge.end_date ? `Hành trình ${plannedTotalDays} ngày` : 'Hành trình không giới hạn'}
           </p>
           <h2 className="mt-1 text-xl font-black text-text-primary">Một hành động lành mạnh là đủ</h2>
           <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-7">
@@ -702,7 +766,7 @@ export default function ChallengeDetails() {
             ))}
           </div>
           <p className="border-t border-border-primary px-5 py-3 text-xs font-semibold text-text-tertiary md:px-6">
-            Bỏ lỡ một ngày sẽ ngắt chuỗi hiện tại nhưng không trừ số điểm bạn đã kiếm được.
+            Xếp hạng theo tổng điểm tích lũy. * Thành viên tham gia muộn có tỷ lệ hoàn thành tính từ ngày vào nhóm; họ không bị tính các ngày trước đó. Bỏ lỡ một ngày sẽ ngắt chuỗi nhưng không trừ điểm đã kiếm được.
           </p>
         </div>
 
@@ -717,8 +781,10 @@ export default function ChallengeDetails() {
               ? 'Thử thách này chưa được cấu hình huy hiệu phần thưởng.'
               : rewardEarned
               ? 'Huy hiệu đã được mở khóa và lưu trong bộ sưu tập thử thách của bạn.'
+              : challenge.status === 'cancelled'
+                ? 'Thử thách đã hủy nên huy hiệu không được mở khóa.'
               : challenge.end_date
-                ? `Hoàn thành ${challengeTotalDays} ngày để mở khóa huy hiệu này.`
+                ? `Hoàn thành ${plannedTotalDays} ngày để mở khóa huy hiệu này.`
                 : 'Duy trì thử thách để tiến gần hơn đến huy hiệu này.'}
           </p>
           <div className="mt-5 flex items-center justify-between rounded-xl border border-border-primary bg-bg-tertiary/55 p-3">

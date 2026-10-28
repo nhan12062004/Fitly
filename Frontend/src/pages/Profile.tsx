@@ -1,4 +1,3 @@
-import { AdminMfaPanel } from '../components/AdminMfaPanel';
 import {
   useEffect,
   useMemo,
@@ -79,6 +78,7 @@ const emptyForm = {
   weight: '',
   target_weight: '',
   body_fat: '',
+  waist: '',
   health_condition: '',
   injuries: '',
   allergies: '',
@@ -336,6 +336,7 @@ function buildProfileForm(profile: any, details: ProfileDetails | null, lifestyl
     weight: toInput(b.weight),
     target_weight: toInput(b.target_weight),
     body_fat: toInput(b.body_fat || b.body_fat_percentage),
+    waist: toInput(b.waist),
     health_condition: h.health_condition || '',
     injuries: h.injuries || '',
     allergies: Array.isArray(h.allergies) && h.allergies.length > 0 ? h.allergies.join(', ') : h.medical_history || '',
@@ -653,6 +654,7 @@ export default function Profile() {
           weight: parseNumberOrNull(formData.weight),
           target_weight: parseNumberOrNull(formData.target_weight),
           body_fat: parseNumberOrNull(formData.body_fat),
+          waist: parseNumberOrNull(formData.waist),
         }),
         supabase.from('health_conditions').upsert({
           user_id: user.id,
@@ -765,6 +767,7 @@ export default function Profile() {
               <ProfileField label="Cân nặng hiện tại" name="weight" value={formData.weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.weight, 'kg')} icon={<Scale className="h-4 w-4" />} />
               <ProfileField label="Cân nặng mục tiêu" name="target_weight" value={formData.target_weight} onChange={handleChange} editing type="number" suffix="kg" viewValue={formatMetric(formData.target_weight, 'kg')} icon={<BadgeCheck className="h-4 w-4" />} />
               <ProfileField label="Body fat" name="body_fat" value={formData.body_fat} onChange={handleChange} editing type="number" suffix="%" viewValue={formatMetric(formData.body_fat, '%')} icon={<Activity className="h-4 w-4" />} />
+              <ProfileField label="Vòng eo" name="waist" value={formData.waist} onChange={handleChange} editing type="number" suffix="cm" viewValue={formatMetric(formData.waist, 'cm')} icon={<Ruler className="h-4 w-4" />} />
             </div>
           </section>
         </div>
@@ -1280,11 +1283,21 @@ export default function Profile() {
         </div>
       </section>
 
-      {user?.app_metadata?.role === 'admin' && <AdminMfaPanel />}
-      <button type="button" disabled={isExporting} onClick={() => void exportPersonalData()}
-        className="inline-flex h-12 w-full items-center justify-center rounded-xl border border-border-primary text-sm font-bold disabled:opacity-50">
-        {isExporting ? 'Đang chuẩn bị dữ liệu…' : 'Tải dữ liệu cá nhân của tôi (JSON)'}
-      </button>
+      <details className="group rounded-2xl border border-border-primary bg-bg-secondary shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 p-4 text-base font-black text-text-primary md:px-5">
+          Quyền riêng tư & dữ liệu
+          <ChevronRight className="h-4 w-4 text-text-tertiary transition-transform group-open:rotate-90" />
+        </summary>
+        <div className="border-t border-border-primary px-4 pb-5 pt-4 md:px-5">
+          <p className="text-sm font-semibold leading-6 text-text-secondary">
+            Tải bản sao dữ liệu hồ sơ, sức khỏe và hoạt động của bạn. Tệp JSON phù hợp để lưu trữ hoặc xử lý bằng công cụ; hiện chưa thể nhập lại vào Fitly.
+          </p>
+          <button type="button" disabled={isExporting} onClick={() => void exportPersonalData()}
+            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-border-primary bg-bg-tertiary px-4 text-sm font-bold text-text-primary transition-colors hover:border-accent/40 disabled:opacity-50">
+            {isExporting ? 'Đang chuẩn bị dữ liệu…' : 'Tải dữ liệu cá nhân (JSON)'}
+          </button>
+        </div>
+      </details>
 
       <button
         type="button"
