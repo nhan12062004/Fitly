@@ -1,143 +1,97 @@
 <div align="center">
-  <img src="Frontend/public/logo.svg" alt="Fitly logo" width="112" />
+  <img src="Mobile/assets/images/fitly-mark.svg" alt="Biểu trưng Fitly" width="112" height="112" />
 
   <h1>Fitly</h1>
-
-  <p>
-    <strong>AI fitness coach giúp người dùng biết hôm nay nên tập gì, ăn gì và điều chỉnh kế hoạch ra sao.</strong>
-  </p>
-
-  <p>
-    <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=0B1220" />
-    <img alt="Vite" src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" />
-    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
-    <img alt="Supabase" src="https://img.shields.io/badge/Supabase-Postgres-3FCF8E?style=for-the-badge&logo=supabase&logoColor=0B1220" />
-    <img alt="Node.js" src="https://img.shields.io/badge/Node.js-Express-339933?style=for-the-badge&logo=node.js&logoColor=white" />
-  </p>
+  <p>Lập kế hoạch tập luyện, ăn uống và theo dõi tiến độ cùng AI Coach.</p>
 </div>
 
-## Tổng Quan
+## Giới thiệu
 
-Fitly là web app hỗ trợ xây dựng thói quen tập luyện và dinh dưỡng cá nhân hóa. Người dùng có thể xem kế hoạch trong ngày, theo dõi tiến độ, nhận nhắc nhở và trò chuyện với AI Coach để đổi bài tập hoặc thực đơn khi cần.
+Fitly là ứng dụng tập luyện và dinh dưỡng có phiên bản web và ứng dụng di động. Người dùng có thể xem kế hoạch trong ngày, ghi nhận hoạt động, theo dõi thói quen và trao đổi với AI Coach. Hệ thống dùng Supabase cho đăng nhập và dữ liệu, cùng Express API cho các tác vụ nghiệp vụ và AI.
 
-Điểm khác biệt của Fitly là AI không tự ý sửa dữ liệu. AI chỉ tạo đề xuất có cấu trúc, sau đó người dùng chọn áp dụng hoặc từ chối.
+## Tính năng
 
-## Tính Năng
-
-| Module | Mô tả |
+| Nhóm | Khả năng chính |
 | --- | --- |
-| <img src="Frontend/public/logo.svg" width="24" alt="" /> **AI Coach** | Chat theo ngữ cảnh, phân tích tiến độ, đề xuất đổi workout hoặc meal plan. |
-| **Workout** | Lịch tập theo tuần, buổi tập hằng ngày, tracking sets/reps/weight/rest. |
-| **Diet Plan** | Thực đơn theo bữa, calories, protein, carbs, fat và food catalog bằng `food_id`. |
-| **Progress** | Theo dõi chỉ số cơ thể, nước uống, giấc ngủ, calories và lịch sử tập luyện. |
-| **Admin Panel** | Quản lý users, exercises và foods. |
+| Tập luyện | Lập lịch tập, xem hướng dẫn bài tập, ghi từng set và theo dõi buổi tập. |
+| Dinh dưỡng | Xem thực đơn, công thức, năng lượng và các chỉ số dinh dưỡng. |
+| AI Coach | Trò chuyện theo ngữ cảnh và xem đề xuất điều chỉnh kế hoạch trước khi áp dụng. |
+| Tiến độ | Theo dõi chỉ số cơ thể, lượng nước, giấc ngủ và lịch sử hoạt động. |
+| Thử thách | Tạo hoặc tham gia thử thách cá nhân, nhóm và theo dõi ngày hoàn thành. |
+| Tài khoản | Quản lý hồ sơ, thông báo, quyền riêng tư và gói thành viên. |
+| Quản trị web | Quản lý người dùng, danh mục bài tập, món ăn và phản hồi. |
 
-## Tech Stack
+## Công nghệ và cấu trúc
 
-| Frontend | Backend | Database & Infra |
+| Thành phần | Công nghệ chính | Thư mục |
 | --- | --- | --- |
-| React | Node.js | Supabase Postgres |
-| Vite | Express | Supabase Auth |
-| TypeScript | TypeScript | SQL migrations |
-| Tailwind CSS | Groq / Gemini | Vercel / Render-ready |
-| React Router | AI services | Cron jobs |
+| Web | React, Vite, TypeScript, Tailwind CSS | [`Frontend/`](Frontend/) |
+| Di động | Expo, React Native, TypeScript | [`Mobile/`](Mobile/) |
+| API | Node.js, Express, TypeScript, Groq | [`Backend/`](Backend/) |
+| Dữ liệu và xác thực | Supabase Postgres, Auth, Storage, SQL migrations | [`supabase/`](supabase/) |
+| Mã dùng chung | Các kiểu dữ liệu và tiện ích dùng chung | [`shared/`](shared/) |
 
-## Cấu Trúc
+## Chạy trên máy cá nhân
 
-```text
-Fitly/
-|-- Frontend/              # React + Vite app
-|-- Backend/               # Express API and AI services
-|-- docs/                  # Schema snapshot và tài liệu kỹ thuật
-|-- supabase/migrations/   # Database migrations
-`-- README.md
-```
+Cần Node.js **22.22.0 trở lên**, npm và một dự án Supabase đã áp dụng các migration trong [`supabase/migrations/`](supabase/migrations/). Dùng URL và khóa của đúng dự án Supabase; URL phải truy cập được từ trình duyệt hoặc thiết bị chạy ứng dụng.
 
-## Chạy Local
+### Web
 
 ```bash
+cp -n Frontend/.env.example Frontend/.env
 cd Frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Frontend: `http://localhost:3000`
+Trước khi chạy, điền `VITE_SUPABASE_URL` và `VITE_SUPABASE_ANON_KEY` trong `Frontend/.env`. Web mở tại `http://localhost:3000`. Ở chế độ phát triển, Vite chuyển tiếp `/api` đến `VITE_API_URL` trong file này; đặt nó thành URL backend đang chạy, chẳng hạn `http://localhost:5001` nếu chạy API trên máy. Khởi động lại Vite sau khi đổi biến môi trường.
 
-Web local sử dụng backend đã triển khai trên Render. Đặt
-`VITE_API_URL=https://trendfit.onrender.com` trong `Frontend/.env`; Vite chuyển tiếp
-các yêu cầu `/api` đến địa chỉ này. Không cần chạy backend local khi dùng Render.
-
-Chỉ đặt `VITE_API_URL=http://localhost:5001` khi muốn phát triển backend local;
-khi đó cần cấu hình `Backend/.env` và chạy `npm run dev` trong thư mục `Backend`
-trước khi mở web. Khởi động lại Vite sau khi thay đổi cấu hình API.
-
-<details>
-<summary><strong>Biến môi trường chính</strong></summary>
-
-Frontend `.env`:
-
-```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
-VITE_API_URL=https://trendfit.onrender.com
-```
-
-Backend `.env`:
-
-```env
-FRONTEND_URL=https://trend-fit.vercel.app
-
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-
-GROQ_API_KEY=
-GROQ_MODEL=
-
-CRON_SECRET=
-AI_ACTION_FLOW_ENABLED=true
-PREMIUM_AUTO_PLAN_ENABLED=true
-```
-
-</details>
-
-<details>
-<summary><strong>Scripts</strong></summary>
-
-Frontend:
+### API
 
 ```bash
+cp -n Backend/.env.example Backend/.env
+cd Backend
+npm ci
 npm run dev
-npm run build
-npm run preview
-npm run lint
 ```
 
-Backend:
+Điền ít nhất `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` và `FRONTEND_URL` trong `Backend/.env`. Cấu hình `GROQ_API_KEY` để sử dụng AI Coach. API mặc định lắng nghe tại `http://localhost:5001`.
+
+### Di động
 
 ```bash
+cp -n Mobile/.env.example Mobile/.env
+cd Mobile
+npm ci
 npm run start
-npm run db:migration:list
-npm run db:push
-npm run exercises:validate -- --file catalog/exercise-catalog.template.json
-npm run exercises:upsert -- --file path/to/exercises.json
-npm run exercises:upsert -- --file catalog/exercise-catalog.template.json --allow-empty
-npm run recipes:validate -- --file catalog/recipe-catalog.template.json
-npm run recipes:upsert -- --file path/to/recipes.json --dry-run
-npm run recipes:verify
 ```
 
-The official 100-exercise SQL seed is [supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql](supabase/seeds/fitly_exercise_catalog_100_easy_medium_hard.sql). Its taxonomy is `easy` (Dễ), `medium` (Trung bình), and `hard` (Khó); `min_experience_months` remains the hard eligibility rule.
+Điền `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` và `EXPO_PUBLIC_API_URL` trong `Mobile/.env`. Nếu chạy trên điện thoại thật, `EXPO_PUBLIC_API_URL` phải là địa chỉ mà điện thoại truy cập được; `localhost` trên điện thoại không trỏ tới máy phát triển. Các khóa RevenueCat trong file mẫu chỉ cần khi kiểm thử chức năng mua gói.
 
-`exercises:upsert` rejects an empty catalog by default. Use `--allow-empty` only when an explicit no-op import is intended.
+> Các biến `VITE_*` và `EXPO_PUBLIC_*` được đưa vào ứng dụng phía người dùng. Chỉ dùng khóa công khai ở đó; giữ `SUPABASE_SERVICE_ROLE_KEY` và `GROQ_API_KEY` trong backend. Khi thay đổi biến môi trường của bản web trên Vercel, cần triển khai lại để bản build nhận giá trị mới.
 
-</details>
+## Kiểm tra
 
-Exercise catalog validation and import details are in [docs/exercise-catalog-design.md](docs/exercise-catalog-design.md).
+```bash
+(cd Frontend && npm run lint && npm run build)
+(cd Backend && npm run typecheck && npm test)
+(cd Mobile && npm run typecheck && npm run lint && npm run check:release)
+```
 
-Recipe catalog validation/import details are in [docs/recipe-catalog-design.md](docs/recipe-catalog-design.md). The recipe template is intentionally empty; it does not seed or import production data.
+CI còn chạy kiểm tra quyền dữ liệu và tích hợp với Supabase cô lập. Để chạy bài kiểm tra RLS trên máy, cần Supabase CLI và Docker:
 
-## Ghi Chú
+```bash
+supabase start
+supabase test db --local supabase/tests/rls_ownership_test.sql
+supabase stop --no-backup
+```
 
-Quy trình triển khai bảo mật, migration, MFA quản trị, background jobs và đo tải staging được ghi trong [bản bàn giao production hardening](docs/hardening-release-2026-10-26.md).
+## Tài liệu liên quan
 
-Fitly là công cụ hỗ trợ tập luyện và dinh dưỡng, không thay thế tư vấn y tế chuyên môn. Không commit `.env` hoặc secret lên GitHub.
+- [Quy tắc danh mục bài tập](shared/exerciseCatalog.ts) và [công thức](shared/recipeCatalog.ts).
+- [Sơ đồ dữ liệu](docs/database_schema.md) và [migration khởi tạo](supabase/migrations/20260728000000_schema_baseline.sql).
+- [Vận hành API và background jobs](docs/OPERATIONS.md).
+- [Hợp đồng API cho ứng dụng di động](docs/mobile-api-contract.md).
+- [Quy trình triển khai và bảo mật](docs/hardening-release-2026-10-26.md).
+
+Fitly hỗ trợ theo dõi tập luyện và dinh dưỡng; ứng dụng không thay thế tư vấn y tế chuyên môn.
