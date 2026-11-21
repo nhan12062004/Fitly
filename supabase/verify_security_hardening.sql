@@ -47,13 +47,13 @@ with checks as (
   union all
 
   select
-    'challenge client RPC remains signed-in only',
+    'challenge check-in RPC is not client-callable',
     not has_function_privilege(
       'anon',
       'public.sync_challenge_checkin(text,uuid,jsonb)',
       'EXECUTE'
     )
-    and has_function_privilege(
+    and not has_function_privilege(
       'authenticated',
       'public.sync_challenge_checkin(text,uuid,jsonb)',
       'EXECUTE'
